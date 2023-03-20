@@ -1,7 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="dev.chungjungsoo.gptmobile.gpt_mobile">
+    package="dev.chungjungsoo.gptmobile">
    <application
-        android:label="gpt_mobile"
+        android:label="GPT Mobile"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

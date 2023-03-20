@@ -1,4 +1,4 @@
-package dev.chungjungsoo.gptmobile.gpt_mobile
+package dev.chungjungsoo.gptmobile
 
 import io.flutter.embedding.android.FlutterActivity
 
