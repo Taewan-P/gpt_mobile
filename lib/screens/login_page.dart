@@ -28,11 +28,11 @@ class LoginPage extends StatelessWidget {
               alignment: Alignment.topCenter,
               children: [
                 backgroundSection(height),
-                logoSection(width),
+                logoSection(width, height),
               ],
             ),
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -83,9 +83,9 @@ class LoginPage extends StatelessWidget {
         ));
   }
 
-  Widget logoSection(double width) {
+  Widget logoSection(double width, double height) {
     return Container(
-      padding: const EdgeInsets.only(top: 50),
+      padding: EdgeInsets.only(top: height * 0.06),
       child: SvgPicture.asset(
         'assets/app_logo_no_bg.svg',
         width: width * 0.5,
