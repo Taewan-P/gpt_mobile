@@ -10,32 +10,53 @@ class ApiKeyInput extends StatefulWidget {
 }
 
 class _ApiKeyInputState extends State<ApiKeyInput> {
+  late FocusNode focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    focusNode = FocusNode();
+  }
+
+  @override
+  void dispose() {
+    focusNode.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        iconTheme: const IconThemeData(size: 28),
-      ),
-      backgroundColor: lightColorScheme.surface,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // const Spacer(),
-              apiKeyTitle(),
-              // const SizedBox(
-              //   height: 20,
-              // ),
-              apiKeyDescription(),
-              // const SizedBox(
-              //   height: 20,
-              // ),
-              openaiTextField(),
-              claudTextField(),
-              bardTextField(),
-            ],
+    return GestureDetector(
+      onTap: () {
+        FocusScope.of(context).unfocus();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          iconTheme: const IconThemeData(size: 28),
+        ),
+        backgroundColor: lightColorScheme.surface,
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // const Spacer(),
+                apiKeyTitle(),
+                // const SizedBox(
+                //   height: 20,
+                // ),
+                apiKeyDescription(),
+                const SizedBox(
+                  height: 20,
+                ),
+                openaiTextField(),
+                claudTextField(),
+                bardTextField(),
+                const Spacer(),
+                nextButton(),
+              ],
+            ),
           ),
         ),
       ),
@@ -45,7 +66,7 @@ class _ApiKeyInputState extends State<ApiKeyInput> {
   Widget apiKeyTitle() {
     return const Text(
       'Enter API Key',
-      style: titleLarge,
+      style: displayMedium,
     );
   }
 
@@ -57,17 +78,37 @@ class _ApiKeyInputState extends State<ApiKeyInput> {
   }
 
   Widget openaiTextField() {
-    return TextField(
+    var controller = TextEditingController();
+    return TextFormField(
+      focusNode: focusNode,
+      controller: controller,
       decoration: InputDecoration(
+        floatingLabelBehavior: FloatingLabelBehavior.always,
         enabledBorder: OutlineInputBorder(
           borderSide: BorderSide(
             color: lightColorScheme.outline,
           ),
         ),
+        focusedBorder: OutlineInputBorder(
+          borderSide: BorderSide(
+            color: lightColorScheme.primary,
+          ),
+        ),
         helperText: 'Need Help?',
-        labelText: 'Enter Key Here',
-        suffixIcon: const Icon(
-          Icons.close,
+        labelText: 'OpenAI API Key',
+        hintText: "Enter key here",
+        labelStyle: TextStyle(
+          fontSize:
+              focusNode.hasFocus ? titleMedium.fontSize : titleLarge.fontSize,
+          color: lightColorScheme.onPrimaryContainer,
+        ),
+        suffixIcon: IconButton(
+          icon: const Icon(
+            Icons.highlight_off,
+          ),
+          onPressed: () {
+            controller.clear();
+          },
         ),
       ),
     );
@@ -79,5 +120,36 @@ class _ApiKeyInputState extends State<ApiKeyInput> {
 
   Widget bardTextField() {
     return Container();
+  }
+
+  Widget nextButton() {
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: SizedBox(
+        width: double.maxFinite,
+        child: ElevatedButton(
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const ApiKeyInput(),
+            ),
+          ),
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(
+              vertical: 16,
+            ),
+            backgroundColor: lightColorScheme.primary,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          child: const Text(
+            'Next',
+            style: titleMedium,
+          ),
+        ),
+      ),
+    );
   }
 }
