@@ -16,6 +16,7 @@ class _PlatformSetupState extends State<PlatformSetup> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         iconTheme: const IconThemeData(size: 28),
       ),
@@ -26,7 +27,6 @@ class _PlatformSetupState extends State<PlatformSetup> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Spacer(),
               getStartedTitle(),
               const SizedBox(
                 height: 20,
@@ -64,91 +64,49 @@ class _PlatformSetupState extends State<PlatformSetup> {
   Widget platformSelectionList() {
     return Column(
       children: [
-        Row(
-          children: [
-            Checkbox(
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(2)),
-                activeColor: lightColorScheme.primary,
-                value: _isChecked['openai'],
-                onChanged: (value) {
-                  setState(() {
-                    _isChecked['openai'] = value!;
-                  });
-                }),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'OpenAI',
-                  style: titleMedium,
-                ),
-                Text(
-                  'Creator of ChatGPT',
-                  style: TextStyle(
-                    color: lightColorScheme.onSurfaceVariant,
-                  ).merge(bodyLarge),
-                ),
-              ],
-            )
-          ],
-        ),
-        const SizedBox(
-          height: 20,
-        ),
-        Row(
-          children: [
-            Checkbox(
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(2)),
-                activeColor: lightColorScheme.primary,
-                value: _isChecked['anthropic'],
-                onChanged: null),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Anthropic',
-                  style: titleMedium,
-                ),
-                Text(
-                  'Claude was born here.',
-                  style: TextStyle(
-                    color: lightColorScheme.onSurfaceVariant,
-                  ).merge(bodyLarge),
-                ),
-              ],
-            )
-          ],
-        ),
-        const SizedBox(
-          height: 20,
-        ),
-        Row(
-          children: [
-            Checkbox(
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(2)),
-                activeColor: lightColorScheme.primary,
-                value: _isChecked['google'],
-                onChanged: null),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Google',
-                  style: titleMedium,
-                ),
-                Text(
-                  'Bard is on its way.',
-                  style: TextStyle(
-                    color: lightColorScheme.onSurfaceVariant,
-                  ).merge(bodyLarge),
-                ),
-              ],
-            )
-          ],
-        ),
+        CheckboxListTile(
+            title: const Text('OpenAI', style: titleMedium),
+            subtitle: const Text(
+              'Creator of ChatGPT',
+              style: bodyLarge,
+            ),
+            value: _isChecked['openai'],
+            checkColor: Colors.white,
+            activeColor: lightColorScheme.primary,
+            checkboxShape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
+            controlAffinity: ListTileControlAffinity.leading,
+            onChanged: (value) {
+              setState(() {
+                _isChecked['openai'] = value!;
+              });
+            }),
+        CheckboxListTile(
+            title: const Text('Anthropic', style: titleMedium),
+            subtitle: const Text(
+              'Claude was born here.',
+              style: bodyLarge,
+            ),
+            value: _isChecked['anthropic'],
+            checkColor: Colors.white,
+            activeColor: lightColorScheme.primary,
+            checkboxShape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
+            controlAffinity: ListTileControlAffinity.leading,
+            onChanged: null),
+        CheckboxListTile(
+            title: const Text('Google', style: titleMedium),
+            subtitle: const Text(
+              'Bard is on its way.',
+              style: bodyLarge,
+            ),
+            value: _isChecked['google'],
+            checkColor: Colors.white,
+            activeColor: lightColorScheme.primary,
+            checkboxShape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
+            controlAffinity: ListTileControlAffinity.leading,
+            onChanged: null),
       ],
     );
   }
