@@ -12,7 +12,7 @@ class PlatformSetup extends StatefulWidget {
 }
 
 class _PlatformSetupState extends State<PlatformSetup> {
-  final List<bool> _isChecked = [false, false, false];
+  final Map _isChecked = {'openai': true, 'anthropic': false, 'google': false};
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -22,7 +22,7 @@ class _PlatformSetupState extends State<PlatformSetup> {
       backgroundColor: lightColorScheme.surface,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -37,7 +37,7 @@ class _PlatformSetupState extends State<PlatformSetup> {
               ),
               platformSelectionList(),
               const Spacer(
-                flex: 3,
+                flex: 4,
               ),
               nextButton(),
             ],
@@ -50,13 +50,13 @@ class _PlatformSetupState extends State<PlatformSetup> {
   Widget getStartedTitle() {
     return const Text(
       'Get Started',
-      style: titleLarge,
+      style: displayMedium,
     );
   }
 
   Widget getStartedDescription() {
     return const Text(
-      'Choose the platform you want to use. You can change this later in settings. More platforms to be supported.',
+      'Choose the platform you want to use.\nYou can change this later in settings. More platforms to be supported.',
       style: bodyLarge,
     );
   }
@@ -70,10 +70,10 @@ class _PlatformSetupState extends State<PlatformSetup> {
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(2)),
                 activeColor: lightColorScheme.primary,
-                value: _isChecked[0],
+                value: _isChecked['openai'],
                 onChanged: (value) {
                   setState(() {
-                    _isChecked[0] = value!;
+                    _isChecked['openai'] = value!;
                   });
                 }),
             Column(
@@ -81,7 +81,7 @@ class _PlatformSetupState extends State<PlatformSetup> {
               children: [
                 const Text(
                   'OpenAI',
-                  style: bodyLarge,
+                  style: titleMedium,
                 ),
                 Text(
                   'Creator of ChatGPT',
@@ -102,18 +102,14 @@ class _PlatformSetupState extends State<PlatformSetup> {
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(2)),
                 activeColor: lightColorScheme.primary,
-                value: _isChecked[1],
-                onChanged: (value) {
-                  setState(() {
-                    _isChecked[1] = value!;
-                  });
-                }),
+                value: _isChecked['anthropic'],
+                onChanged: null),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
                   'Anthropic',
-                  style: bodyLarge,
+                  style: titleMedium,
                 ),
                 Text(
                   'Claude was born here.',
@@ -134,18 +130,14 @@ class _PlatformSetupState extends State<PlatformSetup> {
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(2)),
                 activeColor: lightColorScheme.primary,
-                value: _isChecked[2],
-                onChanged: (value) {
-                  setState(() {
-                    _isChecked[2] = value!;
-                  });
-                }),
+                value: _isChecked['google'],
+                onChanged: null),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
                   'Google',
-                  style: bodyLarge,
+                  style: titleMedium,
                 ),
                 Text(
                   'Bard is on its way.',
