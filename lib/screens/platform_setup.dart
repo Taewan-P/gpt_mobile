@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'package:gpt_mobile/screens/apikey_input.dart';
 import 'package:gpt_mobile/styles/color_schemes.g.dart';
-
 import 'package:gpt_mobile/styles/text_styles.dart';
 
 class PlatformSetup extends StatefulWidget {
@@ -12,14 +15,63 @@ class PlatformSetup extends StatefulWidget {
 }
 
 class _PlatformSetupState extends State<PlatformSetup> {
-  final Map _isChecked = {'openai': true, 'anthropic': false, 'google': false};
+  final Map<String, bool> _isChecked = {
+    'openai': true,
+    'anthropic': false,
+    'google': false,
+  };
+  bool _isButtonDisabled = true;
+
+  _fetchCheckStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    var openai = prefs.getBool('openai') ?? true;
+    var anthropic = prefs.getBool('anthropic') ?? false;
+    var google = prefs.getBool('google') ?? false;
+
+    return {'openai': openai, 'anthropic': anthropic, 'google': google};
+  }
+
+  void updateCheckedStatus() async {
+    var checked = await _fetchCheckStatus();
+    setState(() {
+      _isChecked['openai'] = checked['openai'];
+      _isChecked['anthropic'] = checked['anthropic'];
+      _isChecked['google'] = checked['google'];
+    });
+  }
+
+  bool buttonShouldDisable() {
+    return _isChecked['openai'] == false &&
+        _isChecked['anthropic'] == false &&
+        _isChecked['google'] == false;
+  }
+
+  void enableButton() {
+    setState(() {
+      _isButtonDisabled = false;
+    });
+  }
+
+  void disableButton() {
+    setState(() {
+      _isButtonDisabled = true;
+    });
+  }
+
+  @override
+  void initState() {
+    updateCheckedStatus();
+    super.initState();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
-        iconTheme: const IconThemeData(size: 28),
-      ),
+          iconTheme: const IconThemeData(size: 28),
+          backgroundColor: lightColorScheme.surface,
+          surfaceTintColor: Colors.transparent),
       backgroundColor: lightColorScheme.surface,
       body: SafeArea(
         child: Padding(
@@ -47,6 +99,15 @@ class _PlatformSetupState extends State<PlatformSetup> {
     );
   }
 
+  static Future<bool> saveCheckedStatus(Map checked) async {
+    final prefs = await SharedPreferences.getInstance();
+    var a = await prefs.setBool('openai', checked['openai']);
+    var b = await prefs.setBool('anthropic', checked['anthropic']);
+    var c = await prefs.setBool('google', checked['google']);
+
+    return a && b && c;
+  }
+
   Widget getStartedTitle() {
     return const Text(
       'Get Started',
@@ -62,6 +123,11 @@ class _PlatformSetupState extends State<PlatformSetup> {
   }
 
   Widget platformSelectionList() {
+    if (buttonShouldDisable()) {
+      disableButton();
+    } else {
+      enableButton();
+    }
     return Column(
       children: [
         CheckboxListTile(
@@ -117,12 +183,18 @@ class _PlatformSetupState extends State<PlatformSetup> {
       child: SizedBox(
         width: double.maxFinite,
         child: ElevatedButton(
-          onPressed: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const ApiKeyInput(),
-            ),
-          ),
+          onPressed: _isButtonDisabled
+              ? null
+              : () async {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ApiKeyInput(),
+                    ),
+                  );
+                  var result = await saveCheckedStatus(_isChecked);
+                  print(result);
+                },
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(
               vertical: 16,
