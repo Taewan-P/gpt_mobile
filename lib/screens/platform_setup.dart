@@ -29,11 +29,11 @@ class _PlatformSetupState extends State<PlatformSetup> {
             children: [
               getStartedTitle(),
               const SizedBox(
-                height: 20,
+                height: 24,
               ),
               getStartedDescription(),
               const SizedBox(
-                height: 20,
+                height: 24,
               ),
               platformSelectionList(),
               const Spacer(
