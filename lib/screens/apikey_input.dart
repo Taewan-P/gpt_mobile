@@ -10,52 +10,72 @@ class ApiKeyInput extends StatefulWidget {
 }
 
 class _ApiKeyInputState extends State<ApiKeyInput> {
-  late FocusNode focusNode;
+  final openaiFocusScopeNode = FocusScopeNode();
+  final claudFocusScopeNode = FocusScopeNode();
+  final bardFocusScopeNode = FocusScopeNode();
 
-  @override
-  void initState() {
-    super.initState();
-    focusNode = FocusNode();
-  }
+  final openaiController = TextEditingController();
+  final claudController = TextEditingController();
+  final bardController = TextEditingController();
 
   @override
   void dispose() {
-    focusNode.dispose();
+    openaiFocusScopeNode.dispose();
+    claudFocusScopeNode.dispose();
+    bardFocusScopeNode.dispose();
+
     super.dispose();
+  }
+
+  void disableAllFocusNodes() {
+    openaiFocusScopeNode.unfocus();
+    claudFocusScopeNode.unfocus();
+    bardFocusScopeNode.unfocus();
   }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        FocusScope.of(context).unfocus();
-      },
-      child: Scaffold(
-        appBar: AppBar(
+    double height = MediaQuery.of(context).size.height -
+        (MediaQuery.of(context).padding.top +
+            kBottomNavigationBarHeight +
+            kToolbarHeight);
+    return Scaffold(
+      appBar: AppBar(
           iconTheme: const IconThemeData(size: 28),
-        ),
-        backgroundColor: lightColorScheme.surface,
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // const Spacer(),
-                apiKeyTitle(),
-                // const SizedBox(
-                //   height: 20,
-                // ),
-                apiKeyDescription(),
-                const SizedBox(
-                  height: 20,
-                ),
-                openaiTextField(),
-                claudTextField(),
-                bardTextField(),
-                const Spacer(),
-                nextButton(),
-              ],
+          backgroundColor: lightColorScheme.surface,
+          surfaceTintColor: Colors.transparent),
+      backgroundColor: lightColorScheme.surface,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: SingleChildScrollView(
+            child: SizedBox(
+              height: height,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // const Spacer(),
+                  apiKeyTitle(),
+                  // const SizedBox(
+                  //   height: 20,
+                  // ),
+                  apiKeyDescription(),
+                  const SizedBox(
+                    height: 24,
+                  ),
+                  openaiTextField(),
+                  const SizedBox(
+                    height: 24,
+                  ),
+                  anthropicTextField(),
+                  const SizedBox(
+                    height: 24,
+                  ),
+                  googleTextField(),
+                  const Spacer(),
+                  nextButton(),
+                ],
+              ),
             ),
           ),
         ),
@@ -78,48 +98,145 @@ class _ApiKeyInputState extends State<ApiKeyInput> {
   }
 
   Widget openaiTextField() {
-    var controller = TextEditingController();
-    return TextFormField(
-      focusNode: focusNode,
-      controller: controller,
-      decoration: InputDecoration(
-        floatingLabelBehavior: FloatingLabelBehavior.always,
-        enabledBorder: OutlineInputBorder(
-          borderSide: BorderSide(
-            color: lightColorScheme.outline,
+    return FocusScope(
+        onFocusChange: (hasFocus) {
+          if (hasFocus) {
+            openaiFocusScopeNode.requestFocus();
+          }
+          claudFocusScopeNode.unfocus();
+          bardFocusScopeNode.unfocus();
+        },
+        node: openaiFocusScopeNode,
+        child: TextFormField(
+          autofocus: true,
+          onFieldSubmitted: (value) => disableAllFocusNodes(),
+          onTapOutside: (event) => {disableAllFocusNodes()},
+          controller: openaiController,
+          decoration: InputDecoration(
+            floatingLabelBehavior: FloatingLabelBehavior.always,
+            enabledBorder: OutlineInputBorder(
+              borderSide: BorderSide(
+                color: lightColorScheme.outline,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderSide: BorderSide(
+                color: lightColorScheme.primary,
+              ),
+            ),
+            helperText: 'Need Help?',
+            labelText: 'OpenAI API Key',
+            hintText: "Enter key here",
+            labelStyle: TextStyle(
+              fontSize: openaiFocusScopeNode.hasFocus
+                  ? titleMedium.fontSize
+                  : titleLarge.fontSize,
+              color: lightColorScheme.onPrimaryContainer,
+            ),
+            suffixIcon: IconButton(
+              icon: const Icon(
+                Icons.highlight_off,
+              ),
+              onPressed: () {
+                openaiController.clear();
+              },
+            ),
           ),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderSide: BorderSide(
-            color: lightColorScheme.primary,
-          ),
-        ),
-        helperText: 'Need Help?',
-        labelText: 'OpenAI API Key',
-        hintText: "Enter key here",
-        labelStyle: TextStyle(
-          fontSize:
-              focusNode.hasFocus ? titleMedium.fontSize : titleLarge.fontSize,
-          color: lightColorScheme.onPrimaryContainer,
-        ),
-        suffixIcon: IconButton(
-          icon: const Icon(
-            Icons.highlight_off,
-          ),
-          onPressed: () {
-            controller.clear();
-          },
-        ),
-      ),
-    );
+        ));
   }
 
-  Widget claudTextField() {
-    return Container();
+  Widget anthropicTextField() {
+    return FocusScope(
+        node: claudFocusScopeNode,
+        onFocusChange: (hasFocus) {
+          if (hasFocus) {
+            claudFocusScopeNode.requestFocus();
+          }
+          openaiFocusScopeNode.unfocus();
+          bardFocusScopeNode.unfocus();
+        },
+        child: TextFormField(
+          onFieldSubmitted: (value) => disableAllFocusNodes(),
+          onTapOutside: (event) => disableAllFocusNodes(),
+          controller: claudController,
+          decoration: InputDecoration(
+            floatingLabelBehavior: FloatingLabelBehavior.always,
+            enabledBorder: OutlineInputBorder(
+              borderSide: BorderSide(
+                color: lightColorScheme.outline,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderSide: BorderSide(
+                color: lightColorScheme.primary,
+              ),
+            ),
+            helperText: 'Need Help?',
+            labelText: 'Claud API Key',
+            hintText: "Enter key here",
+            labelStyle: TextStyle(
+              fontSize: claudFocusScopeNode.hasFocus
+                  ? titleMedium.fontSize
+                  : titleLarge.fontSize,
+              color: lightColorScheme.onPrimaryContainer,
+            ),
+            suffixIcon: IconButton(
+              icon: const Icon(
+                Icons.highlight_off,
+              ),
+              onPressed: () {
+                claudController.clear();
+              },
+            ),
+          ),
+        ));
   }
 
-  Widget bardTextField() {
-    return Container();
+  Widget googleTextField() {
+    return FocusScope(
+        onFocusChange: (hasFocus) {
+          if (hasFocus) {
+            bardFocusScopeNode.requestFocus();
+          }
+          openaiFocusScopeNode.unfocus();
+          claudFocusScopeNode.unfocus();
+        },
+        node: bardFocusScopeNode,
+        child: TextFormField(
+          onFieldSubmitted: (value) => disableAllFocusNodes(),
+          onTapOutside: (event) => disableAllFocusNodes(),
+          controller: bardController,
+          decoration: InputDecoration(
+            floatingLabelBehavior: FloatingLabelBehavior.always,
+            enabledBorder: OutlineInputBorder(
+              borderSide: BorderSide(
+                color: lightColorScheme.outline,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderSide: BorderSide(
+                color: lightColorScheme.primary,
+              ),
+            ),
+            helperText: 'Need Help?',
+            labelText: 'Google API Key',
+            hintText: "Enter key here",
+            labelStyle: TextStyle(
+              fontSize: bardFocusScopeNode.hasFocus
+                  ? titleMedium.fontSize
+                  : titleLarge.fontSize,
+              color: lightColorScheme.onPrimaryContainer,
+            ),
+            suffixIcon: IconButton(
+              icon: const Icon(
+                Icons.highlight_off,
+              ),
+              onPressed: () {
+                bardController.clear();
+              },
+            ),
+          ),
+        ));
   }
 
   Widget nextButton() {
