@@ -121,11 +121,6 @@ class _PlatformSetupState extends State<PlatformSetup> {
   }
 
   Widget platformSelectionList() {
-    if (buttonShouldDisable()) {
-      disableButton();
-    } else {
-      enableButton();
-    }
     return Column(
       children: [
         CheckboxListTile(
@@ -176,6 +171,11 @@ class _PlatformSetupState extends State<PlatformSetup> {
   }
 
   Widget nextButton() {
+    if (buttonShouldDisable()) {
+      disableButton();
+    } else {
+      enableButton();
+    }
     return Align(
       alignment: Alignment.bottomCenter,
       child: SizedBox(
@@ -191,7 +191,9 @@ class _PlatformSetupState extends State<PlatformSetup> {
                     ),
                   );
                   var result = await saveCheckedStatus(_isChecked);
-                  print(result);
+                  print(result
+                      ? 'Api preferences saved'
+                      : 'Api preferences not saved');
                 },
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(
