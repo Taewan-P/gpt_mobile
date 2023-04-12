@@ -206,6 +206,7 @@ class _ApiKeyInputState extends State<ApiKeyInput> {
         child: TextFormField(
           enabled: enabled,
           autofocus: true,
+          obscureText: true,
           onFieldSubmitted: (value) => disableAllFocusNodes(),
           onTapOutside: (event) => {disableAllFocusNodes()},
           controller: openaiController,
@@ -256,6 +257,7 @@ class _ApiKeyInputState extends State<ApiKeyInput> {
         },
         child: TextFormField(
           enabled: enabled,
+          obscureText: true,
           onFieldSubmitted: (value) => disableAllFocusNodes(),
           onTapOutside: (event) => disableAllFocusNodes(),
           controller: claudController,
@@ -306,6 +308,7 @@ class _ApiKeyInputState extends State<ApiKeyInput> {
         node: bardFocusScopeNode,
         child: TextFormField(
           enabled: enabled,
+          obscureText: true,
           onFieldSubmitted: (value) => disableAllFocusNodes(),
           onTapOutside: (event) => disableAllFocusNodes(),
           controller: bardController,
