@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:gpt_mobile/screens/select_model.dart';
+import 'package:gpt_mobile/screens/setup_done.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'package:gpt_mobile/styles/color_schemes.g.dart';
 import 'package:gpt_mobile/styles/text_styles.dart';
 
@@ -18,6 +22,39 @@ class _ApiKeyInputState extends State<ApiKeyInput> {
   final claudController = TextEditingController();
   final bardController = TextEditingController();
 
+  final apiPrefs = {'openai': false, 'anthropic': false, 'google': false};
+  final apiKeys = {'openai': '', 'anthropic': '', 'google': ''};
+  bool _isButtonDisabled = true;
+
+  Future<Map> _getAPIPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    var openai = prefs.getBool('openai') ?? false;
+    var anthropic = prefs.getBool('anthropic') ?? false;
+    var google = prefs.getBool('google') ?? false;
+
+    return {'openai': openai, 'anthropic': anthropic, 'google': google};
+  }
+
+  static Future<bool> saveAPIKeys(Map keys) async {
+    final prefs = await SharedPreferences.getInstance();
+    var a = await prefs.setString('openai_apikey', keys['openai']);
+    var b = await prefs.setString('anthropic_apikey', keys['anthropic']);
+    var c = await prefs.setString('google_apikey', keys['google']);
+
+    return a && b && c;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _getAPIPreferences().then((value) => setState(() {
+          apiPrefs['openai'] = value['openai'];
+          apiPrefs['anthropic'] = value['anthropic'];
+          apiPrefs['google'] = value['google'];
+          print("Api prefs changed: $apiPrefs");
+        }));
+  }
+
   @override
   void dispose() {
     openaiFocusScopeNode.dispose();
@@ -33,12 +70,71 @@ class _ApiKeyInputState extends State<ApiKeyInput> {
     bardFocusScopeNode.unfocus();
   }
 
+  bool checkIfAllFieldsAreEmpty() {
+    var openai = true;
+    var claud = true;
+    var bard = true;
+
+    if (apiPrefs['openai'] ?? false) {
+      if (openaiController.text.isEmpty) {
+        openai = true;
+      } else {
+        openai = false;
+      }
+    } else {
+      openai = true;
+    }
+
+    if (apiPrefs['anthropic'] ?? false) {
+      if (claudController.text.isEmpty) {
+        claud = true;
+      } else {
+        claud = false;
+      }
+    } else {
+      claud = true;
+    }
+
+    if (apiPrefs['google'] ?? false) {
+      if (bardController.text.isEmpty) {
+        bard = true;
+      } else {
+        bard = false;
+      }
+    } else {
+      bard = true;
+    }
+
+    return openai && claud && bard;
+  }
+
+  void disableButton() {
+    setState(() {
+      _isButtonDisabled = true;
+    });
+  }
+
+  void enableButton() {
+    setState(() {
+      _isButtonDisabled = false;
+    });
+  }
+
+  void updateButtonState() {
+    if (checkIfAllFieldsAreEmpty()) {
+      disableButton();
+    } else {
+      enableButton();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     double height = MediaQuery.of(context).size.height -
         (MediaQuery.of(context).padding.top +
             kBottomNavigationBarHeight +
             kToolbarHeight);
+
     return Scaffold(
       appBar: AppBar(
           iconTheme: const IconThemeData(size: 28),
@@ -63,15 +159,15 @@ class _ApiKeyInputState extends State<ApiKeyInput> {
                   const SizedBox(
                     height: 24,
                   ),
-                  openaiTextField(),
+                  openaiTextField(apiPrefs['openai'] ?? false),
                   const SizedBox(
                     height: 24,
                   ),
-                  anthropicTextField(),
+                  anthropicTextField(apiPrefs['anthropic'] ?? false),
                   const SizedBox(
                     height: 24,
                   ),
-                  googleTextField(),
+                  googleTextField(apiPrefs['google'] ?? false),
                   const Spacer(),
                   nextButton(),
                 ],
@@ -97,7 +193,7 @@ class _ApiKeyInputState extends State<ApiKeyInput> {
     );
   }
 
-  Widget openaiTextField() {
+  Widget openaiTextField(bool enabled) {
     return FocusScope(
         onFocusChange: (hasFocus) {
           if (hasFocus) {
@@ -108,13 +204,14 @@ class _ApiKeyInputState extends State<ApiKeyInput> {
         },
         node: openaiFocusScopeNode,
         child: TextFormField(
+          enabled: enabled,
           autofocus: true,
           onFieldSubmitted: (value) => disableAllFocusNodes(),
           onTapOutside: (event) => {disableAllFocusNodes()},
           controller: openaiController,
           decoration: InputDecoration(
             floatingLabelBehavior: FloatingLabelBehavior.always,
-            enabledBorder: OutlineInputBorder(
+            border: OutlineInputBorder(
               borderSide: BorderSide(
                 color: lightColorScheme.outline,
               ),
@@ -131,7 +228,8 @@ class _ApiKeyInputState extends State<ApiKeyInput> {
               fontSize: openaiFocusScopeNode.hasFocus
                   ? titleMedium.fontSize
                   : titleLarge.fontSize,
-              color: lightColorScheme.onPrimaryContainer,
+              color:
+                  enabled ? lightColorScheme.onPrimaryContainer : Colors.grey,
             ),
             suffixIcon: IconButton(
               icon: const Icon(
@@ -139,13 +237,14 @@ class _ApiKeyInputState extends State<ApiKeyInput> {
               ),
               onPressed: () {
                 openaiController.clear();
+                updateButtonState();
               },
             ),
           ),
         ));
   }
 
-  Widget anthropicTextField() {
+  Widget anthropicTextField(bool enabled) {
     return FocusScope(
         node: claudFocusScopeNode,
         onFocusChange: (hasFocus) {
@@ -156,12 +255,13 @@ class _ApiKeyInputState extends State<ApiKeyInput> {
           bardFocusScopeNode.unfocus();
         },
         child: TextFormField(
+          enabled: enabled,
           onFieldSubmitted: (value) => disableAllFocusNodes(),
           onTapOutside: (event) => disableAllFocusNodes(),
           controller: claudController,
           decoration: InputDecoration(
             floatingLabelBehavior: FloatingLabelBehavior.always,
-            enabledBorder: OutlineInputBorder(
+            border: OutlineInputBorder(
               borderSide: BorderSide(
                 color: lightColorScheme.outline,
               ),
@@ -175,24 +275,26 @@ class _ApiKeyInputState extends State<ApiKeyInput> {
             labelText: 'Claud API Key',
             hintText: "Enter key here",
             labelStyle: TextStyle(
-              fontSize: claudFocusScopeNode.hasFocus
-                  ? titleMedium.fontSize
-                  : titleLarge.fontSize,
-              color: lightColorScheme.onPrimaryContainer,
-            ),
+                fontSize: claudFocusScopeNode.hasFocus
+                    ? titleMedium.fontSize
+                    : titleLarge.fontSize,
+                color: enabled
+                    ? lightColorScheme.onPrimaryContainer
+                    : Colors.grey),
             suffixIcon: IconButton(
               icon: const Icon(
                 Icons.highlight_off,
               ),
               onPressed: () {
                 claudController.clear();
+                updateButtonState();
               },
             ),
           ),
         ));
   }
 
-  Widget googleTextField() {
+  Widget googleTextField(bool enabled) {
     return FocusScope(
         onFocusChange: (hasFocus) {
           if (hasFocus) {
@@ -203,12 +305,13 @@ class _ApiKeyInputState extends State<ApiKeyInput> {
         },
         node: bardFocusScopeNode,
         child: TextFormField(
+          enabled: enabled,
           onFieldSubmitted: (value) => disableAllFocusNodes(),
           onTapOutside: (event) => disableAllFocusNodes(),
           controller: bardController,
           decoration: InputDecoration(
             floatingLabelBehavior: FloatingLabelBehavior.always,
-            enabledBorder: OutlineInputBorder(
+            border: OutlineInputBorder(
               borderSide: BorderSide(
                 color: lightColorScheme.outline,
               ),
@@ -222,17 +325,19 @@ class _ApiKeyInputState extends State<ApiKeyInput> {
             labelText: 'Google API Key',
             hintText: "Enter key here",
             labelStyle: TextStyle(
-              fontSize: bardFocusScopeNode.hasFocus
-                  ? titleMedium.fontSize
-                  : titleLarge.fontSize,
-              color: lightColorScheme.onPrimaryContainer,
-            ),
+                fontSize: bardFocusScopeNode.hasFocus
+                    ? titleMedium.fontSize
+                    : titleLarge.fontSize,
+                color: enabled
+                    ? lightColorScheme.onPrimaryContainer
+                    : Colors.grey),
             suffixIcon: IconButton(
               icon: const Icon(
                 Icons.highlight_off,
               ),
               onPressed: () {
                 bardController.clear();
+                updateButtonState();
               },
             ),
           ),
@@ -240,17 +345,37 @@ class _ApiKeyInputState extends State<ApiKeyInput> {
   }
 
   Widget nextButton() {
+    updateButtonState();
     return Align(
       alignment: Alignment.bottomCenter,
       child: SizedBox(
         width: double.maxFinite,
         child: ElevatedButton(
-          onPressed: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const ApiKeyInput(),
-            ),
-          ),
+          onPressed: _isButtonDisabled
+              ? null
+              : () async {
+                  apiKeys["openai"] = openaiController.text;
+                  apiKeys["anthropic"] = claudController.text;
+                  apiKeys["google"] = bardController.text;
+
+                  if (apiPrefs["openai"] ?? false) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SelectModel(),
+                      ),
+                    );
+                  } else {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SetupDone(),
+                      ),
+                    );
+                  }
+                  final saveResult = await saveAPIKeys(apiKeys);
+                  print(saveResult ? "API Key Saved" : "API Key Not Saved");
+                },
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(
               vertical: 16,
