@@ -150,11 +150,10 @@ class _ApiKeyInputState extends State<ApiKeyInput> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // const Spacer(),
                   apiKeyTitle(),
-                  // const SizedBox(
-                  //   height: 20,
-                  // ),
+                  const SizedBox(
+                    height: 24,
+                  ),
                   apiKeyDescription(),
                   const SizedBox(
                     height: 24,
