@@ -88,9 +88,7 @@ class _PlatformSetupState extends State<PlatformSetup> {
                 height: 24,
               ),
               platformSelectionList(),
-              const Spacer(
-                flex: 4,
-              ),
+              const Spacer(),
               nextButton(),
             ],
           ),
