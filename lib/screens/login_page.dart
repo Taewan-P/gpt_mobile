@@ -1,7 +1,5 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:gpt_mobile/screens/platform_setup.dart';
 
 import 'package:gpt_mobile/styles/color_schemes.g.dart';
@@ -21,7 +19,7 @@ class LoginPage extends StatelessWidget {
       backgroundColor: lightColorScheme.surface,
       body: SafeArea(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
             Stack(
               // Vertical align
@@ -32,10 +30,9 @@ class LoginPage extends StatelessWidget {
               ],
             ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              padding: const EdgeInsets.all(24),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   introText(
                       'The best AI assistant\nyou can get in your \nSmartphone.'),
@@ -44,19 +41,10 @@ class LoginPage extends StatelessWidget {
                   ),
                   descriptionText(
                       'Use the model that suits you\nthe most. Ask anything you want!'),
-                  const SizedBox(
-                    height: 24,
-                  ),
-                  Wrap(
-                    children: [
-                      googleLoginButton(context),
-                      appleLoginButton(context),
-                      githubLoginButton(context),
-                    ],
-                  ),
                 ],
               ),
             ),
+            nextButton(context),
           ],
         ),
       ),
@@ -101,123 +89,32 @@ class LoginPage extends StatelessWidget {
     return Text(text, style: bodyLarge, textAlign: TextAlign.left);
   }
 
-  Widget googleLoginButton(BuildContext context) {
-    return OutlinedButton(
-      onPressed: () {
-        signInWithGoogle().then((result) {
-          print('User logged in successfully');
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: ((context) => const PlatformSetup()),
-            ),
-          );
-        }).catchError((e) {
-          print(e);
-        });
-      },
-      style: OutlinedButton.styleFrom(
-        foregroundColor: lightColorScheme.primary,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
+  Widget nextButton(context) {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Align(
+        alignment: Alignment.bottomRight,
+        child: ElevatedButton(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const PlatformSetup(),
+              ),
+            );
+          },
+          style: ElevatedButton.styleFrom(
+              backgroundColor: lightColorScheme.primary,
+              foregroundColor: lightColorScheme.onPrimary,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(99)),
+              minimumSize: const Size(80, 80)),
+          child: const Icon(
+            Icons.arrow_forward_rounded,
+            size: 32,
+          ),
         ),
       ),
-      child: Row(
-        children: [
-          SvgPicture.asset(
-            'assets/google_logo.svg',
-            width: 24,
-            height: 24,
-          ),
-          Expanded(
-            child: Text(
-              'Continue with Google',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.black,
-              ).merge(bodyMedium),
-            ),
-          )
-        ],
-      ),
     );
-  }
-
-  Widget appleLoginButton(BuildContext context) {
-    return OutlinedButton(
-      onPressed: () {},
-      style: OutlinedButton.styleFrom(
-        foregroundColor: lightColorScheme.primary,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-      ),
-      child: Row(
-        children: [
-          SvgPicture.asset(
-            'assets/apple_logo.svg',
-            width: 24,
-            height: 24,
-          ),
-          Expanded(
-            child: Text(
-              'Continue with Apple',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.black,
-              ).merge(bodyMedium),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget githubLoginButton(BuildContext context) {
-    return OutlinedButton(
-      onPressed: () {},
-      style: OutlinedButton.styleFrom(
-        foregroundColor: lightColorScheme.primary,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-      ),
-      child: Row(
-        children: [
-          SvgPicture.asset(
-            'assets/github_logo.svg',
-            width: 24,
-            height: 24,
-          ),
-          Expanded(
-            child: Text(
-              'Continue with GitHub',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.black,
-              ).merge(bodyMedium),
-            ),
-          )
-        ],
-      ),
-    );
-  }
-
-  Future<UserCredential> signInWithGoogle() async {
-    // Trigger the authentication flow
-    final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
-
-    // Obtain the auth details from the request
-    final GoogleSignInAuthentication? googleAuth =
-        await googleUser?.authentication;
-
-    // Create a new credential
-    final credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth?.accessToken,
-      idToken: googleAuth?.idToken,
-    );
-
-    // Once signed in, return the UserCredential
-    return await FirebaseAuth.instance.signInWithCredential(credential);
   }
 }
