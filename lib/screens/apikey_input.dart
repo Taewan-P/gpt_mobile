@@ -273,7 +273,7 @@ class _ApiKeyInputState extends State<ApiKeyInput> {
               ),
             ),
             helperText: 'Need Help?',
-            labelText: 'Claud API Key',
+            labelText: 'Claude API Key',
             hintText: "Enter key here",
             labelStyle: TextStyle(
                 fontSize: claudFocusScopeNode.hasFocus
