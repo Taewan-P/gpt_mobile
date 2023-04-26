@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:gpt_mobile/screens/setting.dart';
 
 import 'package:gpt_mobile/styles/color_schemes.g.dart';
 import 'package:gpt_mobile/styles/text_styles.dart';
@@ -37,14 +38,20 @@ class _ChatListState extends State<ChatList> {
     return Scaffold(
       appBar: AppBar(
           automaticallyImplyLeading: false,
-          actions: const [
-            Padding(
-              padding: EdgeInsets.only(
-                right: 12,
+          actions: [
+            IconButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const Setting(),
+                ),
               ),
-              child: Icon(
+              icon: const Icon(
                 Icons.settings_outlined,
                 size: 30,
+              ),
+              padding: const EdgeInsets.only(
+                right: 12,
               ),
             )
           ],
