@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:gpt_mobile/screens/chat_list.dart';
 import 'package:gpt_mobile/screens/login_page.dart';
 import 'package:gpt_mobile/styles/color_schemes.g.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const GPTApp());
+  final prefs = await SharedPreferences.getInstance();
+  var setupDone = prefs.getBool('setup_done') ?? false;
+
+  if (setupDone) {
+    runApp(const GPTAppLoggedIn());
+  } else {
+    runApp(const GPTApp());
+  }
 }
 
 class GPTApp extends StatelessWidget {

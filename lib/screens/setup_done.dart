@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:gpt_mobile/screens/chat_list.dart';
 import 'package:gpt_mobile/styles/color_schemes.g.dart';
 import 'package:gpt_mobile/styles/text_styles.dart';
@@ -69,12 +70,21 @@ class SetupDone extends StatelessWidget {
       child: SizedBox(
         width: double.maxFinite,
         child: ElevatedButton(
-          onPressed: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const ChatList(),
-            ),
-          ),
+          onPressed: () async {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const ChatList(),
+              ),
+            );
+            // Remove all routes
+            Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (context) => const ChatList()),
+                (Route<dynamic> route) => false);
+
+            final prefs = await SharedPreferences.getInstance();
+            prefs.setBool('setup_done', true);
+          },
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(
               vertical: 16,
