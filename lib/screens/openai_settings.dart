@@ -145,14 +145,25 @@ class _OpenaiSettingsState extends State<OpenaiSettings> {
     final openaiController = TextEditingController();
     String inputText = _apiKey;
     openaiController.text = _apiKey;
+    bool isButtonDisabled = true;
 
     showDialog(
         context: context,
         builder: (context) {
-          return AlertDialog(
-            title: const Text('Enter API Key'),
-            backgroundColor: lightColorScheme.background,
-            content: TextFormField(
+          return StatefulBuilder(builder: (context, setState) {
+            void updateButtonState() {
+              if (openaiController.text == '') {
+                setState(() {
+                  isButtonDisabled = true;
+                });
+              } else {
+                setState(() {
+                  isButtonDisabled = false;
+                });
+              }
+            }
+
+            TextFormField txtFormField = TextFormField(
               autofocus: true,
               obscureText: true,
               controller: openaiController,
@@ -178,24 +189,35 @@ class _OpenaiSettingsState extends State<OpenaiSettings> {
               ),
               style: bodyLarge,
               onChanged: (value) {
-                inputText = value;
+                setState(() {
+                  inputText = value;
+                });
               },
-            ),
-            actions: [
-              TextButton(
-                style: TextButton.styleFrom(
-                    foregroundColor: lightColorScheme.primary),
-                onPressed: () async {
-                  Navigator.of(context).pop();
-                  final prefs = await SharedPreferences.getInstance();
-                  prefs.setString('openai_apikey', inputText);
-                  _apiKey = inputText;
-                  print("API key changed: $inputText");
-                },
-                child: const Text('OK'),
-              )
-            ],
-          );
+            );
+
+            updateButtonState();
+            return AlertDialog(
+              title: const Text('Enter API Key'),
+              backgroundColor: lightColorScheme.background,
+              content: txtFormField,
+              actions: [
+                TextButton(
+                  style: TextButton.styleFrom(
+                      foregroundColor: lightColorScheme.primary),
+                  onPressed: isButtonDisabled
+                      ? null
+                      : () async {
+                          Navigator.of(context).pop();
+                          final prefs = await SharedPreferences.getInstance();
+                          prefs.setString('openai_apikey', inputText);
+                          _apiKey = inputText;
+                          print("API key changed: $inputText");
+                        },
+                  child: const Text('OK'),
+                )
+              ],
+            );
+          });
         });
   }
 
