@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:gpt_mobile/screens/chat_screen.dart';
 import 'package:gpt_mobile/screens/setting.dart';
 
 import 'package:gpt_mobile/styles/color_schemes.g.dart';
@@ -39,19 +40,21 @@ class _ChatListState extends State<ChatList> {
       appBar: AppBar(
           automaticallyImplyLeading: false,
           actions: [
-            IconButton(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const Setting(),
-                ),
-              ),
-              icon: const Icon(
-                Icons.settings_outlined,
-                size: 30,
-              ),
+            Padding(
               padding: const EdgeInsets.only(
                 right: 12,
+              ),
+              child: IconButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const Setting(),
+                  ),
+                ),
+                icon: const Icon(
+                  Icons.settings_outlined,
+                  size: 30,
+                ),
               ),
             )
           ],
@@ -89,7 +92,14 @@ class _ChatListState extends State<ChatList> {
 
   Widget newChat() {
     return InkWell(
-      onTap: () {},
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const ChatScreen(),
+          ),
+        );
+      },
       child: Padding(
         padding: const EdgeInsets.all(6),
         child: Row(
