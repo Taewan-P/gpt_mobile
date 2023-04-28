@@ -82,6 +82,7 @@ class _SettingState extends State<Setting> {
           trailing: const Icon(Icons.arrow_right),
         ),
         const ListTile(
+          enabled: false,
           title: Text(
             'Anthropic Settings',
             style: titleMedium,
@@ -93,6 +94,7 @@ class _SettingState extends State<Setting> {
           trailing: Icon(Icons.arrow_right),
         ),
         const ListTile(
+          enabled: false,
           title: Text(
             'Google Settings',
             style: titleMedium,
