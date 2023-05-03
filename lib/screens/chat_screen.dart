@@ -109,7 +109,7 @@ class _ChatScreenState extends State<ChatScreen> {
           alignment: Alignment.centerRight,
           child: Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: userBubble(chats[i].content)),
+              child: userBubble(chats[i].content, width)),
         ));
       } else {
         // Add answer bubble
@@ -224,10 +224,11 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Widget userBubble(String content) {
+  Widget userBubble(String content, double deviceWidth) {
     return Container(
+      constraints: BoxConstraints(maxWidth: deviceWidth * 0.7),
       margin: const EdgeInsets.symmetric(horizontal: 24),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
       decoration: BoxDecoration(
         color: lightColorScheme.primaryContainer,
         borderRadius: BorderRadius.circular(30),
@@ -239,7 +240,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget systemBubble(String content, String provider, double width) {
     return Container(
       width: width * 0.8,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
       decoration: BoxDecoration(
         color: lightColorScheme.secondaryContainer,
         borderRadius: BorderRadius.circular(20),
