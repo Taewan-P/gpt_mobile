@@ -36,6 +36,7 @@ class Message {
   final int conversationId;
   final int messageId;
   final String sender;
+  final String provider;
   final int createdAt;
 
   String content;
@@ -45,6 +46,7 @@ class Message {
       required this.conversationId,
       required this.messageId,
       required this.sender,
+      required this.provider,
       required this.createdAt,
       required this.content});
 
@@ -54,6 +56,7 @@ class Message {
       'conv_id': conversationId,
       'msg_id': messageId,
       'sender': sender,
+      'provider': provider,
       'content': content,
       'created_at': createdAt,
     };
@@ -61,14 +64,14 @@ class Message {
 
   @override
   String toString() {
-    return 'Message{id: $id, conversationId: $conversationId, messageId: $messageId, sender: $sender, createdAt: $createdAt, content: $content}';
+    return 'Message{id: $id, conversationId: $conversationId, messageId: $messageId, sender: $sender, provider: $provider, createdAt: $createdAt, content: $content}';
   }
 }
 
 class DatabaseHelper {
   static const _dbName = "gptmobile.db";
   static const _dbVersion =
-      1; // Change this if you want to execute onCreate again
+      2; // Change this if you want to execute onCreate again
   late Future<Database> database = _getDatabase();
 
   Future<Database> _getDatabase() async {
@@ -93,6 +96,7 @@ class DatabaseHelper {
             msg_id INTEGER,
             sender TEXT,
             content TEXT,
+            provider TEXT,
             created_at INTEGER,
             FOREIGN KEY (conv_id) REFERENCES Conversation(id)
         )
