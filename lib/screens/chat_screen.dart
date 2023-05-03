@@ -18,21 +18,61 @@ class _ChatScreenState extends State<ChatScreen> {
   final inputController = TextEditingController();
   String inputText = '';
 
+  // ID 기준으로 정렬 되어서 와야함
   List<Message> chats = [
+    // Message(
+    //     id: 3,
+    //     conversationId: 0,
+    //     messageId: 3,
+    //     sender: 'assistant',
+    //     provider: 'OpenAI',
+    //     createdAt: 0,
+    //     content:
+    //         "operating system.\n4. Run the installer and follow the instructions to install Python.\n5. Once the installation is complete, you can open a command prompt (Windows) or terminal (Mac or Linux) and enter the command `python` to start the Python interpreter.\n\nThat's it! You've successfully installed Python."),
     Message(
         id: 0,
         conversationId: 0,
         messageId: 0,
         sender: 'user',
-        createdAt: 0,
+        provider: '',
+        createdAt: 1,
         content: "How can I print hello world in Python?"),
     Message(
         id: 1,
         conversationId: 0,
         messageId: 1,
         sender: 'assistant',
+        provider: 'OpenAI',
         createdAt: 12,
-        content: ""),
+        content:
+            "To print \"Hello, world!\" in Python, you can use the print() function. Here's an example code:\n ```python\nprint(\"Hello, world\")\n```"),
+    Message(
+        id: 2,
+        conversationId: 0,
+        messageId: 1,
+        sender: 'assistant',
+        provider: 'Claude',
+        createdAt: 12,
+        content:
+            "To print \"Hello, World!\" in Python, you can use the `print` function. Here's an example:"),
+    Message(
+        id: 3,
+        conversationId: 0,
+        messageId: 2,
+        sender: 'user',
+        provider: '',
+        createdAt: 14,
+        content:
+            "I'm trying to install Python on my computer. How do I do that?"),
+    Message(
+        id: 4,
+        conversationId: 0,
+        messageId: 3,
+        sender: 'assistant',
+        provider: 'OpenAI',
+        createdAt: 0,
+        content:
+            "Run the installer and follow the instructions to install Python.\n5. Once the installation is complete, you can open a command prompt (Windows) or terminal (Mac or Linux) and enter the command `python` to start the Python interpreter.\n\nThat's it! You've successfully installed Python."),
   ]; //tmp
   // 이전 화면에서 해당 화면 실행 시 값을 불러와야함
   // 불러와야하는값:
@@ -45,6 +85,69 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    double width = MediaQuery.of(context).size.width;
+    int currentMsgID = -1;
+    List<Widget> ans = [];
+    List<Widget> categorized = [];
+
+    for (var i = 0; i < chats.length; i++) {
+      if (chats[i].sender == "user") {
+        // Add previous answer bubble
+        if (ans.isNotEmpty) {
+          categorized.add(Padding(
+            padding: const EdgeInsets.only(left: 24, bottom: 12),
+            child: sideBubbleScrollView(ans),
+          ));
+        }
+
+        // Update current message ID & initialize answer bubbles
+        currentMsgID = chats[i].messageId;
+        ans = [];
+
+        // Add user question bubble
+        categorized.add(Align(
+          alignment: Alignment.centerRight,
+          child: Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: userBubble(chats[i].content)),
+        ));
+      } else {
+        // Add answer bubble
+        if (chats[i].messageId == currentMsgID) {
+          ans.add(
+            Padding(
+              padding: const EdgeInsets.only(right: 24),
+              child: systemBubble(chats[i].content, chats[i].provider, width),
+            ),
+          );
+        } else {
+          // Add previous answer bubble
+          if (ans.isNotEmpty) {
+            categorized.add(Padding(
+              padding: const EdgeInsets.only(left: 24, bottom: 12),
+              child: sideBubbleScrollView(ans),
+            ));
+          }
+
+          // New answer bubble. Initialize just in case
+          currentMsgID = chats[i].messageId;
+          ans = [];
+          ans.add(
+            Padding(
+              padding: const EdgeInsets.only(right: 24),
+              child: systemBubble(chats[i].content, chats[i].provider, width),
+            ),
+          );
+        }
+      }
+    }
+    if (ans.isNotEmpty) {
+      categorized.add(Padding(
+        padding: const EdgeInsets.only(left: 24, bottom: 12),
+        child: sideBubbleScrollView(ans),
+      ));
+    }
+
     return Scaffold(
       floatingActionButton: FloatingActionButton(
         shape: const CircleBorder(),
@@ -63,30 +166,47 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.startTop,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            children: [
-              Expanded(
-                child: ListView.builder(
-                  itemCount: chats.length,
-                  itemBuilder: ((context, index) =>
-                      chats[index].sender == "user"
-                          ? userBubble(chats[index].content)
-                          : systemBubble(chats[index].content)),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 24),
+          child: Center(
+            child: SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height),
+                child: Column(
+                  children: [
+                    ListView.builder(
+                      shrinkWrap: true,
+                      primary: false,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: categorized.length,
+                      itemBuilder: ((context, index) {
+                        return categorized[index];
+                      }),
+                    ),
+                    const Spacer(),
+                    // inputBar()
+                  ],
                 ),
               ),
-              inputBar(),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget sideBubbleScrollView() {
+  Widget sideBubbleScrollView(List<Widget> ans) {
     // 좌우로 결과값들을 스크롤 할 수 있는 뷰
-    return const Placeholder();
+    return Expanded(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: ans,
+        ),
+      ),
+    );
   }
 
   Widget markdownBuilder(String data) {
@@ -106,8 +226,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget userBubble(String content) {
     return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24),
       padding: const EdgeInsets.all(12),
-      alignment: Alignment.bottomRight,
       decoration: BoxDecoration(
         color: lightColorScheme.primaryContainer,
         borderRadius: BorderRadius.circular(30),
@@ -116,25 +236,30 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Widget systemBubble(String content) {
+  Widget systemBubble(String content, String provider, double width) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
-      alignment: Alignment.bottomLeft,
+      width: width * 0.8,
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: lightColorScheme.secondaryContainer,
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Column(
-        children: [
-          Text(content),
-          const Padding(
-            padding: EdgeInsets.only(top: 6),
-          ),
-          const Text(
-            'Powered by',
-            textAlign: TextAlign.end,
-          ),
-        ],
+      child: Expanded(
+        child: Column(
+          children: [
+            Text(content),
+            const Padding(
+              padding: EdgeInsets.only(top: 6),
+            ),
+            Align(
+              alignment: Alignment.bottomRight,
+              child: Text(
+                'Powered by $provider',
+                style: TextStyle(color: lightColorScheme.secondary),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -144,7 +269,6 @@ class _ChatScreenState extends State<ChatScreen> {
       child: FocusScope(
           node: inputFocusScopeNode,
           child: TextFormField(
-            autofocus: true,
             controller: inputController,
             onChanged: (value) {
               setState(() {
@@ -158,29 +282,25 @@ class _ChatScreenState extends State<ChatScreen> {
             decoration: InputDecoration(
               floatingLabelBehavior: FloatingLabelBehavior.always,
               contentPadding: const EdgeInsets.symmetric(horizontal: 24),
-              suffixIcon: Icon(
-                Icons.send,
-                color: lightColorScheme.tertiary,
-              ),
               hintText: 'Ask a question...',
               hintStyle: TextStyle(
                 color: lightColorScheme.outline,
               ),
-              filled: true,
-              fillColor: lightColorScheme.surfaceVariant,
+              // filled: true,
+              // fillColor: lightColorScheme.surfaceVariant,
               enabledBorder: OutlineInputBorder(
                 borderSide: BorderSide(
                   width: 0,
                   color: lightColorScheme.surfaceVariant,
                 ),
-                borderRadius: BorderRadius.circular(30),
+                // borderRadius: BorderRadius.circular(30),
               ),
               focusedBorder: OutlineInputBorder(
                 borderSide: BorderSide(
                   width: 0,
                   color: lightColorScheme.surfaceVariant,
                 ),
-                borderRadius: BorderRadius.circular(30),
+                // borderRadius: BorderRadius.circular(30),
               ),
             ),
             cursorColor: lightColorScheme.primary,
@@ -188,10 +308,28 @@ class _ChatScreenState extends State<ChatScreen> {
     );
 
     return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 24),
         constraints: const BoxConstraints(maxHeight: 100),
-        child: Column(children: [
-          inputScrollView,
-          ElevatedButton(onPressed: () {}, child: const Icon(Icons.send))
+        decoration: BoxDecoration(
+          color: lightColorScheme.surfaceVariant,
+          borderRadius: BorderRadius.circular(30),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.max, children: [
+          SizedBox(
+            width: 250,
+            height: 50,
+            child: inputScrollView,
+          ),
+          OutlinedButton(
+              onPressed: () {},
+              style: OutlinedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  foregroundColor: lightColorScheme.secondary,
+                  elevation: 0,
+                  side: const BorderSide(width: 0, color: Colors.transparent),
+                  shape: const CircleBorder(),
+                  fixedSize: const Size(40, 40)),
+              child: const Icon(Icons.send, size: 16))
         ]));
   }
 }
