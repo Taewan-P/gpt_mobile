@@ -1,7 +1,6 @@
-import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_highlighter/flutter_highlighter.dart';
-import 'package:flutter_highlighter/themes/atom-one-dark.dart';
+import 'package:flutter_highlighter/themes/monokai-sublime.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:google_fonts/google_fonts.dart';
@@ -16,6 +15,7 @@ class CodeElementBuilder extends MarkdownElementBuilder {
       language = lg.substring(9);
     }
     WidgetsFlutterBinding.ensureInitialized();
+    print(element.textContent);
     return SizedBox(
       child: HighlightView(
         // The original code to be highlighted
@@ -27,13 +27,44 @@ class CodeElementBuilder extends MarkdownElementBuilder {
 
         // Specify highlight theme
         // All available themes are listed in `themes` folder
-        theme: atomOneDarkTheme,
+        theme: monokaiSublimeTheme,
 
         // Specify padding
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(4),
 
         // Specify text style
-        textStyle: GoogleFonts.jetBrainsMono(),
+        textStyle: GoogleFonts.jetBrainsMono(fontSize: 12),
+      ),
+    );
+  }
+}
+
+class CodeMarkdownElementBuilder extends MarkdownElementBuilder {
+  ScrollController verticalController = ScrollController();
+  ScrollController horizontalController = ScrollController();
+  @override
+  Widget visitText(md.Text text, TextStyle? preferredStyle) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 200),
+      child: Scrollbar(
+        controller: verticalController,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.vertical,
+          controller: verticalController,
+          child: Scrollbar(
+            controller: horizontalController,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              controller: horizontalController,
+              child: Text.rich(
+                TextSpan(
+                  text: '${text.text}--------------------------hi',
+                  style: GoogleFonts.jetBrainsMono(),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
