@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:gpt_mobile/database/database_helper.dart';
+import 'package:markdown/markdown.dart' as md;
+import 'package:gpt_mobile/utils/markdown_builder.dart';
 
 import 'package:gpt_mobile/styles/color_schemes.g.dart';
-import 'package:gpt_mobile/utils/markdown_builder.dart';
-import 'package:markdown/markdown.dart' as md;
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -68,6 +68,33 @@ class _ChatScreenState extends State<ChatScreen> {
         id: 4,
         conversationId: 0,
         messageId: 3,
+        sender: 'assistant',
+        provider: 'OpenAI',
+        createdAt: 0,
+        content:
+            "Run the installer and follow the instructions to install Python.\n5. Once the installation is complete, you can open a command prompt (Windows) or terminal (Mac or Linux) and enter the command `python` to start the Python interpreter.\n\nThat's it! You've successfully installed Python."),
+    Message(
+        id: 5,
+        conversationId: 0,
+        messageId: 4,
+        sender: 'assistant',
+        provider: 'OpenAI',
+        createdAt: 0,
+        content:
+            "Run the installer and follow the instructions to install Python.\n5. Once the installation is complete, you can open a command prompt (Windows) or terminal (Mac or Linux) and enter the command `python` to start the Python interpreter.\n\nThat's it! You've successfully installed Python."),
+    Message(
+        id: 6,
+        conversationId: 0,
+        messageId: 6,
+        sender: 'assistant',
+        provider: 'OpenAI',
+        createdAt: 0,
+        content:
+            "Run the installer and follow the instructions to install Python.\n5. Once the installation is complete, you can open a command prompt (Windows) or terminal (Mac or Linux) and enter the command `python` to start the Python interpreter.\n\nThat's it! You've successfully installed Python."),
+    Message(
+        id: 7,
+        conversationId: 0,
+        messageId: 7,
         sender: 'assistant',
         provider: 'OpenAI',
         createdAt: 0,
@@ -167,27 +194,30 @@ class _ChatScreenState extends State<ChatScreen> {
       floatingActionButtonLocation: FloatingActionButtonLocation.startTop,
       body: SafeArea(
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 24),
+          padding: const EdgeInsets.only(top: 24),
           child: Center(
-            child: SingleChildScrollView(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                    maxHeight: MediaQuery.of(context).size.height),
-                child: Column(
-                  children: [
-                    ListView.builder(
-                      shrinkWrap: true,
-                      primary: false,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: categorized.length,
-                      itemBuilder: ((context, index) {
-                        return categorized[index];
-                      }),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height,
+              ),
+              child: Column(
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      reverse: true,
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        primary: false,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: categorized.length,
+                        itemBuilder: ((context, index) {
+                          return categorized[index];
+                        }),
+                      ),
                     ),
-                    const Spacer(),
-                    // inputBar()
-                  ],
-                ),
+                  ),
+                  inputBar()
+                ],
               ),
             ),
           ),
@@ -198,24 +228,26 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget sideBubbleScrollView(List<Widget> ans) {
     // 좌우로 결과값들을 스크롤 할 수 있는 뷰
-    return Expanded(
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: ans,
-        ),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: ans,
       ),
     );
   }
 
   Widget markdownBuilder(String data) {
-    return Markdown(
+    // MarkdownStyleSheet mdTheme = MarkdownStyleSheet();
+
+    return MarkdownBody(
       key: const Key('defaultmarkdownformatter'),
+      // styleSheet: mdTheme,
       data: data,
       selectable: true,
-      padding: const EdgeInsets.all(8),
+      softLineBreak: true,
       builders: {
+        'pre': CodeMarkdownElementBuilder(),
         'code': CodeElementBuilder(),
       },
       extensionSet: md.ExtensionSet(
@@ -228,7 +260,7 @@ class _ChatScreenState extends State<ChatScreen> {
     return Container(
       constraints: BoxConstraints(maxWidth: deviceWidth * 0.7),
       margin: const EdgeInsets.symmetric(horizontal: 24),
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       decoration: BoxDecoration(
         color: lightColorScheme.primaryContainer,
         borderRadius: BorderRadius.circular(30),
@@ -240,27 +272,26 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget systemBubble(String content, String provider, double width) {
     return Container(
       width: width * 0.8,
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
         color: lightColorScheme.secondaryContainer,
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Expanded(
-        child: Column(
-          children: [
-            Text(content),
-            const Padding(
-              padding: EdgeInsets.only(top: 6),
+      child: Column(
+        children: [
+          // Text(content),
+          markdownBuilder(content),
+          const Padding(
+            padding: EdgeInsets.only(top: 6),
+          ),
+          Align(
+            alignment: Alignment.bottomRight,
+            child: Text(
+              'Powered by $provider',
+              style: TextStyle(color: lightColorScheme.secondary),
             ),
-            Align(
-              alignment: Alignment.bottomRight,
-              child: Text(
-                'Powered by $provider',
-                style: TextStyle(color: lightColorScheme.secondary),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -269,56 +300,58 @@ class _ChatScreenState extends State<ChatScreen> {
     SingleChildScrollView inputScrollView = SingleChildScrollView(
       child: FocusScope(
           node: inputFocusScopeNode,
-          child: TextFormField(
-            controller: inputController,
-            onChanged: (value) {
-              setState(() {
-                inputText = value;
-              });
-            },
-            onTapOutside: (event) => inputFocusScopeNode.unfocus(),
-            keyboardType: TextInputType.multiline,
-            textInputAction: TextInputAction.newline,
-            maxLines: null,
-            decoration: InputDecoration(
-              floatingLabelBehavior: FloatingLabelBehavior.always,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 24),
-              hintText: 'Ask a question...',
-              hintStyle: TextStyle(
-                color: lightColorScheme.outline,
-              ),
-              // filled: true,
-              // fillColor: lightColorScheme.surfaceVariant,
-              enabledBorder: OutlineInputBorder(
-                borderSide: BorderSide(
-                  width: 0,
-                  color: lightColorScheme.surfaceVariant,
+          child: SizedBox(
+            height: 50,
+            child: TextFormField(
+              controller: inputController,
+              onChanged: (value) {
+                setState(() {
+                  inputText = value;
+                });
+              },
+              onTapOutside: (event) => inputFocusScopeNode.unfocus(),
+              keyboardType: TextInputType.multiline,
+              textInputAction: TextInputAction.newline,
+              maxLines: null,
+              minLines: null,
+              expands: true,
+              decoration: InputDecoration(
+                floatingLabelBehavior: FloatingLabelBehavior.always,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+                hintText: 'Ask a question...',
+                hintStyle: TextStyle(
+                  color: lightColorScheme.outline,
                 ),
-                // borderRadius: BorderRadius.circular(30),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderSide: BorderSide(
-                  width: 0,
-                  color: lightColorScheme.surfaceVariant,
+                enabledBorder: const OutlineInputBorder(
+                  borderSide: BorderSide(
+                    width: 0,
+                    color: Colors.transparent,
+                  ),
                 ),
-                // borderRadius: BorderRadius.circular(30),
+                focusedBorder: const OutlineInputBorder(
+                  borderSide: BorderSide(
+                    width: 0,
+                    color: Colors.transparent,
+                  ),
+                ),
               ),
+              cursorColor: lightColorScheme.primary,
             ),
-            cursorColor: lightColorScheme.primary,
           )),
     );
 
     return Container(
-        margin: const EdgeInsets.symmetric(horizontal: 24),
-        constraints: const BoxConstraints(maxHeight: 100),
-        decoration: BoxDecoration(
-          color: lightColorScheme.surfaceVariant,
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: Row(mainAxisSize: MainAxisSize.max, children: [
-          SizedBox(
-            width: 250,
-            height: 50,
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
+      constraints: const BoxConstraints(maxHeight: 100),
+      decoration: BoxDecoration(
+        color: lightColorScheme.surfaceVariant,
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.max,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
             child: inputScrollView,
           ),
           OutlinedButton(
@@ -331,6 +364,8 @@ class _ChatScreenState extends State<ChatScreen> {
                   shape: const CircleBorder(),
                   fixedSize: const Size(40, 40)),
               child: const Icon(Icons.send, size: 16))
-        ]));
+        ],
+      ),
+    );
   }
 }
