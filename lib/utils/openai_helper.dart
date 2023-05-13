@@ -1,3 +1,7 @@
+import 'dart:async';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+
 class OpenAIMessage {
   final String role;
   final String content;
@@ -8,6 +12,17 @@ class OpenAIMessage {
   @override
   String toString() {
     return 'OpenAIMessage{role: $role, content: $content, authorName: $authorName}';
+  }
+
+  Map<String, dynamic> toMap() {
+    Map<String, dynamic> json = {
+      'role': role,
+      'content': content,
+    };
+    if (authorName != null) {
+      json['author_name'] = authorName;
+    }
+    return json;
   }
 }
 
@@ -80,6 +95,41 @@ class OpenAIChatRequest {
   String toString() {
     return 'OpenAIChatRequest{model: $model, messages: $messages, temperature: $temperature, topP: $topP, numberOfCompletions: $numberOfCompletions, stream: $stream, maxTokens: $maxTokens, presencePenalty: $presencePenalty, frequencyPenalty: $frequencyPenalty, logitBias: $logitBias, userID: $userID}';
   }
+
+  Map<String, dynamic> toJson() {
+    Map<String, dynamic> json = {
+      'model': model,
+      'messages': messages.map((e) => e.toMap()).toList(),
+    };
+    if (temperature != null) {
+      json['temperature'] = temperature;
+    }
+    if (topP != null) {
+      json['top_p'] = topP;
+    }
+    if (numberOfCompletions != null) {
+      json['n'] = numberOfCompletions;
+    }
+    if (stream != null) {
+      json['stream'] = stream;
+    }
+    if (maxTokens != null) {
+      json['max_tokens'] = maxTokens;
+    }
+    if (presencePenalty != null) {
+      json['presence_penalty'] = presencePenalty;
+    }
+    if (frequencyPenalty != null) {
+      json['frequency_penalty'] = frequencyPenalty;
+    }
+    if (logitBias != null) {
+      json['logit_bias'] = logitBias;
+    }
+    if (userID != null) {
+      json['user'] = userID;
+    }
+    return json;
+  }
 }
 
 class OpenAIStreamChatResponse {
@@ -108,3 +158,53 @@ class OpenAIStreamChatResponse {
 // Content-Type: application/json
 // Body: OpenAIChatRequest from function arg
 // Authorization: Bearer $OPENAI_API_KEY from function arg
+
+class Sse {
+  Uri uri = Uri.parse('https://api.openai.com/v1/chat/completions');
+  final StreamController<String> streamController;
+
+  Sse._internal(this.streamController);
+
+  factory Sse.connect(
+      {uri, bool withCredentials = true, bool closeOnError = true}) {
+    final streamController =
+        StreamController<String>(); // String을 담는 StreamController
+
+    final sse = Sse._internal(streamController);
+    return sse;
+  }
+
+  // EventSource 대신 HttpClient를 이용하여 POST 요청을 보냅니다.
+  void send(String apiKey, OpenAIChatRequest body) async {
+    Map<String, String> headers = {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $apiKey'
+    };
+    final client = http.Client();
+    final request =
+        await client.post(uri, body: jsonEncode(body), headers: headers);
+    // request.headers.contentType =
+    //     ContentType("application", "json", charset: "utf-8");
+    // request.headers.set('Authorization', 'Bearer $apiKey');
+    // request.write(jsonEncode(body));
+    print('request status code: ${request.statusCode}');
+    print('request result: ${request.body}');
+  }
+
+  Stream<OpenAIStreamChatResponse> get stream =>
+      streamController.stream.map((data) {
+        final jsonData = json.decode(data);
+        return OpenAIStreamChatResponse(
+          choices: [], //임시
+          created: jsonData['created'] as int,
+          id: jsonData['id'] as String,
+          model: jsonData['model'] as String,
+          object: jsonData['object'] as String,
+        );
+      });
+  bool isClosed() => streamController.isClosed;
+
+  void close() {
+    streamController.close();
+  }
+}

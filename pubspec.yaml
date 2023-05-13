@@ -45,6 +45,8 @@ dependencies:
   google_fonts: ^4.0.4
   flutter_highlighter: ^0.1.1
   markdown: ^7.0.2
+  markdown_widget: ^2.1.0
+  http: ^0.13.6
 
 dev_dependencies:
   flutter_test:

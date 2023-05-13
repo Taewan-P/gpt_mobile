@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter_highlighter/themes/a11y-dark.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:gpt_mobile/database/database_helper.dart';
-import 'package:markdown/markdown.dart' as md;
-import 'package:gpt_mobile/utils/markdown_builder.dart';
+import 'package:gpt_mobile/utils/openai_helper.dart';
+import 'package:markdown_widget/markdown_widget.dart';
 
 import 'package:gpt_mobile/styles/color_schemes.g.dart';
+
+import '../utils/markdown_builder.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -45,7 +48,7 @@ class _ChatScreenState extends State<ChatScreen> {
         provider: 'OpenAI',
         createdAt: 12,
         content:
-            "To print \"Hello, world!\" in Python, you can use the print() function. Here's an example code:\n ```python\nprint(\"Hello, world\")\n```"),
+            "To print \"Hello, world!\" in Python, you can use the `print()` function. Here's an example code:\n```python\nprint(\"Hello, world\")\n\n\nif __name__ == \"__main__\":\n    print(\"Hello, world\")\n```"),
     Message(
         id: 2,
         conversationId: 0,
@@ -237,22 +240,74 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  final testTheme = {
+    'root': const TextStyle(color: Colors.white),
+    'comment': const TextStyle(color: Color(0xffd4d0ab)),
+    'quote': const TextStyle(color: Color(0xffd4d0ab)),
+    'variable': const TextStyle(color: Color(0xffffa07a)),
+    'template-variable': const TextStyle(color: Color(0xffffa07a)),
+    'tag': const TextStyle(color: Color(0xffffa07a)),
+    'name': const TextStyle(color: Color(0xffffa07a)),
+    'selector-id': const TextStyle(color: Color(0xffffa07a)),
+    'selector-class': const TextStyle(color: Color(0xffffa07a)),
+    'regexp': const TextStyle(color: Color(0xffffa07a)),
+    'deletion': const TextStyle(color: Color(0xffffa07a)),
+    'number': const TextStyle(color: Color(0xfff5ab35)),
+    'built_in': const TextStyle(color: Color(0xfff5ab35)),
+    'builtin-name': const TextStyle(color: Color(0xfff5ab35)),
+    'literal': const TextStyle(color: Color(0xfff5ab35)),
+    'type': const TextStyle(color: Color(0xfff5ab35)),
+    'params': const TextStyle(color: Color(0xfff5ab35)),
+    'meta': const TextStyle(color: Color(0xfff5ab35)),
+    'link': const TextStyle(color: Color(0xfff5ab35)),
+    'attribute': const TextStyle(color: Color(0xffffd700)),
+    'string': const TextStyle(color: Color(0xffabe338)),
+    'symbol': const TextStyle(color: Color(0xffabe338)),
+    'bullet': const TextStyle(color: Color(0xffabe338)),
+    'addition': const TextStyle(color: Color(0xffabe338)),
+    'title': const TextStyle(color: Color(0xff00e0e0)),
+    'section': const TextStyle(color: Color(0xff00e0e0)),
+    'keyword': const TextStyle(color: Color(0xffdcc6e0)),
+    'selector-tag': const TextStyle(color: Color(0xffdcc6e0)),
+    'emphasis': const TextStyle(fontStyle: FontStyle.italic),
+    'strong': const TextStyle(fontWeight: FontWeight.bold),
+  };
+
   Widget markdownBuilder(String data) {
     // MarkdownStyleSheet mdTheme = MarkdownStyleSheet();
 
-    return MarkdownBody(
-      key: const Key('defaultmarkdownformatter'),
-      // styleSheet: mdTheme,
-      data: data,
-      selectable: true,
-      softLineBreak: true,
-      builders: {
-        'pre': CodeMarkdownElementBuilder(),
-        'code': CodeElementBuilder(),
-      },
-      extensionSet: md.ExtensionSet(
-          md.ExtensionSet.gitHubFlavored.blockSyntaxes,
-          [md.EmojiSyntax(), ...md.ExtensionSet.gitHubFlavored.inlineSyntaxes]),
+    // return MarkdownBody(
+    //   key: const Key('defaultmarkdownformatter'),
+    //   // styleSheet: mdTheme,
+    //   data: data,
+    //   selectable: true,
+    //   softLineBreak: true,
+
+    //   builders: {
+    //     'pre': CodeMarkdownElementBuilder(),
+    //     // 'code': CodeElementBuilder(),
+    //   },
+    //   extensionSet: md.ExtensionSet(
+    //       md.ExtensionSet.gitHubFlavored.blockSyntaxes,
+    //       [md.EmojiSyntax(), ...md.ExtensionSet.gitHubFlavored.inlineSyntaxes]),
+    // );
+    codeWrapper(child, text) => CodeWrapperWidget(child: child, text: text);
+    final yourTheme = Map.of(a11yDarkTheme);
+    yourTheme['root'] = const TextStyle(color: Colors.white);
+    final mdGen = MarkdownGenerator(
+        config: MarkdownConfig(configs: [
+      PreConfig(
+          decoration: const BoxDecoration(
+              color: Color(0xff2a2a2a),
+              borderRadius: BorderRadius.all(Radius.circular(8.0))),
+          theme: yourTheme,
+          textStyle: GoogleFonts.jetBrainsMono(
+              textStyle: const TextStyle(fontSize: 12)),
+          wrapper: codeWrapper),
+    ]));
+
+    return Column(
+      children: mdGen.buildWidgets(data),
     );
   }
 
@@ -355,15 +410,26 @@ class _ChatScreenState extends State<ChatScreen> {
             child: inputScrollView,
           ),
           OutlinedButton(
-              onPressed: () {},
-              style: OutlinedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  foregroundColor: lightColorScheme.secondary,
-                  elevation: 0,
-                  side: const BorderSide(width: 0, color: Colors.transparent),
-                  shape: const CircleBorder(),
-                  fixedSize: const Size(40, 40)),
-              child: const Icon(Icons.send, size: 16))
+            onPressed: () async {
+              print("pressed!");
+              final request = OpenAIChatRequest(messages: [
+                OpenAIMessage(role: 'user', content: 'hello! how are you?')
+              ], model: 'gpt-3.5-turbo', stream: true);
+              final sse = Sse.connect();
+              // OpenAI API에 요청 보내기
+              sse.send('', request);
+
+              sse.stream.listen((data) {
+                // OpenAIStreamChatResponse 객체 수신
+                print('chunk data: $data');
+              });
+              sse.close();
+            },
+            style: OutlinedButton.styleFrom(
+                side: BorderSide.none,
+                foregroundColor: lightColorScheme.secondary),
+            child: const Icon(Icons.send, size: 16),
+          ),
         ],
       ),
     );
