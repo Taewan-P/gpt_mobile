@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_highlighter/themes/a11y-dark.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:gpt_mobile/database/database_helper.dart';
@@ -6,104 +7,36 @@ import 'package:gpt_mobile/utils/openai_helper.dart';
 import 'package:markdown_widget/markdown_widget.dart';
 
 import 'package:gpt_mobile/styles/color_schemes.g.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../utils/markdown_builder.dart';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key});
+  final int conversationId;
+  final Map<String, bool> selectedAPI;
+  const ChatScreen(this.conversationId, this.selectedAPI, {super.key});
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
 class _ChatScreenState extends State<ChatScreen> {
+  var isNewChat = false;
+  var isActive = false;
   final inputFocusScopeNode = FocusScopeNode();
   final inputController = TextEditingController();
+
+  final DatabaseHelper _dbHelper = DatabaseHelper();
+  final sse = Sse.connect();
+  List<Map<String, dynamic>> conversations = [];
+  Map<String, dynamic> selectedConversation = {};
   String inputText = '';
+  int messageId = 0; //msg max Id value
+  int messageIndex = 0; //msg index
 
   // ID 기준으로 정렬 되어서 와야함
-  List<Message> chats = [
-    // Message(
-    //     id: 3,
-    //     conversationId: 0,
-    //     messageId: 3,
-    //     sender: 'assistant',
-    //     provider: 'OpenAI',
-    //     createdAt: 0,
-    //     content:
-    //         "operating system.\n4. Run the installer and follow the instructions to install Python.\n5. Once the installation is complete, you can open a command prompt (Windows) or terminal (Mac or Linux) and enter the command `python` to start the Python interpreter.\n\nThat's it! You've successfully installed Python."),
-    Message(
-        id: 0,
-        conversationId: 0,
-        messageId: 0,
-        sender: 'user',
-        provider: '',
-        createdAt: 1,
-        content: "How can I print hello world in Python?"),
-    Message(
-        id: 1,
-        conversationId: 0,
-        messageId: 1,
-        sender: 'assistant',
-        provider: 'OpenAI',
-        createdAt: 12,
-        content:
-            "To print \"Hello, world!\" in Python, you can use the `print()` function. Here's an example code:\n```python\nprint(\"Hello, world\")\n\n\nif __name__ == \"__main__\":\n    print(\"Hello, world\")\n```"),
-    Message(
-        id: 2,
-        conversationId: 0,
-        messageId: 1,
-        sender: 'assistant',
-        provider: 'Claude',
-        createdAt: 12,
-        content:
-            "To print \"Hello, World!\" in Python, you can use the `print` function. Here's an example:"),
-    Message(
-        id: 3,
-        conversationId: 0,
-        messageId: 2,
-        sender: 'user',
-        provider: '',
-        createdAt: 14,
-        content:
-            "I'm trying to install Python on my computer. How do I do that?"),
-    Message(
-        id: 4,
-        conversationId: 0,
-        messageId: 3,
-        sender: 'assistant',
-        provider: 'OpenAI',
-        createdAt: 0,
-        content:
-            "Run the installer and follow the instructions to install Python.\n5. Once the installation is complete, you can open a command prompt (Windows) or terminal (Mac or Linux) and enter the command `python` to start the Python interpreter.\n\nThat's it! You've successfully installed Python."),
-    Message(
-        id: 5,
-        conversationId: 0,
-        messageId: 4,
-        sender: 'assistant',
-        provider: 'OpenAI',
-        createdAt: 0,
-        content:
-            "Run the installer and follow the instructions to install Python.\n5. Once the installation is complete, you can open a command prompt (Windows) or terminal (Mac or Linux) and enter the command `python` to start the Python interpreter.\n\nThat's it! You've successfully installed Python."),
-    Message(
-        id: 6,
-        conversationId: 0,
-        messageId: 6,
-        sender: 'assistant',
-        provider: 'OpenAI',
-        createdAt: 0,
-        content:
-            "Run the installer and follow the instructions to install Python.\n5. Once the installation is complete, you can open a command prompt (Windows) or terminal (Mac or Linux) and enter the command `python` to start the Python interpreter.\n\nThat's it! You've successfully installed Python."),
-    Message(
-        id: 7,
-        conversationId: 0,
-        messageId: 7,
-        sender: 'assistant',
-        provider: 'OpenAI',
-        createdAt: 0,
-        content:
-            "Run the installer and follow the instructions to install Python.\n5. Once the installation is complete, you can open a command prompt (Windows) or terminal (Mac or Linux) and enter the command `python` to start the Python interpreter.\n\nThat's it! You've successfully installed Python."),
-  ]; //tmp
+  List<Message> chats = [];
   // 이전 화면에서 해당 화면 실행 시 값을 불러와야함
   // 불러와야하는값:
   // 1. 신규 채팅이냐? 아니면 기존에 존재하던 채팅이냐?
@@ -112,6 +45,99 @@ class _ChatScreenState extends State<ChatScreen> {
   //    DB에 추가하지 않음.
 
   // API 요청용 클래스랑 함수를 만들자.
+
+  // Provider에 따라서 나뉘는 Chat Context
+  Map<String, List<Message>> chatContexts = {
+    'openai': [],
+    'anthropic': [],
+    'google': [],
+  };
+  Map<String, String> apiKeys = {};
+
+  @override
+  void initState() {
+    WidgetsFlutterBinding.ensureInitialized();
+    print('Activated APIs: ${widget.selectedAPI}');
+
+    _dbHelper.queryAllMessages(widget.conversationId).then((value) {
+      print('Messages with conv.id ${widget.conversationId}: $value');
+      setState(() {
+        //신규 채팅
+        if (value.isEmpty) {
+          isNewChat = true;
+        }
+        //기존 채팅
+        else {
+          for (var i = 0; i < value.length; i++) {
+            chats.add(Message(
+              id: value[i]['id'],
+              content: value[i]['content'],
+              conversationId: value[i]['conv_id'],
+              createdAt: value[i]['created_at'],
+              messageId: value[i]['msg_id'],
+              provider: value[i]['provider'],
+              sender: value[i]['sender'],
+            ));
+
+            if (value[i]['provider'] == '') {
+              for (var key in chatContexts.keys) {
+                chatContexts[key]!.add(Message(
+                  id: value[i]['id'],
+                  content: value[i]['content'],
+                  conversationId: value[i]['conv_id'],
+                  createdAt: value[i]['created_at'],
+                  messageId: value[i]['msg_id'],
+                  provider: value[i]['provider'],
+                  sender: value[i]['sender'],
+                ));
+              }
+            } else {
+              chatContexts[value[i]['provider']]!.add(Message(
+                id: value[i]['id'],
+                content: value[i]['content'],
+                conversationId: value[i]['conv_id'],
+                createdAt: value[i]['created_at'],
+                messageId: value[i]['msg_id'],
+                provider: value[i]['provider'],
+                sender: value[i]['sender'],
+              ));
+            }
+          }
+
+          messageIndex = chats
+              .reduce((currentChat, nextChat) =>
+                  currentChat.messageId > nextChat.messageId
+                      ? currentChat
+                      : nextChat)
+              .messageId;
+        }
+        print('chatContext: $chatContexts');
+      });
+    });
+
+    _dbHelper.queryAllConversations().then((List<Map<String, dynamic>> value) {
+      print('Conversations: $value');
+      setState(() {
+        conversations = value;
+        if (!isNewChat) {
+          selectedConversation = conversations.firstWhere(
+              (conversation) => conversation['id'] == widget.conversationId);
+        }
+      });
+    });
+    SharedPreferences.getInstance().then((prefs) {
+      final openaiKey = prefs.getString('openai_apikey') ?? '';
+      apiKeys['openai'] = openaiKey;
+    });
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    _dbHelper.close();
+    sse.close();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -124,8 +150,8 @@ class _ChatScreenState extends State<ChatScreen> {
       if (chats[i].sender == "user") {
         // Add previous answer bubble
         if (ans.isNotEmpty) {
-          categorized.add(Padding(
-            padding: const EdgeInsets.only(left: 24, bottom: 12),
+          categorized.add(Container(
+            padding: const EdgeInsets.only(bottom: 12),
             child: sideBubbleScrollView(ans),
           ));
         }
@@ -137,7 +163,7 @@ class _ChatScreenState extends State<ChatScreen> {
         // Add user question bubble
         categorized.add(Align(
           alignment: Alignment.centerRight,
-          child: Padding(
+          child: Container(
               padding: const EdgeInsets.only(bottom: 12),
               child: userBubble(chats[i].content, width)),
         ));
@@ -153,8 +179,8 @@ class _ChatScreenState extends State<ChatScreen> {
         } else {
           // Add previous answer bubble
           if (ans.isNotEmpty) {
-            categorized.add(Padding(
-              padding: const EdgeInsets.only(left: 24, bottom: 12),
+            categorized.add(Container(
+              padding: const EdgeInsets.only(bottom: 12),
               child: sideBubbleScrollView(ans),
             ));
           }
@@ -164,7 +190,7 @@ class _ChatScreenState extends State<ChatScreen> {
           ans = [];
           ans.add(
             Padding(
-              padding: const EdgeInsets.only(right: 24),
+              padding: const EdgeInsets.only(left: 24, right: 24),
               child: systemBubble(chats[i].content, chats[i].provider, width),
             ),
           );
@@ -172,8 +198,8 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     }
     if (ans.isNotEmpty) {
-      categorized.add(Padding(
-        padding: const EdgeInsets.only(left: 24, bottom: 12),
+      categorized.add(Container(
+        padding: const EdgeInsets.only(bottom: 12),
         child: sideBubbleScrollView(ans),
       ));
     }
@@ -240,75 +266,45 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  final testTheme = {
-    'root': const TextStyle(color: Colors.white),
-    'comment': const TextStyle(color: Color(0xffd4d0ab)),
-    'quote': const TextStyle(color: Color(0xffd4d0ab)),
-    'variable': const TextStyle(color: Color(0xffffa07a)),
-    'template-variable': const TextStyle(color: Color(0xffffa07a)),
-    'tag': const TextStyle(color: Color(0xffffa07a)),
-    'name': const TextStyle(color: Color(0xffffa07a)),
-    'selector-id': const TextStyle(color: Color(0xffffa07a)),
-    'selector-class': const TextStyle(color: Color(0xffffa07a)),
-    'regexp': const TextStyle(color: Color(0xffffa07a)),
-    'deletion': const TextStyle(color: Color(0xffffa07a)),
-    'number': const TextStyle(color: Color(0xfff5ab35)),
-    'built_in': const TextStyle(color: Color(0xfff5ab35)),
-    'builtin-name': const TextStyle(color: Color(0xfff5ab35)),
-    'literal': const TextStyle(color: Color(0xfff5ab35)),
-    'type': const TextStyle(color: Color(0xfff5ab35)),
-    'params': const TextStyle(color: Color(0xfff5ab35)),
-    'meta': const TextStyle(color: Color(0xfff5ab35)),
-    'link': const TextStyle(color: Color(0xfff5ab35)),
-    'attribute': const TextStyle(color: Color(0xffffd700)),
-    'string': const TextStyle(color: Color(0xffabe338)),
-    'symbol': const TextStyle(color: Color(0xffabe338)),
-    'bullet': const TextStyle(color: Color(0xffabe338)),
-    'addition': const TextStyle(color: Color(0xffabe338)),
-    'title': const TextStyle(color: Color(0xff00e0e0)),
-    'section': const TextStyle(color: Color(0xff00e0e0)),
-    'keyword': const TextStyle(color: Color(0xffdcc6e0)),
-    'selector-tag': const TextStyle(color: Color(0xffdcc6e0)),
-    'emphasis': const TextStyle(fontStyle: FontStyle.italic),
-    'strong': const TextStyle(fontWeight: FontWeight.bold),
-  };
-
   Widget markdownBuilder(String data) {
-    // MarkdownStyleSheet mdTheme = MarkdownStyleSheet();
-
-    // return MarkdownBody(
-    //   key: const Key('defaultmarkdownformatter'),
-    //   // styleSheet: mdTheme,
-    //   data: data,
-    //   selectable: true,
-    //   softLineBreak: true,
-
-    //   builders: {
-    //     'pre': CodeMarkdownElementBuilder(),
-    //     // 'code': CodeElementBuilder(),
-    //   },
-    //   extensionSet: md.ExtensionSet(
-    //       md.ExtensionSet.gitHubFlavored.blockSyntaxes,
-    //       [md.EmojiSyntax(), ...md.ExtensionSet.gitHubFlavored.inlineSyntaxes]),
-    // );
     codeWrapper(child, text) => CodeWrapperWidget(child: child, text: text);
-    final yourTheme = Map.of(a11yDarkTheme);
-    yourTheme['root'] = const TextStyle(color: Colors.white);
-    final mdGen = MarkdownGenerator(
-        config: MarkdownConfig(configs: [
-      PreConfig(
-          decoration: const BoxDecoration(
-              color: Color(0xff2a2a2a),
-              borderRadius: BorderRadius.all(Radius.circular(8.0))),
-          theme: yourTheme,
-          textStyle: GoogleFonts.jetBrainsMono(
-              textStyle: const TextStyle(fontSize: 12)),
-          wrapper: codeWrapper),
-    ]));
+    final myTheme = Map.of(a11yDarkTheme);
+    myTheme['root'] = const TextStyle(color: Colors.white);
+    final mdGen = MarkdownGenerator();
 
-    return Column(
-      children: mdGen.buildWidgets(data),
-    );
+    return MarkdownBlock(
+        data: data,
+        selectable: false,
+        config: MarkdownConfig(configs: [
+          const PConfig(textStyle: TextStyle(fontSize: 14)),
+          LinkConfig(
+            onTap: (value) async => await launchUrl(
+              Uri.parse(value),
+              mode: LaunchMode.externalApplication,
+            ),
+          ),
+          PreConfig(
+              decoration: const BoxDecoration(
+                  color: Color(0xff2a2a2a),
+                  borderRadius: BorderRadius.all(Radius.circular(8.0))),
+              theme: myTheme,
+              styleNotMatched: const TextStyle(color: Colors.white),
+              textStyle: GoogleFonts.jetBrainsMono(
+                  textStyle: const TextStyle(fontSize: 12)),
+              wrapper: codeWrapper),
+          CodeConfig(
+              style: GoogleFonts.jetBrainsMono(
+                  textStyle: TextStyle(
+                      fontSize: 12,
+                      color: lightColorScheme.onSurfaceVariant,
+                      backgroundColor: const Color(0x665BDCAF)))),
+        ]));
+
+    // return Column(
+    //   mainAxisAlignment: MainAxisAlignment.start,
+    //   crossAxisAlignment: CrossAxisAlignment.start,
+    //   children: mdGen.buildWidgets(data),
+    // );
   }
 
   Widget userBubble(String content, double deviceWidth) {
@@ -324,27 +320,49 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Widget systemBubble(String content, String provider, double width) {
+  Widget systemBubble(String content, String prov, double width) {
+    String provider = '';
+    if (prov == 'openai') {
+      provider = 'OpenAI';
+    } else if (prov == 'anthrophic') {
+      provider = 'Anthrophic';
+    } else if (prov == 'google') {
+      provider = 'Google';
+    }
     return Container(
-      width: width * 0.8,
+      constraints: BoxConstraints(minWidth: width * 0.6, maxWidth: width * 0.8),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
         color: lightColorScheme.secondaryContainer,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Text(content),
           markdownBuilder(content),
           const Padding(
             padding: EdgeInsets.only(top: 6),
           ),
-          Align(
-            alignment: Alignment.bottomRight,
-            child: Text(
-              'Powered by $provider',
-              style: TextStyle(color: lightColorScheme.secondary),
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              InkWell(
+                onTap: () {
+                  final data = ClipboardData(text: content);
+                  Clipboard.setData(data);
+                },
+                child: Text(
+                  'Copy Text',
+                  style: TextStyle(
+                      color: lightColorScheme.secondary,
+                      decoration: TextDecoration.underline),
+                ),
+              ),
+              Text(
+                'Powered by $provider',
+                style: TextStyle(color: lightColorScheme.secondary),
+              ),
+            ],
           ),
         ],
       ),
@@ -352,12 +370,38 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget inputBar() {
+    Map<String, List> conversationContexts = {};
+
+    conversationContexts['openai'] = [
+      OpenAIMessage(
+          role: 'system',
+          content:
+              'You are a helpful, creative, clever, and very friendly assistant. You are familiar with various languages in the world.')
+    ];
+
+    for (var key in chatContexts.keys) {
+      for (var msg in chatContexts[key]!) {
+        if (msg.provider == 'openai') {
+          conversationContexts['openai']!
+              .add(OpenAIMessage(role: msg.sender, content: msg.content));
+        } else if (msg.provider == 'anthropic') {
+        } else if (msg.provider == 'google') {
+        } else {
+          conversationContexts['openai']!
+              .add(OpenAIMessage(role: msg.sender, content: msg.content));
+
+          // TODO: Add other providers later
+        }
+      }
+    }
+
     SingleChildScrollView inputScrollView = SingleChildScrollView(
       child: FocusScope(
           node: inputFocusScopeNode,
           child: SizedBox(
             height: 50,
             child: TextFormField(
+              enabled: !isActive,
               controller: inputController,
               onChanged: (value) {
                 setState(() {
@@ -371,9 +415,15 @@ class _ChatScreenState extends State<ChatScreen> {
               minLines: null,
               expands: true,
               decoration: InputDecoration(
-                floatingLabelBehavior: FloatingLabelBehavior.always,
+                floatingLabelBehavior: FloatingLabelBehavior.never,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 24),
-                hintText: 'Ask a question...',
+                hintText: isActive
+                    ? 'Please wait until the assistant finishes its response.'
+                    : 'Ask a question...',
+                border: const OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(0.0))),
+                disabledBorder:
+                    const OutlineInputBorder(borderSide: BorderSide.none),
                 hintStyle: TextStyle(
                   color: lightColorScheme.outline,
                 ),
@@ -396,42 +446,158 @@ class _ChatScreenState extends State<ChatScreen> {
     );
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       constraints: const BoxConstraints(maxHeight: 100),
       decoration: BoxDecoration(
         color: lightColorScheme.surfaceVariant,
         borderRadius: BorderRadius.circular(30),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.max,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: inputScrollView,
-          ),
-          OutlinedButton(
-            onPressed: () async {
-              print("pressed!");
-              final request = OpenAIChatRequest(messages: [
-                OpenAIMessage(role: 'user', content: 'hello! how are you?')
-              ], model: 'gpt-3.5-turbo', stream: true);
-              final sse = Sse.connect();
-              // OpenAI API에 요청 보내기
-              sse.send('', request);
+          mainAxisSize: MainAxisSize.max,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: inputScrollView,
+            ),
+            OutlinedButton(
+              onPressed: (inputText.isNotEmpty && !isActive)
+                  ? () {
+                      String s = '';
+                      setState(() {
+                        //신규채팅이면 첫 질문시 추가
+                        if (isNewChat) {
+                          selectedConversation = Conversation(
+                                  id: widget.conversationId,
+                                  createdAt:
+                                      DateTime.now().millisecondsSinceEpoch,
+                                  title: inputText.length <= 50
+                                      ? inputText
+                                      : inputText.substring(0, 50),
+                                  updatedAt:
+                                      DateTime.now().millisecondsSinceEpoch,
+                                  selectedAPI: DatabaseHelper.toBinaryInt(
+                                      widget.selectedAPI))
+                              .toMap();
+                          _dbHelper.insert(
+                              'Conversations', selectedConversation);
+                          isNewChat = false;
+                        }
 
-              sse.stream.listen((data) {
-                // OpenAIStreamChatResponse 객체 수신
-                print('chunk data: $data');
-              });
-              sse.close();
-            },
-            style: OutlinedButton.styleFrom(
-                side: BorderSide.none,
-                foregroundColor: lightColorScheme.secondary),
-            child: const Icon(Icons.send, size: 16),
-          ),
-        ],
-      ),
+                        // Add question
+                        messageIndex++;
+                        var currentTime = DateTime.now().millisecondsSinceEpoch;
+                        chats.add(Message(
+                            id: messageId,
+                            conversationId: widget.conversationId,
+                            messageId: messageIndex,
+                            sender: 'user',
+                            provider: '',
+                            createdAt: currentTime,
+                            content: inputText));
+                        _dbHelper
+                            .insert('Messages', chats[chats.length - 1].toMap())
+                            .then((lastID) {
+                          chats[chats.length - 1].id = lastID;
+                          messageId = lastID;
+                        });
+
+                        // Add question in each context
+                        for (var key in chatContexts.keys) {
+                          chatContexts[key]!.add(Message(
+                              id: messageId,
+                              conversationId: widget.conversationId,
+                              messageId: messageIndex,
+                              sender: 'user',
+                              provider: '',
+                              createdAt: currentTime,
+                              content: inputText));
+                        }
+
+                        // Add answer
+                        // TODO: Message in chats should be synced with the database since id value may not be accurate
+                        messageIndex++;
+                        widget.selectedAPI.forEach((key, value) {
+                          if (value) {
+                            messageId++;
+                            chats.add(Message(
+                                id: messageId,
+                                content: s,
+                                messageId: messageIndex,
+                                conversationId: widget.conversationId,
+                                createdAt:
+                                    DateTime.now().millisecondsSinceEpoch,
+                                sender: 'assistant',
+                                provider: key));
+                          }
+                        });
+                        inputController.clear();
+                      });
+
+                      // Add activated API Contexts
+                      for (var key in widget.selectedAPI.keys) {
+                        if (widget.selectedAPI[key]!) {
+                          switch (key) {
+                            case 'openai':
+                              conversationContexts[key]!.add(OpenAIMessage(
+                                  role: 'user', content: inputText));
+                              break;
+                            case 'anthropic':
+                              break;
+                            case 'google':
+                              break;
+                            default:
+                          }
+                        }
+                      }
+                      print(
+                          'Conversation Contexts: ${conversationContexts['openai']}');
+                      final request = OpenAIChatRequest(
+                          messages: List<OpenAIMessage>.from(
+                              conversationContexts['openai']!),
+                          model: 'gpt-3.5-turbo',
+                          stream: true);
+                      inputText = '';
+                      // OpenAI API에 요청 보내기
+                      sse.send(apiKeys['openai'] ?? '', request);
+                      setState(() {
+                        isActive = true;
+                      });
+                      sse.stream.listen((response) {
+                        if (sse.isClosed()) {
+                          print("Stream Completed");
+                          setState(() {
+                            isActive = false;
+                            var currentTime =
+                                DateTime.now().millisecondsSinceEpoch;
+                            chats[chats.length - 1].createdAt = currentTime;
+                            chats[chats.length - 1].content = s;
+                            selectedConversation['updated_at'] = currentTime;
+                          });
+                          _dbHelper.update('Conversations',
+                              selectedConversation); //conversation 업데이트
+                          _dbHelper.insert(
+                              'Messages', chats[chats.length - 1].toMap());
+                        }
+                        // OpenAIStreamChatResponse 객체 수신
+                        for (var res in response) {
+                          for (var choice in res.choices) {
+                            var content = choice.delta.content;
+                            if (content == null) continue;
+                            setState(() {
+                              s += content.toString();
+                              chats[chats.length - 1].content = '$s▊';
+                            });
+                          }
+                        }
+                      });
+                    }
+                  : null,
+              style: OutlinedButton.styleFrom(
+                  side: BorderSide.none,
+                  foregroundColor: lightColorScheme.secondary),
+              child: const Icon(Icons.send, size: 16),
+            ),
+          ]),
     );
   }
 }

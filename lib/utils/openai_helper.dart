@@ -55,9 +55,11 @@ class OpenAIChatChoice {
   final String? finishReason;
   final int index;
 
-  OpenAIChatChoice(
-      {required this.delta, required this.finishReason, required this.index});
-
+  OpenAIChatChoice({
+    required this.delta,
+    required this.finishReason,
+    required this.index,
+  });
   @override
   String toString() {
     return 'OpenAIChatChoice{delta: $delta, finishReason: $finishReason, index: $index}';
@@ -166,7 +168,7 @@ class Sse {
   Sse._internal(this.streamController);
 
   factory Sse.connect(
-      {uri, bool withCredentials = true, bool closeOnError = true}) {
+      {uri, bool withCredentials = false, bool closeOnError = true}) {
     final streamController =
         StreamController<String>(); // String을 담는 StreamController
 
@@ -178,30 +180,66 @@ class Sse {
   void send(String apiKey, OpenAIChatRequest body) async {
     Map<String, String> headers = {
       'Content-Type': 'application/json',
-      'Authorization': 'Bearer $apiKey'
+      'Authorization': 'Bearer $apiKey',
     };
-    final client = http.Client();
-    final request =
-        await client.post(uri, body: jsonEncode(body), headers: headers);
-    // request.headers.contentType =
-    //     ContentType("application", "json", charset: "utf-8");
-    // request.headers.set('Authorization', 'Bearer $apiKey');
-    // request.write(jsonEncode(body));
-    print('request status code: ${request.statusCode}');
-    print('request result: ${request.body}');
+    var client = http.Client();
+    var request = http.Request(
+      'POST',
+      Uri.parse('https://api.openai.com/v1/chat/completions'),
+    );
+    request.headers.addAll(headers);
+    request.body = jsonEncode(body);
+
+    var streamedResponse = await client.send(request);
+    await for (var chunk in streamedResponse.stream) {
+      if (streamController.isClosed) break;
+
+      print(utf8.decode(chunk));
+      if (utf8.decode(chunk).startsWith('data: ')) {
+        streamController.add(utf8.decode(chunk));
+      }
+    }
   }
 
-  Stream<OpenAIStreamChatResponse> get stream =>
+  Stream<List<OpenAIStreamChatResponse>> get stream =>
       streamController.stream.map((data) {
-        final jsonData = json.decode(data);
-        return OpenAIStreamChatResponse(
-          choices: [], //임시
-          created: jsonData['created'] as int,
-          id: jsonData['id'] as String,
-          model: jsonData['model'] as String,
-          object: jsonData['object'] as String,
-        );
+        List<OpenAIStreamChatResponse> response = [];
+
+        var rawData = data;
+        if (rawData.startsWith('data: ')) {
+          rawData = rawData.replaceAll("data: ", "");
+        }
+        List rawDataList = rawData.split('\n');
+
+        for (var rawData in rawDataList) {
+          if (rawData == '') continue;
+          if (rawData == "[DONE]") {
+            streamController.close();
+            close();
+            break;
+          }
+          var jsonData = json.decode(rawData);
+          var choices = (jsonData['choices'] as List<dynamic>)
+              .map((e) => OpenAIChatChoice(
+                    delta: OpenAIChoiceDelta(
+                      role: e['delta']['role'],
+                      content: e['delta']['content'],
+                    ),
+                    index: e['index'] as int,
+                    finishReason: e['finish_reason'],
+                  ))
+              .toList();
+          response.add(OpenAIStreamChatResponse(
+            choices: choices,
+            created: jsonData['created'] as int,
+            id: jsonData['id'],
+            model: jsonData['model'],
+            object: jsonData['object'],
+          ));
+        }
+        return response;
       });
+
   bool isClosed() => streamController.isClosed;
 
   void close() {
