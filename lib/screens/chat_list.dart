@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -17,6 +18,9 @@ class ChatList extends StatefulWidget {
 }
 
 class _ChatListState extends State<ChatList> {
+  bool isAllSelected = false; //전체 선택 여부
+  bool isSelectionMode = false; //선택 모드 여부
+  Set<int> selectedItems = {};
   final DatabaseHelper _dbHelper = DatabaseHelper();
   List<Conversation> chats = [];
   int conversationId = 0;
@@ -67,47 +71,107 @@ class _ChatListState extends State<ChatList> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-          automaticallyImplyLeading: false,
-          actions: [
-            Padding(
-              padding: const EdgeInsets.only(
-                right: 12,
-              ),
-              child: IconButton(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const Setting(),
-                  ),
+    return WillPopScope(
+      onWillPop: () async {
+        if (isSelectionMode) {
+          setState(() {
+            selectedItems.clear();
+            isSelectionMode = false;
+            isAllSelected = false;
+          });
+          return false;
+        }
+        return true;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+            automaticallyImplyLeading: false,
+            title: isSelectionMode
+                ? Row(
+                    children: [
+                      IconButton(
+                          onPressed: () {
+                            setState(() {
+                              if (isAllSelected) {
+                                selectedItems.clear(); //전체 선택 해제
+                              } else {
+                                selectedItems = Set<int>.from(List.generate(
+                                    chats.length, (index) => index));
+                                //모든 아이템 선택
+                              }
+                              isAllSelected = !isAllSelected; //상태 토글
+                            });
+                          },
+                          icon: Icon(
+                            isAllSelected
+                                ? Icons.check_box
+                                : Icons.check_box_outline_blank,
+                            size: 30,
+                          )),
+                      const Text(
+                        "Select All",
+                        style: titleLarge,
+                      )
+                    ],
+                  )
+                : null,
+            actions: [
+              Padding(
+                padding: const EdgeInsets.only(
+                  right: 12,
                 ),
-                icon: const Icon(
-                  Icons.settings_outlined,
-                  size: 30,
-                ),
-              ),
-            )
-          ],
-          backgroundColor: lightColorScheme.surface,
-          surfaceTintColor: Colors.transparent),
-      backgroundColor: lightColorScheme.surface,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              chatsTitle(),
-              const SizedBox(
-                height: 12,
-              ),
-              newChat(conversationId),
-              const SizedBox(
-                height: 12,
-              ),
-              chatList(),
+                child: isSelectionMode
+                    ? IconButton(
+                        onPressed: () {
+                          if (selectedItems.isEmpty) {
+                            setState(() {
+                              selectedItems.clear();
+                              isSelectionMode = false;
+                              isAllSelected = false;
+                            });
+                          } else {
+                            deleteSelectedItems();
+                          }
+                        },
+                        icon: Icon(
+                          selectedItems.isEmpty ? Icons.close : Icons.delete,
+                          size: 30,
+                        ),
+                      )
+                    : IconButton(
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const Setting(),
+                          ),
+                        ),
+                        icon: const Icon(
+                          Icons.settings_outlined,
+                          size: 30,
+                        ),
+                      ),
+              )
             ],
+            backgroundColor: lightColorScheme.surface,
+            surfaceTintColor: Colors.transparent),
+        backgroundColor: lightColorScheme.surface,
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                chatsTitle(),
+                const SizedBox(
+                  height: 12,
+                ),
+                newChat(conversationId),
+                const SizedBox(
+                  height: 12,
+                ),
+                chatList(),
+              ],
+            ),
           ),
         ),
       ),
@@ -258,48 +322,107 @@ class _ChatListState extends State<ChatList> {
     );
   }
 
+  void toggleItemSelection(int index) {
+    setState(() {
+      if (selectedItems.contains(index)) {
+        selectedItems.remove(index);
+      } else {
+        selectedItems.add(index);
+      }
+    });
+  }
+
+  void deleteSelectedItems() {
+    setState(() {
+      for (var index in selectedItems) {
+        //해당 conversation의 msg 모두 삭제
+        _dbHelper.queryAllMessages(index).then((value) {
+          for (int i = 0; i < value.length; i++) {
+            int id = value[i]['id'];
+            _dbHelper.delete('Messages', id);
+          }
+        });
+        //conversation 삭제
+        _dbHelper.delete('Conversations', index);
+        chats.removeAt(index);
+      }
+      selectedItems.clear(); //초기화
+      isSelectionMode = false;
+      isAllSelected = false;
+    });
+  }
+
   Widget chatList() {
+    Color getColor(Set<MaterialState> states) {
+      return lightColorScheme.primary;
+    }
+
     return Expanded(
       child: ListView.builder(
         itemCount: chats.length,
         itemBuilder: (context, index) {
-          return InkWell(
-            onTap: () {
-              Map<String, bool> selectedAPI =
-                  DatabaseHelper.toBinaryMap(chats[index].selectedAPI);
-              print('Selected API: ${chats[index].selectedAPI}}');
-              print('Selected API: $selectedAPI');
-              print('Selected Conversation ID: ${chats[index].id}');
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) =>
-                        ChatScreen(chats[index].id, selectedAPI)),
-              ).then((value) {
-                setState(() {});
-              });
+          return ListTile(
+            selectedTileColor: lightColorScheme.secondaryContainer,
+            selectedColor: Colors.black,
+            selected: selectedItems.contains(index),
+            onLongPress: () {
+              if (!isSelectionMode) {
+                //선택 모드로 전환
+                setState(() {
+                  isSelectionMode = true;
+                  toggleItemSelection(index);
+                });
+              }
             },
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.forum_outlined,
-                    size: 36,
-                  ),
-                  const SizedBox(
-                    width: 12,
-                  ),
-                  Expanded(
-                    child: Text(
-                      chats[index].title,
-                      style: bodyLarge,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
+            onTap: () {
+              if (isSelectionMode) {
+                toggleItemSelection(index);
+              } else {
+                Map<String, bool> selectedAPI =
+                    DatabaseHelper.toBinaryMap(chats[index].selectedAPI);
+                print('Selected API: ${chats[index].selectedAPI}}');
+                print('Selected API: $selectedAPI');
+                print('Selected Conversation ID: ${chats[index].id}');
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) =>
+                          ChatScreen(chats[index].id, selectedAPI)),
+                ).then((value) {
+                  setState(() {
+                    chats = [];
+                    for (var i = 0; i < value.length; i++) {
+                      conversationId = max(conversationId, value[i]['id']);
+                      chats.add(Conversation(
+                          id: value[i]['id'],
+                          title: value[i]['title'],
+                          createdAt: value[i]['created_at'],
+                          updatedAt: value[i]['updated_at'],
+                          selectedAPI: value[i]['selected_api']));
+                    }
+                  });
+                });
+              }
+            },
+            leading: const Icon(
+              Icons.forum_outlined,
+              size: 36,
             ),
+            title: Text(
+              chats[index].title,
+              style: bodyLarge,
+              overflow: TextOverflow.ellipsis,
+            ),
+            trailing: isSelectionMode
+                ? Checkbox(
+                    activeColor: Colors.transparent,
+                    checkColor: lightColorScheme.onPrimary,
+                    fillColor: MaterialStateProperty.resolveWith(getColor),
+                    value: selectedItems.contains(index),
+                    onChanged: (value) {
+                      toggleItemSelection(index);
+                    })
+                : null,
           );
         },
       ),
