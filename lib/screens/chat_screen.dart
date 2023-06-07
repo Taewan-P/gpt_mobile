@@ -151,7 +151,7 @@ class _ChatScreenState extends State<ChatScreen> {
         // Add previous answer bubble
         if (ans.isNotEmpty) {
           categorized.add(Container(
-            padding: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.symmetric(vertical: 6),
             child: sideBubbleScrollView(ans),
           ));
         }
@@ -164,7 +164,7 @@ class _ChatScreenState extends State<ChatScreen> {
         categorized.add(Align(
           alignment: Alignment.centerRight,
           child: Container(
-              padding: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(vertical: 12),
               child: userBubble(chats[i].content, width)),
         ));
       } else {
@@ -180,7 +180,7 @@ class _ChatScreenState extends State<ChatScreen> {
           // Add previous answer bubble
           if (ans.isNotEmpty) {
             categorized.add(Container(
-              padding: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(vertical: 6),
               child: sideBubbleScrollView(ans),
             ));
           }
@@ -199,7 +199,7 @@ class _ChatScreenState extends State<ChatScreen> {
     }
     if (ans.isNotEmpty) {
       categorized.add(Container(
-        padding: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.symmetric(vertical: 6),
         child: sideBubbleScrollView(ans),
       ));
     }
@@ -381,17 +381,12 @@ class _ChatScreenState extends State<ChatScreen> {
 
     for (var key in chatContexts.keys) {
       for (var msg in chatContexts[key]!) {
-        if (msg.provider == 'openai') {
+        if (key == 'openai') {
           conversationContexts['openai']!
               .add(OpenAIMessage(role: msg.sender, content: msg.content));
-        } else if (msg.provider == 'anthropic') {
-        } else if (msg.provider == 'google') {
-        } else {
-          conversationContexts['openai']!
-              .add(OpenAIMessage(role: msg.sender, content: msg.content));
-
-          // TODO: Add other providers later
-        }
+        } else if (key == 'anthropic') {
+        } else if (key == 'google') {
+        } else {}
       }
     }
 
@@ -533,13 +528,14 @@ class _ChatScreenState extends State<ChatScreen> {
                         inputController.clear();
                       });
 
-                      // Add activated API Contexts
+                      // Add question to activated API Contexts
                       for (var key in widget.selectedAPI.keys) {
                         if (widget.selectedAPI[key]!) {
                           switch (key) {
                             case 'openai':
                               conversationContexts[key]!.add(OpenAIMessage(
                                   role: 'user', content: inputText));
+                              print('added context: $inputText');
                               break;
                             case 'anthropic':
                               break;
@@ -567,14 +563,19 @@ class _ChatScreenState extends State<ChatScreen> {
                           print("Stream Completed");
                           setState(() {
                             isActive = false;
-                            var currentTime =
-                                DateTime.now().millisecondsSinceEpoch;
-                            chats[chats.length - 1].createdAt = currentTime;
-                            chats[chats.length - 1].content = s;
-                            selectedConversation['updated_at'] = currentTime;
                           });
-                          _dbHelper.update('Conversations',
-                              selectedConversation); //conversation 업데이트
+                          var currentTime =
+                              DateTime.now().millisecondsSinceEpoch;
+                          chats[chats.length - 1].createdAt = currentTime;
+                          chats[chats.length - 1].content = s;
+                          var updatedConversation = {
+                            ...selectedConversation,
+                            'updated_at': currentTime
+                          };
+                          _dbHelper.update(
+                              'Conversations',
+                              Map.from(
+                                  updatedConversation)); //conversation 업데이트
                           _dbHelper.insert(
                               'Messages', chats[chats.length - 1].toMap());
                         }
