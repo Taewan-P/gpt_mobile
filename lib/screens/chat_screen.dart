@@ -217,13 +217,14 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ),
         onPressed: () {
-          Navigator.pop(context);
+          _dbHelper
+              .queryAllConversations()
+              .then((value) => Navigator.pop(context, value));
         },
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.startTop,
-      body: SafeArea(
-        child: Container(
-          padding: const EdgeInsets.only(top: 24),
+      body: WillPopScope(
+        child: SafeArea(
           child: Center(
             child: ConstrainedBox(
               constraints: BoxConstraints(
@@ -251,6 +252,12 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
         ),
+        onWillPop: () {
+          _dbHelper
+              .queryAllConversations()
+              .then((value) => Navigator.pop(context, value));
+          return Future.value(false);
+        },
       ),
     );
   }

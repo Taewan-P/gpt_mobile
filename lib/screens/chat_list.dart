@@ -218,7 +218,18 @@ class _ChatListState extends State<ChatList> {
               builder: (context) => ChatScreen(conversationId, value),
             ),
           ).then((value) {
-            setState(() {});
+            setState(() {
+              chats = [];
+              for (var i = 0; i < value.length; i++) {
+                conversationId = max(conversationId, value[i]['id']);
+                chats.add(Conversation(
+                    id: value[i]['id'],
+                    title: value[i]['title'],
+                    createdAt: value[i]['created_at'],
+                    updatedAt: value[i]['updated_at'],
+                    selectedAPI: value[i]['selected_api']));
+              }
+            });
           });
         }));
       },
