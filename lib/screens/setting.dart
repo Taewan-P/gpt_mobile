@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:gpt_mobile/screens/anthropic_settings.dart';
 import 'package:gpt_mobile/screens/openai_settings.dart';
 import 'package:gpt_mobile/styles/color_schemes.g.dart';
 import 'package:gpt_mobile/styles/text_styles.dart';
@@ -76,22 +77,25 @@ class _SettingState extends State<Setting> {
             style: titleMedium,
           ),
           subtitle: const Text(
-            'API Key, Model, Token Limit',
+            'API Key, Model',
             style: bodyLarge,
           ),
           trailing: const Icon(Icons.arrow_right),
         ),
-        const ListTile(
-          enabled: false,
-          title: Text(
+        ListTile(
+          onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (context) => const AnthropicSettings())),
+          title: const Text(
             'Anthropic Settings',
             style: titleMedium,
           ),
-          subtitle: Text(
-            'Claude API Key',
+          subtitle: const Text(
+            'Claude API Key, Model, Token Limit',
             style: bodyLarge,
           ),
-          trailing: Icon(Icons.arrow_right),
+          trailing: const Icon(Icons.arrow_right),
         ),
         const ListTile(
           enabled: false,
