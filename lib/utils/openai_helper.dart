@@ -161,19 +161,19 @@ class OpenAIStreamChatResponse {
 // Body: OpenAIChatRequest from function arg
 // Authorization: Bearer $OPENAI_API_KEY from function arg
 
-class Sse {
+class OpenAISse {
   Uri uri = Uri.parse('https://api.openai.com/v1/chat/completions');
-  final StreamController<String> streamController;
+  StreamController<String> streamController;
 
-  Sse._internal(this.streamController);
+  OpenAISse._internal(this.streamController);
 
-  factory Sse.connect(
+  factory OpenAISse.connect(
       {uri, bool withCredentials = false, bool closeOnError = true}) {
     final streamController =
         StreamController<String>(); // String을 담는 StreamController
 
-    final sse = Sse._internal(streamController);
-    return sse;
+    final openaiSse = OpenAISse._internal(streamController);
+    return openaiSse;
   }
 
   // EventSource 대신 HttpClient를 이용하여 POST 요청을 보냅니다.
@@ -244,5 +244,12 @@ class Sse {
 
   void close() {
     streamController.close();
+  }
+
+  void flush() {
+    if (!isClosed()) {
+      close();
+    }
+    streamController = StreamController<String>();
   }
 }

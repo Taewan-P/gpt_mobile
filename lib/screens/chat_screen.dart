@@ -28,7 +28,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final inputController = TextEditingController();
 
   final DatabaseHelper _dbHelper = DatabaseHelper();
-  final sse = Sse.connect();
+  final openaiSse = OpenAISse.connect();
   List<Map<String, dynamic>> conversations = [];
   Map<String, dynamic> selectedConversation = {};
   String inputText = '';
@@ -134,8 +134,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
-    _dbHelper.close();
-    sse.close();
+    openaiSse.close();
     super.dispose();
   }
 
@@ -561,16 +560,17 @@ class _ChatScreenState extends State<ChatScreen> {
                           stream: true);
                       inputText = '';
                       // OpenAI API에 요청 보내기
-                      sse.send(apiKeys['openai'] ?? '', request);
+                      openaiSse.send(apiKeys['openai'] ?? '', request);
                       setState(() {
                         isActive = true;
                       });
-                      sse.stream.listen((response) {
-                        if (sse.isClosed()) {
+                      openaiSse.stream.listen((response) {
+                        if (openaiSse.isClosed()) {
                           print("Stream Completed");
                           setState(() {
                             isActive = false;
                           });
+                          openaiSse.flush();
                           var currentTime =
                               DateTime.now().millisecondsSinceEpoch;
                           chats[chats.length - 1].createdAt = currentTime;
