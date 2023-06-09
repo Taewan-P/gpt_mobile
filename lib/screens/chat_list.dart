@@ -215,6 +215,7 @@ class _ChatListState extends State<ChatList> {
                   ListBody(
                     children: [
                       CheckboxListTile(
+                          enabled: _isChecked['openai']! ? true : false,
                           title: const Text('OpenAI', style: titleMedium),
                           value: selected['openai'],
                           checkColor: Colors.white,
@@ -226,6 +227,7 @@ class _ChatListState extends State<ChatList> {
                             setState(() => selected['openai'] = value!);
                           }),
                       CheckboxListTile(
+                          enabled: _isChecked['anthropic']! ? true : false,
                           title: const Text('Anthropic', style: titleMedium),
                           value: selected['anthropic'],
                           checkColor: Colors.white,
@@ -235,6 +237,7 @@ class _ChatListState extends State<ChatList> {
                           controlAffinity: ListTileControlAffinity.leading,
                           onChanged: null),
                       CheckboxListTile(
+                          enabled: _isChecked['google']! ? true : false,
                           title: const Text('Google', style: titleMedium),
                           value: selected['google'],
                           checkColor: Colors.white,
