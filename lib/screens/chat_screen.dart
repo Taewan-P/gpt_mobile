@@ -276,7 +276,6 @@ class _ChatScreenState extends State<ChatScreen> {
     codeWrapper(child, text) => CodeWrapperWidget(child: child, text: text);
     final myTheme = Map.of(a11yDarkTheme);
     myTheme['root'] = const TextStyle(color: Colors.white);
-    final mdGen = MarkdownGenerator();
 
     return MarkdownBlock(
         data: data,
