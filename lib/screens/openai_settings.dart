@@ -108,6 +108,7 @@ class _OpenaiSettingsState extends State<OpenaiSettings> {
       shrinkWrap: true,
       children: [
         ListTile(
+          enabled: _isChecked ? true : false,
           title: const Text(
             'Set API Key',
             style: titleMedium,
@@ -118,6 +119,7 @@ class _OpenaiSettingsState extends State<OpenaiSettings> {
           },
         ),
         ListTile(
+          enabled: _isChecked ? true : false,
           title: const Text(
             'Set API Model',
             style: titleMedium,
