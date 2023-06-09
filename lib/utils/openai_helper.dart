@@ -183,10 +183,8 @@ class OpenAISse {
       'Authorization': 'Bearer $apiKey',
     };
     var client = http.Client();
-    var request = http.Request(
-      'POST',
-      Uri.parse('https://api.openai.com/v1/chat/completions'),
-    );
+    var request = http.Request('POST', uri);
+
     request.headers.addAll(headers);
     request.body = jsonEncode(body);
 
