@@ -84,7 +84,7 @@ class DatabaseHelper {
   static const _dbName = "gptmobile.db";
   static const _dbVersion =
       4; // Change this if you want to execute onCreate again
-  late Future<Database> database = _getDatabase();
+  static Database? _database;
 
   static Map<String, bool> toBinaryMap(int number) {
     String binaryString = number.toRadixString(2);
@@ -140,6 +140,12 @@ class DatabaseHelper {
     return result;
   }
 
+  Future<Database> get database async {
+    if (_database != null) return _database!;
+    _database = await _getDatabase();
+    return _database!;
+  }
+
   Future<Database> _getDatabase() async {
     final database = await openDatabase(
       join(await getDatabasesPath(), _dbName),
@@ -192,12 +198,14 @@ class DatabaseHelper {
 
   Future<List<Map<String, dynamic>>> queryAllConversations() async {
     Database db = await database;
+
     return await db.query('Conversations', orderBy: 'updated_at DESC');
   }
 
   Future<List<Map<String, dynamic>>> queryAllMessages(
       int conversationID) async {
     Database db = await database;
+
     return await db.query('Messages',
         where: 'conv_id = ?',
         whereArgs: [conversationID],
@@ -207,15 +215,19 @@ class DatabaseHelper {
   Future<int> update(String table, Map<String, dynamic> row) async {
     Database db = await database;
     int rowID = row['id'];
+
     return await db.update(table, row, where: 'id = ?', whereArgs: [rowID]);
   }
 
   Future<int> delete(String table, int id) async {
     Database db = await database;
+
     return await db.delete(table, where: 'id = ?', whereArgs: [id]);
   }
 
-  void close() {
-    database.then((db) => db.close());
+  void close() async {
+    final db = await database;
+    _database = null;
+    return db.close();
   }
 }
