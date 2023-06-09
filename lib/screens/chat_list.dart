@@ -106,7 +106,7 @@ class _ChatListState extends State<ChatList> {
                             isAllSelected
                                 ? Icons.check_box
                                 : Icons.check_box_outline_blank,
-                            size: 30,
+                            size: 25,
                           )),
                       const Text(
                         "Select All",
@@ -293,6 +293,9 @@ class _ChatListState extends State<ChatList> {
                     updatedAt: value[i]['updated_at'],
                     selectedAPI: value[i]['selected_api']));
               }
+              selectedItems.clear(); //초기화
+              isSelectionMode = false;
+              isAllSelected = false;
             });
           });
         }));
@@ -335,21 +338,32 @@ class _ChatListState extends State<ChatList> {
   void deleteSelectedItems() {
     setState(() {
       for (var index in selectedItems) {
+        int conversationId = chats[index].id;
+
         //해당 conversation의 msg 모두 삭제
-        _dbHelper.queryAllMessages(index).then((value) {
+        _dbHelper.queryAllMessages(conversationId).then((value) {
           for (int i = 0; i < value.length; i++) {
             int id = value[i]['id'];
             _dbHelper.delete('Messages', id);
           }
         });
         //conversation 삭제
-        _dbHelper.delete('Conversations', index);
+        print('delete conversation $conversationId');
+        _dbHelper.delete('Conversations', conversationId);
         chats.removeAt(index);
       }
       selectedItems.clear(); //초기화
       isSelectionMode = false;
       isAllSelected = false;
     });
+  }
+
+  String getFirstLine(String str) {
+    if (str.contains('\n')) {
+      return str.substring(0, str.indexOf('\n'));
+    } else {
+      return str;
+    }
   }
 
   Widget chatList() {
@@ -409,7 +423,7 @@ class _ChatListState extends State<ChatList> {
               size: 36,
             ),
             title: Text(
-              chats[index].title,
+              getFirstLine(chats[index].title),
               style: bodyLarge,
               overflow: TextOverflow.ellipsis,
             ),
