@@ -25,14 +25,14 @@ class _ChatListState extends State<ChatList> {
   List<Conversation> chats = [];
   int conversationId = 0;
   final Map<String, bool> _isChecked = {
-    'openai': true,
+    'openai': false,
     'anthropic': false,
     'google': false,
   };
 
   _fetchCheckStatus() async {
     final prefs = await SharedPreferences.getInstance();
-    var openai = prefs.getBool('openai') ?? true;
+    var openai = prefs.getBool('openai') ?? false;
     var anthropic = prefs.getBool('anthropic') ?? false;
     var google = prefs.getBool('google') ?? false;
 
@@ -185,18 +185,13 @@ class _ChatListState extends State<ChatList> {
     );
   }
 
-  Future<dynamic> testDialog(BuildContext context) {
+  Future<dynamic> testDialog(
+      BuildContext context, Map<String, bool> enabledAPIs) {
     Map<String, bool> selected = {
       'openai': false,
       'anthropic': false,
       'google': false,
     };
-
-    var keys = _isChecked.keys;
-    for (var i = 0; i < _isChecked.length; i++) {
-      selected[keys.elementAt(i)] = _isChecked[keys.elementAt(i)]!;
-    }
-
     bool isCheckboxValid() {
       return selected.values.contains(true);
     }
@@ -215,7 +210,7 @@ class _ChatListState extends State<ChatList> {
                   ListBody(
                     children: [
                       CheckboxListTile(
-                          enabled: _isChecked['openai']! ? true : false,
+                          enabled: enabledAPIs['openai']! ? true : false,
                           title: const Text('OpenAI', style: titleMedium),
                           value: selected['openai'],
                           checkColor: Colors.white,
@@ -227,7 +222,7 @@ class _ChatListState extends State<ChatList> {
                             setState(() => selected['openai'] = value!);
                           }),
                       CheckboxListTile(
-                          enabled: _isChecked['anthropic']! ? true : false,
+                          enabled: enabledAPIs['anthropic']! ? true : false,
                           title: const Text('Anthropic', style: titleMedium),
                           value: selected['anthropic'],
                           checkColor: Colors.white,
@@ -235,9 +230,11 @@ class _ChatListState extends State<ChatList> {
                           checkboxShape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(2)),
                           controlAffinity: ListTileControlAffinity.leading,
-                          onChanged: null),
+                          onChanged: (value) {
+                            setState(() => selected['anthropic'] = value!);
+                          }),
                       CheckboxListTile(
-                          enabled: _isChecked['google']! ? true : false,
+                          enabled: enabledAPIs['google']! ? true : false,
                           title: const Text('Google', style: titleMedium),
                           value: selected['google'],
                           checkColor: Colors.white,
@@ -272,7 +269,18 @@ class _ChatListState extends State<ChatList> {
   Widget newChat(int conversationId) {
     return InkWell(
       onTap: () {
-        testDialog(context).then(((value) {
+        Map<String, bool> selected = {
+          'openai': false,
+          'anthropic': false,
+          'google': false,
+        };
+        _fetchCheckStatus().then((value) {
+          print(value);
+          for (var key in value.keys) {
+            selected[key] = value[key];
+          }
+        });
+        testDialog(context, selected).then(((value) {
           if (value == null) {
             print('Canceled.');
             return;
