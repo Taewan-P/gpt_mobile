@@ -95,7 +95,9 @@ class _OpenaiSettingsState extends State<OpenaiSettings> {
       inactiveThumbColor: Colors.grey,
       activeColor: lightColorScheme.primary,
       value: _isChecked,
-      onChanged: (value) {
+      onChanged: (value) async {
+        final prefs = await SharedPreferences.getInstance();
+        prefs.setBool('openai', value);
         setState(() {
           _isChecked = value;
         });

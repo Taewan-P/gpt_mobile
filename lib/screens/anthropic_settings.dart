@@ -95,7 +95,9 @@ class _AnthropicSettingsState extends State<AnthropicSettings> {
       inactiveThumbColor: Colors.grey,
       activeColor: lightColorScheme.primary,
       value: _isChecked,
-      onChanged: (value) {
+      onChanged: (value) async {
+        final prefs = await SharedPreferences.getInstance();
+        prefs.setBool('anthropic', value);
         setState(() {
           _isChecked = value;
         });
