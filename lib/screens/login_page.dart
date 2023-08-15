@@ -13,9 +13,24 @@ class LoginPage extends StatelessWidget {
     double width = MediaQuery.of(context).size.width;
     double height = MediaQuery.of(context).size.height;
     // Print width and height
-    print('Width: $width, Height: $height');
+    debugPrint('Width: $width, Height: $height');
 
     return Scaffold(
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const PlatformSetup(),
+          ),
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99)),
+        backgroundColor: lightColorScheme.primary,
+        foregroundColor: lightColorScheme.onPrimary,
+        child: const Icon(
+          Icons.arrow_forward_rounded,
+          size: 32,
+        ),
+      ),
       backgroundColor: lightColorScheme.surface,
       body: SafeArea(
         child: Column(
@@ -34,17 +49,14 @@ class LoginPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  introText(
-                      'The best AI assistant\nyou can get in your \nSmartphone.'),
+                  introText('The best AI assistant\nyou can get in your \nSmartphone.'),
                   const SizedBox(
                     height: 8,
                   ),
-                  descriptionText(
-                      'Use the model that suits you\nthe most. Ask anything you want!'),
+                  descriptionText('Use the model that suits you\nthe most. Ask anything you want!'),
                 ],
               ),
             ),
-            nextButton(context),
           ],
         ),
       ),
@@ -63,9 +75,7 @@ class LoginPage extends StatelessWidget {
           alignment: Alignment.center,
           children: [
             Positioned(
-              left: -60,
-              child: SvgPicture.asset('assets/smartphone_tilted.svg',
-                  fit: BoxFit.fitHeight, height: calc),
+              child: SvgPicture.asset('assets/smartphone_tilted.svg', fit: BoxFit.fitHeight, height: calc),
             )
           ],
         ));
@@ -76,7 +86,7 @@ class LoginPage extends StatelessWidget {
       padding: EdgeInsets.only(top: height * 0.06),
       child: SvgPicture.asset(
         'assets/app_logo_no_bg.svg',
-        width: width * 0.5,
+        width: width * 0.45,
       ),
     );
   }
@@ -87,34 +97,5 @@ class LoginPage extends StatelessWidget {
 
   Widget descriptionText(String text) {
     return Text(text, style: bodyLarge, textAlign: TextAlign.left);
-  }
-
-  Widget nextButton(context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Align(
-        alignment: Alignment.bottomRight,
-        child: ElevatedButton(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const PlatformSetup(),
-              ),
-            );
-          },
-          style: ElevatedButton.styleFrom(
-              backgroundColor: lightColorScheme.primary,
-              foregroundColor: lightColorScheme.onPrimary,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(99)),
-              minimumSize: const Size(80, 80)),
-          child: const Icon(
-            Icons.arrow_forward_rounded,
-            size: 32,
-          ),
-        ),
-      ),
-    );
   }
 }
