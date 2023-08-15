@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:gpt_mobile/styles/color_schemes.g.dart';
@@ -34,7 +36,7 @@ class _OpenaiSettingsState extends State<OpenaiSettings> {
   void initState() {
     super.initState();
     loadSettings().then((value) {
-      print(value);
+      debugPrint(jsonEncode(value));
       setState(() {
         _isChecked = value['enabled'];
         _apiKey = value['api_key'];
@@ -46,9 +48,7 @@ class _OpenaiSettingsState extends State<OpenaiSettings> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-          backgroundColor: lightColorScheme.surface,
-          surfaceTintColor: lightColorScheme.secondary),
+      appBar: AppBar(backgroundColor: lightColorScheme.surface, surfaceTintColor: lightColorScheme.secondary),
       backgroundColor: lightColorScheme.surface,
       body: SafeArea(
         child: Padding(
@@ -84,9 +84,7 @@ class _OpenaiSettingsState extends State<OpenaiSettings> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
       ),
-      tileColor: _isChecked
-          ? lightColorScheme.secondaryContainer
-          : lightColorScheme.outlineVariant,
+      tileColor: _isChecked ? lightColorScheme.secondaryContainer : lightColorScheme.outlineVariant,
       title: const Text(
         'Use OpenAI API',
         style: titleMedium,
@@ -185,9 +183,7 @@ class _OpenaiSettingsState extends State<OpenaiSettings> {
                 ),
                 hintText: "Enter key here",
                 labelStyle: TextStyle(
-                  fontSize: openaiFocusScopeNode.hasFocus
-                      ? titleMedium.fontSize
-                      : titleLarge.fontSize,
+                  fontSize: openaiFocusScopeNode.hasFocus ? titleMedium.fontSize : titleLarge.fontSize,
                   color: lightColorScheme.onPrimaryContainer,
                 ),
               ),
@@ -206,8 +202,7 @@ class _OpenaiSettingsState extends State<OpenaiSettings> {
               content: txtFormField,
               actions: [
                 TextButton(
-                  style: TextButton.styleFrom(
-                      foregroundColor: lightColorScheme.primary),
+                  style: TextButton.styleFrom(foregroundColor: lightColorScheme.primary),
                   onPressed: isButtonDisabled
                       ? null
                       : () async {
@@ -215,7 +210,7 @@ class _OpenaiSettingsState extends State<OpenaiSettings> {
                           final prefs = await SharedPreferences.getInstance();
                           prefs.setString('openai_apikey', inputText);
                           _apiKey = inputText;
-                          print("API key changed: $inputText");
+                          debugPrint("API key changed: $inputText");
                         },
                   child: const Text('OK'),
                 )
@@ -282,8 +277,7 @@ class _OpenaiSettingsState extends State<OpenaiSettings> {
               ),
               actions: [
                 TextButton(
-                  style: TextButton.styleFrom(
-                      foregroundColor: lightColorScheme.primary),
+                  style: TextButton.styleFrom(foregroundColor: lightColorScheme.primary),
                   onPressed: () async {
                     if (_groupValue == 1) {
                       _model = 'gpt-3.5-turbo';
@@ -296,7 +290,7 @@ class _OpenaiSettingsState extends State<OpenaiSettings> {
 
                     final prefs = await SharedPreferences.getInstance();
                     prefs.setString('openai_model', _model);
-                    print("API Model changed to: $_model");
+                    debugPrint("API Model changed to: $_model");
                   },
                   child: const Text('OK'),
                 )

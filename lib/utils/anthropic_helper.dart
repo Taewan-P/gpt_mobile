@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 class AnthropicMetadata {
@@ -32,16 +33,7 @@ class AnthropicChatRequest {
   double? topP;
   AnthropicMetadata? metadata;
 
-  AnthropicChatRequest(
-      {required this.prompt,
-      required this.model,
-      required this.maxTokensToSample,
-      this.stopSequences,
-      this.stream,
-      this.temperature,
-      this.topK,
-      this.topP,
-      this.metadata});
+  AnthropicChatRequest({required this.prompt, required this.model, required this.maxTokensToSample, this.stopSequences, this.stream, this.temperature, this.topK, this.topP, this.metadata});
 
   @override
   String toString() {
@@ -85,14 +77,15 @@ class AnthropicStreamChatResponse {
   final String logID;
   final String? exception;
 
-  AnthropicStreamChatResponse(
-      {required this.completion,
-      required this.stopReason,
-      required this.model,
-      required this.truncated,
-      required this.stop,
-      required this.logID,
-      required this.exception});
+  AnthropicStreamChatResponse({
+    required this.completion,
+    required this.stopReason,
+    required this.model,
+    required this.truncated,
+    required this.stop,
+    required this.logID,
+    required this.exception,
+  });
 
   @override
   String toString() {
@@ -106,10 +99,8 @@ class AnthropicSse {
 
   AnthropicSse._internal(this.streamController);
 
-  factory AnthropicSse.connect(
-      {uri, bool withCredentials = false, bool closeOnError = true}) {
-    final streamController =
-        StreamController<String>(); // String을 담는 StreamController
+  factory AnthropicSse.connect({uri, bool withCredentials = false, bool closeOnError = true}) {
+    final streamController = StreamController<String>(); // String을 담는 StreamController
     final anthropicSse = AnthropicSse._internal(streamController);
     return anthropicSse;
   }
@@ -130,29 +121,29 @@ class AnthropicSse {
     await for (var chunk in streamedResponse.stream) {
       if (streamController.isClosed) break;
 
-      print(utf8.decode(chunk));
+      debugPrint(utf8.decode(chunk));
       streamController.add(utf8.decode(chunk));
     }
   }
 
-  Stream<List<AnthropicStreamChatResponse>> get stream =>
-      streamController.stream.map((data) {
+  Stream<List<AnthropicStreamChatResponse>> get stream => streamController.stream.map((data) {
         List<AnthropicStreamChatResponse> responses = [];
 
         var rawData = data;
         List rawDataList = rawData.split('\n');
 
-        print("rawDataList: $rawDataList");
+        debugPrint("rawDataList: $rawDataList");
         return rawDataList.map((e) {
           var json = jsonDecode(e);
           return AnthropicStreamChatResponse(
-              completion: json['completion'],
-              stopReason: json['stop_reason'],
-              model: json['model'],
-              truncated: json['truncated'],
-              stop: json['stop'],
-              logID: json['log_id'],
-              exception: json['exception']);
+            completion: json['completion'],
+            stopReason: json['stop_reason'],
+            model: json['model'],
+            truncated: json['truncated'],
+            stop: json['stop'],
+            logID: json['log_id'],
+            exception: json['exception'],
+          );
         }).toList();
       });
 

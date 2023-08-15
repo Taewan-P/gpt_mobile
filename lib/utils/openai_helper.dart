@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 class OpenAIMessage {
@@ -80,18 +81,19 @@ class OpenAIChatRequest {
   Map? logitBias;
   String? userID;
 
-  OpenAIChatRequest(
-      {required this.model,
-      required this.messages,
-      this.temperature,
-      this.topP,
-      this.numberOfCompletions,
-      this.stream,
-      this.maxTokens,
-      this.presencePenalty,
-      this.frequencyPenalty,
-      this.logitBias,
-      this.userID});
+  OpenAIChatRequest({
+    required this.model,
+    required this.messages,
+    this.temperature,
+    this.topP,
+    this.numberOfCompletions,
+    this.stream,
+    this.maxTokens,
+    this.presencePenalty,
+    this.frequencyPenalty,
+    this.logitBias,
+    this.userID,
+  });
 
   @override
   String toString() {
@@ -141,12 +143,13 @@ class OpenAIStreamChatResponse {
   final String model;
   final String object;
 
-  OpenAIStreamChatResponse(
-      {required this.choices,
-      required this.created,
-      required this.id,
-      required this.model,
-      required this.object});
+  OpenAIStreamChatResponse({
+    required this.choices,
+    required this.created,
+    required this.id,
+    required this.model,
+    required this.object,
+  });
 
   @override
   String toString() {
@@ -167,10 +170,8 @@ class OpenAISse {
 
   OpenAISse._internal(this.streamController);
 
-  factory OpenAISse.connect(
-      {uri, bool withCredentials = false, bool closeOnError = true}) {
-    final streamController =
-        StreamController<String>(); // String을 담는 StreamController
+  factory OpenAISse.connect({uri, bool withCredentials = false, bool closeOnError = true}) {
+    final streamController = StreamController<String>(); // String을 담는 StreamController
 
     final openaiSse = OpenAISse._internal(streamController);
     return openaiSse;
@@ -192,15 +193,14 @@ class OpenAISse {
     await for (var chunk in streamedResponse.stream) {
       if (streamController.isClosed) break;
 
-      print(utf8.decode(chunk));
+      debugPrint(utf8.decode(chunk));
       if (utf8.decode(chunk).startsWith('data: ')) {
         streamController.add(utf8.decode(chunk));
       }
     }
   }
 
-  Stream<List<OpenAIStreamChatResponse>> get stream =>
-      streamController.stream.map((data) {
+  Stream<List<OpenAIStreamChatResponse>> get stream => streamController.stream.map((data) {
         List<OpenAIStreamChatResponse> response = [];
 
         var rawData = data;

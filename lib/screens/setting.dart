@@ -18,8 +18,9 @@ class _SettingState extends State<Setting> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-          backgroundColor: lightColorScheme.surface,
-          surfaceTintColor: Colors.transparent),
+        backgroundColor: lightColorScheme.surface,
+        surfaceTintColor: Colors.transparent,
+      ),
       backgroundColor: lightColorScheme.surface,
       body: SafeArea(
         child: Padding(
@@ -70,8 +71,10 @@ class _SettingState extends State<Setting> {
           },
         ),
         ListTile(
-          onTap: () => Navigator.push(context,
-              MaterialPageRoute(builder: (context) => const OpenaiSettings())),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const OpenaiSettings()),
+          ),
           title: const Text(
             'OpenAI Settings',
             style: titleMedium,
@@ -84,9 +87,9 @@ class _SettingState extends State<Setting> {
         ),
         ListTile(
           onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (context) => const AnthropicSettings())),
+            context,
+            MaterialPageRoute(builder: (context) => const AnthropicSettings()),
+          ),
           title: const Text(
             'Anthropic Settings',
             style: titleMedium,

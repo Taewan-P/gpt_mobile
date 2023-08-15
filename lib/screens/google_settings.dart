@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:gpt_mobile/styles/color_schemes.g.dart';
 import 'package:gpt_mobile/styles/text_styles.dart';
@@ -34,7 +36,7 @@ class _GoogleSettingsState extends State<GoogleSettings> {
   void initState() {
     super.initState();
     loadSettings().then((value) {
-      print(value);
+      debugPrint(jsonEncode(value));
       setState(() {
         _isChecked = value['enabled'];
         _apiKey = value['api_key'];
@@ -47,8 +49,9 @@ class _GoogleSettingsState extends State<GoogleSettings> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-          backgroundColor: lightColorScheme.surface,
-          surfaceTintColor: lightColorScheme.secondary),
+        backgroundColor: lightColorScheme.surface,
+        surfaceTintColor: lightColorScheme.secondary,
+      ),
       backgroundColor: lightColorScheme.surface,
       body: SafeArea(
         child: Padding(
@@ -84,9 +87,7 @@ class _GoogleSettingsState extends State<GoogleSettings> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
       ),
-      tileColor: _isChecked
-          ? lightColorScheme.secondaryContainer
-          : lightColorScheme.outlineVariant,
+      tileColor: _isChecked ? lightColorScheme.secondaryContainer : lightColorScheme.outlineVariant,
       title: const Text(
         'Use Google API',
         style: titleMedium,
@@ -183,9 +184,7 @@ class _GoogleSettingsState extends State<GoogleSettings> {
                 ),
                 hintText: "Enter key here",
                 labelStyle: TextStyle(
-                  fontSize: googleFocusScopeNode.hasFocus
-                      ? titleMedium.fontSize
-                      : titleLarge.fontSize,
+                  fontSize: googleFocusScopeNode.hasFocus ? titleMedium.fontSize : titleLarge.fontSize,
                   color: lightColorScheme.onPrimaryContainer,
                 ),
               ),
@@ -204,8 +203,7 @@ class _GoogleSettingsState extends State<GoogleSettings> {
               content: txtFormField,
               actions: [
                 TextButton(
-                  style: TextButton.styleFrom(
-                      foregroundColor: lightColorScheme.primary),
+                  style: TextButton.styleFrom(foregroundColor: lightColorScheme.primary),
                   onPressed: isButtonDisabled
                       ? null
                       : () async {
@@ -213,7 +211,7 @@ class _GoogleSettingsState extends State<GoogleSettings> {
                           final prefs = await SharedPreferences.getInstance();
                           prefs.setString('google_apikey', inputText);
                           _apiKey = inputText;
-                          print("API key changed: $inputText");
+                          debugPrint("API key changed: $inputText");
                         },
                   child: const Text('OK'),
                 )
@@ -293,8 +291,7 @@ class _GoogleSettingsState extends State<GoogleSettings> {
               ),
               actions: [
                 TextButton(
-                  style: TextButton.styleFrom(
-                      foregroundColor: lightColorScheme.primary),
+                  style: TextButton.styleFrom(foregroundColor: lightColorScheme.primary),
                   onPressed: () async {
                     if (_groupValue == 1) {
                       _model = 'claude-1';
@@ -309,7 +306,7 @@ class _GoogleSettingsState extends State<GoogleSettings> {
 
                     final prefs = await SharedPreferences.getInstance();
                     prefs.setString('google_model', _model);
-                    print("API Model changed to: $_model");
+                    debugPrint("API Model changed to: $_model");
                   },
                   child: const Text('OK'),
                 )

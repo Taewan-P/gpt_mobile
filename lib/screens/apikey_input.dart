@@ -51,7 +51,7 @@ class _ApiKeyInputState extends State<ApiKeyInput> {
           apiPrefs['openai'] = value['openai'];
           apiPrefs['anthropic'] = value['anthropic'];
           apiPrefs['google'] = value['google'];
-          print("Api prefs changed: $apiPrefs");
+          debugPrint("Api prefs changed: $apiPrefs");
         }));
   }
 
@@ -130,16 +130,14 @@ class _ApiKeyInputState extends State<ApiKeyInput> {
 
   @override
   Widget build(BuildContext context) {
-    double height = MediaQuery.of(context).size.height -
-        (MediaQuery.of(context).padding.top +
-            kBottomNavigationBarHeight +
-            kToolbarHeight);
+    double height = MediaQuery.of(context).size.height - (MediaQuery.of(context).padding.top + kBottomNavigationBarHeight + kToolbarHeight);
 
     return Scaffold(
       appBar: AppBar(
-          iconTheme: const IconThemeData(size: 28),
-          backgroundColor: lightColorScheme.surface,
-          surfaceTintColor: Colors.transparent),
+        iconTheme: const IconThemeData(size: 28),
+        backgroundColor: lightColorScheme.surface,
+        surfaceTintColor: Colors.transparent,
+      ),
       backgroundColor: lightColorScheme.surface,
       body: SafeArea(
         child: Padding(
@@ -225,11 +223,8 @@ class _ApiKeyInputState extends State<ApiKeyInput> {
             labelText: 'OpenAI API Key',
             hintText: "Enter key here",
             labelStyle: TextStyle(
-              fontSize: openaiFocusScopeNode.hasFocus
-                  ? titleMedium.fontSize
-                  : titleLarge.fontSize,
-              color:
-                  enabled ? lightColorScheme.onPrimaryContainer : Colors.grey,
+              fontSize: openaiFocusScopeNode.hasFocus ? titleMedium.fontSize : titleLarge.fontSize,
+              color: enabled ? lightColorScheme.onPrimaryContainer : Colors.grey,
             ),
             suffixIcon: IconButton(
               icon: const Icon(
@@ -276,12 +271,9 @@ class _ApiKeyInputState extends State<ApiKeyInput> {
             labelText: 'Claude API Key',
             hintText: "Enter key here",
             labelStyle: TextStyle(
-                fontSize: claudFocusScopeNode.hasFocus
-                    ? titleMedium.fontSize
-                    : titleLarge.fontSize,
-                color: enabled
-                    ? lightColorScheme.onPrimaryContainer
-                    : Colors.grey),
+              fontSize: claudFocusScopeNode.hasFocus ? titleMedium.fontSize : titleLarge.fontSize,
+              color: enabled ? lightColorScheme.onPrimaryContainer : Colors.grey,
+            ),
             suffixIcon: IconButton(
               icon: const Icon(
                 Icons.highlight_off,
@@ -327,12 +319,9 @@ class _ApiKeyInputState extends State<ApiKeyInput> {
             labelText: 'Google API Key',
             hintText: "Enter key here",
             labelStyle: TextStyle(
-                fontSize: bardFocusScopeNode.hasFocus
-                    ? titleMedium.fontSize
-                    : titleLarge.fontSize,
-                color: enabled
-                    ? lightColorScheme.onPrimaryContainer
-                    : Colors.grey),
+              fontSize: bardFocusScopeNode.hasFocus ? titleMedium.fontSize : titleLarge.fontSize,
+              color: enabled ? lightColorScheme.onPrimaryContainer : Colors.grey,
+            ),
             suffixIcon: IconButton(
               icon: const Icon(
                 Icons.highlight_off,
@@ -376,7 +365,7 @@ class _ApiKeyInputState extends State<ApiKeyInput> {
                     );
                   }
                   final saveResult = await saveAPIKeys(apiKeys);
-                  print(saveResult ? "API Key Saved" : "API Key Not Saved");
+                  debugPrint(saveResult ? "API Key Saved" : "API Key Not Saved");
                 },
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(

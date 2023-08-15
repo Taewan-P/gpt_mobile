@@ -26,9 +26,10 @@ class _SelectModelState extends State<SelectModel> {
     return Scaffold(
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
-          iconTheme: const IconThemeData(size: 28),
-          backgroundColor: lightColorScheme.surface,
-          surfaceTintColor: Colors.transparent),
+        iconTheme: const IconThemeData(size: 28),
+        backgroundColor: lightColorScheme.surface,
+        surfaceTintColor: Colors.transparent,
+      ),
       backgroundColor: lightColorScheme.surface,
       body: SafeArea(
         child: Padding(
@@ -152,9 +153,8 @@ class _SelectModelState extends State<SelectModel> {
               ),
             );
             var result = await saveOpenAIModel(_model);
-            print(
-                result ? 'Saved OpenAI Model' : 'Failed to save OpenAI Model');
-            print("Selected OpenAI Model: $_model");
+            debugPrint(result ? 'Saved OpenAI Model' : 'Failed to save OpenAI Model');
+            debugPrint("Selected OpenAI Model: $_model");
           },
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(

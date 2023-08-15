@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -55,15 +56,18 @@ class _ChatListState extends State<ChatList> {
       setState(() {
         for (var i = 0; i < value.length; i++) {
           conversationId = max(conversationId, value[i]['id']);
-          chats.add(Conversation(
+          chats.add(
+            Conversation(
               id: value[i]['id'],
               title: value[i]['title'],
               createdAt: value[i]['created_at'],
               updatedAt: value[i]['updated_at'],
-              selectedAPI: value[i]['selected_api']));
+              selectedAPI: value[i]['selected_api'],
+            ),
+          );
         }
       });
-      print(chats);
+      debugPrint(jsonEncode(chats));
     });
     updateCheckedStatus();
     super.initState();
@@ -95,17 +99,14 @@ class _ChatListState extends State<ChatList> {
                               if (isAllSelected) {
                                 selectedItems.clear(); //전체 선택 해제
                               } else {
-                                selectedItems = Set<int>.from(List.generate(
-                                    chats.length, (index) => index));
+                                selectedItems = Set<int>.from(List.generate(chats.length, (index) => index));
                                 //모든 아이템 선택
                               }
                               isAllSelected = !isAllSelected; //상태 토글
                             });
                           },
                           icon: Icon(
-                            isAllSelected
-                                ? Icons.check_box
-                                : Icons.check_box_outline_blank,
+                            isAllSelected ? Icons.check_box : Icons.check_box_outline_blank,
                             size: 25,
                           )),
                       const Text(
@@ -185,8 +186,7 @@ class _ChatListState extends State<ChatList> {
     );
   }
 
-  Future<dynamic> testDialog(
-      BuildContext context, Map<String, bool> enabledAPIs) {
+  Future<dynamic> testDialog(BuildContext context, Map<String, bool> enabledAPIs) {
     Map<String, bool> selected = {
       'openai': false,
       'anthropic': false,
@@ -205,8 +205,7 @@ class _ChatListState extends State<ChatList> {
               backgroundColor: lightColorScheme.background,
               content: SingleChildScrollView(
                 child: Column(children: [
-                  const Text(
-                      'Choose the APIs that you want to use in this conversation. Note that you can not change this settings once the conversation is created.'),
+                  const Text('Choose the APIs that you want to use in this conversation. Note that you can not change this settings once the conversation is created.'),
                   ListBody(
                     children: [
                       CheckboxListTile(
@@ -215,8 +214,7 @@ class _ChatListState extends State<ChatList> {
                           value: selected['openai'],
                           checkColor: Colors.white,
                           activeColor: lightColorScheme.primary,
-                          checkboxShape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(2)),
+                          checkboxShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
                           controlAffinity: ListTileControlAffinity.leading,
                           onChanged: (value) {
                             setState(() => selected['openai'] = value!);
@@ -227,34 +225,32 @@ class _ChatListState extends State<ChatList> {
                           value: selected['anthropic'],
                           checkColor: Colors.white,
                           activeColor: lightColorScheme.primary,
-                          checkboxShape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(2)),
+                          checkboxShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
                           controlAffinity: ListTileControlAffinity.leading,
                           onChanged: (value) {
                             setState(() => selected['anthropic'] = value!);
                           }),
                       CheckboxListTile(
-                          enabled: enabledAPIs['google']! ? true : false,
-                          title: const Text('Google', style: titleMedium),
-                          value: selected['google'],
-                          checkColor: Colors.white,
-                          activeColor: lightColorScheme.primary,
-                          checkboxShape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(2)),
-                          controlAffinity: ListTileControlAffinity.leading,
-                          onChanged: null),
+                        enabled: enabledAPIs['google']! ? true : false,
+                        title: const Text('Google', style: titleMedium),
+                        value: selected['google'],
+                        checkColor: Colors.white,
+                        activeColor: lightColorScheme.primary,
+                        checkboxShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
+                        controlAffinity: ListTileControlAffinity.leading,
+                        onChanged: null,
+                      ),
                     ],
                   )
                 ]),
               ),
               actions: [
                 TextButton(
-                  style: TextButton.styleFrom(
-                      foregroundColor: lightColorScheme.primary),
+                  style: TextButton.styleFrom(foregroundColor: lightColorScheme.primary),
                   onPressed: isCheckboxValid()
                       ? () async {
                           Navigator.of(context).pop(selected);
-                          print("Selected model: $selected");
+                          debugPrint("Selected model: $selected");
                         }
                       : null,
                   child: const Text('OK'),
@@ -275,14 +271,14 @@ class _ChatListState extends State<ChatList> {
           'google': false,
         };
         _fetchCheckStatus().then((value) {
-          print(value);
+          debugPrint(value);
           for (var key in value.keys) {
             selected[key] = value[key];
           }
         });
         testDialog(context, selected).then(((value) {
           if (value == null) {
-            print('Canceled.');
+            debugPrint('Canceled.');
             return;
           }
 
@@ -297,12 +293,15 @@ class _ChatListState extends State<ChatList> {
               chats = [];
               for (var i = 0; i < value.length; i++) {
                 conversationId = max(conversationId, value[i]['id']);
-                chats.add(Conversation(
+                chats.add(
+                  Conversation(
                     id: value[i]['id'],
                     title: value[i]['title'],
                     createdAt: value[i]['created_at'],
                     updatedAt: value[i]['updated_at'],
-                    selectedAPI: value[i]['selected_api']));
+                    selectedAPI: value[i]['selected_api'],
+                  ),
+                );
               }
               selectedItems.clear(); //초기화
               isSelectionMode = false;
@@ -359,7 +358,7 @@ class _ChatListState extends State<ChatList> {
           }
         });
         //conversation 삭제
-        print('delete conversation $conversationId');
+        debugPrint('delete conversation $conversationId');
         _dbHelper.delete('Conversations', conversationId);
         chats.removeAt(index);
       }
@@ -403,27 +402,27 @@ class _ChatListState extends State<ChatList> {
               if (isSelectionMode) {
                 toggleItemSelection(index);
               } else {
-                Map<String, bool> selectedAPI =
-                    DatabaseHelper.toBinaryMap(chats[index].selectedAPI);
-                print('Selected API: ${chats[index].selectedAPI}}');
-                print('Selected API: $selectedAPI');
-                print('Selected Conversation ID: ${chats[index].id}');
+                Map<String, bool> selectedAPI = DatabaseHelper.toBinaryMap(chats[index].selectedAPI);
+                debugPrint('Selected API: ${chats[index].selectedAPI}}');
+                debugPrint('Selected API: $selectedAPI');
+                debugPrint('Selected Conversation ID: ${chats[index].id}');
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                      builder: (context) =>
-                          ChatScreen(chats[index].id, selectedAPI)),
+                  MaterialPageRoute(builder: (context) => ChatScreen(chats[index].id, selectedAPI)),
                 ).then((value) {
                   setState(() {
                     chats = [];
                     for (var i = 0; i < value.length; i++) {
                       conversationId = max(conversationId, value[i]['id']);
-                      chats.add(Conversation(
+                      chats.add(
+                        Conversation(
                           id: value[i]['id'],
                           title: value[i]['title'],
                           createdAt: value[i]['created_at'],
                           updatedAt: value[i]['updated_at'],
-                          selectedAPI: value[i]['selected_api']));
+                          selectedAPI: value[i]['selected_api'],
+                        ),
+                      );
                     }
                   });
                 });

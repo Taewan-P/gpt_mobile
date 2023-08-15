@@ -11,12 +11,13 @@ class Conversation {
   int updatedAt;
   int selectedAPI;
 
-  Conversation(
-      {required this.id,
-      required this.createdAt,
-      required this.title,
-      required this.updatedAt,
-      required this.selectedAPI});
+  Conversation({
+    required this.id,
+    required this.createdAt,
+    required this.title,
+    required this.updatedAt,
+    required this.selectedAPI,
+  });
 
   // selectedAPI 설명
 
@@ -33,7 +34,7 @@ class Conversation {
       'title': title,
       'created_at': createdAt,
       'updated_at': updatedAt,
-      'selected_api': selectedAPI
+      'selected_api': selectedAPI,
     };
   }
 
@@ -53,14 +54,15 @@ class Message {
   int createdAt;
   String content;
 
-  Message(
-      {required this.id,
-      required this.conversationId,
-      required this.messageId,
-      required this.sender,
-      required this.provider,
-      required this.createdAt,
-      required this.content});
+  Message({
+    required this.id,
+    required this.conversationId,
+    required this.messageId,
+    required this.sender,
+    required this.provider,
+    required this.createdAt,
+    required this.content,
+  });
 
   Map<String, dynamic> toMap() {
     return {
@@ -82,18 +84,13 @@ class Message {
 
 class DatabaseHelper {
   static const _dbName = "gptmobile.db";
-  static const _dbVersion =
-      4; // Change this if you want to execute onCreate again
+  static const _dbVersion = 4; // Change this if you want to execute onCreate again
   static Database? _database;
 
   static Map<String, bool> toBinaryMap(int number) {
     String binaryString = number.toRadixString(2);
 
-    Map<String, bool> binaryMap = {
-      'openai': false,
-      'anthropic': false,
-      'google': false
-    };
+    Map<String, bool> binaryMap = {'openai': false, 'anthropic': false, 'google': false};
 
     for (int i = 0; i < binaryString.length; i++) {
       switch (i) {
@@ -192,8 +189,7 @@ class DatabaseHelper {
     if (insertingRow.containsKey('id')) {
       insertingRow.remove('id');
     }
-    return await db.insert(table, insertingRow,
-        conflictAlgorithm: ConflictAlgorithm.replace);
+    return await db.insert(table, insertingRow, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<List<Map<String, dynamic>>> queryAllConversations() async {
@@ -202,14 +198,10 @@ class DatabaseHelper {
     return await db.query('Conversations', orderBy: 'updated_at DESC');
   }
 
-  Future<List<Map<String, dynamic>>> queryAllMessages(
-      int conversationID) async {
+  Future<List<Map<String, dynamic>>> queryAllMessages(int conversationID) async {
     Database db = await database;
 
-    return await db.query('Messages',
-        where: 'conv_id = ?',
-        whereArgs: [conversationID],
-        orderBy: 'msg_id ASC');
+    return await db.query('Messages', where: 'conv_id = ?', whereArgs: [conversationID], orderBy: 'msg_id ASC');
   }
 
   Future<int> update(String table, Map<String, dynamic> row) async {

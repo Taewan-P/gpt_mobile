@@ -57,10 +57,10 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     WidgetsFlutterBinding.ensureInitialized();
-    print('Activated APIs: ${widget.selectedAPI}');
+    debugPrint('Activated APIs: ${widget.selectedAPI}');
 
     _dbHelper.queryAllMessages(widget.conversationId).then((value) {
-      print('Messages with conv.id ${widget.conversationId}: $value');
+      debugPrint('Messages with conv.id ${widget.conversationId}: $value');
       setState(() {
         //신규 채팅
         if (value.isEmpty) {
@@ -105,23 +105,21 @@ class _ChatScreenState extends State<ChatScreen> {
           }
 
           messageIndex = chats
-              .reduce((currentChat, nextChat) =>
-                  currentChat.messageId > nextChat.messageId
-                      ? currentChat
-                      : nextChat)
+              .reduce(
+                (currentChat, nextChat) => currentChat.messageId > nextChat.messageId ? currentChat : nextChat,
+              )
               .messageId;
         }
-        print('chatContext: $chatContexts');
+        debugPrint('chatContext: $chatContexts');
       });
     });
 
     _dbHelper.queryAllConversations().then((List<Map<String, dynamic>> value) {
-      print('Conversations: $value');
+      debugPrint('Conversations: $value');
       setState(() {
         conversations = value;
         if (!isNewChat) {
-          selectedConversation = conversations.firstWhere(
-              (conversation) => conversation['id'] == widget.conversationId);
+          selectedConversation = conversations.firstWhere((conversation) => conversation['id'] == widget.conversationId);
         }
       });
     });
@@ -163,8 +161,9 @@ class _ChatScreenState extends State<ChatScreen> {
         categorized.add(Align(
           alignment: Alignment.centerRight,
           child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: userBubble(chats[i].content, width)),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: userBubble(chats[i].content, width),
+          ),
         ));
       } else {
         // Add answer bubble
@@ -216,9 +215,7 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ),
         onPressed: () {
-          _dbHelper
-              .queryAllConversations()
-              .then((value) => Navigator.pop(context, value));
+          _dbHelper.queryAllConversations().then((value) => Navigator.pop(context, value));
         },
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.startTop,
@@ -252,9 +249,7 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ),
         onWillPop: () {
-          _dbHelper
-              .queryAllConversations()
-              .then((value) => Navigator.pop(context, value));
+          _dbHelper.queryAllConversations().then((value) => Navigator.pop(context, value));
           return Future.value(false);
         },
       ),
@@ -289,20 +284,24 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
           PreConfig(
-              decoration: const BoxDecoration(
-                  color: Color(0xff2a2a2a),
-                  borderRadius: BorderRadius.all(Radius.circular(8.0))),
-              theme: myTheme,
-              styleNotMatched: const TextStyle(color: Colors.white),
-              textStyle: GoogleFonts.jetBrainsMono(
-                  textStyle: const TextStyle(fontSize: 12)),
-              wrapper: codeWrapper),
+            decoration: const BoxDecoration(
+              color: Color(0xff2a2a2a),
+              borderRadius: BorderRadius.all(Radius.circular(8.0)),
+            ),
+            theme: myTheme,
+            styleNotMatched: const TextStyle(color: Colors.white),
+            textStyle: GoogleFonts.jetBrainsMono(textStyle: const TextStyle(fontSize: 12)),
+            wrapper: codeWrapper,
+          ),
           CodeConfig(
-              style: GoogleFonts.jetBrainsMono(
-                  textStyle: TextStyle(
-                      fontSize: 12,
-                      color: lightColorScheme.onSurfaceVariant,
-                      backgroundColor: const Color(0x665BDCAF)))),
+            style: GoogleFonts.jetBrainsMono(
+              textStyle: TextStyle(
+                fontSize: 12,
+                color: lightColorScheme.onSurfaceVariant,
+                backgroundColor: const Color(0x665BDCAF),
+              ),
+            ),
+          ),
         ]));
 
     // return Column(
@@ -358,9 +357,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 },
                 child: Text(
                   'Copy Text',
-                  style: TextStyle(
-                      color: lightColorScheme.secondary,
-                      decoration: TextDecoration.underline),
+                  style: TextStyle(color: lightColorScheme.secondary, decoration: TextDecoration.underline),
                 ),
               ),
               Text(
@@ -378,17 +375,13 @@ class _ChatScreenState extends State<ChatScreen> {
     Map<String, List> conversationContexts = {};
 
     conversationContexts['openai'] = [
-      OpenAIMessage(
-          role: 'system',
-          content:
-              'You are a helpful, creative, clever, and very friendly assistant. You are familiar with various languages in the world.')
+      OpenAIMessage(role: 'system', content: 'You are a helpful, creative, clever, and very friendly assistant. You are familiar with various languages in the world.'),
     ];
 
     for (var key in chatContexts.keys) {
       for (var msg in chatContexts[key]!) {
         if (key == 'openai') {
-          conversationContexts['openai']!
-              .add(OpenAIMessage(role: msg.sender, content: msg.content));
+          conversationContexts['openai']!.add(OpenAIMessage(role: msg.sender, content: msg.content));
         } else if (key == 'anthropic') {
         } else if (key == 'google') {
         } else {}
@@ -417,13 +410,9 @@ class _ChatScreenState extends State<ChatScreen> {
               decoration: InputDecoration(
                 floatingLabelBehavior: FloatingLabelBehavior.never,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 24),
-                hintText: isActive
-                    ? 'Please wait until the assistant finishes its response.'
-                    : 'Ask a question...',
-                border: const OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(0.0))),
-                disabledBorder:
-                    const OutlineInputBorder(borderSide: BorderSide.none),
+                hintText: isActive ? 'Please wait until the assistant finishes its response.' : 'Ask a question...',
+                border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(0.0))),
+                disabledBorder: const OutlineInputBorder(borderSide: BorderSide.none),
                 hintStyle: TextStyle(
                   color: lightColorScheme.outline,
                 ),
@@ -452,159 +441,144 @@ class _ChatScreenState extends State<ChatScreen> {
         color: lightColorScheme.surfaceVariant,
         borderRadius: BorderRadius.circular(30),
       ),
-      child: Row(
-          mainAxisSize: MainAxisSize.max,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: inputScrollView,
-            ),
-            OutlinedButton(
-              onPressed: (inputText.isNotEmpty && !isActive)
-                  ? () {
-                      String s = '';
-                      setState(() {
-                        //신규채팅이면 첫 질문시 추가
-                        if (isNewChat) {
-                          selectedConversation = Conversation(
-                                  id: widget.conversationId,
-                                  createdAt:
-                                      DateTime.now().millisecondsSinceEpoch,
-                                  title: inputText.length <= 50
-                                      ? inputText
-                                      : inputText.substring(0, 50),
-                                  updatedAt:
-                                      DateTime.now().millisecondsSinceEpoch,
-                                  selectedAPI: DatabaseHelper.toBinaryInt(
-                                      widget.selectedAPI))
-                              .toMap();
-                          _dbHelper.insert(
-                              'Conversations', selectedConversation);
-                          isNewChat = false;
-                        }
-
-                        // Add question
-                        messageIndex++;
-                        var currentTime = DateTime.now().millisecondsSinceEpoch;
-                        chats.add(Message(
-                            id: messageId,
-                            conversationId: widget.conversationId,
-                            messageId: messageIndex,
-                            sender: 'user',
-                            provider: '',
-                            createdAt: currentTime,
-                            content: inputText));
-                        _dbHelper
-                            .insert('Messages', chats[chats.length - 1].toMap())
-                            .then((lastID) {
-                          chats[chats.length - 1].id = lastID;
-                          messageId = lastID;
-                        });
-
-                        // Add question in each context
-                        for (var key in chatContexts.keys) {
-                          chatContexts[key]!.add(Message(
-                              id: messageId,
-                              conversationId: widget.conversationId,
-                              messageId: messageIndex,
-                              sender: 'user',
-                              provider: '',
-                              createdAt: currentTime,
-                              content: inputText));
-                        }
-
-                        // Add answer
-                        // TODO: Message in chats should be synced with the database since id value may not be accurate
-                        messageIndex++;
-                        widget.selectedAPI.forEach((key, value) {
-                          if (value) {
-                            messageId++;
-                            chats.add(Message(
-                                id: messageId,
-                                content: s,
-                                messageId: messageIndex,
-                                conversationId: widget.conversationId,
-                                createdAt:
-                                    DateTime.now().millisecondsSinceEpoch,
-                                sender: 'assistant',
-                                provider: key));
-                          }
-                        });
-                        inputController.clear();
-                      });
-
-                      // Add question to activated API Contexts
-                      for (var key in widget.selectedAPI.keys) {
-                        if (widget.selectedAPI[key]!) {
-                          switch (key) {
-                            case 'openai':
-                              conversationContexts[key]!.add(OpenAIMessage(
-                                  role: 'user', content: inputText));
-                              print('added context: $inputText');
-                              break;
-                            case 'anthropic':
-                              break;
-                            case 'google':
-                              break;
-                            default:
-                          }
-                        }
-                      }
-                      print(
-                          'Conversation Contexts: ${conversationContexts['openai']}');
-                      final request = OpenAIChatRequest(
-                          messages: List<OpenAIMessage>.from(
-                              conversationContexts['openai']!),
-                          model: 'gpt-3.5-turbo',
-                          stream: true);
-                      inputText = '';
-                      // OpenAI API에 요청 보내기
-                      openaiSse.send(apiKeys['openai'] ?? '', request);
-                      setState(() {
-                        isActive = true;
-                      });
-                      openaiSse.stream.listen((response) {
-                        if (openaiSse.isClosed()) {
-                          print("Stream Completed");
-                          setState(() {
-                            isActive = false;
-                          });
-                          openaiSse.flush();
-                          var currentTime =
-                              DateTime.now().millisecondsSinceEpoch;
-                          chats[chats.length - 1].createdAt = currentTime;
-                          chats[chats.length - 1].content = s;
-                          var updatedConversation = {
-                            ...selectedConversation,
-                            'updated_at': currentTime
-                          };
-                          _dbHelper.update(
-                              'Conversations',
-                              Map.from(
-                                  updatedConversation)); //conversation 업데이트
-                          _dbHelper.insert(
-                              'Messages', chats[chats.length - 1].toMap());
-                        }
-                        // OpenAIStreamChatResponse 객체 수신
-                        for (var res in response) {
-                          for (var choice in res.choices) {
-                            var content = choice.delta.content;
-                            if (content == null) continue;
-                            setState(() {
-                              s += content.toString();
-                              chats[chats.length - 1].content = '$s▊';
-                            });
-                          }
-                        }
-                      });
+      child: Row(mainAxisSize: MainAxisSize.max, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        Expanded(
+          child: inputScrollView,
+        ),
+        OutlinedButton(
+          onPressed: (inputText.isNotEmpty && !isActive)
+              ? () {
+                  String s = '';
+                  setState(() {
+                    //신규채팅이면 첫 질문시 추가
+                    if (isNewChat) {
+                      selectedConversation = Conversation(
+                        id: widget.conversationId,
+                        createdAt: DateTime.now().millisecondsSinceEpoch,
+                        title: inputText.length <= 50 ? inputText : inputText.substring(0, 50),
+                        updatedAt: DateTime.now().millisecondsSinceEpoch,
+                        selectedAPI: DatabaseHelper.toBinaryInt(widget.selectedAPI),
+                      ).toMap();
+                      _dbHelper.insert('Conversations', selectedConversation);
+                      isNewChat = false;
                     }
-                  : null,
-              style: OutlinedButton.styleFrom(
-                  side: BorderSide.none,
-                  foregroundColor: lightColorScheme.secondary),
-              child: const Icon(Icons.send, size: 16),
-            ),
-          ]),
+
+                    // Add question
+                    messageIndex++;
+                    var currentTime = DateTime.now().millisecondsSinceEpoch;
+                    chats.add(
+                      Message(
+                        id: messageId,
+                        conversationId: widget.conversationId,
+                        messageId: messageIndex,
+                        sender: 'user',
+                        provider: '',
+                        createdAt: currentTime,
+                        content: inputText,
+                      ),
+                    );
+                    _dbHelper.insert('Messages', chats[chats.length - 1].toMap()).then((lastID) {
+                      chats[chats.length - 1].id = lastID;
+                      messageId = lastID;
+                    });
+
+                    // Add question in each context
+                    for (var key in chatContexts.keys) {
+                      chatContexts[key]!.add(
+                        Message(
+                          id: messageId,
+                          conversationId: widget.conversationId,
+                          messageId: messageIndex,
+                          sender: 'user',
+                          provider: '',
+                          createdAt: currentTime,
+                          content: inputText,
+                        ),
+                      );
+                    }
+
+                    // Add answer
+                    // TODO: Message in chats should be synced with the database since id value may not be accurate
+                    messageIndex++;
+                    widget.selectedAPI.forEach((key, value) {
+                      if (value) {
+                        messageId++;
+                        chats.add(
+                          Message(
+                            id: messageId,
+                            content: s,
+                            messageId: messageIndex,
+                            conversationId: widget.conversationId,
+                            createdAt: DateTime.now().millisecondsSinceEpoch,
+                            sender: 'assistant',
+                            provider: key,
+                          ),
+                        );
+                      }
+                    });
+                    inputController.clear();
+                  });
+
+                  // Add question to activated API Contexts
+                  for (var key in widget.selectedAPI.keys) {
+                    if (widget.selectedAPI[key]!) {
+                      switch (key) {
+                        case 'openai':
+                          conversationContexts[key]!.add(OpenAIMessage(role: 'user', content: inputText));
+                          debugPrint('added context: $inputText');
+                          break;
+                        case 'anthropic':
+                          break;
+                        case 'google':
+                          break;
+                        default:
+                      }
+                    }
+                  }
+                  debugPrint('Conversation Contexts: ${conversationContexts['openai']}');
+                  final request = OpenAIChatRequest(
+                    messages: List<OpenAIMessage>.from(conversationContexts['openai']!),
+                    model: 'gpt-3.5-turbo',
+                    stream: true,
+                  );
+                  inputText = '';
+                  // OpenAI API에 요청 보내기
+                  openaiSse.send(apiKeys['openai'] ?? '', request);
+                  setState(() {
+                    isActive = true;
+                  });
+                  openaiSse.stream.listen((response) {
+                    if (openaiSse.isClosed()) {
+                      debugPrint("Stream Completed");
+                      setState(() {
+                        isActive = false;
+                      });
+                      openaiSse.flush();
+                      var currentTime = DateTime.now().millisecondsSinceEpoch;
+                      chats[chats.length - 1].createdAt = currentTime;
+                      chats[chats.length - 1].content = s;
+                      var updatedConversation = {...selectedConversation, 'updated_at': currentTime};
+                      _dbHelper.update('Conversations', Map.from(updatedConversation)); //conversation 업데이트
+                      _dbHelper.insert('Messages', chats[chats.length - 1].toMap());
+                    }
+                    // OpenAIStreamChatResponse 객체 수신
+                    for (var res in response) {
+                      for (var choice in res.choices) {
+                        var content = choice.delta.content;
+                        if (content == null) continue;
+                        setState(() {
+                          s += content.toString();
+                          chats[chats.length - 1].content = '$s▊';
+                        });
+                      }
+                    }
+                  });
+                }
+              : null,
+          style: OutlinedButton.styleFrom(side: BorderSide.none, foregroundColor: lightColorScheme.secondary),
+          child: const Icon(Icons.send, size: 16),
+        ),
+      ]),
     );
   }
 }

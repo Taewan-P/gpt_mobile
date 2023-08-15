@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:gpt_mobile/styles/color_schemes.g.dart';
 import 'package:gpt_mobile/styles/text_styles.dart';
@@ -34,7 +36,7 @@ class _AnthropicSettingsState extends State<AnthropicSettings> {
   void initState() {
     super.initState();
     loadSettings().then((value) {
-      print(value);
+      debugPrint(jsonEncode(value));
       setState(() {
         _isChecked = value['enabled'];
         _apiKey = value['api_key'];
@@ -47,8 +49,9 @@ class _AnthropicSettingsState extends State<AnthropicSettings> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-          backgroundColor: lightColorScheme.surface,
-          surfaceTintColor: lightColorScheme.secondary),
+        backgroundColor: lightColorScheme.surface,
+        surfaceTintColor: lightColorScheme.secondary,
+      ),
       backgroundColor: lightColorScheme.surface,
       body: SafeArea(
         child: Padding(
@@ -84,9 +87,7 @@ class _AnthropicSettingsState extends State<AnthropicSettings> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
       ),
-      tileColor: _isChecked
-          ? lightColorScheme.secondaryContainer
-          : lightColorScheme.outlineVariant,
+      tileColor: _isChecked ? lightColorScheme.secondaryContainer : lightColorScheme.outlineVariant,
       title: const Text(
         'Use Anthropic API',
         style: titleMedium,
@@ -185,9 +186,7 @@ class _AnthropicSettingsState extends State<AnthropicSettings> {
                 ),
                 hintText: "Enter key here",
                 labelStyle: TextStyle(
-                  fontSize: anthropicFocusScopeNode.hasFocus
-                      ? titleMedium.fontSize
-                      : titleLarge.fontSize,
+                  fontSize: anthropicFocusScopeNode.hasFocus ? titleMedium.fontSize : titleLarge.fontSize,
                   color: lightColorScheme.onPrimaryContainer,
                 ),
               ),
@@ -206,8 +205,7 @@ class _AnthropicSettingsState extends State<AnthropicSettings> {
               content: txtFormField,
               actions: [
                 TextButton(
-                  style: TextButton.styleFrom(
-                      foregroundColor: lightColorScheme.primary),
+                  style: TextButton.styleFrom(foregroundColor: lightColorScheme.primary),
                   onPressed: isButtonDisabled
                       ? null
                       : () async {
@@ -215,7 +213,7 @@ class _AnthropicSettingsState extends State<AnthropicSettings> {
                           final prefs = await SharedPreferences.getInstance();
                           prefs.setString('anthropic_apikey', inputText);
                           _apiKey = inputText;
-                          print("API key changed: $inputText");
+                          debugPrint("API key changed: $inputText");
                         },
                   child: const Text('OK'),
                 )
@@ -295,8 +293,7 @@ class _AnthropicSettingsState extends State<AnthropicSettings> {
               ),
               actions: [
                 TextButton(
-                  style: TextButton.styleFrom(
-                      foregroundColor: lightColorScheme.primary),
+                  style: TextButton.styleFrom(foregroundColor: lightColorScheme.primary),
                   onPressed: () async {
                     if (_groupValue == 1) {
                       _model = 'claude-1';
@@ -311,7 +308,7 @@ class _AnthropicSettingsState extends State<AnthropicSettings> {
 
                     final prefs = await SharedPreferences.getInstance();
                     prefs.setString('anthropic_model', _model);
-                    print("API Model changed to: $_model");
+                    debugPrint("API Model changed to: $_model");
                   },
                   child: const Text('OK'),
                 )

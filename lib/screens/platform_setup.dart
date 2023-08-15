@@ -41,9 +41,7 @@ class _PlatformSetupState extends State<PlatformSetup> {
   }
 
   bool buttonShouldDisable() {
-    return _isChecked['openai'] == false &&
-        _isChecked['anthropic'] == false &&
-        _isChecked['google'] == false;
+    return _isChecked['openai'] == false && _isChecked['anthropic'] == false && _isChecked['google'] == false;
   }
 
   void enableButton() {
@@ -69,9 +67,10 @@ class _PlatformSetupState extends State<PlatformSetup> {
     return Scaffold(
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
-          iconTheme: const IconThemeData(size: 28),
-          backgroundColor: lightColorScheme.surface,
-          surfaceTintColor: Colors.transparent),
+        iconTheme: const IconThemeData(size: 28),
+        backgroundColor: lightColorScheme.surface,
+        surfaceTintColor: Colors.transparent,
+      ),
       backgroundColor: lightColorScheme.surface,
       body: SafeArea(
         child: Padding(
@@ -132,8 +131,7 @@ class _PlatformSetupState extends State<PlatformSetup> {
             value: _isChecked['openai'],
             checkColor: Colors.white,
             activeColor: lightColorScheme.primary,
-            checkboxShape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
+            checkboxShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
             controlAffinity: ListTileControlAffinity.leading,
             onChanged: (value) {
               setState(() {
@@ -149,8 +147,7 @@ class _PlatformSetupState extends State<PlatformSetup> {
             value: _isChecked['anthropic'],
             checkColor: Colors.white,
             activeColor: lightColorScheme.primary,
-            checkboxShape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
+            checkboxShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
             controlAffinity: ListTileControlAffinity.leading,
             onChanged: null),
         CheckboxListTile(
@@ -162,8 +159,7 @@ class _PlatformSetupState extends State<PlatformSetup> {
             value: _isChecked['google'],
             checkColor: Colors.white,
             activeColor: lightColorScheme.primary,
-            checkboxShape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
+            checkboxShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(2)),
             controlAffinity: ListTileControlAffinity.leading,
             onChanged: null),
       ],
@@ -191,9 +187,7 @@ class _PlatformSetupState extends State<PlatformSetup> {
                     ),
                   );
                   var result = await saveCheckedStatus(_isChecked);
-                  print(result
-                      ? 'Api preferences saved'
-                      : 'Api preferences not saved');
+                  debugPrint(result ? 'Api preferences saved' : 'Api preferences not saved');
                 },
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(
