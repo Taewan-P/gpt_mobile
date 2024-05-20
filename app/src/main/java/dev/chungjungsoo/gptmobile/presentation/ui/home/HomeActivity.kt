@@ -37,16 +37,7 @@ class HomeActivity : ComponentActivity() {
         }
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.CREATED) {
-                homeViewModel.event.collect { event ->
-                    if (event == HomeViewModel.SplashEvent.OpenIntro) {
-                        launchActivityAndExit(this@HomeActivity, StartScreenActivity::class.java)
-                    }
-                }
-            }
-        }
+        checkForExistingSettings()
 
         setContent {
             GPTMobileTheme {
@@ -55,6 +46,18 @@ class HomeActivity : ComponentActivity() {
                         name = "Android",
                         modifier = Modifier.padding(innerPadding)
                     )
+                }
+            }
+        }
+    }
+
+    private fun checkForExistingSettings() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.CREATED) {
+                homeViewModel.event.collect { event ->
+                    if (event == HomeViewModel.SplashEvent.OpenIntro) {
+                        launchActivityAndExit(this@HomeActivity, StartScreenActivity::class.java)
+                    }
                 }
             }
         }
