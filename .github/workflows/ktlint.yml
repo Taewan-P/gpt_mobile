@@ -1,8 +1,12 @@
 name: Kotlin Lint Check
 on:
   push:
-    paths:
-      - app/**
+    paths-ignore:
+      - ".gitignore"
+      - "README.md"
+      - "LICENSE"
+      - ".idea/**"
+      - ".github/**"
 
 jobs:
   ktlint:
