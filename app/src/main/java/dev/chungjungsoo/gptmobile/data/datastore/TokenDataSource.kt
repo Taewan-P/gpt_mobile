@@ -1,0 +1,10 @@
+package dev.chungjungsoo.gptmobile.data.datastore
+
+import dev.chungjungsoo.gptmobile.data.dto.ApiType
+
+interface TokenDataSource {
+    suspend fun updateStatus(apiType: ApiType, status: Boolean)
+    suspend fun updateToken(apiType: ApiType, token: String)
+    suspend fun getStatus(apiType: ApiType): Boolean?
+    suspend fun getToken(apiType: ApiType): String?
+}
