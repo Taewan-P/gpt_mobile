@@ -397,7 +397,8 @@ val unspecified_scheme = ColorFamily(
 fun GPTMobileTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    // TODO: Update this when dynamic color settings are supported inside the app
+    dynamicColor: Boolean = false,
     content:
     @Composable()
     () -> Unit
@@ -415,8 +416,9 @@ fun GPTMobileTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.primary.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = darkTheme
+            window.statusBarColor = colorScheme.surface.toArgb()
+            window.navigationBarColor = colorScheme.surface.toArgb()
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
         }
     }
 
