@@ -10,10 +10,10 @@
         android:icon="@mipmap/ic_gpt_mobile"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/Theme.GPTMobile"
+        android:theme="@style/Theme.GPTMobile.Starting"
         tools:targetApi="31">
         <activity
-            android:name=".presentation.ui.MainActivity"
+            android:name=".presentation.ui.home.HomeActivity"
             android:exported="true"
             android:theme="@style/Theme.GPTMobile">
             <intent-filter>
@@ -23,6 +23,7 @@
             </intent-filter>
         </activity>
         <activity
+            android:theme="@style/Theme.GPTMobile"
             android:name=".presentation.ui.startscreen.StartScreenActivity"
             android:exported="true" />
     </application>

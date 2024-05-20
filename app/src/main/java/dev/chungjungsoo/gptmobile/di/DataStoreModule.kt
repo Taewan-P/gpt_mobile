@@ -18,10 +18,10 @@ private const val TOKEN_PREF_FILE = "token"
 
 @Module
 @InstallIn(SingletonComponent::class)
-object DataSourceModule {
+object DataStoreModule {
     @Provides
     @Singleton
-    fun provideTokenDataStore(@ApplicationContext applicationContext: Context): DataStore<Preferences> {
+    fun providePreferencesDataStore(@ApplicationContext applicationContext: Context): DataStore<Preferences> {
         return PreferenceDataStoreFactory.create(
             corruptionHandler = ReplaceFileCorruptionHandler(
                 produceNewData = { emptyPreferences() }

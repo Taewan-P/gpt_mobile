@@ -5,4 +5,11 @@
         <item name="startLogoColor">@color/start_logo_stroke_dark</item>
     </style>
 
+    <style name="Theme.GPTMobile.Starting" parent="Theme.SplashScreen.IconBackground">
+        <item name="windowSplashScreenBackground">@color/ic_gpt_mobile_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/gpt_mobile_logo</item>
+        <item name="postSplashScreenTheme">@style/Theme.GPTMobile</item>
+        <item name="startLogoColor">@color/start_logo_stroke_dark</item>
+    </style>
+
 </resources>
