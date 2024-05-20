@@ -4,6 +4,12 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - ".gitignore"
+      - "README.md"
+      - "LICENSE"
+      - ".idea/**"
+      - ".github/**"
   workflow_dispatch:
 
 jobs:
