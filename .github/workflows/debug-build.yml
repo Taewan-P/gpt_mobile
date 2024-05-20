@@ -10,6 +10,7 @@ on:
       - "LICENSE"
       - ".idea/**"
       - ".github/**"
+      - ".editorconfig"
   workflow_dispatch:
 
 jobs:
