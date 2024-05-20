@@ -1,4 +1,4 @@
-package dev.chungjungsoo.gptmobile.ui.theme
+package dev.chungjungsoo.gptmobile.presentation.theme
 
 import android.app.Activity
 import android.os.Build
