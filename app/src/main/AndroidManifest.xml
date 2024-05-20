@@ -22,7 +22,9 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".presentation.ui.startscreen.StartScreenActivity" />
+        <activity
+            android:name=".presentation.ui.startscreen.StartScreenActivity"
+            android:exported="true" />
     </application>
 
 </manifest>
