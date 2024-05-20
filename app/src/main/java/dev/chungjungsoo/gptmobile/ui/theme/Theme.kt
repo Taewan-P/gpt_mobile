@@ -17,12 +17,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-
 @Immutable
 data class ExtendedColorScheme(
     val customColor1: ColorFamily,
     val chatGPTOfficialColor: ColorFamily,
-    val customColor2: ColorFamily,
+    val customColor2: ColorFamily
 )
 
 private val lightScheme = lightColorScheme(
@@ -60,7 +59,7 @@ private val lightScheme = lightColorScheme(
     surfaceContainerLow = surfaceContainerLowLight,
     surfaceContainer = surfaceContainerLight,
     surfaceContainerHigh = surfaceContainerHighLight,
-    surfaceContainerHighest = surfaceContainerHighestLight,
+    surfaceContainerHighest = surfaceContainerHighestLight
 )
 
 private val darkScheme = darkColorScheme(
@@ -98,7 +97,7 @@ private val darkScheme = darkColorScheme(
     surfaceContainerLow = surfaceContainerLowDark,
     surfaceContainer = surfaceContainerDark,
     surfaceContainerHigh = surfaceContainerHighDark,
-    surfaceContainerHighest = surfaceContainerHighestDark,
+    surfaceContainerHighest = surfaceContainerHighestDark
 )
 
 private val mediumContrastLightColorScheme = lightColorScheme(
@@ -136,7 +135,7 @@ private val mediumContrastLightColorScheme = lightColorScheme(
     surfaceContainerLow = surfaceContainerLowLightMediumContrast,
     surfaceContainer = surfaceContainerLightMediumContrast,
     surfaceContainerHigh = surfaceContainerHighLightMediumContrast,
-    surfaceContainerHighest = surfaceContainerHighestLightMediumContrast,
+    surfaceContainerHighest = surfaceContainerHighestLightMediumContrast
 )
 
 private val highContrastLightColorScheme = lightColorScheme(
@@ -174,7 +173,7 @@ private val highContrastLightColorScheme = lightColorScheme(
     surfaceContainerLow = surfaceContainerLowLightHighContrast,
     surfaceContainer = surfaceContainerLightHighContrast,
     surfaceContainerHigh = surfaceContainerHighLightHighContrast,
-    surfaceContainerHighest = surfaceContainerHighestLightHighContrast,
+    surfaceContainerHighest = surfaceContainerHighestLightHighContrast
 )
 
 private val mediumContrastDarkColorScheme = darkColorScheme(
@@ -212,7 +211,7 @@ private val mediumContrastDarkColorScheme = darkColorScheme(
     surfaceContainerLow = surfaceContainerLowDarkMediumContrast,
     surfaceContainer = surfaceContainerDarkMediumContrast,
     surfaceContainerHigh = surfaceContainerHighDarkMediumContrast,
-    surfaceContainerHighest = surfaceContainerHighestDarkMediumContrast,
+    surfaceContainerHighest = surfaceContainerHighestDarkMediumContrast
 )
 
 private val highContrastDarkColorScheme = darkColorScheme(
@@ -250,133 +249,133 @@ private val highContrastDarkColorScheme = darkColorScheme(
     surfaceContainerLow = surfaceContainerLowDarkHighContrast,
     surfaceContainer = surfaceContainerDarkHighContrast,
     surfaceContainerHigh = surfaceContainerHighDarkHighContrast,
-    surfaceContainerHighest = surfaceContainerHighestDarkHighContrast,
+    surfaceContainerHighest = surfaceContainerHighestDarkHighContrast
 )
 
 val extendedLight = ExtendedColorScheme(
-  customColor1 = ColorFamily(
-  customColor1Light,
-  onCustomColor1Light,
-  customColor1ContainerLight,
-  onCustomColor1ContainerLight,
-  ),
-  chatGPTOfficialColor = ColorFamily(
-  chatGPTOfficialColorLight,
-  onChatGPTOfficialColorLight,
-  chatGPTOfficialColorContainerLight,
-  onChatGPTOfficialColorContainerLight,
-  ),
-  customColor2 = ColorFamily(
-  customColor2Light,
-  onCustomColor2Light,
-  customColor2ContainerLight,
-  onCustomColor2ContainerLight,
-  ),
+    customColor1 = ColorFamily(
+        customColor1Light,
+        onCustomColor1Light,
+        customColor1ContainerLight,
+        onCustomColor1ContainerLight
+    ),
+    chatGPTOfficialColor = ColorFamily(
+        chatGPTOfficialColorLight,
+        onChatGPTOfficialColorLight,
+        chatGPTOfficialColorContainerLight,
+        onChatGPTOfficialColorContainerLight
+    ),
+    customColor2 = ColorFamily(
+        customColor2Light,
+        onCustomColor2Light,
+        customColor2ContainerLight,
+        onCustomColor2ContainerLight
+    )
 )
 
 val extendedDark = ExtendedColorScheme(
-  customColor1 = ColorFamily(
-  customColor1Dark,
-  onCustomColor1Dark,
-  customColor1ContainerDark,
-  onCustomColor1ContainerDark,
-  ),
-  chatGPTOfficialColor = ColorFamily(
-  chatGPTOfficialColorDark,
-  onChatGPTOfficialColorDark,
-  chatGPTOfficialColorContainerDark,
-  onChatGPTOfficialColorContainerDark,
-  ),
-  customColor2 = ColorFamily(
-  customColor2Dark,
-  onCustomColor2Dark,
-  customColor2ContainerDark,
-  onCustomColor2ContainerDark,
-  ),
+    customColor1 = ColorFamily(
+        customColor1Dark,
+        onCustomColor1Dark,
+        customColor1ContainerDark,
+        onCustomColor1ContainerDark
+    ),
+    chatGPTOfficialColor = ColorFamily(
+        chatGPTOfficialColorDark,
+        onChatGPTOfficialColorDark,
+        chatGPTOfficialColorContainerDark,
+        onChatGPTOfficialColorContainerDark
+    ),
+    customColor2 = ColorFamily(
+        customColor2Dark,
+        onCustomColor2Dark,
+        customColor2ContainerDark,
+        onCustomColor2ContainerDark
+    )
 )
 
 val extendedLightMediumContrast = ExtendedColorScheme(
-  customColor1 = ColorFamily(
-  customColor1LightMediumContrast,
-  onCustomColor1LightMediumContrast,
-  customColor1ContainerLightMediumContrast,
-  onCustomColor1ContainerLightMediumContrast,
-  ),
-  chatGPTOfficialColor = ColorFamily(
-  chatGPTOfficialColorLightMediumContrast,
-  onChatGPTOfficialColorLightMediumContrast,
-  chatGPTOfficialColorContainerLightMediumContrast,
-  onChatGPTOfficialColorContainerLightMediumContrast,
-  ),
-  customColor2 = ColorFamily(
-  customColor2LightMediumContrast,
-  onCustomColor2LightMediumContrast,
-  customColor2ContainerLightMediumContrast,
-  onCustomColor2ContainerLightMediumContrast,
-  ),
+    customColor1 = ColorFamily(
+        customColor1LightMediumContrast,
+        onCustomColor1LightMediumContrast,
+        customColor1ContainerLightMediumContrast,
+        onCustomColor1ContainerLightMediumContrast
+    ),
+    chatGPTOfficialColor = ColorFamily(
+        chatGPTOfficialColorLightMediumContrast,
+        onChatGPTOfficialColorLightMediumContrast,
+        chatGPTOfficialColorContainerLightMediumContrast,
+        onChatGPTOfficialColorContainerLightMediumContrast
+    ),
+    customColor2 = ColorFamily(
+        customColor2LightMediumContrast,
+        onCustomColor2LightMediumContrast,
+        customColor2ContainerLightMediumContrast,
+        onCustomColor2ContainerLightMediumContrast
+    )
 )
 
 val extendedLightHighContrast = ExtendedColorScheme(
-  customColor1 = ColorFamily(
-  customColor1LightHighContrast,
-  onCustomColor1LightHighContrast,
-  customColor1ContainerLightHighContrast,
-  onCustomColor1ContainerLightHighContrast,
-  ),
-  chatGPTOfficialColor = ColorFamily(
-  chatGPTOfficialColorLightHighContrast,
-  onChatGPTOfficialColorLightHighContrast,
-  chatGPTOfficialColorContainerLightHighContrast,
-  onChatGPTOfficialColorContainerLightHighContrast,
-  ),
-  customColor2 = ColorFamily(
-  customColor2LightHighContrast,
-  onCustomColor2LightHighContrast,
-  customColor2ContainerLightHighContrast,
-  onCustomColor2ContainerLightHighContrast,
-  ),
+    customColor1 = ColorFamily(
+        customColor1LightHighContrast,
+        onCustomColor1LightHighContrast,
+        customColor1ContainerLightHighContrast,
+        onCustomColor1ContainerLightHighContrast
+    ),
+    chatGPTOfficialColor = ColorFamily(
+        chatGPTOfficialColorLightHighContrast,
+        onChatGPTOfficialColorLightHighContrast,
+        chatGPTOfficialColorContainerLightHighContrast,
+        onChatGPTOfficialColorContainerLightHighContrast
+    ),
+    customColor2 = ColorFamily(
+        customColor2LightHighContrast,
+        onCustomColor2LightHighContrast,
+        customColor2ContainerLightHighContrast,
+        onCustomColor2ContainerLightHighContrast
+    )
 )
 
 val extendedDarkMediumContrast = ExtendedColorScheme(
-  customColor1 = ColorFamily(
-  customColor1DarkMediumContrast,
-  onCustomColor1DarkMediumContrast,
-  customColor1ContainerDarkMediumContrast,
-  onCustomColor1ContainerDarkMediumContrast,
-  ),
-  chatGPTOfficialColor = ColorFamily(
-  chatGPTOfficialColorDarkMediumContrast,
-  onChatGPTOfficialColorDarkMediumContrast,
-  chatGPTOfficialColorContainerDarkMediumContrast,
-  onChatGPTOfficialColorContainerDarkMediumContrast,
-  ),
-  customColor2 = ColorFamily(
-  customColor2DarkMediumContrast,
-  onCustomColor2DarkMediumContrast,
-  customColor2ContainerDarkMediumContrast,
-  onCustomColor2ContainerDarkMediumContrast,
-  ),
+    customColor1 = ColorFamily(
+        customColor1DarkMediumContrast,
+        onCustomColor1DarkMediumContrast,
+        customColor1ContainerDarkMediumContrast,
+        onCustomColor1ContainerDarkMediumContrast
+    ),
+    chatGPTOfficialColor = ColorFamily(
+        chatGPTOfficialColorDarkMediumContrast,
+        onChatGPTOfficialColorDarkMediumContrast,
+        chatGPTOfficialColorContainerDarkMediumContrast,
+        onChatGPTOfficialColorContainerDarkMediumContrast
+    ),
+    customColor2 = ColorFamily(
+        customColor2DarkMediumContrast,
+        onCustomColor2DarkMediumContrast,
+        customColor2ContainerDarkMediumContrast,
+        onCustomColor2ContainerDarkMediumContrast
+    )
 )
 
 val extendedDarkHighContrast = ExtendedColorScheme(
-  customColor1 = ColorFamily(
-  customColor1DarkHighContrast,
-  onCustomColor1DarkHighContrast,
-  customColor1ContainerDarkHighContrast,
-  onCustomColor1ContainerDarkHighContrast,
-  ),
-  chatGPTOfficialColor = ColorFamily(
-  chatGPTOfficialColorDarkHighContrast,
-  onChatGPTOfficialColorDarkHighContrast,
-  chatGPTOfficialColorContainerDarkHighContrast,
-  onChatGPTOfficialColorContainerDarkHighContrast,
-  ),
-  customColor2 = ColorFamily(
-  customColor2DarkHighContrast,
-  onCustomColor2DarkHighContrast,
-  customColor2ContainerDarkHighContrast,
-  onCustomColor2ContainerDarkHighContrast,
-  ),
+    customColor1 = ColorFamily(
+        customColor1DarkHighContrast,
+        onCustomColor1DarkHighContrast,
+        customColor1ContainerDarkHighContrast,
+        onCustomColor1ContainerDarkHighContrast
+    ),
+    chatGPTOfficialColor = ColorFamily(
+        chatGPTOfficialColorDarkHighContrast,
+        onChatGPTOfficialColorDarkHighContrast,
+        chatGPTOfficialColorContainerDarkHighContrast,
+        onChatGPTOfficialColorContainerDarkHighContrast
+    ),
+    customColor2 = ColorFamily(
+        customColor2DarkHighContrast,
+        onCustomColor2DarkHighContrast,
+        customColor2ContainerDarkHighContrast,
+        onCustomColor2ContainerDarkHighContrast
+    )
 )
 
 @Immutable
@@ -388,7 +387,10 @@ data class ColorFamily(
 )
 
 val unspecified_scheme = ColorFamily(
-    Color.Unspecified, Color.Unspecified, Color.Unspecified, Color.Unspecified
+    Color.Unspecified,
+    Color.Unspecified,
+    Color.Unspecified,
+    Color.Unspecified
 )
 
 @Composable
@@ -396,30 +398,31 @@ fun GPTMobileTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     // Dynamic color is available on Android 12+
     dynamicColor: Boolean = true,
-    content: @Composable() () -> Unit
+    content:
+    @Composable()
+    () -> Unit
 ) {
-  val colorScheme = when {
-      dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-          val context = LocalContext.current
-          if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-      }
-      
-      darkTheme -> darkScheme
-      else -> lightScheme
-  }
-  val view = LocalView.current
-  if (!view.isInEditMode) {
-    SideEffect {
-      val window = (view.context as Activity).window
-      window.statusBarColor = colorScheme.primary.toArgb()
-      WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = darkTheme
+    val colorScheme = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            val context = LocalContext.current
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+
+        darkTheme -> darkScheme
+        else -> lightScheme
     }
-  }
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as Activity).window
+            window.statusBarColor = colorScheme.primary.toArgb()
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = darkTheme
+        }
+    }
 
-  MaterialTheme(
-    colorScheme = colorScheme,
-    typography = AppTypography,
-    content = content
-  )
+    MaterialTheme(
+        colorScheme = colorScheme,
+        typography = AppTypography,
+        content = content
+    )
 }
-

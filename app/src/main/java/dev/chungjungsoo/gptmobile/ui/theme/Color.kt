@@ -295,4 +295,3 @@ val customColor2DarkHighContrast = Color(0xFFFCFAFF)
 val onCustomColor2DarkHighContrast = Color(0xFF000000)
 val customColor2ContainerDarkHighContrast = Color(0xFFBDC8FF)
 val onCustomColor2ContainerDarkHighContrast = Color(0xFF000000)
-
