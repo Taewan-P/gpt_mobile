@@ -1,0 +1,21 @@
+name: Kotlin Lint Check
+on:
+  push:
+    paths:
+      - app/**
+
+jobs:
+  ktlint:
+    name: Check Kotlin Code Format
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clone repo
+        uses: actions/checkout@v4
+
+      - name: Run ktlint
+        uses: ScaCap/action-ktlint@master
+        with:
+          filter_mode: file
+          github_token: ${{ secrets.github_token }}
+          reporter: github-check
