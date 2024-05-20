@@ -15,7 +15,8 @@
         <activity
             android:name=".presentation.ui.home.HomeActivity"
             android:exported="true"
-            android:theme="@style/Theme.GPTMobile">
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.GPTMobile.Starting">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

@@ -65,6 +65,7 @@ class HomeActivity : ComponentActivity() {
 
     private fun <T : Activity> launchActivityAndExit(context: Context, clazz: Class<T>) {
         val intent = Intent(context, clazz)
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         startActivity(intent)
         finish()
     }
