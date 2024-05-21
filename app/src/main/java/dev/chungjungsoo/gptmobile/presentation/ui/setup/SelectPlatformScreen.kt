@@ -47,6 +47,7 @@ fun SelectPlatformScreen(
             }
         )
         PrimaryLongButton(
+            enabled = platformState.any { it.enabled },
             onClick = onNextButtonClicked,
             text = stringResource(R.string.next)
         )
