@@ -72,7 +72,9 @@ dependencies {
 
     // Dependency Injection
     implementation(libs.hilt)
+    implementation(libs.androidx.lifecycle.runtime.compose.android)
     kapt(libs.hilt.compiler)
+    implementation(libs.hilt.navigation)
 
     // Test
     testImplementation(libs.junit)

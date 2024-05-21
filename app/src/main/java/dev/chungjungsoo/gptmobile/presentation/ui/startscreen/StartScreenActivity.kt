@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.startscreen
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -29,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.presentation.common.PrimaryLongButton
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
+import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupActivity
 
 class StartScreenActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,7 +50,10 @@ class StartScreenActivity : ComponentActivity() {
                         Spacer(modifier = Modifier.weight(1f))
                         WelcomeText()
                         PrimaryLongButton(
-                            onClick = {},
+                            onClick = {
+                                val intent = Intent(this@StartScreenActivity, SetupActivity::class.java)
+                                startActivity(intent)
+                            },
                             text = stringResource(R.string.get_started)
                         )
                     }

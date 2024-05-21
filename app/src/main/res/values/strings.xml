@@ -4,4 +4,15 @@
     <string name="welcome_title">The best AI assistant\nyou can get in your\nsmartphone.</string>
     <string name="welcome_description">Use the model that suits you\nthe most. Ask anything you want!</string>
     <string name="get_started">Get Started</string>
+    <string name="title_activity_setup">SetupActivity</string>
+    <string name="platform_select_description">Choose the platform you want to use. You can change this later in settings. More platforms to be supported.</string>
+    <string name="sample_item_title">Item 1</string>
+    <string name="sample_item_description">Item description</string>
+    <string name="openai">OpenAI</string>
+    <string name="anthropic">Anthropic</string>
+    <string name="google">Google</string>
+    <string name="openai_description">Creator of ChatGPT.</string>
+    <string name="anthropic_description">Claude was born here.</string>
+    <string name="google_description">Gemini is on its way.</string>
+    <string name="next">Next</string>
 </resources>
