@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -52,9 +53,9 @@ class SetupActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     topBar = {
                         SetupAppBar(
-                            canNavigateBack = navController.previousBackStackEntry != null,
-                            onBackAction = { navController.navigateUp() },
-                            onExitAction = { finish() }
+                            navController = navController,
+                            backAction = { navController.navigateUp() },
+                            exitAction = { finish() }
                         )
                     }
 
@@ -87,14 +88,20 @@ class SetupActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SetupAppBar(
-    canNavigateBack: Boolean,
-    onBackAction: () -> Unit,
-    onExitAction: () -> Unit
+    navController: NavHostController,
+    backAction: () -> Unit,
+    exitAction: () -> Unit
 ) {
     TopAppBar(
         title = { },
         navigationIcon = {
-            IconButton(onClick = if (canNavigateBack) onBackAction else onExitAction) {
+            IconButton(onClick = {
+                if (navController.previousBackStackEntry != null) {
+                    backAction.invoke()
+                } else {
+                    exitAction.invoke()
+                }
+            }) {
                 Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Go back")
             }
         }
