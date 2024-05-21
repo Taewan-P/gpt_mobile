@@ -1,4 +1,4 @@
-package dev.chungjungsoo.gptmobile.presentation.ui.home
+package dev.chungjungsoo.gptmobile.presentation.ui.main
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -15,9 +15,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 @HiltViewModel
-class HomeViewModel @Inject constructor(tokenDataSource: TokenDataSource) : ViewModel() {
+class MainViewModel @Inject constructor(tokenDataSource: TokenDataSource) : ViewModel() {
     sealed class SplashEvent {
         data object OpenIntro : SplashEvent()
+        data object OpenHome : SplashEvent()
     }
 
     private val isStatusNotInitialized: (Map.Entry<ApiType, Boolean?>) -> Boolean = { it.value == null }
@@ -45,6 +46,8 @@ class HomeViewModel @Inject constructor(tokenDataSource: TokenDataSource) : View
             if (status.all(isStatusNotInitialized) || tokens.all(isTokenNotInitialized)) {
                 // Initialize
                 sendSplashEvent(SplashEvent.OpenIntro)
+            } else {
+                sendSplashEvent(SplashEvent.OpenHome)
             }
 
             setAsReady()
