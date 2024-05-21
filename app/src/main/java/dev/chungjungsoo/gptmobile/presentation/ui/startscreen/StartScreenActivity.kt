@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -28,6 +27,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.chungjungsoo.gptmobile.R
+import dev.chungjungsoo.gptmobile.presentation.common.PrimaryLongButton
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 
 class StartScreenActivity : ComponentActivity() {
@@ -47,7 +47,10 @@ class StartScreenActivity : ComponentActivity() {
                         StartScreenLogo()
                         Spacer(modifier = Modifier.weight(1f))
                         WelcomeText()
-                        GetStartedButton()
+                        PrimaryLongButton(
+                            onClick = {},
+                            text = stringResource(R.string.get_started)
+                        )
                     }
                 }
             }
@@ -88,21 +91,5 @@ fun WelcomeText(modifier: Modifier = Modifier) {
             text = stringResource(R.string.welcome_description),
             style = MaterialTheme.typography.bodyLarge
         )
-    }
-}
-
-@Preview
-@Composable
-fun GetStartedButton(modifier: Modifier = Modifier) {
-    GPTMobileTheme {
-        Button(
-            modifier = modifier
-                .padding(20.dp)
-                .fillMaxWidth()
-                .height(56.dp),
-            onClick = { /*TODO*/ }
-        ) {
-            Text(text = "Get Started")
-        }
     }
 }
