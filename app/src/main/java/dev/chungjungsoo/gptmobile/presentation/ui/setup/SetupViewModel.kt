@@ -56,10 +56,32 @@ class SetupViewModel @Inject constructor(private val tokenDataSource: TokenDataS
         }
     }
 
+    fun updateToken(platform: Platform, token: String) {
+        val index = _platformState.value.indexOf(platform)
+
+        if (index >= 0) {
+            _platformState.value = _platformState.value.mapIndexed { i, p ->
+                if (index == i) {
+                    p.copy(token = token.ifBlank { null })
+                } else {
+                    p
+                }
+            }
+        }
+    }
+
     fun saveCheckedState() {
         _platformState.value.forEach { platform ->
             viewModelScope.launch {
                 tokenDataSource.updateStatus(platform.name, platform.enabled)
+            }
+        }
+    }
+
+    fun saveTokenState() {
+        _platformState.value.filter { it.enabled && it.token != null }.forEach { platform ->
+            viewModelScope.launch {
+                tokenDataSource.updateToken(platform.name, platform.token!!)
             }
         }
     }

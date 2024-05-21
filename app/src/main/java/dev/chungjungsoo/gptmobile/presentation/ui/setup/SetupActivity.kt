@@ -75,6 +75,23 @@ class SetupActivity : ComponentActivity() {
                                 onNextButtonClicked = {
                                     setupViewModel.saveCheckedState()
                                     Log.d("status", setupViewModel.platformState.value.toString())
+                                    navController.navigate(route = SetupStep.TOKEN_INPUT.name)
+                                }
+                            )
+                        }
+                        composable(route = SetupStep.TOKEN_INPUT.name) {
+                            TokenInputScreen(
+                                modifier = Modifier.fillMaxSize(),
+                                platformState = platformState,
+                                onChangeEvent = { platform, s ->
+                                    setupViewModel.updateToken(platform, s)
+                                },
+                                onClearEvent = { platform ->
+                                    setupViewModel.updateToken(platform, "")
+                                },
+                                onNextButtonClicked = {
+                                    setupViewModel.saveTokenState()
+                                    Log.d("status", setupViewModel.platformState.value.toString())
                                 }
                             )
                         }
