@@ -153,6 +153,12 @@ class SetupActivity : ComponentActivity() {
                                 }
                             )
                         }
+                        composable(route = SetupStep.SETUP_COMPLETE.name) {
+                            SetupCompleteScreen(
+                                modifier = Modifier.fillMaxSize(),
+                                onNextButtonClicked = { proceedToNextStep(navController) }
+                            )
+                        }
                     }
                 }
             }

@@ -51,4 +51,8 @@
     <string name="gemini_1_5_pro_description">Optimized for reasoning tasks including code and text generation.</string>
     <string name="gemini_1_5_flash_description">Fast and versatile performance across a diverse variety of tasks.</string>
     <string name="gemini_1_0_pro_description">Natural language tasks, multi-turn text and code chat, and code generation.</string>
+    <string name="setup_complete">You’re all set!</string>
+    <string name="setup_complete_description">Let’s start using GPT Mobile!</string>
+    <string name="done">Done</string>
+    <string name="setup_complete_logo">Setup Complete Logo</string>
 </resources>
