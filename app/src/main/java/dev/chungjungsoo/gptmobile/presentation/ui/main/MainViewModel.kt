@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.chungjungsoo.gptmobile.data.datastore.TokenDataSource
 import dev.chungjungsoo.gptmobile.data.dto.ApiType
+import dev.chungjungsoo.gptmobile.data.dto.Platform
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,10 +22,6 @@ class MainViewModel @Inject constructor(tokenDataSource: TokenDataSource) : View
         data object OpenHome : SplashEvent()
     }
 
-    private val isStatusNotInitialized: (Map.Entry<ApiType, Boolean?>) -> Boolean = { it.value == null }
-    private val isTokenNotInitialized: (Map.Entry<ApiType, String?>) -> Boolean = { it.value == null }
-    private val isModelNotInitialized: (Map.Entry<ApiType, String?>) -> Boolean = { it.value == null }
-
     private val _isReady: MutableStateFlow<Boolean> = MutableStateFlow(false)
     val isReady: StateFlow<Boolean> = _isReady.asStateFlow()
 
@@ -33,25 +30,16 @@ class MainViewModel @Inject constructor(tokenDataSource: TokenDataSource) : View
 
     init {
         viewModelScope.launch {
-            val status = mapOf(
-                ApiType.OPENAI to tokenDataSource.getStatus(ApiType.OPENAI),
-                ApiType.ANTHROPIC to tokenDataSource.getStatus(ApiType.ANTHROPIC),
-                ApiType.GOOGLE to tokenDataSource.getStatus(ApiType.GOOGLE)
-            )
-            val tokens = mapOf(
-                ApiType.OPENAI to tokenDataSource.getToken(ApiType.OPENAI),
-                ApiType.ANTHROPIC to tokenDataSource.getToken(ApiType.ANTHROPIC),
-                ApiType.GOOGLE to tokenDataSource.getToken(ApiType.GOOGLE)
-            )
-            val models = mapOf(
-                ApiType.OPENAI to tokenDataSource.getModel(ApiType.OPENAI),
-                ApiType.ANTHROPIC to tokenDataSource.getModel(ApiType.ANTHROPIC),
-                ApiType.GOOGLE to tokenDataSource.getModel(ApiType.GOOGLE)
-            )
+            val enabledPlatforms = ApiType.entries.map { apiType ->
+                val status = tokenDataSource.getStatus(apiType)
+                val token = tokenDataSource.getToken(apiType)
+                val model = tokenDataSource.getModel(apiType)
 
-            if (status.all(isStatusNotInitialized) ||
-                tokens.all(isTokenNotInitialized) ||
-                models.all(isModelNotInitialized)
+                Platform(apiType, status ?: false, token, model)
+            }.filter { it.enabled }
+
+            if (enabledPlatforms.isEmpty() ||
+                enabledPlatforms.any { it.token == null || it.model == null }
             ) {
                 // Initialize
                 sendSplashEvent(SplashEvent.OpenIntro)
