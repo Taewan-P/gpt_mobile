@@ -29,6 +29,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.dto.APIModel
 import dev.chungjungsoo.gptmobile.data.dto.ApiType
+import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 import dev.chungjungsoo.gptmobile.presentation.ui.home.HomeActivity
 
@@ -210,7 +211,7 @@ class SetupActivity : ComponentActivity() {
         finish()
     }
 
-    private fun nextSetupRoute(currentRoute: String?, platformState: List<SetupViewModel.Platform>): SetupStep? {
+    private fun nextSetupRoute(currentRoute: String?, platformState: List<Platform>): SetupStep? {
         val steps = listOf(
             SetupStep.SELECT_PLATFORM,
             SetupStep.TOKEN_INPUT,

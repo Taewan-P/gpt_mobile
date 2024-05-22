@@ -23,14 +23,15 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.dto.ApiType
+import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.presentation.common.PrimaryLongButton
 
 @Preview
 @Composable
 fun SelectPlatformScreen(
     modifier: Modifier = Modifier,
-    platformState: List<SetupViewModel.Platform> = listOf(),
-    onCheckedEvent: (SetupViewModel.Platform) -> Unit = {},
+    platformState: List<Platform> = listOf(),
+    onCheckedEvent: (Platform) -> Unit = {},
     onNextButtonClicked: () -> Unit = {}
 ) {
     Column(
@@ -80,8 +81,8 @@ fun GetStartedText(modifier: Modifier = Modifier) {
 @Composable
 fun SelectPlatform(
     modifier: Modifier = Modifier,
-    platforms: List<SetupViewModel.Platform>,
-    onClickEvent: (SetupViewModel.Platform) -> Unit
+    platforms: List<Platform>,
+    onClickEvent: (Platform) -> Unit
 ) {
     val titles = mapOf(
         ApiType.OPENAI to stringResource(R.string.openai),
@@ -109,10 +110,10 @@ fun SelectPlatform(
 @Composable
 fun CheckBoxItem(
     modifier: Modifier = Modifier,
-    platform: SetupViewModel.Platform,
+    platform: Platform,
     title: String = stringResource(R.string.sample_item_title),
     description: String = stringResource(R.string.sample_item_description),
-    onClickEvent: (SetupViewModel.Platform) -> Unit
+    onClickEvent: (Platform) -> Unit
 ) {
     Row(
         modifier = modifier

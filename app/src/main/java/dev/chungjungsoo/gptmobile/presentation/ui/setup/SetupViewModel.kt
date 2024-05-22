@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.chungjungsoo.gptmobile.data.datastore.TokenDataSource
 import dev.chungjungsoo.gptmobile.data.dto.ApiType
+import dev.chungjungsoo.gptmobile.data.dto.Platform
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,13 +14,6 @@ import kotlinx.coroutines.launch
 
 @HiltViewModel
 class SetupViewModel @Inject constructor(private val tokenDataSource: TokenDataSource) : ViewModel() {
-
-    data class Platform(
-        val name: ApiType,
-        val enabled: Boolean = false,
-        val token: String? = null,
-        val model: String? = null
-    )
 
     val openaiModels = listOf("gpt-4o", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo")
     val anthropicModels = listOf("claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307")

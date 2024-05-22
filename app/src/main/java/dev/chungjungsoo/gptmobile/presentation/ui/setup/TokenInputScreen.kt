@@ -36,15 +36,16 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.dto.ApiType
+import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.presentation.common.PrimaryLongButton
 
 @Preview
 @Composable
 fun TokenInputScreen(
     modifier: Modifier = Modifier,
-    platformState: List<SetupViewModel.Platform> = listOf(),
-    onChangeEvent: (SetupViewModel.Platform, String) -> Unit = { _, _ -> },
-    onClearEvent: (SetupViewModel.Platform) -> Unit = { },
+    platformState: List<Platform> = listOf(),
+    onChangeEvent: (Platform, String) -> Unit = { _, _ -> },
+    onClearEvent: (Platform) -> Unit = { },
     onNextButtonClicked: () -> Unit = {}
 ) {
     val focusManager = LocalFocusManager.current
@@ -103,9 +104,9 @@ fun TokenInputText(modifier: Modifier = Modifier) {
 @Composable
 fun TokenInput(
     modifier: Modifier = Modifier,
-    platforms: List<SetupViewModel.Platform> = listOf(),
-    onChangeEvent: (SetupViewModel.Platform, String) -> Unit = { _, _ -> },
-    onClearEvent: (SetupViewModel.Platform) -> Unit = {}
+    platforms: List<Platform> = listOf(),
+    onChangeEvent: (Platform, String) -> Unit = { _, _ -> },
+    onClearEvent: (Platform) -> Unit = {}
 ) {
     val labels = mapOf(
         ApiType.OPENAI to stringResource(R.string.openai_api_key),
