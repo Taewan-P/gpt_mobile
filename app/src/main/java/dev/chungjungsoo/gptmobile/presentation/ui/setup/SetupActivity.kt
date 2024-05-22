@@ -84,7 +84,6 @@ class SetupActivity : ComponentActivity() {
                                     setupViewModel.updateCheckedState(it)
                                 },
                                 onNextButtonClicked = {
-                                    setupViewModel.saveCheckedState()
                                     proceedToNextStep(navController)
                                 }
                             )
@@ -100,7 +99,6 @@ class SetupActivity : ComponentActivity() {
                                     setupViewModel.updateToken(platform, "")
                                 },
                                 onNextButtonClicked = {
-                                    setupViewModel.saveTokenState()
                                     proceedToNextStep(navController)
                                 }
                             )
@@ -116,7 +114,6 @@ class SetupActivity : ComponentActivity() {
                                     setupViewModel.updateModel(ApiType.OPENAI, model)
                                 },
                                 onNextButtonClicked = {
-                                    setupViewModel.saveModelState()
                                     proceedToNextStep(navController)
                                 }
                             )
@@ -132,7 +129,6 @@ class SetupActivity : ComponentActivity() {
                                     setupViewModel.updateModel(ApiType.ANTHROPIC, model)
                                 },
                                 onNextButtonClicked = {
-                                    setupViewModel.saveModelState()
                                     proceedToNextStep(navController)
                                 }
                             )
@@ -148,7 +144,6 @@ class SetupActivity : ComponentActivity() {
                                     setupViewModel.updateModel(ApiType.GOOGLE, model)
                                 },
                                 onNextButtonClicked = {
-                                    setupViewModel.saveModelState()
                                     proceedToNextStep(navController)
                                 }
                             )
@@ -156,7 +151,10 @@ class SetupActivity : ComponentActivity() {
                         composable(route = SetupStep.SETUP_COMPLETE.name) {
                             SetupCompleteScreen(
                                 modifier = Modifier.fillMaxSize(),
-                                onNextButtonClicked = { proceedToNextStep(navController) }
+                                onNextButtonClicked = {
+                                    saveSettings()
+                                    proceedToNextStep(navController)
+                                }
                             )
                         }
                     }
@@ -211,6 +209,12 @@ class SetupActivity : ComponentActivity() {
         setupViewModel.updateModel(apiType, model)
 
         return model
+    }
+
+    private fun saveSettings() {
+        setupViewModel.saveCheckedState()
+        setupViewModel.saveTokenState()
+        setupViewModel.saveModelState()
     }
 
     private fun proceedToNextStep(navController: NavHostController) {
