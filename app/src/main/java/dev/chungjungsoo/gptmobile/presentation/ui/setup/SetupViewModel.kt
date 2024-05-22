@@ -15,9 +15,10 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class SetupViewModel @Inject constructor(private val tokenDataSource: TokenDataSource) : ViewModel() {
 
-    val openaiModels = setOf("gpt-4o", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo")
-    val anthropicModels = setOf("claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307")
-    val googleModels = setOf("gemini-1.5-pro-latest", "gemini-1.5-flash-latest", "gemini-1.0-pro")
+    // LinkedHashSet should be used to guarantee item order
+    val openaiModels = linkedSetOf("gpt-4o", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo")
+    val anthropicModels = linkedSetOf("claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307")
+    val googleModels = linkedSetOf("gemini-1.5-pro-latest", "gemini-1.5-flash-latest", "gemini-1.0-pro")
 
     private val _platformState = MutableStateFlow(
         listOf(
