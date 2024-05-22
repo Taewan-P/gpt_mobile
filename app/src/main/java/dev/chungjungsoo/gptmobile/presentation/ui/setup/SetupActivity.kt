@@ -111,7 +111,7 @@ class SetupActivity : ComponentActivity() {
                                 title = stringResource(R.string.select_openai_model),
                                 description = stringResource(R.string.select_openai_model_description),
                                 availableModels = openAIModels,
-                                model = platformState.find { it.name == ApiType.OPENAI }?.model ?: setupViewModel.openaiModels.first(),
+                                model = setModel(platformState, ApiType.OPENAI, 0),
                                 onChangeEvent = { model ->
                                     setupViewModel.updateModel(ApiType.OPENAI, model)
                                 },
@@ -127,7 +127,7 @@ class SetupActivity : ComponentActivity() {
                                 title = stringResource(R.string.select_anthropic_model),
                                 description = stringResource(R.string.select_anthropic_model_description),
                                 availableModels = anthropicModels,
-                                model = platformState.find { it.name == ApiType.ANTHROPIC }?.model ?: setupViewModel.anthropicModels.first(),
+                                model = setModel(platformState, ApiType.ANTHROPIC, 1),
                                 onChangeEvent = { model ->
                                     setupViewModel.updateModel(ApiType.ANTHROPIC, model)
                                 },
@@ -143,7 +143,7 @@ class SetupActivity : ComponentActivity() {
                                 title = stringResource(R.string.select_google_model),
                                 description = stringResource(id = R.string.select_google_model_description),
                                 availableModels = googleModels,
-                                model = platformState.find { it.name == ApiType.GOOGLE }?.model ?: setupViewModel.googleModels.first(),
+                                model = setModel(platformState, ApiType.GOOGLE, 0),
                                 onChangeEvent = { model ->
                                     setupViewModel.updateModel(ApiType.GOOGLE, model)
                                 },
@@ -194,6 +194,23 @@ class SetupActivity : ComponentActivity() {
             else -> "" to ""
         }
         APIModel(name, description, model)
+    }
+
+    private fun setModel(platformState: List<Platform>, apiType: ApiType, defaultModelIndex: Int): String {
+        return platformState.find { it.name == apiType }?.model ?: setDefaultModel(apiType, defaultModelIndex)
+    }
+
+    private fun setDefaultModel(apiType: ApiType, defaultModelIndex: Int): String {
+        val modelList = when (apiType) {
+            ApiType.OPENAI -> setupViewModel.openaiModels
+            ApiType.ANTHROPIC -> setupViewModel.anthropicModels
+            ApiType.GOOGLE -> setupViewModel.googleModels
+        }.toList()
+
+        val model = modelList[defaultModelIndex]
+        setupViewModel.updateModel(apiType, model)
+
+        return model
     }
 
     private fun proceedToNextStep(navController: NavHostController) {
