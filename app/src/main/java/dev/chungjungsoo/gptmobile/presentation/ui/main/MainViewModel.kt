@@ -23,6 +23,7 @@ class MainViewModel @Inject constructor(tokenDataSource: TokenDataSource) : View
 
     private val isStatusNotInitialized: (Map.Entry<ApiType, Boolean?>) -> Boolean = { it.value == null }
     private val isTokenNotInitialized: (Map.Entry<ApiType, String?>) -> Boolean = { it.value == null }
+    private val isModelNotInitialized: (Map.Entry<ApiType, String?>) -> Boolean = { it.value == null }
 
     private val _isReady: MutableStateFlow<Boolean> = MutableStateFlow(false)
     val isReady: StateFlow<Boolean> = _isReady.asStateFlow()
@@ -42,8 +43,16 @@ class MainViewModel @Inject constructor(tokenDataSource: TokenDataSource) : View
                 ApiType.ANTHROPIC to tokenDataSource.getToken(ApiType.ANTHROPIC),
                 ApiType.GOOGLE to tokenDataSource.getToken(ApiType.GOOGLE)
             )
+            val models = mapOf(
+                ApiType.OPENAI to tokenDataSource.getModel(ApiType.OPENAI),
+                ApiType.ANTHROPIC to tokenDataSource.getModel(ApiType.ANTHROPIC),
+                ApiType.GOOGLE to tokenDataSource.getModel(ApiType.GOOGLE)
+            )
 
-            if (status.all(isStatusNotInitialized) || tokens.all(isTokenNotInitialized)) {
+            if (status.all(isStatusNotInitialized) ||
+                tokens.all(isTokenNotInitialized) ||
+                models.all(isModelNotInitialized)
+            ) {
                 // Initialize
                 sendSplashEvent(SplashEvent.OpenIntro)
             } else {
