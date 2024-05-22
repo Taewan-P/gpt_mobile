@@ -15,7 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.dto.APIModel
@@ -23,8 +22,10 @@ import dev.chungjungsoo.gptmobile.presentation.common.PrimaryLongButton
 import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
 
 @Composable
-fun SelectOpenAIModelScreen(
+fun SelectModelScreen(
     modifier: Modifier = Modifier,
+    title: String,
+    description: String,
     availableModels: List<APIModel>,
     model: String,
     onChangeEvent: (String) -> Unit,
@@ -35,8 +36,8 @@ fun SelectOpenAIModelScreen(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
     ) {
-        SelectOpenAIModelText()
-        OpenAIModelRadioGroup(
+        SelectModelText(title = title, description = description)
+        ModelRadioGroup(
             modifier = Modifier.weight(1f),
             availableModels = availableModels,
             model = model,
@@ -50,9 +51,12 @@ fun SelectOpenAIModelScreen(
     }
 }
 
-@Preview
 @Composable
-fun SelectOpenAIModelText(modifier: Modifier = Modifier) {
+fun SelectModelText(
+    modifier: Modifier = Modifier,
+    title: String,
+    description: String
+) {
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -62,19 +66,19 @@ fun SelectOpenAIModelText(modifier: Modifier = Modifier) {
             modifier = Modifier
                 .padding(4.dp)
                 .semantics { heading() },
-            text = stringResource(R.string.select_openai_model),
+            text = title,
             style = MaterialTheme.typography.headlineMedium
         )
         Text(
             modifier = Modifier.padding(4.dp),
-            text = stringResource(R.string.select_openai_model_description),
+            text = description,
             style = MaterialTheme.typography.bodyLarge
         )
     }
 }
 
 @Composable
-fun OpenAIModelRadioGroup(
+fun ModelRadioGroup(
     modifier: Modifier = Modifier,
     availableModels: List<APIModel>,
     model: String,

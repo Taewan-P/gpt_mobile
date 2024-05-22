@@ -56,16 +56,10 @@ class SetupActivity : ComponentActivity() {
                     lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
                 )
 
-                val openAIModels = setupViewModel.openaiModels.mapIndexed { index, model ->
-                    val (name, description) = when (index) {
-                        0 -> stringResource(R.string.gpt_4o) to stringResource(R.string.gpt_4o_description)
-                        1 -> stringResource(R.string.gpt_4_turbo) to stringResource(R.string.gpt_4_turbo_description)
-                        2 -> stringResource(R.string.gpt_4) to stringResource(R.string.gpt_4_description)
-                        3 -> stringResource(R.string.gpt_3_5_turbo) to stringResource(R.string.gpt_3_5_description)
-                        else -> "" to ""
-                    }
-                    APIModel(name, description, model)
-                }
+                val openAIModels = generateOpenAIModelList()
+                val anthropicModels = generateAnthropicModelList()
+                val googleModels = generateGoogleModelList()
+
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     topBar = {
@@ -75,7 +69,6 @@ class SetupActivity : ComponentActivity() {
                             exitAction = { finish() }
                         )
                     }
-
                 ) { innerPadding ->
                     NavHost(
                         modifier = Modifier.padding(innerPadding),
@@ -91,10 +84,7 @@ class SetupActivity : ComponentActivity() {
                                 },
                                 onNextButtonClicked = {
                                     setupViewModel.saveCheckedState()
-                                    Log.d("status", setupViewModel.platformState.value.toString())
-                                    val nextStep = nextSetupRoute(SetupStep.SELECT_PLATFORM, setupViewModel.platformState.value)
-                                    Log.d("nextStep", "$nextStep")
-                                    if (nextStep == null) goToHomeActivity() else navController.navigate(route = nextStep.name)
+                                    proceedToNextStep(navController)
                                 }
                             )
                         }
@@ -110,31 +100,106 @@ class SetupActivity : ComponentActivity() {
                                 },
                                 onNextButtonClicked = {
                                     setupViewModel.saveTokenState()
-                                    Log.d("status", setupViewModel.platformState.value.toString())
-                                    val nextStep = nextSetupRoute(SetupStep.TOKEN_INPUT, setupViewModel.platformState.value)
-                                    if (nextStep == null) goToHomeActivity() else navController.navigate(route = nextStep.name)
+                                    proceedToNextStep(navController)
                                 }
                             )
                         }
                         composable(route = SetupStep.OPENAI_MODEL.name) {
-                            SelectOpenAIModelScreen(
+                            SelectModelScreen(
                                 modifier = Modifier.fillMaxSize(),
+                                title = stringResource(R.string.select_openai_model),
+                                description = stringResource(R.string.select_openai_model_description),
                                 availableModels = openAIModels,
-                                model = platformState[0].model ?: setupViewModel.openaiModels[0],
+                                model = platformState.find { it.name == ApiType.OPENAI }?.model ?: setupViewModel.openaiModels.first(),
                                 onChangeEvent = { model ->
                                     setupViewModel.updateModel(ApiType.OPENAI, model)
                                 },
                                 onNextButtonClicked = {
                                     setupViewModel.saveModelState()
-                                    Log.d("status", setupViewModel.platformState.value.toString())
-                                    val nextStep = nextSetupRoute(SetupStep.OPENAI_MODEL, setupViewModel.platformState.value)
-                                    if (nextStep == null) goToHomeActivity() else navController.navigate(route = nextStep.name)
+                                    proceedToNextStep(navController)
+                                }
+                            )
+                        }
+                        composable(route = SetupStep.ANTHROPIC_MODEL.name) {
+                            SelectModelScreen(
+                                modifier = Modifier.fillMaxSize(),
+                                title = stringResource(R.string.select_anthropic_model),
+                                description = stringResource(R.string.select_anthropic_model_description),
+                                availableModels = anthropicModels,
+                                model = platformState.find { it.name == ApiType.ANTHROPIC }?.model ?: setupViewModel.anthropicModels.first(),
+                                onChangeEvent = { model ->
+                                    setupViewModel.updateModel(ApiType.ANTHROPIC, model)
+                                },
+                                onNextButtonClicked = {
+                                    setupViewModel.saveModelState()
+                                    proceedToNextStep(navController)
+                                }
+                            )
+                        }
+                        composable(route = SetupStep.GOOGLE_MODEL.name) {
+                            SelectModelScreen(
+                                modifier = Modifier.fillMaxSize(),
+                                title = stringResource(R.string.select_google_model),
+                                description = stringResource(id = R.string.select_google_model_description),
+                                availableModels = googleModels,
+                                model = platformState.find { it.name == ApiType.GOOGLE }?.model ?: setupViewModel.googleModels.first(),
+                                onChangeEvent = { model ->
+                                    setupViewModel.updateModel(ApiType.GOOGLE, model)
+                                },
+                                onNextButtonClicked = {
+                                    setupViewModel.saveModelState()
+                                    proceedToNextStep(navController)
                                 }
                             )
                         }
                     }
                 }
             }
+        }
+    }
+
+    private fun generateOpenAIModelList() = setupViewModel.openaiModels.mapIndexed { index, model ->
+        val (name, description) = when (index) {
+            0 -> getString(R.string.gpt_4o) to getString(R.string.gpt_4o_description)
+            1 -> getString(R.string.gpt_4_turbo) to getString(R.string.gpt_4_turbo_description)
+            2 -> getString(R.string.gpt_4) to getString(R.string.gpt_4_description)
+            3 -> getString(R.string.gpt_3_5_turbo) to getString(R.string.gpt_3_5_description)
+            else -> "" to ""
+        }
+        APIModel(name, description, model)
+    }
+
+    private fun generateAnthropicModelList() = setupViewModel.anthropicModels.mapIndexed { index, model ->
+        val (name, description) = when (index) {
+            0 -> getString(R.string.claude_3_opus) to getString(R.string.claude_3_opus_description)
+            1 -> getString(R.string.claude_3_sonnet) to getString(R.string.claude_3_sonnet_description)
+            2 -> getString(R.string.claude_3_haiku) to getString(R.string.claude_3_haiku_description)
+            else -> "" to ""
+        }
+        APIModel(name, description, model)
+    }
+
+    private fun generateGoogleModelList() = setupViewModel.googleModels.mapIndexed { index, model ->
+        val (name, description) = when (index) {
+            0 -> getString(R.string.gemini_1_5_pro) to getString(R.string.gemini_1_5_pro_description)
+            1 -> getString(R.string.gemini_1_5_flash) to getString(R.string.gemini_1_5_flash_description)
+            2 -> getString(R.string.gemini_1_0_pro) to getString(R.string.gemini_1_0_pro_description)
+            else -> "" to ""
+        }
+        APIModel(name, description, model)
+    }
+
+    private fun proceedToNextStep(navController: NavHostController) {
+        Log.d("status", setupViewModel.platformState.value.toString())
+        val nextStep = nextSetupRoute(navController.currentDestination?.route, setupViewModel.platformState.value)
+        navigateToNextRoute(nextStep, navController)
+    }
+
+    private fun navigateToNextRoute(nextStep: SetupStep?, navController: NavHostController) {
+        if (nextStep == null) {
+            goToHomeActivity()
+        } else {
+            navController.navigate(route = nextStep.name)
         }
     }
 
@@ -145,7 +210,7 @@ class SetupActivity : ComponentActivity() {
         finish()
     }
 
-    private fun nextSetupRoute(currentRoute: SetupStep, platformState: List<SetupViewModel.Platform>): SetupStep? {
+    private fun nextSetupRoute(currentRoute: String?, platformState: List<SetupViewModel.Platform>): SetupStep? {
         val steps = listOf(
             SetupStep.SELECT_PLATFORM,
             SetupStep.TOKEN_INPUT,
@@ -161,7 +226,7 @@ class SetupActivity : ComponentActivity() {
             SetupStep.GOOGLE_MODEL to ApiType.GOOGLE
         )
 
-        val currentIndex = steps.indexOfFirst { it == currentRoute }
+        val currentIndex = steps.indexOfFirst { it.name == currentRoute }
         val enabledPlatform = platformState.filter { it.enabled }.map { it.name }.toSet()
         val remainingSteps = steps.filterIndexed { index, setupStep ->
             index > currentIndex &&

@@ -35,7 +35,7 @@ fun RadioItem(
                 onClick = { onSelected(value) },
                 role = Role.RadioButton
             )
-            .padding(16.dp),
+            .padding(20.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         RadioButton(selected = selected, onClick = null)
