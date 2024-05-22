@@ -17,8 +17,13 @@ class SetupViewModel @Inject constructor(private val tokenDataSource: TokenDataS
     data class Platform(
         val name: ApiType,
         val enabled: Boolean = false,
-        val token: String? = null
+        val token: String? = null,
+        val model: String? = null
     )
+
+    val openaiModels = listOf("gpt-4o", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo")
+    val anthropicModels = listOf("claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307")
+    val googleModels = listOf("gemini-1.5-pro-latest", "gemini-1.5-flash-latest", "gemini-1.0-pro")
 
     private val _platformState = MutableStateFlow(
         listOf(
@@ -70,6 +75,25 @@ class SetupViewModel @Inject constructor(private val tokenDataSource: TokenDataS
         }
     }
 
+    fun updateModel(apiType: ApiType, model: String) {
+        val index = _platformState.value.indexOfFirst { it.name == apiType }
+        val models = when (apiType) {
+            ApiType.OPENAI -> openaiModels
+            ApiType.ANTHROPIC -> anthropicModels
+            ApiType.GOOGLE -> googleModels
+        }
+
+        if (index >= 0) {
+            _platformState.value = _platformState.value.mapIndexed { i, p ->
+                if (index == i) {
+                    p.copy(model = if (model in models) model else null)
+                } else {
+                    p
+                }
+            }
+        }
+    }
+
     fun saveCheckedState() {
         _platformState.value.forEach { platform ->
             viewModelScope.launch {
@@ -82,6 +106,14 @@ class SetupViewModel @Inject constructor(private val tokenDataSource: TokenDataS
         _platformState.value.filter { it.enabled && it.token != null }.forEach { platform ->
             viewModelScope.launch {
                 tokenDataSource.updateToken(platform.name, platform.token!!)
+            }
+        }
+    }
+
+    fun saveModelState() {
+        _platformState.value.filter { it.enabled && it.token != null && it.model != null }.forEach { platform ->
+            viewModelScope.launch {
+                tokenDataSource.updateModel(platform.name, platform.model!!)
             }
         }
     }

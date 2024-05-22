@@ -23,6 +23,11 @@ class TokenDataSourceImpl @Inject constructor(
         ApiType.ANTHROPIC to stringPreferencesKey("anthropic_token"),
         ApiType.GOOGLE to stringPreferencesKey("google_token")
     )
+    private val apiModelMap = mapOf(
+        ApiType.OPENAI to stringPreferencesKey("openai_model"),
+        ApiType.ANTHROPIC to stringPreferencesKey("anthropic_model"),
+        ApiType.GOOGLE to stringPreferencesKey("google_model")
+    )
 
     override suspend fun updateStatus(apiType: ApiType, status: Boolean) {
         dataStore.edit { pref ->
@@ -36,6 +41,12 @@ class TokenDataSourceImpl @Inject constructor(
         }
     }
 
+    override suspend fun updateModel(apiType: ApiType, model: String) {
+        dataStore.edit { pref ->
+            pref[apiModelMap[apiType]!!] = model
+        }
+    }
+
     override suspend fun getStatus(apiType: ApiType): Boolean? {
         return dataStore.data.map { pref ->
             pref[apiStatusMap[apiType]!!]
@@ -45,6 +56,12 @@ class TokenDataSourceImpl @Inject constructor(
     override suspend fun getToken(apiType: ApiType): String? {
         return dataStore.data.map { pref ->
             pref[apiTokenMap[apiType]!!]
+        }.first()
+    }
+
+    override suspend fun getModel(apiType: ApiType): String? {
+        return dataStore.data.map { pref ->
+            pref[apiModelMap[apiType]!!]
         }.first()
     }
 }
