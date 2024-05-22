@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <attr name="startLogoColor" format="reference" />
+    <attr name="vectorColor" format="reference" />
 </resources>

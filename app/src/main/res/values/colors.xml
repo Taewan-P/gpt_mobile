@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="start_logo_stroke_light">#FF036E52</color>
-    <color name="start_logo_stroke_dark">#FF8AD6B7</color>
+    <color name="icon_stroke_light">#FF1A6B51</color>
+    <color name="icon_stroke_dark">#FF8AD6B6</color>
 </resources>

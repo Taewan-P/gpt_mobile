@@ -2,7 +2,7 @@
 <resources>
 
     <style name="Theme.GPTMobile" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="startLogoColor">@color/start_logo_stroke_light</item>
+        <item name="vectorColor">@color/icon_stroke_light</item>
     </style>
 
     <style name="Theme.GPTMobile.Starting" parent="Theme.SplashScreen.IconBackground">
@@ -10,7 +10,7 @@
         <item name="windowSplashScreenAnimatedIcon">@drawable/splash_icon_inset</item>
         <item name="windowSplashScreenIconBackgroundColor">@color/ic_gpt_mobile_background</item>
         <item name="postSplashScreenTheme">@style/Theme.GPTMobile</item>
-        <item name="startLogoColor">@color/start_logo_stroke_light</item>
+        <item name="vectorColor">@color/icon_stroke_light</item>
     </style>
 
 </resources>
