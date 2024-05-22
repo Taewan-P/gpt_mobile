@@ -16,7 +16,7 @@
     <string name="google_description">Gemini is on its way.</string>
     <string name="next">Next</string>
     <string name="enter_api_key">Enter API Key</string>
-    <string name="token_input_description">Enter the API Key of the platform you selected. We never collect these data. These keys will be only stored in your device, and will not be sent to other servers besides API endpoints.</string>
+    <string name="token_input_description">Enter the API Key of the platform you selected. This app never collect these data. These keys will be only stored in your device, and will not be sent to other servers besides API endpoints.</string>
     <string name="clear_token">Clear token</string>
     <string name="need_help">Need Help?</string>
     <string name="openai_api_key">OpenAI API Key</string>
@@ -25,4 +25,14 @@
     <string name="openai_api_help">https://platform.openai.com/account/api-keys</string>
     <string name="anthropic_api_help">https://console.anthropic.com/settings/keys</string>
     <string name="google_api_help">https://aistudio.google.com/app/apikey</string>
+    <string name="select_openai_model">Select OpenAI Chat Model</string>
+    <string name="select_openai_model_description">Please select the OpenAI chat model. Tokens can be thought of as pieces of words. They are stacked to keep up with the context when you ask and receive answer.</string>
+    <string name="gpt_4o">GPT-4o</string>
+    <string name="gpt_4_turbo">GPT-4 Turbo</string>
+    <string name="gpt_4">GPT-4</string>
+    <string name="gpt_3_5_turbo">GPT-3.5 Turbo</string>
+    <string name="gpt_4o_description">The fastest and most affordable flagship model.</string>
+    <string name="gpt_4_turbo_description">Decent reliability, 3x cheaper than GPT-4.</string>
+    <string name="gpt_4_description">Performs the best at solving abstract problems.</string>
+    <string name="gpt_3_5_description">A fast, inexpensive model for simple tasks.</string>
 </resources>
