@@ -3,11 +3,10 @@ package dev.chungjungsoo.gptmobile.presentation.ui.setup
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Checkbox
@@ -41,12 +40,12 @@ fun SelectPlatformScreen(
     ) {
         GetStartedText()
         SelectPlatform(
-            modifier = Modifier.weight(1f),
             platforms = platformState,
             onClickEvent = {
                 onCheckedEvent(it)
             }
         )
+        Spacer(modifier = Modifier.weight(1f))
         PrimaryLongButton(
             enabled = platformState.any { it.enabled },
             onClick = onNextButtonClicked,
@@ -95,8 +94,8 @@ fun SelectPlatform(
         ApiType.GOOGLE to stringResource(R.string.google_description)
     )
 
-    LazyColumn(modifier = modifier) {
-        items(platforms) { platform ->
+    Column(modifier = modifier) {
+        platforms.forEach { platform ->
             CheckBoxItem(
                 platform = platform,
                 title = titles[platform.name]!!,

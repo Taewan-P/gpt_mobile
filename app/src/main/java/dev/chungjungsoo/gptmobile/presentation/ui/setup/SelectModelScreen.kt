@@ -1,11 +1,10 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.setup
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -38,11 +37,11 @@ fun SelectModelScreen(
     ) {
         SelectModelText(title = title, description = description)
         ModelRadioGroup(
-            modifier = Modifier.weight(1f),
             availableModels = availableModels,
             model = model,
             onChangeEvent = onChangeEvent
         )
+        Spacer(modifier = Modifier.weight(1f))
         PrimaryLongButton(
             enabled = availableModels.any { it.aliasValue == model },
             onClick = onNextButtonClicked,
@@ -84,8 +83,8 @@ fun ModelRadioGroup(
     model: String,
     onChangeEvent: (String) -> Unit
 ) {
-    LazyColumn(modifier = modifier) {
-        items(availableModels) { m ->
+    Column(modifier = modifier) {
+        availableModels.forEach { m ->
             RadioItem(
                 value = m.aliasValue,
                 selected = model == m.aliasValue,

@@ -3,11 +3,10 @@ package dev.chungjungsoo.gptmobile.presentation.ui.setup
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.KeyboardOptions
@@ -64,11 +63,11 @@ fun TokenInputScreen(
     ) {
         TokenInputText()
         TokenInput(
-            modifier = Modifier.weight(1f),
             platforms = platformState,
             onChangeEvent = { platform, s -> onChangeEvent(platform, s) },
             onClearEvent = { platform -> onClearEvent(platform) }
         )
+        Spacer(modifier = Modifier.weight(1f))
         PrimaryLongButton(
             enabled = platformState.filter { it.enabled }.all { platform -> platform.token != null },
             onClick = onNextButtonClicked,
@@ -119,8 +118,8 @@ fun TokenInput(
         ApiType.GOOGLE to stringResource(R.string.google_api_help)
     )
 
-    LazyColumn(modifier = modifier) {
-        itemsIndexed(platforms.filter { it.enabled }) { i, platform ->
+    Column(modifier = modifier) {
+        platforms.filter { it.enabled }.forEachIndexed { i, platform ->
             val isLast = platforms.filter { it.enabled }.size - 1 == i
             TokenInputField(
                 value = platform.token ?: "",
