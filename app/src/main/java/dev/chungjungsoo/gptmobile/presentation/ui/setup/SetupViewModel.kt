@@ -29,19 +29,6 @@ class SetupViewModel @Inject constructor(private val tokenDataSource: TokenDataS
     )
     val platformState: StateFlow<List<Platform>> = _platformState.asStateFlow()
 
-    init {
-        viewModelScope.launch {
-            fetchCheckedState()
-        }
-    }
-
-    private suspend fun fetchCheckedState() {
-        _platformState.value = _platformState.value.map { p ->
-            val status = tokenDataSource.getStatus(p.name)
-            p.copy(enabled = status ?: false)
-        }
-    }
-
     fun updateCheckedState(platform: Platform) {
         val index = _platformState.value.indexOf(platform)
 
