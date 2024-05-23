@@ -14,7 +14,7 @@ class HomeActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             GPTMobileTheme {
-                HomeScreen()
+                HomeScreen({ }, { })
             }
         }
     }

@@ -27,7 +27,10 @@ import dev.chungjungsoo.gptmobile.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen() {
+fun HomeScreen(
+    actionOnClick: () -> Unit,
+    newChatOnClick: () -> Unit
+) {
     val scrollable = { false } // TODO: Change this condition
     val scrollBehavior = if (scrollable()) {
         TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -39,8 +42,8 @@ fun HomeScreen() {
         modifier = Modifier
             .fillMaxSize()
             .nestedScroll(scrollBehavior.nestedScrollConnection),
-        topBar = { HomeTopAppBar(scrollBehavior) },
-        floatingActionButton = { NewChatButton(onClick = { /* TODO */ }) }
+        topBar = { HomeTopAppBar(scrollBehavior, actionOnClick) },
+        floatingActionButton = { NewChatButton(onClick = newChatOnClick) }
     ) { innerPadding ->
         Column(
             Modifier
@@ -53,7 +56,10 @@ fun HomeScreen() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeTopAppBar(scrollBehavior: TopAppBarScrollBehavior) {
+fun HomeTopAppBar(
+    scrollBehavior: TopAppBarScrollBehavior,
+    actionOnClick: () -> Unit
+) {
     LargeTopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.background,
@@ -70,7 +76,7 @@ fun HomeTopAppBar(scrollBehavior: TopAppBarScrollBehavior) {
         actions = {
             IconButton(
                 modifier = Modifier.padding(4.dp),
-                onClick = { /*TODO*/ }
+                onClick = actionOnClick
             ) {
                 Icon(imageVector = Icons.Outlined.Settings, contentDescription = stringResource(R.string.settings))
             }
