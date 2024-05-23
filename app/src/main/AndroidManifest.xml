@@ -11,7 +11,7 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.GPTMobile.Starting"
-        tools:targetApi="31">
+        tools:targetApi="upside_down_cake">
         <activity
             android:name=".presentation.ui.home.HomeActivity"
             android:exported="true"

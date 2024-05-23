@@ -22,6 +22,11 @@ android {
         }
     }
 
+    androidResources {
+        @file:Suppress("UnstableApiUsage") // Incubating class
+        generateLocaleConfig = true
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false

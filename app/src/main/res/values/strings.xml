@@ -4,13 +4,13 @@
     <string name="welcome_title">The best AI assistant\nyou can get in your\nsmartphone.</string>
     <string name="welcome_description">Use the model that suits you\nthe most. Ask anything you want!</string>
     <string name="get_started">Get Started</string>
-    <string name="title_activity_setup">SetupActivity</string>
+    <string name="title_activity_setup" translatable="false">SetupActivity</string>
     <string name="platform_select_description">Choose the platform you want to use. You can change this later in settings. More platforms to be supported.</string>
     <string name="sample_item_title">Item 1</string>
     <string name="sample_item_description">Item description</string>
-    <string name="openai">OpenAI</string>
-    <string name="anthropic">Anthropic</string>
-    <string name="google">Google</string>
+    <string name="openai" translatable="false">OpenAI</string>
+    <string name="anthropic" translatable="false">Anthropic</string>
+    <string name="google" translatable="false">Google</string>
     <string name="openai_description">Creator of ChatGPT.</string>
     <string name="anthropic_description">Claude was born here.</string>
     <string name="google_description">Gemini is on its way.</string>
@@ -22,32 +22,32 @@
     <string name="openai_api_key">OpenAI API Key</string>
     <string name="anthropic_api_key">Anthropic API Key</string>
     <string name="google_api_key">Google API Key</string>
-    <string name="openai_api_help">https://platform.openai.com/account/api-keys</string>
-    <string name="anthropic_api_help">https://console.anthropic.com/settings/keys</string>
-    <string name="google_api_help">https://aistudio.google.com/app/apikey</string>
+    <string name="openai_api_help" translatable="false">https://platform.openai.com/account/api-keys</string>
+    <string name="anthropic_api_help" translatable="false">https://console.anthropic.com/settings/keys</string>
+    <string name="google_api_help" translatable="false">https://aistudio.google.com/app/apikey</string>
     <string name="select_openai_model">Select OpenAI Chat Model</string>
     <string name="select_openai_model_description">Please select the OpenAI chat model. Even if the selected model is multimodal, the app currently supports text inputs only. May be supported later in the future.</string>
-    <string name="gpt_4o">GPT-4o</string>
-    <string name="gpt_4_turbo">GPT-4 Turbo</string>
-    <string name="gpt_4">GPT-4</string>
-    <string name="gpt_3_5_turbo">GPT-3.5 Turbo</string>
+    <string name="gpt_4o" translatable="false">GPT-4o</string>
+    <string name="gpt_4_turbo" translatable="false">GPT-4 Turbo</string>
+    <string name="gpt_4" translatable="false">GPT-4</string>
+    <string name="gpt_3_5_turbo" translatable="false">GPT-3.5 Turbo</string>
     <string name="gpt_4o_description">The fastest and most affordable flagship model.</string>
     <string name="gpt_4_turbo_description">Decent reliability, 3x cheaper than GPT-4.</string>
     <string name="gpt_4_description">Performs the best at solving abstract problems.</string>
     <string name="gpt_3_5_description">A fast, inexpensive model for simple tasks.</string>
     <string name="select_anthropic_model">Select Anthropic Chat Model</string>
     <string name="select_anthropic_model_description">Please select the Anthropic chat model. We currently support the Claude 3 family of models with only text inputs.</string>
-    <string name="claude_3_opus">Claude 3 Opus</string>
-    <string name="claude_3_sonnet">Claude 3 Sonnet</string>
-    <string name="claude_3_haiku">Claude 3 Haiku</string>
+    <string name="claude_3_opus" translatable="false">Claude 3 Opus</string>
+    <string name="claude_3_sonnet" translatable="false">Claude 3 Sonnet</string>
+    <string name="claude_3_haiku" translatable="false">Claude 3 Haiku</string>
     <string name="claude_3_opus_description">Anthropic\'s most powerful model.</string>
     <string name="claude_3_sonnet_description">Balanced model between intelligence and speed.</string>
     <string name="claude_3_haiku_description">Anthropic\'s fastest and most compact model.</string>
     <string name="select_google_model">Select Google Chat Model</string>
     <string name="select_google_model_description">Gemini is a family of generative AI models made by Google. Only text inputs are supported.</string>
-    <string name="gemini_1_5_pro">Gemini 1.5 Pro</string>
-    <string name="gemini_1_5_flash">Gemini 1.5 Flash</string>
-    <string name="gemini_1_0_pro">Gemini 1.0 Pro</string>
+    <string name="gemini_1_5_pro" translatable="false">Gemini 1.5 Pro</string>
+    <string name="gemini_1_5_flash" translatable="false">Gemini 1.5 Flash</string>
+    <string name="gemini_1_0_pro" translatable="false">Gemini 1.0 Pro</string>
     <string name="gemini_1_5_pro_description">Optimized for reasoning tasks including code and text generation.</string>
     <string name="gemini_1_5_flash_description">Fast and versatile performance across a diverse variety of tasks.</string>
     <string name="gemini_1_0_pro_description">Natural language tasks, multi-turn text and code chat, and code generation.</string>
@@ -55,4 +55,7 @@
     <string name="setup_complete_description">Let’s start using GPT Mobile!</string>
     <string name="done">Done</string>
     <string name="setup_complete_logo">Setup Complete Logo</string>
+    <string name="chats">Chats</string>
+    <string name="settings">Settings</string>
+    <string name="new_chat">New Chat</string>
 </resources>
