@@ -79,6 +79,8 @@ dependencies {
     implementation(libs.hilt)
     implementation(libs.androidx.lifecycle.runtime.compose.android)
     kapt(libs.hilt.compiler)
+
+    // Navigation
     implementation(libs.hilt.navigation)
 
     // Test
