@@ -83,6 +83,12 @@ dependencies {
     // Navigation
     implementation(libs.hilt.navigation)
 
+    // Room
+    implementation(libs.room)
+    annotationProcessor(libs.room.compiler)
+    kapt(libs.room.compiler)
+    implementation(libs.room.ktx)
+
     // Test
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

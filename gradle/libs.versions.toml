@@ -13,6 +13,7 @@ hilt = "2.51.1"
 androidxHilt = "1.2.0"
 material = "1.12.0"
 splashscreen = "1.0.1"
+room = "2.6.1"
 viewmodelCompose = "2.8.0"
 lifecycleRuntimeComposeAndroid = "2.8.0"
 
@@ -38,6 +39,9 @@ hilt-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", v
 hilt-navigation = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "androidxHilt" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splashscreen" }
+room = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
+room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
+room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 androidx-lifecycle-runtime-compose-android = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose-android", version.ref = "lifecycleRuntimeComposeAndroid" }
 
 [plugins]
