@@ -3,7 +3,7 @@ package dev.chungjungsoo.gptmobile.presentation.ui.setup
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dev.chungjungsoo.gptmobile.data.datastore.TokenDataSource
+import dev.chungjungsoo.gptmobile.data.datastore.SettingDataSource
 import dev.chungjungsoo.gptmobile.data.dto.ApiType
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import javax.inject.Inject
@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 @HiltViewModel
-class SetupViewModel @Inject constructor(private val tokenDataSource: TokenDataSource) : ViewModel() {
+class SetupViewModel @Inject constructor(private val settingDataSource: SettingDataSource) : ViewModel() {
 
     // LinkedHashSet should be used to guarantee item order
     val openaiModels = linkedSetOf("gpt-4o", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo")
@@ -79,7 +79,7 @@ class SetupViewModel @Inject constructor(private val tokenDataSource: TokenDataS
     fun saveCheckedState() {
         _platformState.value.forEach { platform ->
             viewModelScope.launch {
-                tokenDataSource.updateStatus(platform.name, platform.enabled)
+                settingDataSource.updateStatus(platform.name, platform.enabled)
             }
         }
     }
@@ -87,7 +87,7 @@ class SetupViewModel @Inject constructor(private val tokenDataSource: TokenDataS
     fun saveTokenState() {
         _platformState.value.filter { it.enabled && it.token != null }.forEach { platform ->
             viewModelScope.launch {
-                tokenDataSource.updateToken(platform.name, platform.token!!)
+                settingDataSource.updateToken(platform.name, platform.token!!)
             }
         }
     }
@@ -95,7 +95,7 @@ class SetupViewModel @Inject constructor(private val tokenDataSource: TokenDataS
     fun saveModelState() {
         _platformState.value.filter { it.enabled && it.token != null && it.model != null }.forEach { platform ->
             viewModelScope.launch {
-                tokenDataSource.updateModel(platform.name, platform.model!!)
+                settingDataSource.updateModel(platform.name, platform.model!!)
             }
         }
     }

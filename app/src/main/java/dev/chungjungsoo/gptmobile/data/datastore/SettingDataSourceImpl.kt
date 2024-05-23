@@ -10,9 +10,9 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
-class TokenDataSourceImpl @Inject constructor(
+class SettingDataSourceImpl @Inject constructor(
     private val dataStore: DataStore<Preferences>
-) : TokenDataSource {
+) : SettingDataSource {
     private val apiStatusMap = mapOf(
         ApiType.OPENAI to booleanPreferencesKey("openai_status"),
         ApiType.ANTHROPIC to booleanPreferencesKey("anthropic_status"),

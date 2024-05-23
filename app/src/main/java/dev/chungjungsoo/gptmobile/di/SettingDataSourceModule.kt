@@ -6,14 +6,14 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
-import dev.chungjungsoo.gptmobile.data.datastore.TokenDataSource
-import dev.chungjungsoo.gptmobile.data.datastore.TokenDataSourceImpl
+import dev.chungjungsoo.gptmobile.data.datastore.SettingDataSource
+import dev.chungjungsoo.gptmobile.data.datastore.SettingDataSourceImpl
 import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
-object TokenDataSourceModule {
+object SettingDataSourceModule {
     @Provides
     @Singleton
-    fun provideTokenDataStore(dataStore: DataStore<Preferences>): TokenDataSource = TokenDataSourceImpl(dataStore)
+    fun provideSettingDataStore(dataStore: DataStore<Preferences>): SettingDataSource = SettingDataSourceImpl(dataStore)
 }

@@ -3,7 +3,7 @@ package dev.chungjungsoo.gptmobile.presentation.ui.main
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dev.chungjungsoo.gptmobile.data.datastore.TokenDataSource
+import dev.chungjungsoo.gptmobile.data.datastore.SettingDataSource
 import dev.chungjungsoo.gptmobile.data.dto.ApiType
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import javax.inject.Inject
@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 @HiltViewModel
-class MainViewModel @Inject constructor(tokenDataSource: TokenDataSource) : ViewModel() {
+class MainViewModel @Inject constructor(settingDataSource: SettingDataSource) : ViewModel() {
     sealed class SplashEvent {
         data object OpenIntro : SplashEvent()
         data object OpenHome : SplashEvent()
@@ -31,9 +31,9 @@ class MainViewModel @Inject constructor(tokenDataSource: TokenDataSource) : View
     init {
         viewModelScope.launch {
             val enabledPlatforms = ApiType.entries.map { apiType ->
-                val status = tokenDataSource.getStatus(apiType)
-                val token = tokenDataSource.getToken(apiType)
-                val model = tokenDataSource.getModel(apiType)
+                val status = settingDataSource.getStatus(apiType)
+                val token = settingDataSource.getToken(apiType)
+                val model = settingDataSource.getModel(apiType)
 
                 Platform(apiType, status ?: false, token, model)
             }.filter { it.enabled }
