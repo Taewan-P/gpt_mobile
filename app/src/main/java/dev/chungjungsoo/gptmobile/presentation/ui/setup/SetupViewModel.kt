@@ -10,6 +10,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 @HiltViewModel
@@ -33,11 +34,13 @@ class SetupViewModel @Inject constructor(private val settingDataSource: SettingD
         val index = _platformState.value.indexOf(platform)
 
         if (index >= 0) {
-            _platformState.value = _platformState.value.mapIndexed { i, p ->
-                if (index == i) {
-                    p.copy(enabled = p.enabled.not())
-                } else {
-                    p
+            _platformState.update {
+                it.mapIndexed { i, p ->
+                    if (index == i) {
+                        p.copy(enabled = p.enabled.not())
+                    } else {
+                        p
+                    }
                 }
             }
         }
@@ -47,11 +50,13 @@ class SetupViewModel @Inject constructor(private val settingDataSource: SettingD
         val index = _platformState.value.indexOf(platform)
 
         if (index >= 0) {
-            _platformState.value = _platformState.value.mapIndexed { i, p ->
-                if (index == i) {
-                    p.copy(token = token.ifBlank { null })
-                } else {
-                    p
+            _platformState.update {
+                it.mapIndexed { i, p ->
+                    if (index == i) {
+                        p.copy(token = token.ifBlank { null })
+                    } else {
+                        p
+                    }
                 }
             }
         }
@@ -66,11 +71,13 @@ class SetupViewModel @Inject constructor(private val settingDataSource: SettingD
         }
 
         if (index >= 0) {
-            _platformState.value = _platformState.value.mapIndexed { i, p ->
-                if (index == i) {
-                    p.copy(model = if (model in models) model else null)
-                } else {
-                    p
+            _platformState.update {
+                it.mapIndexed { i, p ->
+                    if (index == i) {
+                        p.copy(model = if (model in models) model else null)
+                    } else {
+                        p
+                    }
                 }
             }
         }
