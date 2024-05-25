@@ -38,5 +38,5 @@ data class Message(
     val platformType: ApiType?,
 
     @ColumnInfo(name = "created_at")
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis() / 1000
 )

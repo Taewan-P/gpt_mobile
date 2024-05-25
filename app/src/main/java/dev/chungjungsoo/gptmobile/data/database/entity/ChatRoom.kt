@@ -19,7 +19,7 @@ data class ChatRoom(
     val enabledPlatform: List<ApiType>,
 
     @ColumnInfo(name = "created_at")
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis() / 1000
 )
 
 class APITypeConverter {
