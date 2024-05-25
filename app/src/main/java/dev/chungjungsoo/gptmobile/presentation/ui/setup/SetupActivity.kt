@@ -50,16 +50,17 @@ class SetupActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        val openAIModels = generateOpenAIModelList()
+        val anthropicModels = generateAnthropicModelList()
+        val googleModels = generateGoogleModelList()
+
         setContent {
             GPTMobileTheme {
                 val navController = rememberNavController()
                 val platformState by setupViewModel.platformState.collectAsStateWithLifecycle(
                     lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
                 )
-
-                val openAIModels = generateOpenAIModelList()
-                val anthropicModels = generateAnthropicModelList()
-                val googleModels = generateGoogleModelList()
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
