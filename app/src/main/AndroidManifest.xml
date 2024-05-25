@@ -13,10 +13,6 @@
         android:theme="@style/Theme.GPTMobile.Starting"
         tools:targetApi="upside_down_cake">
         <activity
-            android:name=".presentation.ui.home.HomeActivity"
-            android:exported="true"
-            android:theme="@style/Theme.GPTMobile" />
-        <activity
             android:name=".presentation.ui.main.MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
@@ -32,9 +28,20 @@
             android:exported="true"
             android:theme="@style/Theme.GPTMobile" />
         <activity
+            android:name=".presentation.ui.home.HomeActivity"
+            android:exported="true"
+            android:theme="@style/Theme.GPTMobile" />
+        <activity
             android:name=".presentation.ui.setup.SetupActivity"
             android:exported="true"
-            android:label="@string/title_activity_setup"
+            android:theme="@style/Theme.GPTMobile" />
+        <activity
+            android:name=".presentation.ui.chat.ChatActivity"
+            android:exported="false"
+            android:theme="@style/Theme.GPTMobile" />
+        <activity
+            android:name=".presentation.ui.setting.SettingActivity"
+            android:exported="false"
             android:theme="@style/Theme.GPTMobile" />
     </application>
 
