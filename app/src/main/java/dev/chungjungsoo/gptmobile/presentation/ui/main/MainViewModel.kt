@@ -35,7 +35,7 @@ class MainViewModel @Inject constructor(settingDataSource: SettingDataSource) : 
                 val token = settingDataSource.getToken(apiType)
                 val model = settingDataSource.getModel(apiType)
 
-                Platform(apiType, status ?: false, token, model)
+                Platform(apiType, enabled = status ?: false, token = token, model = model)
             }.filter { it.enabled }
 
             if (enabledPlatforms.isEmpty() ||

@@ -69,7 +69,7 @@ fun TokenInputScreen(
         )
         Spacer(modifier = Modifier.weight(1f))
         PrimaryLongButton(
-            enabled = platformState.filter { it.enabled }.all { platform -> platform.token != null },
+            enabled = platformState.filter { it.selected }.all { platform -> platform.token != null },
             onClick = onNextButtonClicked,
             text = stringResource(R.string.next)
         )
@@ -119,8 +119,8 @@ fun TokenInput(
     )
 
     Column(modifier = modifier) {
-        platforms.filter { it.enabled }.forEachIndexed { i, platform ->
-            val isLast = platforms.filter { it.enabled }.size - 1 == i
+        platforms.filter { it.selected }.forEachIndexed { i, platform ->
+            val isLast = platforms.filter { it.selected }.size - 1 == i
             TokenInputField(
                 value = platform.token ?: "",
                 onValueChange = { onChangeEvent(platform, it) },

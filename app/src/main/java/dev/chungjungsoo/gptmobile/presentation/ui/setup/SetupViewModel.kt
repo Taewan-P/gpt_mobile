@@ -37,7 +37,7 @@ class SetupViewModel @Inject constructor(private val settingDataSource: SettingD
             _platformState.update {
                 it.mapIndexed { i, p ->
                     if (index == i) {
-                        p.copy(enabled = p.enabled.not())
+                        p.copy(selected = p.selected.not())
                     } else {
                         p
                     }
@@ -86,13 +86,13 @@ class SetupViewModel @Inject constructor(private val settingDataSource: SettingD
     fun saveCheckedState() {
         _platformState.value.forEach { platform ->
             viewModelScope.launch {
-                settingDataSource.updateStatus(platform.name, platform.enabled)
+                settingDataSource.updateStatus(platform.name, platform.selected)
             }
         }
     }
 
     fun saveTokenState() {
-        _platformState.value.filter { it.enabled && it.token != null }.forEach { platform ->
+        _platformState.value.filter { it.selected && it.token != null }.forEach { platform ->
             viewModelScope.launch {
                 settingDataSource.updateToken(platform.name, platform.token!!)
             }
@@ -100,7 +100,7 @@ class SetupViewModel @Inject constructor(private val settingDataSource: SettingD
     }
 
     fun saveModelState() {
-        _platformState.value.filter { it.enabled && it.token != null && it.model != null }.forEach { platform ->
+        _platformState.value.filter { it.selected && it.token != null && it.model != null }.forEach { platform ->
             viewModelScope.launch {
                 settingDataSource.updateModel(platform.name, platform.model!!)
             }

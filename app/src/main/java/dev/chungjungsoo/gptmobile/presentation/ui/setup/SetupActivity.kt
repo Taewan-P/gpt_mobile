@@ -256,7 +256,7 @@ class SetupActivity : ComponentActivity() {
         )
 
         val currentIndex = steps.indexOfFirst { it.name == currentRoute }
-        val enabledPlatform = platformState.filter { it.enabled }.map { it.name }.toSet()
+        val enabledPlatform = platformState.filter { it.selected }.map { it.name }.toSet()
         val remainingSteps = steps.filterIndexed { index, setupStep ->
             index > currentIndex &&
                 (setupStep in commonSteps || platformStep[setupStep] in enabledPlatform)
