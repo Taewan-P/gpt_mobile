@@ -11,6 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.chungjungsoo.gptmobile.R
@@ -35,6 +36,7 @@ fun PlatformCheckBoxItem(
             .fillMaxWidth()
             .padding(top = 12.dp, bottom = 12.dp, start = 16.dp, end = 16.dp)
     }
+    val textModifier = Modifier.alpha(if (enabled) 1.0f else 0.38f)
 
     Row(
         modifier = rowModifier,
@@ -48,11 +50,13 @@ fun PlatformCheckBoxItem(
         Column(horizontalAlignment = Alignment.Start) {
             Text(
                 text = title,
+                modifier = textModifier,
                 style = MaterialTheme.typography.titleMedium
             )
             description?.let {
                 Text(
                     text = it,
+                    modifier = textModifier,
                     style = MaterialTheme.typography.bodySmall
                 )
             }
