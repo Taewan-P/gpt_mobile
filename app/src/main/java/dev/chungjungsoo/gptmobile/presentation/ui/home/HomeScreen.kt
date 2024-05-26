@@ -2,6 +2,7 @@ package dev.chungjungsoo.gptmobile.presentation.ui.home
 
 import android.content.res.Configuration
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -55,6 +56,7 @@ import dev.chungjungsoo.gptmobile.util.getPlatformTitleResources
 fun HomeScreen(
     chatRooms: List<ChatRoom>,
     actionOnClick: () -> Unit,
+    onExistingChatClick: (ChatRoom) -> Unit,
     newChatOnClick: () -> Unit
 ) {
     val platformTitles = getPlatformTitleResources()
@@ -74,6 +76,8 @@ fun HomeScreen(
                 val usingPlatform = chatRoom.enabledPlatform.joinToString(", ") { platformTitles[it] ?: "" }
                 ListItem(
                     modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onExistingChatClick(chatRoom) }
                         .padding(start = 8.dp, end = 8.dp)
                         .animateItemPlacement(),
                     headlineContent = { Text(text = chatRoom.title) },
@@ -145,7 +149,6 @@ fun NewChatButton(
     } else {
         modifier
     }
-
     ExtendedFloatingActionButton(
         modifier = fabModifier,
         onClick = { onClick() },

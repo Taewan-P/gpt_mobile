@@ -8,6 +8,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.runtime.getValue
 import dagger.hilt.android.AndroidEntryPoint
+import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoom
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 import dev.chungjungsoo.gptmobile.presentation.ui.chat.ChatActivity
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.SettingActivity
@@ -27,7 +28,7 @@ class HomeActivity : ComponentActivity() {
                 val showSelectModelDialog by homeViewModel.showSelectModelDialog.collectManagedState()
                 val chatList by homeViewModel.chatList.collectManagedState()
 
-                HomeScreen(chatList, ::openSettings) { homeViewModel.openSelectModelDialog() }
+                HomeScreen(chatList, ::openSettings, ::openExistingChat, homeViewModel::openSelectModelDialog)
                 if (showSelectModelDialog) {
                     SelectPlatformDialog(
                         platformState,
@@ -47,6 +48,12 @@ class HomeActivity : ComponentActivity() {
         super.onResume()
         homeViewModel.fetchPlatformStatus()
         homeViewModel.fetchChats()
+    }
+
+    private fun openExistingChat(chatRoom: ChatRoom) {
+        val intent = Intent(this, ChatActivity::class.java)
+        intent.putExtra("chatRoom", chatRoom)
+        startActivity(intent)
     }
 
     private fun openNewChat() {
