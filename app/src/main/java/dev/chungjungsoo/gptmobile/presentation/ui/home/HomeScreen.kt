@@ -6,8 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
@@ -145,7 +145,7 @@ fun NewChatButton(
 ) {
     val orientation = LocalConfiguration.current.orientation
     val fabModifier = if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
-        modifier.navigationBarsPadding()
+        modifier.systemBarsPadding()
     } else {
         modifier
     }
