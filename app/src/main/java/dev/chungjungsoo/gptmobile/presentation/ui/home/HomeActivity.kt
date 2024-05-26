@@ -7,11 +7,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.runtime.getValue
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 import dev.chungjungsoo.gptmobile.presentation.ui.chat.ChatActivity
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.SettingActivity
+import dev.chungjungsoo.gptmobile.util.collectManagedState
 
 @AndroidEntryPoint
 class HomeActivity : ComponentActivity() {
@@ -23,15 +23,9 @@ class HomeActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             GPTMobileTheme {
-                val platformState by homeViewModel.platformState.collectAsStateWithLifecycle(
-                    lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
-                )
-                val showSelectModelDialog by homeViewModel.showSelectModelDialog.collectAsStateWithLifecycle(
-                    lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
-                )
-                val chatList by homeViewModel.chatList.collectAsStateWithLifecycle(
-                    lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
-                )
+                val platformState by homeViewModel.platformState.collectManagedState()
+                val showSelectModelDialog by homeViewModel.showSelectModelDialog.collectManagedState()
+                val chatList by homeViewModel.chatList.collectManagedState()
 
                 HomeScreen(::openSettings) { homeViewModel.openSelectModelDialog() }
                 if (showSelectModelDialog) {

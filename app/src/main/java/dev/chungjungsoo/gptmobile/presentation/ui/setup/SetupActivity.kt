@@ -20,7 +20,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -32,6 +31,7 @@ import dev.chungjungsoo.gptmobile.data.dto.ApiType
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 import dev.chungjungsoo.gptmobile.presentation.ui.home.HomeActivity
+import dev.chungjungsoo.gptmobile.util.collectManagedState
 
 @AndroidEntryPoint
 class SetupActivity : ComponentActivity() {
@@ -58,9 +58,7 @@ class SetupActivity : ComponentActivity() {
         setContent {
             GPTMobileTheme {
                 val navController = rememberNavController()
-                val platformState by setupViewModel.platformState.collectAsStateWithLifecycle(
-                    lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
-                )
+                val platformState by setupViewModel.platformState.collectManagedState()
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
