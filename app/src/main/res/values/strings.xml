@@ -57,4 +57,7 @@
     <string name="chats">Chats</string>
     <string name="settings">Settings</string>
     <string name="new_chat">New Chat</string>
+    <string name="select_platform">Select Platform</string>
+    <string name="select_platform_description">Select platforms that you want to use in this chat. Once the chat is created, you can not change this settings. If you would like to change this, please create a new chat.</string>
+    <string name="enable_at_leat_one_platform">Please enable at least one platform to create a chat.</string>
 </resources>

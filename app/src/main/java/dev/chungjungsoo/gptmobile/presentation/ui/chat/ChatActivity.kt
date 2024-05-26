@@ -1,6 +1,7 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -11,12 +12,23 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.core.os.BundleCompat
+import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoom
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 
 class ChatActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        val chatInfo = intent.getBundleExtra("chatInfo")
+        val isNewChat = chatInfo?.getBoolean("newChat") ?: false
+        val chatRoom = chatInfo?.let {
+            BundleCompat.getParcelable(it, "chatRoom", ChatRoom::class.java)
+        }
+
+        Log.d("ChatActivity", "new: $isNewChat, room: $chatRoom")
+
         setContent {
             GPTMobileTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->

@@ -1,11 +1,14 @@
 package dev.chungjungsoo.gptmobile.data.database.entity
 
+import android.os.Parcelable
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.TypeConverter
 import dev.chungjungsoo.gptmobile.data.dto.ApiType
+import kotlinx.parcelize.Parcelize
 
+@Parcelize
 @Entity(tableName = "chats")
 data class ChatRoom(
     @PrimaryKey(autoGenerate = true)
@@ -20,7 +23,7 @@ data class ChatRoom(
 
     @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis() / 1000
-)
+) : Parcelable
 
 class APITypeConverter {
     @TypeConverter
