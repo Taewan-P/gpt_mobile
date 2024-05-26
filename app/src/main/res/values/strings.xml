@@ -62,4 +62,6 @@
     <string name="enable_at_leat_one_platform">Please enable at least one platform to create a chat.</string>
     <string name="chat_icon">Chat Icon</string>
     <string name="using_certain_platform">Using %s</string>
+    <string name="confirm">Confirm</string>
+    <string name="cancel">Cancel</string>
 </resources>

@@ -190,14 +190,14 @@ fun SelectPlatformDialog(
                 enabled = platforms.any { it.selected },
                 onClick = { onConfirmation() }
             ) {
-                Text("Confirm")
+                Text(stringResource(R.string.confirm))
             }
         },
         dismissButton = {
             TextButton(
                 onClick = { onDismissRequest() }
             ) {
-                Text("Dismiss")
+                Text(stringResource(R.string.cancel))
             }
         }
     )
