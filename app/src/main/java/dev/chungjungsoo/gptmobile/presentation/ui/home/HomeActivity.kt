@@ -52,10 +52,7 @@ class HomeActivity : ComponentActivity() {
     private fun openNewChat() {
         val chatRoom = homeViewModel.createEmptyChatRoom()
         val intent = Intent(this, ChatActivity::class.java)
-        val bundle = Bundle()
-        bundle.putBoolean("newChat", true)
-        bundle.putParcelable("chatRoom", chatRoom)
-        intent.putExtra("chatInfo", bundle)
+        intent.putExtra("chatRoom", chatRoom)
         startActivity(intent)
     }
 

@@ -12,7 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.core.os.BundleCompat
+import androidx.core.content.IntentCompat
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoom
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 
@@ -21,13 +21,8 @@ class ChatActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        val chatInfo = intent.getBundleExtra("chatInfo")
-        val isNewChat = chatInfo?.getBoolean("newChat") ?: false
-        val chatRoom = chatInfo?.let {
-            BundleCompat.getParcelable(it, "chatRoom", ChatRoom::class.java)
-        }
-
-        Log.d("ChatActivity", "new: $isNewChat, room: $chatRoom")
+        val chatRoom = IntentCompat.getParcelableExtra(intent, "chatRoom", ChatRoom::class.java)
+        Log.d("ChatActivity", "room: $chatRoom")
 
         setContent {
             GPTMobileTheme {
