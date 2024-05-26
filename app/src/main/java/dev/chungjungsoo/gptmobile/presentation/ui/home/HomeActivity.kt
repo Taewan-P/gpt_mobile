@@ -43,6 +43,12 @@ class HomeActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        homeViewModel.fetchPlatformStatus()
+        homeViewModel.fetchChats()
+    }
+
     private fun openNewChat() {
         val chatRoom = homeViewModel.createEmptyChatRoom()
         val intent = Intent(this, ChatActivity::class.java)

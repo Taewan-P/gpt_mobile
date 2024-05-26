@@ -1,6 +1,7 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.home
 
 import android.content.res.Configuration
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -49,7 +50,7 @@ import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.presentation.common.PlatformCheckBoxItem
 import dev.chungjungsoo.gptmobile.util.getPlatformTitleResources
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
     chatRooms: List<ChatRoom>,
@@ -68,10 +69,12 @@ fun HomeScreen(
         LazyColumn(
             modifier = Modifier.padding(innerPadding)
         ) {
-            items(chatRooms) { chatRoom ->
+            items(chatRooms, key = { it.id }) { chatRoom ->
                 val usingPlatform = chatRoom.enabledPlatform.joinToString(", ") { platformTitles[it] ?: "" }
                 ListItem(
-                    modifier = Modifier.padding(start = 8.dp, end = 8.dp),
+                    modifier = Modifier
+                        .padding(start = 8.dp, end = 8.dp)
+                        .animateItemPlacement(),
                     headlineContent = { Text(text = chatRoom.title) },
                     leadingContent = {
                         Icon(

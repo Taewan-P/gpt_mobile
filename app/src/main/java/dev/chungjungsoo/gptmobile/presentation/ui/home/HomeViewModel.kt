@@ -69,7 +69,7 @@ class HomeViewModel @Inject constructor(
         _showSelectModelDialog.update { false }
     }
 
-    private fun fetchChats() {
+    fun fetchChats() {
         viewModelScope.launch {
             _chatList.update { chatRepository.fetchChatList() }
 
@@ -77,7 +77,7 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    private fun fetchPlatformStatus() {
+    fun fetchPlatformStatus() {
         viewModelScope.launch {
             val platforms = ApiType.entries.map { apiType ->
                 val status = settingDataSource.getStatus(apiType)
