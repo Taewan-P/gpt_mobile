@@ -11,7 +11,9 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -32,6 +34,11 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -61,15 +68,17 @@ fun HomeScreen(
 ) {
     val platformTitles = getPlatformTitleResources()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    val listState = rememberLazyListState()
 
     Scaffold(
         modifier = Modifier
             .nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = { HomeTopAppBar(scrollBehavior, actionOnClick) },
-        floatingActionButton = { NewChatButton(onClick = newChatOnClick) }
+        floatingActionButton = { NewChatButton(expanded = listState.isScrollingUp(), onClick = newChatOnClick) }
     ) { innerPadding ->
         LazyColumn(
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(innerPadding),
+            state = listState
         ) {
             item { ChatsTitle() }
             items(chatRooms, key = { it.id }) { chatRoom ->
@@ -127,6 +136,24 @@ fun HomeTopAppBar(
 }
 
 @Composable
+private fun LazyListState.isScrollingUp(): Boolean {
+    var previousIndex by remember(this) { mutableIntStateOf(firstVisibleItemIndex) }
+    var previousScrollOffset by remember(this) { mutableIntStateOf(firstVisibleItemScrollOffset) }
+    return remember(this) {
+        derivedStateOf {
+            if (previousIndex != firstVisibleItemIndex) {
+                previousIndex > firstVisibleItemIndex
+            } else {
+                previousScrollOffset >= firstVisibleItemScrollOffset
+            }.also {
+                previousIndex = firstVisibleItemIndex
+                previousScrollOffset = firstVisibleItemScrollOffset
+            }
+        }
+    }.value
+}
+
+@Composable
 private fun ChatsTitle() {
     Text(
         modifier = Modifier
@@ -141,6 +168,7 @@ private fun ChatsTitle() {
 @Composable
 fun NewChatButton(
     modifier: Modifier = Modifier,
+    expanded: Boolean = true,
     onClick: () -> Unit = { }
 ) {
     val orientation = LocalConfiguration.current.orientation
@@ -152,6 +180,7 @@ fun NewChatButton(
     ExtendedFloatingActionButton(
         modifier = fabModifier,
         onClick = { onClick() },
+        expanded = expanded,
         icon = { Icon(Icons.Filled.Add, stringResource(R.string.new_chat)) },
         text = { Text(text = stringResource(R.string.new_chat)) }
     )
