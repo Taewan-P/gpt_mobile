@@ -131,11 +131,7 @@ fun SelectPlatformDialog(
     onConfirmation: () -> Unit,
     onPlatformSelect: (Platform) -> Unit
 ) {
-    val titles = mapOf(
-        ApiType.OPENAI to stringResource(R.string.openai),
-        ApiType.ANTHROPIC to stringResource(R.string.anthropic),
-        ApiType.GOOGLE to stringResource(R.string.google)
-    )
+    val titles = getPlatformTitleResources()
     val configuration = LocalConfiguration.current
 
     AlertDialog(

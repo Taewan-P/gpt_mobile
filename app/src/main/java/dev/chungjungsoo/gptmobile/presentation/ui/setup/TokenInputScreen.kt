@@ -34,9 +34,10 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.chungjungsoo.gptmobile.R
-import dev.chungjungsoo.gptmobile.data.dto.ApiType
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.presentation.common.PrimaryLongButton
+import dev.chungjungsoo.gptmobile.util.getPlatformAPILabelResources
+import dev.chungjungsoo.gptmobile.util.getPlatformHelpLinkResources
 
 @Preview
 @Composable
@@ -107,16 +108,8 @@ fun TokenInput(
     onChangeEvent: (Platform, String) -> Unit = { _, _ -> },
     onClearEvent: (Platform) -> Unit = {}
 ) {
-    val labels = mapOf(
-        ApiType.OPENAI to stringResource(R.string.openai_api_key),
-        ApiType.ANTHROPIC to stringResource(R.string.anthropic_api_key),
-        ApiType.GOOGLE to stringResource(R.string.google_api_key)
-    )
-    val helpLinks = mapOf(
-        ApiType.OPENAI to stringResource(R.string.openai_api_help),
-        ApiType.ANTHROPIC to stringResource(R.string.anthropic_api_help),
-        ApiType.GOOGLE to stringResource(R.string.google_api_help)
-    )
+    val labels = getPlatformAPILabelResources()
+    val helpLinks = getPlatformHelpLinkResources()
 
     Column(modifier = modifier) {
         platforms.filter { it.selected }.forEachIndexed { i, platform ->

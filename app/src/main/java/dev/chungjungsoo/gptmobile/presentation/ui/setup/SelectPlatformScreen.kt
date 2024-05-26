@@ -17,10 +17,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.chungjungsoo.gptmobile.R
-import dev.chungjungsoo.gptmobile.data.dto.ApiType
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.presentation.common.PlatformCheckBoxItem
 import dev.chungjungsoo.gptmobile.presentation.common.PrimaryLongButton
+import dev.chungjungsoo.gptmobile.util.getPlatformDescriptionResources
+import dev.chungjungsoo.gptmobile.util.getPlatformTitleResources
 
 @Preview
 @Composable
@@ -80,16 +81,8 @@ fun SelectPlatform(
     platforms: List<Platform>,
     onClickEvent: (Platform) -> Unit
 ) {
-    val titles = mapOf(
-        ApiType.OPENAI to stringResource(R.string.openai),
-        ApiType.ANTHROPIC to stringResource(R.string.anthropic),
-        ApiType.GOOGLE to stringResource(R.string.google)
-    )
-    val descriptions = mapOf(
-        ApiType.OPENAI to stringResource(R.string.openai_description),
-        ApiType.ANTHROPIC to stringResource(R.string.anthropic_description),
-        ApiType.GOOGLE to stringResource(R.string.google_description)
-    )
+    val titles = getPlatformTitleResources()
+    val descriptions = getPlatformDescriptionResources()
 
     Column(modifier = modifier) {
         platforms.forEach { platform ->
