@@ -10,7 +10,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoom
 @Dao
 interface ChatRoomDao {
 
-    @Query("SELECT * FROM chats")
+    @Query("SELECT * FROM chats ORDER BY created_at DESC")
     suspend fun getChatRooms(): List<ChatRoom>
 
     @Insert
