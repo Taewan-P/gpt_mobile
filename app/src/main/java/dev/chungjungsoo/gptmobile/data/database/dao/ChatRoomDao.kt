@@ -14,7 +14,7 @@ interface ChatRoomDao {
     suspend fun getChatRooms(): List<ChatRoom>
 
     @Insert
-    suspend fun addChatRoom(chatRoom: ChatRoom)
+    suspend fun addChatRoom(chatRoom: ChatRoom): Long
 
     @Update
     suspend fun editChatRoom(chatRoom: ChatRoom)
