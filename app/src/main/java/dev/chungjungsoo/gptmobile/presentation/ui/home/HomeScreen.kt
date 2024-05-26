@@ -22,12 +22,12 @@ import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
@@ -58,7 +58,7 @@ fun HomeScreen(
     newChatOnClick: () -> Unit
 ) {
     val platformTitles = getPlatformTitleResources()
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
     Scaffold(
         modifier = Modifier
@@ -69,6 +69,7 @@ fun HomeScreen(
         LazyColumn(
             modifier = Modifier.padding(innerPadding)
         ) {
+            item { ChatsTitle() }
             items(chatRooms, key = { it.id }) { chatRoom ->
                 val usingPlatform = chatRoom.enabledPlatform.joinToString(", ") { platformTitles[it] ?: "" }
                 ListItem(
@@ -95,7 +96,7 @@ fun HomeTopAppBar(
     scrollBehavior: TopAppBarScrollBehavior,
     actionOnClick: () -> Unit
 ) {
-    LargeTopAppBar(
+    TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.background,
             titleContentColor = MaterialTheme.colorScheme.onBackground
@@ -104,6 +105,7 @@ fun HomeTopAppBar(
             Text(
                 modifier = Modifier.padding(4.dp),
                 text = stringResource(R.string.chats),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = scrollBehavior.state.overlappedFraction),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -117,6 +119,17 @@ fun HomeTopAppBar(
             }
         },
         scrollBehavior = scrollBehavior
+    )
+}
+
+@Composable
+private fun ChatsTitle() {
+    Text(
+        modifier = Modifier
+            .padding(top = 32.dp)
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        text = stringResource(R.string.chats),
+        style = MaterialTheme.typography.headlineLarge
     )
 }
 
