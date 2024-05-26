@@ -24,14 +24,15 @@ class ChatRepositoryImpl @Inject constructor(
     }
 
     override suspend fun saveChat(chatRoom: ChatRoom, messages: List<Message>) {
-        val savedMessages = fetchMessages(chatRoom.id)
-
-        if (savedMessages.isEmpty()) {
-            // New chat
-            chatRoomDao.addChatRoom(chatRoom)
-            messageDao.addMessages(*messages.toTypedArray())
+        if (chatRoom.id == 0) {
+            // New Chat
+            val chatId = chatRoomDao.addChatRoom(chatRoom)
+            val updatedMessages = messages.map { it.copy(chatId = chatId.toInt()) }
+            messageDao.addMessages(*updatedMessages.toTypedArray())
             return
         }
+
+        val savedMessages = fetchMessages(chatRoom.id)
 
         val shouldBeDeleted = savedMessages.filter { m ->
             messages.firstOrNull { it.id == m.id } == null

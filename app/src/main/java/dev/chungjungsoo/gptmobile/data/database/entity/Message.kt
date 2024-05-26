@@ -23,7 +23,7 @@ data class Message(
     val id: Int = 0,
 
     @ColumnInfo(name = "chat_id")
-    val chatId: Int,
+    val chatId: Int = 0,
 
     @ColumnInfo(name = "content")
     val content: String,
