@@ -27,7 +27,7 @@ class HomeActivity : ComponentActivity() {
                 val showSelectModelDialog by homeViewModel.showSelectModelDialog.collectManagedState()
                 val chatList by homeViewModel.chatList.collectManagedState()
 
-                HomeScreen(::openSettings) { homeViewModel.openSelectModelDialog() }
+                HomeScreen(chatList, ::openSettings) { homeViewModel.openSelectModelDialog() }
                 if (showSelectModelDialog) {
                     SelectPlatformDialog(
                         platformState,

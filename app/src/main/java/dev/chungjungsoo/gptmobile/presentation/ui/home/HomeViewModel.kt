@@ -39,7 +39,9 @@ class HomeViewModel @Inject constructor(
     fun createEmptyChatRoom(): ChatRoom {
         val enabledPlatforms = _platformState.value.filter { it.selected }.map { it.name }
         val chatRoom = ChatRoom(title = "Untitled Chat", enabledPlatform = enabledPlatforms)
-
+        viewModelScope.launch {
+            chatRepository.saveChat(chatRoom, listOf())
+        }
         return chatRoom
     }
 

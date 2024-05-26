@@ -42,4 +42,9 @@
     <string name="chats">채팅 목록</string>
     <string name="settings">설정</string>
     <string name="new_chat">새 채팅</string>
+    <string name="select_platform">플랫폼 선택하기</string>
+    <string name="select_platform_description">해당 채팅에서 사용하고 싶은 플랫폼을 선택해주세요. 채팅이 생성된 후에는 이 값을 바꿀 수 없습니다. 만약 이 값을 바꾸고 싶다면, 새로운 채팅을 만들어 주세요.</string>
+    <string name="enable_at_leat_one_platform">최소 하나의 플랫폼을 활성화 해 주세요.</string>
+    <string name="chat_icon">채팅 아이콘</string>
+    <string name="using_certain_platform">%s 사용중</string>
 </resources>
