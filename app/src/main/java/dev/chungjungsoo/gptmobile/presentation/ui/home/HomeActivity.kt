@@ -23,11 +23,11 @@ class HomeActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            GPTMobileTheme {
-                val platformState by homeViewModel.platformState.collectManagedState()
-                val showSelectModelDialog by homeViewModel.showSelectModelDialog.collectManagedState()
-                val chatList by homeViewModel.chatList.collectManagedState()
+            val platformState by homeViewModel.platformState.collectManagedState()
+            val showSelectModelDialog by homeViewModel.showSelectModelDialog.collectManagedState()
+            val chatList by homeViewModel.chatList.collectManagedState()
 
+            GPTMobileTheme {
                 HomeScreen(chatList, ::openSettings, ::openExistingChat, homeViewModel::openSelectModelDialog)
                 if (showSelectModelDialog) {
                     SelectPlatformDialog(
