@@ -4,8 +4,11 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import dev.chungjungsoo.gptmobile.data.model.ApiType
+import dev.chungjungsoo.gptmobile.data.model.DynamicTheme
+import dev.chungjungsoo.gptmobile.data.model.ThemeMode
 import javax.inject.Inject
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -28,6 +31,20 @@ class SettingDataSourceImpl @Inject constructor(
         ApiType.ANTHROPIC to stringPreferencesKey("anthropic_model"),
         ApiType.GOOGLE to stringPreferencesKey("google_model")
     )
+    private val dynamicThemeKey = intPreferencesKey("dynamic_mode")
+    private val themeModeKey = intPreferencesKey("theme_mode")
+
+    override suspend fun updateDynamicTheme(theme: DynamicTheme) {
+        dataStore.edit { pref ->
+            pref[dynamicThemeKey] = theme.ordinal
+        }
+    }
+
+    override suspend fun updateThemeMode(themeMode: ThemeMode) {
+        dataStore.edit { pref ->
+            pref[themeModeKey] = themeMode.ordinal
+        }
+    }
 
     override suspend fun updateStatus(apiType: ApiType, status: Boolean) {
         dataStore.edit { pref ->
@@ -45,6 +62,22 @@ class SettingDataSourceImpl @Inject constructor(
         dataStore.edit { pref ->
             pref[apiModelMap[apiType]!!] = model
         }
+    }
+
+    override suspend fun getDynamicTheme(): DynamicTheme? {
+        val mode = dataStore.data.map { pref ->
+            pref[dynamicThemeKey]
+        }.first() ?: return null
+
+        return DynamicTheme.getByValue(mode)
+    }
+
+    override suspend fun getThemeMode(): ThemeMode? {
+        val mode = dataStore.data.map { pref ->
+            pref[themeModeKey]
+        }.first() ?: return null
+
+        return ThemeMode.getByValue(mode)
     }
 
     override suspend fun getStatus(apiType: ApiType): Boolean? {

@@ -11,11 +11,16 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import androidx.hilt.navigation.compose.hiltViewModel
+import dev.chungjungsoo.gptmobile.data.model.DynamicTheme
+import dev.chungjungsoo.gptmobile.data.model.ThemeMode
+import dev.chungjungsoo.gptmobile.util.collectManagedState
 
 @Immutable
 data class ExtendedColorScheme(
@@ -395,21 +400,26 @@ val unspecified_scheme = ColorFamily(
 
 @Composable
 fun GPTMobileTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    // TODO: Update this when dynamic color settings are supported inside the app
-    dynamicColor: Boolean = false,
-    content:
-    @Composable()
-    () -> Unit
+    themeViewModel: ThemeViewModel = hiltViewModel(),
+    content: @Composable () -> Unit
 ) {
+    val dynamicTheme by themeViewModel.dynamicTheme.collectManagedState()
+    val themeMode by themeViewModel.themeMode.collectManagedState()
+
+    val useDynamicColor = dynamicTheme == DynamicTheme.ON && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    val useDarkTheme = when (themeMode) {
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        ThemeMode.DARK -> true
+        ThemeMode.LIGHT -> false
+    }
+
     val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+        useDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            if (useDarkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
 
-        darkTheme -> darkScheme
+        useDarkTheme -> darkScheme
         else -> lightScheme
     }
     val view = LocalView.current
@@ -418,7 +428,7 @@ fun GPTMobileTheme(
             val window = (view.context as Activity).window
             window.statusBarColor = colorScheme.surface.toArgb()
             window.navigationBarColor = colorScheme.surface.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !useDarkTheme
         }
     }
 
