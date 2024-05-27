@@ -64,4 +64,11 @@
     <string name="using_certain_platform">Using %s</string>
     <string name="confirm">Confirm</string>
     <string name="cancel">Cancel</string>
+    <string name="go_back">Go back</string>
+    <string name="arrow_icon">Arrow Icon</string>
+    <string name="on">On</string>
+    <string name="off">Off</string>
+    <string name="system_default">System Default</string>
+    <string name="theme_settings">Theme Settings</string>
+    <string name="supported_soon">Supported Soon</string>
 </resources>

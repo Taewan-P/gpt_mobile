@@ -24,7 +24,7 @@ fun RadioItem(
     value: String = stringResource(R.string.sample_item_title),
     selected: Boolean = false,
     title: String = stringResource(R.string.sample_item_title),
-    description: String = stringResource(R.string.sample_item_description),
+    description: String? = stringResource(R.string.sample_item_description),
     onSelected: (String) -> Unit = { }
 ) {
     Row(
@@ -47,10 +47,12 @@ fun RadioItem(
                 text = title,
                 style = MaterialTheme.typography.titleMedium
             )
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodySmall
-            )
+            description?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
         }
     }
 }
