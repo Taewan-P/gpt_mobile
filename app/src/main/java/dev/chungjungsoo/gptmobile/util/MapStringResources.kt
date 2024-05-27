@@ -3,7 +3,7 @@ package dev.chungjungsoo.gptmobile.util
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import dev.chungjungsoo.gptmobile.R
-import dev.chungjungsoo.gptmobile.data.dto.ApiType
+import dev.chungjungsoo.gptmobile.data.model.ApiType
 
 @Composable
 fun getPlatformTitleResources(): Map<ApiType, String> {

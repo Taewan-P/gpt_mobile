@@ -1,6 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.datastore
 
-import dev.chungjungsoo.gptmobile.data.dto.ApiType
+import dev.chungjungsoo.gptmobile.data.model.ApiType
 
 interface SettingDataSource {
     suspend fun updateStatus(apiType: ApiType, status: Boolean)

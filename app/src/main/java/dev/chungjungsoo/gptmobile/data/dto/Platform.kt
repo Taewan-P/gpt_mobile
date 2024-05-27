@@ -1,5 +1,7 @@
 package dev.chungjungsoo.gptmobile.data.dto
 
+import dev.chungjungsoo.gptmobile.data.model.ApiType
+
 data class Platform(
     val name: ApiType,
     val selected: Boolean = false,
