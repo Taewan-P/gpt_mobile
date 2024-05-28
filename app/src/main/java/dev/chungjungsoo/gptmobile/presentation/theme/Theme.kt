@@ -17,10 +17,8 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
-import androidx.hilt.navigation.compose.hiltViewModel
 import dev.chungjungsoo.gptmobile.data.model.DynamicTheme
 import dev.chungjungsoo.gptmobile.data.model.ThemeMode
-import dev.chungjungsoo.gptmobile.util.collectManagedState
 
 @Immutable
 data class ExtendedColorScheme(
@@ -400,12 +398,10 @@ val unspecified_scheme = ColorFamily(
 
 @Composable
 fun GPTMobileTheme(
-    themeViewModel: ThemeViewModel = hiltViewModel(),
+    dynamicTheme: DynamicTheme = DynamicTheme.OFF,
+    themeMode: ThemeMode = ThemeMode.LIGHT,
     content: @Composable () -> Unit
 ) {
-    val dynamicTheme by themeViewModel.dynamicTheme.collectManagedState()
-    val themeMode by themeViewModel.themeMode.collectManagedState()
-
     val useDynamicColor = dynamicTheme == DynamicTheme.ON && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val useDarkTheme = when (themeMode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
