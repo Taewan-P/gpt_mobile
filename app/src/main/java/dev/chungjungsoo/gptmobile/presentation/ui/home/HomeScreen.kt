@@ -34,6 +34,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -51,37 +52,53 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoom
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.presentation.common.PlatformCheckBoxItem
+import dev.chungjungsoo.gptmobile.util.collectManagedState
 import dev.chungjungsoo.gptmobile.util.getPlatformTitleResources
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
-    chatRooms: List<ChatRoom>,
-    actionOnClick: () -> Unit,
+    homeViewModel: HomeViewModel = hiltViewModel(),
+    settingOnClick: () -> Unit,
     onExistingChatClick: (ChatRoom) -> Unit,
-    newChatOnClick: () -> Unit
+    navigateToNewChat: () -> Unit
 ) {
     val platformTitles = getPlatformTitleResources()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val listState = rememberLazyListState()
+    val chatList by homeViewModel.chatList.collectManagedState()
+    val showSelectModelDialog by homeViewModel.showSelectModelDialog.collectManagedState()
+    val platformState by homeViewModel.platformState.collectManagedState()
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectManagedState()
+
+    LaunchedEffect(lifecycleState) {
+        if (lifecycleState == Lifecycle.State.RESUMED) {
+            homeViewModel.fetchChats()
+            homeViewModel.fetchPlatformStatus()
+        }
+    }
 
     Scaffold(
         modifier = Modifier
             .nestedScroll(scrollBehavior.nestedScrollConnection),
-        topBar = { HomeTopAppBar(scrollBehavior, actionOnClick) },
-        floatingActionButton = { NewChatButton(expanded = listState.isScrollingUp(), onClick = newChatOnClick) }
+        topBar = { HomeTopAppBar(scrollBehavior, settingOnClick) },
+        floatingActionButton = { NewChatButton(expanded = listState.isScrollingUp(), onClick = homeViewModel::openSelectModelDialog) }
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier.padding(innerPadding),
             state = listState
         ) {
             item { ChatsTitle() }
-            items(chatRooms, key = { it.id }) { chatRoom ->
+            items(chatList, key = { it.id }) { chatRoom ->
                 val usingPlatform = chatRoom.enabledPlatform.joinToString(", ") { platformTitles[it] ?: "" }
                 ListItem(
                     modifier = Modifier
@@ -99,6 +116,17 @@ fun HomeScreen(
                     supportingContent = { Text(text = stringResource(R.string.using_certain_platform, usingPlatform)) }
                 )
             }
+        }
+        if (showSelectModelDialog) {
+            SelectPlatformDialog(
+                platformState,
+                onDismissRequest = { homeViewModel.closeSelectModelDialog() },
+                onConfirmation = {
+                    homeViewModel.closeSelectModelDialog()
+                    navigateToNewChat()
+                },
+                onPlatformSelect = { homeViewModel.updateCheckedState(it) }
+            )
         }
     }
 }

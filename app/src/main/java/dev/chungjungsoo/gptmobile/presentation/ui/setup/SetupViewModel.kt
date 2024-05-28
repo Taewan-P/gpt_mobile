@@ -6,6 +6,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.chungjungsoo.gptmobile.data.datastore.SettingDataSource
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.data.model.ApiType
+import dev.chungjungsoo.gptmobile.presentation.common.Route
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -105,5 +106,53 @@ class SetupViewModel @Inject constructor(private val settingDataSource: SettingD
                 settingDataSource.updateModel(platform.name, platform.model!!)
             }
         }
+    }
+
+    fun setModel(apiType: ApiType, defaultModelIndex: Int): String {
+        return platformState.value.find { it.name == apiType }?.model ?: setDefaultModel(apiType, defaultModelIndex)
+    }
+
+    fun getNextSetupRoute(currentRoute: String?): String {
+        val steps = listOf(
+            Route.SELECT_PLATFORM,
+            Route.TOKEN_INPUT,
+            Route.OPENAI_MODEL_SELECT,
+            Route.ANTHROPIC_MODEL_SELECT,
+            Route.GOOGLE_MODEL_SELECT,
+            Route.SETUP_COMPLETE
+        )
+        val commonSteps = setOf(Route.SELECT_PLATFORM, Route.TOKEN_INPUT, Route.SETUP_COMPLETE)
+        val platformStep = mapOf(
+            Route.OPENAI_MODEL_SELECT to ApiType.OPENAI,
+            Route.ANTHROPIC_MODEL_SELECT to ApiType.ANTHROPIC,
+            Route.GOOGLE_MODEL_SELECT to ApiType.GOOGLE
+        )
+
+        val currentIndex = steps.indexOfFirst { it == currentRoute }
+        val enabledPlatform = platformState.value.filter { it.selected }.map { it.name }.toSet()
+        val remainingSteps = steps.filterIndexed { index, setupStep ->
+            index > currentIndex &&
+                (setupStep in commonSteps || platformStep[setupStep] in enabledPlatform)
+        }
+
+        if (remainingSteps.isEmpty()) {
+            // Setup Complete
+            return Route.CHAT_LIST
+        }
+
+        return remainingSteps.first()
+    }
+
+    fun setDefaultModel(apiType: ApiType, defaultModelIndex: Int): String {
+        val modelList = when (apiType) {
+            ApiType.OPENAI -> openaiModels
+            ApiType.ANTHROPIC -> anthropicModels
+            ApiType.GOOGLE -> googleModels
+        }.toList()
+
+        val model = modelList[defaultModelIndex]
+        updateModel(apiType, model)
+
+        return model
     }
 }

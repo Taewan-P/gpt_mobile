@@ -31,11 +31,6 @@ class HomeViewModel @Inject constructor(
     private val _showSelectModelDialog = MutableStateFlow(false)
     val showSelectModelDialog: StateFlow<Boolean> = _showSelectModelDialog.asStateFlow()
 
-    init {
-        fetchPlatformStatus()
-        fetchChats()
-    }
-
     fun createEmptyChatRoom(): ChatRoom {
         val enabledPlatforms = _platformState.value.filter { it.selected }.map { it.name }
         val chatRoom = ChatRoom(title = "Untitled Chat", enabledPlatform = enabledPlatforms)

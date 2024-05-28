@@ -17,8 +17,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
@@ -33,47 +35,60 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.presentation.common.PrimaryLongButton
+import dev.chungjungsoo.gptmobile.presentation.common.Route
+import dev.chungjungsoo.gptmobile.util.collectManagedState
 import dev.chungjungsoo.gptmobile.util.getPlatformAPILabelResources
 import dev.chungjungsoo.gptmobile.util.getPlatformHelpLinkResources
 
-@Preview
 @Composable
 fun TokenInputScreen(
     modifier: Modifier = Modifier,
-    platformState: List<Platform> = listOf(),
-    onChangeEvent: (Platform, String) -> Unit = { _, _ -> },
-    onClearEvent: (Platform) -> Unit = { },
-    onNextButtonClicked: () -> Unit = {}
+    currentRoute: String = Route.TOKEN_INPUT,
+    setupViewModel: SetupViewModel = hiltViewModel(),
+    onNavigate: (route: String) -> Unit,
+    onBackAction: () -> Unit
 ) {
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .clickable(
-                indication = null,
-                interactionSource = remember { MutableInteractionSource() }
-            ) {
-                keyboardController?.hide()
-                focusManager.clearFocus()
-            }
-    ) {
-        TokenInputText()
-        TokenInput(
-            platforms = platformState,
-            onChangeEvent = { platform, s -> onChangeEvent(platform, s) },
-            onClearEvent = { platform -> onClearEvent(platform) }
-        )
-        Spacer(modifier = Modifier.weight(1f))
-        PrimaryLongButton(
-            enabled = platformState.filter { it.selected }.all { platform -> platform.token != null },
-            onClick = onNextButtonClicked,
-            text = stringResource(R.string.next)
-        )
+    val platformState by setupViewModel.platformState.collectManagedState()
+
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        topBar = { SetupAppBar(onBackAction) }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) {
+                    keyboardController?.hide()
+                    focusManager.clearFocus()
+                }
+        ) {
+            TokenInputText()
+            TokenInput(
+                platforms = platformState,
+                onChangeEvent = { platform, s -> setupViewModel.updateToken(platform, s) },
+                onClearEvent = { platform -> setupViewModel.updateToken(platform, "") }
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            PrimaryLongButton(
+                enabled = platformState.filter { it.selected }.all { platform -> platform.token != null },
+                onClick = {
+                    val nextStep = setupViewModel.getNextSetupRoute(currentRoute)
+                    onNavigate(nextStep)
+                },
+                text = stringResource(R.string.next)
+            )
+        }
     }
 }
 

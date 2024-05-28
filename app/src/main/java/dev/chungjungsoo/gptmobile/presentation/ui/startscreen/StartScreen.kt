@@ -1,10 +1,5 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.startscreen
 
-import android.content.Intent
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -29,36 +24,24 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.presentation.common.PrimaryLongButton
-import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
-import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupActivity
 
-class StartScreenActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent {
-            GPTMobileTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Column(
-                        modifier = Modifier
-                            .padding(innerPadding)
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState()),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        StartScreenLogo()
-                        Spacer(modifier = Modifier.weight(1f))
-                        WelcomeText()
-                        PrimaryLongButton(
-                            onClick = {
-                                val intent = Intent(this@StartScreenActivity, SetupActivity::class.java)
-                                startActivity(intent)
-                            },
-                            text = stringResource(R.string.get_started)
-                        )
-                    }
-                }
-            }
+@Composable
+fun StartScreen(onStartClick: () -> Unit) {
+    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            StartScreenLogo()
+            Spacer(modifier = Modifier.weight(1f))
+            WelcomeText()
+            PrimaryLongButton(
+                onClick = onStartClick,
+                text = stringResource(R.string.get_started)
+            )
         }
     }
 }

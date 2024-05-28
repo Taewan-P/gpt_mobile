@@ -8,47 +8,61 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.presentation.common.PlatformCheckBoxItem
 import dev.chungjungsoo.gptmobile.presentation.common.PrimaryLongButton
+import dev.chungjungsoo.gptmobile.presentation.common.Route
+import dev.chungjungsoo.gptmobile.util.collectManagedState
 import dev.chungjungsoo.gptmobile.util.getPlatformDescriptionResources
 import dev.chungjungsoo.gptmobile.util.getPlatformTitleResources
 
-@Preview
 @Composable
 fun SelectPlatformScreen(
     modifier: Modifier = Modifier,
-    platformState: List<Platform> = listOf(),
-    onCheckedEvent: (Platform) -> Unit = {},
-    onNextButtonClicked: () -> Unit = {}
+    setupViewModel: SetupViewModel = hiltViewModel(),
+    currentRoute: String = Route.SELECT_PLATFORM,
+    onNavigate: (route: String) -> Unit = {},
+    onBackAction: () -> Unit
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-    ) {
-        GetStartedText()
-        SelectPlatform(
-            platforms = platformState,
-            onClickEvent = {
-                onCheckedEvent(it)
-            }
-        )
-        Spacer(modifier = Modifier.weight(1f))
-        PrimaryLongButton(
-            enabled = platformState.any { it.selected },
-            onClick = onNextButtonClicked,
-            text = stringResource(R.string.next)
-        )
+    val platformState by setupViewModel.platformState.collectManagedState()
+
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        topBar = { SetupAppBar(onBackAction) }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+        ) {
+            GetStartedText()
+            SelectPlatform(
+                platforms = platformState,
+                onClickEvent = { setupViewModel.updateCheckedState(it) }
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            PrimaryLongButton(
+                enabled = platformState.any { it.selected },
+                onClick = {
+                    val nextStep = setupViewModel.getNextSetupRoute(currentRoute)
+                    onNavigate(nextStep)
+                },
+                text = stringResource(R.string.next)
+            )
+        }
     }
 }
 

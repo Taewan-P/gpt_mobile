@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -21,34 +22,51 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.presentation.common.PrimaryLongButton
+import dev.chungjungsoo.gptmobile.presentation.common.Route
 
-@Preview
 @Composable
 fun SetupCompleteScreen(
     modifier: Modifier = Modifier,
-    onNextButtonClicked: () -> Unit = {}
+    currentRoute: String = Route.SETUP_COMPLETE,
+    setupViewModel: SetupViewModel = hiltViewModel(),
+    onNavigate: (route: String) -> Unit,
+    onBackAction: () -> Unit
 ) {
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp.dp
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-    ) {
-        SetupCompleteText()
-        SetupCompleteLogo(
-            Modifier
-                .widthIn(min = screenWidth)
-                .heightIn(min = screenWidth)
-                .padding(screenWidth * 0.1f)
-        )
-        Spacer(modifier = Modifier.weight(1f))
-        PrimaryLongButton(
-            onClick = onNextButtonClicked,
-            text = stringResource(R.string.done)
-        )
+
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        topBar = { SetupAppBar(onBackAction) }
+    ) { innerPadding ->
+        Column(
+            modifier = modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+        ) {
+            SetupCompleteText()
+            SetupCompleteLogo(
+                Modifier
+                    .widthIn(min = screenWidth)
+                    .heightIn(min = screenWidth)
+                    .padding(screenWidth * 0.1f)
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            PrimaryLongButton(
+                onClick = {
+                    setupViewModel.saveCheckedState()
+                    setupViewModel.saveTokenState()
+                    setupViewModel.saveModelState()
+                    val nextStep = setupViewModel.getNextSetupRoute(currentRoute)
+                    onNavigate(nextStep)
+                },
+                text = stringResource(R.string.done)
+            )
+        }
     }
 }
 

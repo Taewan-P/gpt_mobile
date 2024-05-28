@@ -25,15 +25,7 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".presentation.ui.startscreen.StartScreenActivity"
-            android:exported="true"
-            android:theme="@style/Theme.GPTMobile" />
-        <activity
             android:name=".presentation.ui.home.HomeActivity"
-            android:exported="true"
-            android:theme="@style/Theme.GPTMobile" />
-        <activity
-            android:name=".presentation.ui.setup.SetupActivity"
             android:exported="true"
             android:theme="@style/Theme.GPTMobile" />
         <activity
