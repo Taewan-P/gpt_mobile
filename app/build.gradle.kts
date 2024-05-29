@@ -83,6 +83,7 @@ dependencies {
 
     // Navigation
     implementation(libs.hilt.navigation)
+    implementation(libs.androidx.navigation)
 
     // Room
     implementation(libs.room)
