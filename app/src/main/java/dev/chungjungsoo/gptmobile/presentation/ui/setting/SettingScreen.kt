@@ -14,12 +14,12 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
@@ -43,6 +43,7 @@ import dev.chungjungsoo.gptmobile.util.ThemePreference
 import dev.chungjungsoo.gptmobile.util.collectManagedState
 import dev.chungjungsoo.gptmobile.util.getDynamicThemeTitle
 import dev.chungjungsoo.gptmobile.util.getThemeModeTitle
+import dev.chungjungsoo.gptmobile.util.pinnedExitUntilCollapsedScrollBehavior
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,7 +52,10 @@ fun SettingScreen(
     settingViewModel: SettingViewModel = hiltViewModel(),
     navigationOnClick: () -> Unit
 ) {
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    val scrollState = rememberScrollState()
+    val scrollBehavior = pinnedExitUntilCollapsedScrollBehavior(
+        canScroll = { scrollState.canScrollForward || scrollState.canScrollBackward }
+    )
     val isThemeDialogOpen by settingViewModel.isThemeDialogOpen.collectManagedState()
 
     Scaffold(
@@ -67,9 +71,8 @@ fun SettingScreen(
         Column(
             Modifier
                 .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
         ) {
-            SettingTitle()
             ThemeSetting { settingViewModel.openThemeDialog() }
             SettingItem(title = "OpenAI Settings", "API Key, Model", {}, true)
             SettingItem(title = "Anthropic Settings", "API Key, Model", {}, true)
@@ -88,7 +91,7 @@ private fun SettingTopBar(
     scrollBehavior: TopAppBarScrollBehavior,
     navigationOnClick: () -> Unit
 ) {
-    TopAppBar(
+    LargeTopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.background,
             titleContentColor = MaterialTheme.colorScheme.onBackground
@@ -97,7 +100,6 @@ private fun SettingTopBar(
             Text(
                 modifier = Modifier.padding(4.dp),
                 text = stringResource(R.string.settings),
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = scrollBehavior.state.overlappedFraction),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )

@@ -25,12 +25,12 @@ import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
@@ -62,6 +62,7 @@ import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.presentation.common.PlatformCheckBoxItem
 import dev.chungjungsoo.gptmobile.util.collectManagedState
 import dev.chungjungsoo.gptmobile.util.getPlatformTitleResources
+import dev.chungjungsoo.gptmobile.util.pinnedExitUntilCollapsedScrollBehavior
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -72,8 +73,10 @@ fun HomeScreen(
     navigateToNewChat: () -> Unit
 ) {
     val platformTitles = getPlatformTitleResources()
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val listState = rememberLazyListState()
+    val scrollBehavior = pinnedExitUntilCollapsedScrollBehavior(
+        canScroll = { listState.canScrollForward || listState.canScrollBackward }
+    )
     val chatList by homeViewModel.chatList.collectManagedState()
     val showSelectModelDialog by homeViewModel.showSelectModelDialog.collectManagedState()
     val platformState by homeViewModel.platformState.collectManagedState()
@@ -97,7 +100,6 @@ fun HomeScreen(
             modifier = Modifier.padding(innerPadding),
             state = listState
         ) {
-            item { ChatsTitle() }
             items(chatList, key = { it.id }) { chatRoom ->
                 val usingPlatform = chatRoom.enabledPlatform.joinToString(", ") { platformTitles[it] ?: "" }
                 ListItem(
@@ -137,7 +139,7 @@ fun HomeTopAppBar(
     scrollBehavior: TopAppBarScrollBehavior,
     actionOnClick: () -> Unit
 ) {
-    TopAppBar(
+    LargeTopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.background,
             titleContentColor = MaterialTheme.colorScheme.onBackground
@@ -146,7 +148,6 @@ fun HomeTopAppBar(
             Text(
                 modifier = Modifier.padding(4.dp),
                 text = stringResource(R.string.chats),
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = scrollBehavior.state.overlappedFraction),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -179,17 +180,6 @@ private fun LazyListState.isScrollingUp(): Boolean {
             }
         }
     }.value
-}
-
-@Composable
-private fun ChatsTitle() {
-    Text(
-        modifier = Modifier
-            .padding(top = 32.dp)
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        text = stringResource(R.string.chats),
-        style = MaterialTheme.typography.headlineLarge
-    )
 }
 
 @Preview
