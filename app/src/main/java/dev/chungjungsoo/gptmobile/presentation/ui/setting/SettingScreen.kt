@@ -39,7 +39,7 @@ import dev.chungjungsoo.gptmobile.data.model.ThemeMode
 import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
 import dev.chungjungsoo.gptmobile.presentation.theme.LocalDynamicTheme
 import dev.chungjungsoo.gptmobile.presentation.theme.LocalThemeMode
-import dev.chungjungsoo.gptmobile.util.ThemePreference
+import dev.chungjungsoo.gptmobile.presentation.theme.LocalThemeViewModel
 import dev.chungjungsoo.gptmobile.util.collectManagedState
 import dev.chungjungsoo.gptmobile.util.getDynamicThemeTitle
 import dev.chungjungsoo.gptmobile.util.getThemeModeTitle
@@ -171,6 +171,7 @@ private fun SettingItem(
 fun ThemeSettingDialog(
     settingViewModel: SettingViewModel = hiltViewModel()
 ) {
+    val themeViewModel = LocalThemeViewModel.current
     AlertDialog(
         text = {
             Column {
@@ -187,7 +188,7 @@ fun ThemeSettingDialog(
                         value = theme.name,
                         selected = LocalDynamicTheme.current == theme
                     ) {
-                        ThemePreference.updateDynamicTheme(theme)
+                        themeViewModel.updateDynamicTheme(theme)
                     }
                 }
                 Spacer(
@@ -208,7 +209,7 @@ fun ThemeSettingDialog(
                         value = theme.name,
                         selected = LocalThemeMode.current == theme
                     ) {
-                        ThemePreference.updateThemeMode(theme)
+                        themeViewModel.updateThemeMode(theme)
                     }
                 }
             }
