@@ -37,17 +37,22 @@ import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.model.DynamicTheme
 import dev.chungjungsoo.gptmobile.data.model.ThemeMode
 import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
-import dev.chungjungsoo.gptmobile.presentation.theme.ThemeViewModel
+import dev.chungjungsoo.gptmobile.presentation.theme.LocalDynamicTheme
+import dev.chungjungsoo.gptmobile.presentation.theme.LocalThemeMode
+import dev.chungjungsoo.gptmobile.util.ThemePreference
 import dev.chungjungsoo.gptmobile.util.collectManagedState
+import dev.chungjungsoo.gptmobile.util.getDynamicThemeTitle
+import dev.chungjungsoo.gptmobile.util.getThemeModeTitle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingScreen(
     modifier: Modifier = Modifier,
-    onThemeSettingClick: () -> Unit,
+    settingViewModel: SettingViewModel = hiltViewModel(),
     navigationOnClick: () -> Unit
 ) {
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    val isThemeDialogOpen by settingViewModel.isThemeDialogOpen.collectManagedState()
 
     Scaffold(
         modifier = modifier
@@ -65,10 +70,14 @@ fun SettingScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             SettingTitle()
-            ThemeSetting(onThemeSettingClick)
+            ThemeSetting { settingViewModel.openThemeDialog() }
             SettingItem(title = "OpenAI Settings", "API Key, Model", {}, true)
             SettingItem(title = "Anthropic Settings", "API Key, Model", {}, true)
             SettingItem(title = "Google Settings", "API Key, Model", {}, true)
+
+            if (isThemeDialogOpen) {
+                ThemeSettingDialog()
+            }
         }
     }
 }
@@ -80,6 +89,10 @@ private fun SettingTopBar(
     navigationOnClick: () -> Unit
 ) {
     TopAppBar(
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = MaterialTheme.colorScheme.background,
+            titleContentColor = MaterialTheme.colorScheme.onBackground
+        ),
         title = {
             Text(
                 modifier = Modifier.padding(4.dp),
@@ -117,14 +130,11 @@ private fun SettingTitle() {
 fun ThemeSetting(
     onItemClick: () -> Unit
 ) {
-    ListItem(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp),
-        headlineContent = { Text(stringResource(R.string.theme_settings)) },
-        supportingContent = {
-            Text(text = stringResource(R.string.supported_soon))
-        }
+    SettingItem(
+        title = stringResource(R.string.theme_settings),
+        description = stringResource(R.string.theme_description),
+        onItemClick = onItemClick,
+        showTrailingIcon = false
     )
 }
 
@@ -157,12 +167,8 @@ private fun SettingItem(
 
 @Composable
 fun ThemeSettingDialog(
-    themeViewModel: ThemeViewModel = hiltViewModel(),
-    onDismiss: () -> Unit
+    settingViewModel: SettingViewModel = hiltViewModel()
 ) {
-    val dynamicTheme by themeViewModel.dynamicTheme.collectManagedState()
-    val themeMode by themeViewModel.themeMode.collectManagedState()
-
     AlertDialog(
         text = {
             Column {
@@ -172,21 +178,15 @@ fun ThemeSettingDialog(
                         .fillMaxWidth()
                         .height(16.dp)
                 )
-                RadioItem(
-                    title = stringResource(R.string.on),
-                    description = null,
-                    value = dynamicTheme.name,
-                    selected = dynamicTheme == DynamicTheme.ON
-                ) {
-                    themeViewModel.updateDynamicTheme(DynamicTheme.ON)
-                }
-                RadioItem(
-                    title = stringResource(R.string.off),
-                    description = null,
-                    value = dynamicTheme.name,
-                    selected = dynamicTheme == DynamicTheme.OFF
-                ) {
-                    themeViewModel.updateDynamicTheme(DynamicTheme.OFF)
+                DynamicTheme.entries.forEach { theme ->
+                    RadioItem(
+                        title = getDynamicThemeTitle(theme),
+                        description = null,
+                        value = theme.name,
+                        selected = LocalDynamicTheme.current == theme
+                    ) {
+                        ThemePreference.updateDynamicTheme(theme)
+                    }
                 }
                 Spacer(
                     modifier = Modifier
@@ -199,36 +199,22 @@ fun ThemeSettingDialog(
                         .fillMaxWidth()
                         .height(16.dp)
                 )
-                RadioItem(
-                    title = stringResource(R.string.system_default),
-                    description = null,
-                    value = themeMode.name,
-                    selected = themeMode == ThemeMode.SYSTEM
-                ) {
-                    themeViewModel.updateThemeMode(ThemeMode.SYSTEM)
-                }
-                RadioItem(
-                    title = stringResource(R.string.on),
-                    description = null,
-                    value = themeMode.name,
-                    selected = themeMode == ThemeMode.DARK
-                ) {
-                    themeViewModel.updateThemeMode(ThemeMode.DARK)
-                }
-                RadioItem(
-                    title = stringResource(R.string.off),
-                    description = null,
-                    value = themeMode.name,
-                    selected = themeMode == ThemeMode.LIGHT
-                ) {
-                    themeViewModel.updateThemeMode(ThemeMode.LIGHT)
+                ThemeMode.entries.forEach { theme ->
+                    RadioItem(
+                        title = getThemeModeTitle(theme),
+                        description = null,
+                        value = theme.name,
+                        selected = LocalThemeMode.current == theme
+                    ) {
+                        ThemePreference.updateThemeMode(theme)
+                    }
                 }
             }
         },
-        onDismissRequest = { onDismiss() },
+        onDismissRequest = settingViewModel::closeThemeDialog,
         confirmButton = {
             TextButton(
-                onClick = { onDismiss() }
+                onClick = settingViewModel::closeThemeDialog
             ) {
                 Text(stringResource(R.string.confirm))
             }

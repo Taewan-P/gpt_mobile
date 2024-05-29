@@ -13,10 +13,12 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 @HiltViewModel
-class MainViewModel @Inject constructor(settingDataSource: SettingDataSource) : ViewModel() {
+class MainViewModel @Inject constructor(private val settingDataSource: SettingDataSource) : ViewModel() {
+
     sealed class SplashEvent {
         data object OpenIntro : SplashEvent()
         data object OpenHome : SplashEvent()
@@ -30,13 +32,7 @@ class MainViewModel @Inject constructor(settingDataSource: SettingDataSource) : 
 
     init {
         viewModelScope.launch {
-            val enabledPlatforms = ApiType.entries.map { apiType ->
-                val status = settingDataSource.getStatus(apiType)
-                val token = settingDataSource.getToken(apiType)
-                val model = settingDataSource.getModel(apiType)
-
-                Platform(apiType, enabled = status ?: false, token = token, model = model)
-            }.filter { it.enabled }
+            val enabledPlatforms = fetchPlatformSettings()
 
             if (enabledPlatforms.isEmpty() ||
                 enabledPlatforms.any { it.token == null || it.model == null }
@@ -51,11 +47,19 @@ class MainViewModel @Inject constructor(settingDataSource: SettingDataSource) : 
         }
     }
 
+    private suspend fun fetchPlatformSettings() = ApiType.entries.map { apiType ->
+        val status = settingDataSource.getStatus(apiType)
+        val token = settingDataSource.getToken(apiType)
+        val model = settingDataSource.getModel(apiType)
+
+        Platform(apiType, enabled = status ?: false, token = token, model = model)
+    }.filter { it.enabled }
+
     private suspend fun sendSplashEvent(event: SplashEvent) {
         _event.emit(event)
     }
 
     private fun setAsReady() {
-        _isReady.value = true
+        _isReady.update { true }
     }
 }

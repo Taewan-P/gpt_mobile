@@ -5,6 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -15,6 +17,9 @@ import dagger.hilt.android.AndroidEntryPoint
 import dev.chungjungsoo.gptmobile.presentation.common.Route
 import dev.chungjungsoo.gptmobile.presentation.common.SetupNavGraph
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
+import dev.chungjungsoo.gptmobile.presentation.theme.LocalDynamicTheme
+import dev.chungjungsoo.gptmobile.presentation.theme.LocalThemeMode
+import dev.chungjungsoo.gptmobile.presentation.theme.ThemeSettingProvider
 import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
@@ -30,12 +35,18 @@ class MainActivity : ComponentActivity() {
         }
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+
         setContent {
             val navController = rememberNavController()
             navController.checkForExistingSettings()
 
-            GPTMobileTheme {
-                SetupNavGraph(navController = navController)
+            ThemeSettingProvider {
+                GPTMobileTheme(
+                    dynamicTheme = LocalDynamicTheme.current,
+                    themeMode = LocalThemeMode.current
+                ) {
+                    SetupNavGraph()
+                }
             }
         }
     }

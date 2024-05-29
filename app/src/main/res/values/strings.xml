@@ -71,4 +71,5 @@
     <string name="system_default">System Default</string>
     <string name="theme_settings">Theme Settings</string>
     <string name="supported_soon">Supported Soon</string>
+    <string name="theme_description">Dynamic theme, Dark mode</string>
 </resources>

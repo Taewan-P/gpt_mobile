@@ -1,15 +1,21 @@
 package dev.chungjungsoo.gptmobile.presentation.common
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navigation
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.presentation.ui.home.HomeScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.setting.SettingScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SelectModelScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SelectPlatformScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupCompleteScreen
@@ -18,21 +24,26 @@ import dev.chungjungsoo.gptmobile.presentation.ui.setup.TokenInputScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.startscreen.StartScreen
 
 @Composable
-fun SetupNavGraph(
-    navController: NavHostController
-) {
-    NavHost(navController = navController, startDestination = Route.CHAT_LIST) {
-        startScreenNavigation { navController.navigate(it) }
+fun SetupNavGraph() {
+    val navController = rememberNavController()
+
+    NavHost(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+        navController = navController,
+        startDestination = Route.CHAT_LIST
+    ) {
+        homeScreenNavigation(navController)
+        startScreenNavigation(navController)
         setupNavigation(navController)
-        homeScreenNavigation()
+        settingNavigation(navController)
     }
 }
 
-fun NavGraphBuilder.startScreenNavigation(
-    onNavigateTo: (String) -> Unit
-) {
+fun NavGraphBuilder.startScreenNavigation(navController: NavHostController) {
     composable(Route.GET_STARTED) {
-        StartScreen { onNavigateTo(Route.SELECT_PLATFORM) }
+        StartScreen { navController.navigate(Route.SETUP_ROUTE) }
     }
 }
 
@@ -119,12 +130,20 @@ fun NavGraphBuilder.setupNavigation(
     }
 }
 
-fun NavGraphBuilder.homeScreenNavigation() {
+fun NavGraphBuilder.homeScreenNavigation(navController: NavHostController) {
     composable(Route.CHAT_LIST) {
         HomeScreen(
-            settingOnClick = {},
+            settingOnClick = { navController.navigate(Route.SETTING_ROUTE) { launchSingleTop = true } },
             onExistingChatClick = {},
             navigateToNewChat = {}
         )
+    }
+}
+
+fun NavGraphBuilder.settingNavigation(navController: NavHostController) {
+    navigation(startDestination = Route.SETTINGS, route = Route.SETTING_ROUTE) {
+        composable(Route.SETTINGS) {
+            SettingScreen(navigationOnClick = { navController.navigateUp() })
+        }
     }
 }

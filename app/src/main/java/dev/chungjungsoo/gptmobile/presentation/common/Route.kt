@@ -15,6 +15,7 @@ object Route {
     const val CHAT_LIST = "chat_list"
     const val CHAT_ROOM = "chat_room"
 
+    const val SETTING_ROUTE = "setting_route"
     const val SETTINGS = "settings"
     const val OPENAI_SETTINGS = "openai_settings"
     const val ANTHROPIC_SETTINGS = "anthropic_settings"

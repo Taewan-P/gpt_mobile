@@ -6,12 +6,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
-import androidx.compose.runtime.getValue
 import dagger.hilt.android.AndroidEntryPoint
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoom
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 import dev.chungjungsoo.gptmobile.presentation.ui.chat.ChatActivity
-import dev.chungjungsoo.gptmobile.presentation.ui.setting.SettingActivity
 
 @AndroidEntryPoint
 class HomeActivity : ComponentActivity() {
@@ -47,7 +45,7 @@ class HomeActivity : ComponentActivity() {
     }
 
     private fun openSettings() {
-        val intent = Intent(this, SettingActivity::class.java)
+        val intent = Intent(this, ChatActivity::class.java)
         startActivity(intent)
     }
 }

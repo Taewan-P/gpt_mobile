@@ -5,6 +5,8 @@ import androidx.compose.ui.res.stringResource
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.dto.APIModel
 import dev.chungjungsoo.gptmobile.data.model.ApiType
+import dev.chungjungsoo.gptmobile.data.model.DynamicTheme
+import dev.chungjungsoo.gptmobile.data.model.ThemeMode
 
 @Composable
 fun getPlatformTitleResources(): Map<ApiType, String> {
@@ -87,5 +89,18 @@ fun getAPIModelSelectTitle(apiType: ApiType) = when (apiType) {
 fun getAPIModelSelectDescription(apiType: ApiType) = when (apiType) {
     ApiType.OPENAI -> stringResource(R.string.select_openai_model_description)
     ApiType.ANTHROPIC -> stringResource(R.string.select_anthropic_model_description)
-    ApiType.GOOGLE -> stringResource(id = R.string.select_google_model_description)
+    ApiType.GOOGLE -> stringResource(R.string.select_google_model_description)
+}
+
+@Composable
+fun getDynamicThemeTitle(theme: DynamicTheme) = when (theme) {
+    DynamicTheme.ON -> stringResource(R.string.on)
+    DynamicTheme.OFF -> stringResource(R.string.off)
+}
+
+@Composable
+fun getThemeModeTitle(theme: ThemeMode) = when (theme) {
+    ThemeMode.SYSTEM -> stringResource(R.string.system_default)
+    ThemeMode.DARK -> stringResource(R.string.on)
+    ThemeMode.LIGHT -> stringResource(R.string.off)
 }
