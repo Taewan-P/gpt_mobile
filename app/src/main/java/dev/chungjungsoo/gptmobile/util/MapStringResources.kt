@@ -104,3 +104,17 @@ fun getThemeModeTitle(theme: ThemeMode) = when (theme) {
     ThemeMode.DARK -> stringResource(R.string.on)
     ThemeMode.LIGHT -> stringResource(R.string.off)
 }
+
+@Composable
+fun getPlatformSettingTitle(apiType: ApiType) = when (apiType) {
+    ApiType.OPENAI -> stringResource(R.string.openai_setting)
+    ApiType.ANTHROPIC -> stringResource(R.string.anthropic_setting)
+    ApiType.GOOGLE -> stringResource(R.string.google_setting)
+}
+
+@Composable
+fun getPlatformSettingDescription(apiType: ApiType) = when (apiType) {
+    ApiType.OPENAI -> stringResource(R.string.platform_setting_description)
+    ApiType.ANTHROPIC -> stringResource(R.string.platform_setting_description)
+    ApiType.GOOGLE -> stringResource(R.string.platform_setting_description)
+}

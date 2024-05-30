@@ -15,7 +15,9 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navigation
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.presentation.ui.home.HomeScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.setting.PlatformSettingScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.SettingScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.setting.SettingViewModel
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SelectModelScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SelectPlatformScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupCompleteScreen
@@ -143,7 +145,51 @@ fun NavGraphBuilder.homeScreenNavigation(navController: NavHostController) {
 fun NavGraphBuilder.settingNavigation(navController: NavHostController) {
     navigation(startDestination = Route.SETTINGS, route = Route.SETTING_ROUTE) {
         composable(Route.SETTINGS) {
-            SettingScreen(navigationOnClick = { navController.navigateUp() })
+            val parentEntry = remember(it) {
+                navController.getBackStackEntry(Route.SETTING_ROUTE)
+            }
+            val settingViewModel: SettingViewModel = hiltViewModel(parentEntry)
+            SettingScreen(
+                settingViewModel = settingViewModel,
+                onNavigationClick = { navController.navigateUp() },
+                onNavigate = { apiType ->
+                    when (apiType) {
+                        ApiType.OPENAI -> navController.navigate(Route.OPENAI_SETTINGS)
+                        ApiType.ANTHROPIC -> navController.navigate(Route.ANTHROPIC_SETTINGS)
+                        ApiType.GOOGLE -> navController.navigate(Route.GOOGLE_SETTINGS)
+                    }
+                }
+            )
+        }
+        composable(Route.OPENAI_SETTINGS) {
+            val parentEntry = remember(it) {
+                navController.getBackStackEntry(Route.SETTING_ROUTE)
+            }
+            val settingViewModel: SettingViewModel = hiltViewModel(parentEntry)
+            PlatformSettingScreen(
+                settingViewModel = settingViewModel,
+                apiType = ApiType.OPENAI
+            ) { navController.navigateUp() }
+        }
+        composable(Route.ANTHROPIC_SETTINGS) {
+            val parentEntry = remember(it) {
+                navController.getBackStackEntry(Route.SETTING_ROUTE)
+            }
+            val settingViewModel: SettingViewModel = hiltViewModel(parentEntry)
+            PlatformSettingScreen(
+                settingViewModel = settingViewModel,
+                apiType = ApiType.ANTHROPIC
+            ) { navController.navigateUp() }
+        }
+        composable(Route.GOOGLE_SETTINGS) {
+            val parentEntry = remember(it) {
+                navController.getBackStackEntry(Route.SETTING_ROUTE)
+            }
+            val settingViewModel: SettingViewModel = hiltViewModel(parentEntry)
+            PlatformSettingScreen(
+                settingViewModel = settingViewModel,
+                apiType = ApiType.GOOGLE
+            ) { navController.navigateUp() }
         }
     }
 }

@@ -72,4 +72,8 @@
     <string name="theme_settings">Theme Settings</string>
     <string name="supported_soon">Supported Soon</string>
     <string name="theme_description">Dynamic theme, Dark mode</string>
+    <string name="openai_setting">OpenAI Settings</string>
+    <string name="anthropic_setting">Anthropic Settings</string>
+    <string name="google_setting">Google Settings</string>
+    <string name="platform_setting_description">API Key, Model</string>
 </resources>

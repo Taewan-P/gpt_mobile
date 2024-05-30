@@ -30,10 +30,10 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import dev.chungjungsoo.gptmobile.R
+import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.data.model.DynamicTheme
 import dev.chungjungsoo.gptmobile.data.model.ThemeMode
 import dev.chungjungsoo.gptmobile.presentation.common.LocalDynamicTheme
@@ -42,6 +42,8 @@ import dev.chungjungsoo.gptmobile.presentation.common.LocalThemeViewModel
 import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
 import dev.chungjungsoo.gptmobile.util.collectManagedState
 import dev.chungjungsoo.gptmobile.util.getDynamicThemeTitle
+import dev.chungjungsoo.gptmobile.util.getPlatformSettingDescription
+import dev.chungjungsoo.gptmobile.util.getPlatformSettingTitle
 import dev.chungjungsoo.gptmobile.util.getThemeModeTitle
 import dev.chungjungsoo.gptmobile.util.pinnedExitUntilCollapsedScrollBehavior
 
@@ -50,7 +52,8 @@ import dev.chungjungsoo.gptmobile.util.pinnedExitUntilCollapsedScrollBehavior
 fun SettingScreen(
     modifier: Modifier = Modifier,
     settingViewModel: SettingViewModel = hiltViewModel(),
-    navigationOnClick: () -> Unit
+    onNavigationClick: () -> Unit,
+    onNavigate: (ApiType) -> Unit
 ) {
     val scrollState = rememberScrollState()
     val scrollBehavior = pinnedExitUntilCollapsedScrollBehavior(
@@ -64,7 +67,7 @@ fun SettingScreen(
         topBar = {
             SettingTopBar(
                 scrollBehavior = scrollBehavior,
-                navigationOnClick = navigationOnClick
+                navigationOnClick = onNavigationClick
             )
         }
     ) { innerPadding ->
@@ -74,12 +77,17 @@ fun SettingScreen(
                 .verticalScroll(scrollState)
         ) {
             ThemeSetting { settingViewModel.openThemeDialog() }
-            SettingItem(title = "OpenAI Settings", "API Key, Model", {}, true)
-            SettingItem(title = "Anthropic Settings", "API Key, Model", {}, true)
-            SettingItem(title = "Google Settings", "API Key, Model", {}, true)
+            ApiType.entries.forEach { apiType ->
+                SettingItem(
+                    title = getPlatformSettingTitle(apiType),
+                    description = getPlatformSettingDescription(apiType),
+                    onItemClick = { onNavigate(apiType) },
+                    showTrailingIcon = true
+                )
+            }
 
             if (isThemeDialogOpen) {
-                ThemeSettingDialog()
+                ThemeSettingDialog(settingViewModel)
             }
         }
     }
@@ -113,18 +121,6 @@ private fun SettingTopBar(
             }
         },
         scrollBehavior = scrollBehavior
-    )
-}
-
-@Preview
-@Composable
-private fun SettingTitle() {
-    Text(
-        modifier = Modifier
-            .padding(top = 32.dp)
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        text = stringResource(R.string.settings),
-        style = MaterialTheme.typography.headlineLarge
     )
 }
 
