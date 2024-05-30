@@ -58,9 +58,7 @@ fun SetupCompleteScreen(
             Spacer(modifier = Modifier.weight(1f))
             PrimaryLongButton(
                 onClick = {
-                    setupViewModel.saveCheckedState()
-                    setupViewModel.saveTokenState()
-                    setupViewModel.saveModelState()
+                    setupViewModel.savePlatformState()
                     val nextStep = setupViewModel.getNextSetupRoute(currentRoute)
                     onNavigate(nextStep)
                 },

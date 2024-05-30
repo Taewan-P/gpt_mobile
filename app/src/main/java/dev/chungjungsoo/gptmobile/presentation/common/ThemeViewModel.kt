@@ -3,9 +3,10 @@ package dev.chungjungsoo.gptmobile.presentation.common
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dev.chungjungsoo.gptmobile.data.datastore.SettingDataSource
+import dev.chungjungsoo.gptmobile.data.dto.ThemeSetting
 import dev.chungjungsoo.gptmobile.data.model.DynamicTheme
 import dev.chungjungsoo.gptmobile.data.model.ThemeMode
+import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,12 +14,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 @HiltViewModel
-class ThemeViewModel @Inject constructor(private val settingDataSource: SettingDataSource) : ViewModel() {
-
-    data class ThemeSetting(
-        val dynamicTheme: DynamicTheme = DynamicTheme.OFF,
-        val themeMode: ThemeMode = ThemeMode.SYSTEM
-    )
+class ThemeViewModel @Inject constructor(private val settingRepository: SettingRepository) : ViewModel() {
 
     private val _themeSetting = MutableStateFlow(ThemeSetting())
     val themeSetting = _themeSetting.asStateFlow()
@@ -29,12 +25,7 @@ class ThemeViewModel @Inject constructor(private val settingDataSource: SettingD
 
     private fun fetchThemes() {
         viewModelScope.launch {
-            _themeSetting.update { setting ->
-                setting.copy(
-                    dynamicTheme = settingDataSource.getDynamicTheme() ?: DynamicTheme.OFF,
-                    themeMode = settingDataSource.getThemeMode() ?: ThemeMode.SYSTEM
-                )
-            }
+            _themeSetting.update { settingRepository.fetchThemes() }
         }
     }
 
@@ -43,7 +34,7 @@ class ThemeViewModel @Inject constructor(private val settingDataSource: SettingD
             setting.copy(dynamicTheme = theme)
         }
         viewModelScope.launch {
-            settingDataSource.updateDynamicTheme(theme)
+            settingRepository.updateThemes(_themeSetting.value)
         }
     }
 
@@ -52,7 +43,7 @@ class ThemeViewModel @Inject constructor(private val settingDataSource: SettingD
             setting.copy(themeMode = theme)
         }
         viewModelScope.launch {
-            settingDataSource.updateThemeMode(theme)
+            settingRepository.updateThemes(_themeSetting.value)
         }
     }
 }

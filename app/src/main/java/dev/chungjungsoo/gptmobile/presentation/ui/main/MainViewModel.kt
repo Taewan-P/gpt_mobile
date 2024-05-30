@@ -3,9 +3,7 @@ package dev.chungjungsoo.gptmobile.presentation.ui.main
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dev.chungjungsoo.gptmobile.data.datastore.SettingDataSource
-import dev.chungjungsoo.gptmobile.data.dto.Platform
-import dev.chungjungsoo.gptmobile.data.model.ApiType
+import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,7 +15,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 @HiltViewModel
-class MainViewModel @Inject constructor(private val settingDataSource: SettingDataSource) : ViewModel() {
+class MainViewModel @Inject constructor(private val settingRepository: SettingRepository) : ViewModel() {
 
     sealed class SplashEvent {
         data object OpenIntro : SplashEvent()
@@ -47,13 +45,7 @@ class MainViewModel @Inject constructor(private val settingDataSource: SettingDa
         }
     }
 
-    private suspend fun fetchPlatformSettings() = ApiType.entries.map { apiType ->
-        val status = settingDataSource.getStatus(apiType)
-        val token = settingDataSource.getToken(apiType)
-        val model = settingDataSource.getModel(apiType)
-
-        Platform(apiType, enabled = status ?: false, token = token, model = model)
-    }.filter { it.enabled }
+    private suspend fun fetchPlatformSettings() = settingRepository.fetchPlatforms().filter { it.enabled }
 
     private suspend fun sendSplashEvent(event: SplashEvent) {
         _event.emit(event)

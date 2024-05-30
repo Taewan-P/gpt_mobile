@@ -3,9 +3,9 @@ package dev.chungjungsoo.gptmobile.presentation.ui.setup
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dev.chungjungsoo.gptmobile.data.datastore.SettingDataSource
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.data.model.ApiType
+import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import dev.chungjungsoo.gptmobile.presentation.common.Route
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 @HiltViewModel
-class SetupViewModel @Inject constructor(private val settingDataSource: SettingDataSource) : ViewModel() {
+class SetupViewModel @Inject constructor(private val settingRepository: SettingRepository) : ViewModel() {
 
     // LinkedHashSet should be used to guarantee item order
     val openaiModels = linkedSetOf("gpt-4o", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo")
@@ -84,32 +84,10 @@ class SetupViewModel @Inject constructor(private val settingDataSource: SettingD
         }
     }
 
-    fun saveCheckedState() {
-        _platformState.value.forEach { platform ->
-            viewModelScope.launch {
-                settingDataSource.updateStatus(platform.name, platform.selected)
-            }
+    fun savePlatformState() {
+        viewModelScope.launch {
+            settingRepository.updatePlatforms(_platformState.value)
         }
-    }
-
-    fun saveTokenState() {
-        _platformState.value.filter { it.selected && it.token != null }.forEach { platform ->
-            viewModelScope.launch {
-                settingDataSource.updateToken(platform.name, platform.token!!)
-            }
-        }
-    }
-
-    fun saveModelState() {
-        _platformState.value.filter { it.selected && it.token != null && it.model != null }.forEach { platform ->
-            viewModelScope.launch {
-                settingDataSource.updateModel(platform.name, platform.model!!)
-            }
-        }
-    }
-
-    fun setModel(apiType: ApiType, defaultModelIndex: Int): String {
-        return platformState.value.find { it.name == apiType }?.model ?: setDefaultModel(apiType, defaultModelIndex)
     }
 
     fun getNextSetupRoute(currentRoute: String?): String {
