@@ -36,10 +36,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.model.DynamicTheme
 import dev.chungjungsoo.gptmobile.data.model.ThemeMode
+import dev.chungjungsoo.gptmobile.presentation.common.LocalDynamicTheme
+import dev.chungjungsoo.gptmobile.presentation.common.LocalThemeMode
+import dev.chungjungsoo.gptmobile.presentation.common.LocalThemeViewModel
 import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
-import dev.chungjungsoo.gptmobile.presentation.theme.LocalDynamicTheme
-import dev.chungjungsoo.gptmobile.presentation.theme.LocalThemeMode
-import dev.chungjungsoo.gptmobile.presentation.theme.LocalThemeViewModel
 import dev.chungjungsoo.gptmobile.util.collectManagedState
 import dev.chungjungsoo.gptmobile.util.getDynamicThemeTitle
 import dev.chungjungsoo.gptmobile.util.getThemeModeTitle

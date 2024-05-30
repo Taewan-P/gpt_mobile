@@ -1,4 +1,4 @@
-package dev.chungjungsoo.gptmobile.presentation.theme
+package dev.chungjungsoo.gptmobile.presentation.common
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

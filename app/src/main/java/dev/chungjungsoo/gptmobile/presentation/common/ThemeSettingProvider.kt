@@ -1,4 +1,4 @@
-package dev.chungjungsoo.gptmobile.presentation.theme
+package dev.chungjungsoo.gptmobile.presentation.common
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
