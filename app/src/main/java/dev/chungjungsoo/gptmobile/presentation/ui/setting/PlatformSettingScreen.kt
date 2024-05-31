@@ -1,12 +1,12 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.setting
 
-import android.util.Log
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -100,24 +101,39 @@ fun PlatformSettingScreen(
             val platform = platformState.firstOrNull { it.name == apiType }
             val enabled = platform?.enabled ?: false
             val model = platform?.model
-            Log.d("platform", "$platform")
 
             PreferenceSwitchWithContainer(
                 title = stringResource(R.string.enable_api),
                 isChecked = enabled
             ) { settingViewModel.toggleAPI(apiType) }
             SettingItem(
+                modifier = Modifier.height(64.dp),
                 title = stringResource(R.string.api_key),
                 enabled = enabled,
                 onItemClick = { isApiTokenDialogOpen = true },
-                showTrailingIcon = false
+                showTrailingIcon = false,
+                showLeadingIcon = true,
+                leadingIcon = {
+                    Icon(
+                        ImageVector.vectorResource(id = R.drawable.ic_key),
+                        contentDescription = stringResource(R.string.key_icon)
+                    )
+                }
             )
             SettingItem(
+                modifier = Modifier.height(64.dp),
                 title = stringResource(R.string.api_model),
                 description = model,
                 enabled = enabled,
                 onItemClick = { isModelDialogOpen = true },
-                showTrailingIcon = false
+                showTrailingIcon = false,
+                showLeadingIcon = true,
+                leadingIcon = {
+                    Icon(
+                        ImageVector.vectorResource(id = R.drawable.ic_model),
+                        contentDescription = stringResource(R.string.model_icon)
+                    )
+                }
             )
 
             if (isApiTokenDialogOpen) {

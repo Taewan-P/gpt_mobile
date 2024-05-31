@@ -17,42 +17,69 @@ import dev.chungjungsoo.gptmobile.R
 
 @Composable
 fun SettingItem(
+    modifier: Modifier = Modifier,
     title: String,
     description: String? = null,
     enabled: Boolean = true,
     onItemClick: () -> Unit,
-    showTrailingIcon: Boolean
+    showTrailingIcon: Boolean,
+    showLeadingIcon: Boolean,
+    leadingIcon: @Composable () -> Unit? = {}
 ) {
-    val modifier = if (enabled) {
-        Modifier
+    val clickableModifier = if (enabled) {
+        modifier
             .fillMaxWidth()
             .clickable(onClick = onItemClick)
             .padding(horizontal = 8.dp)
     } else {
-        Modifier
+        modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp)
     }
     val colors = ListItemDefaults.colors()
 
-    ListItem(
-        modifier = modifier,
-        headlineContent = { Text(title) },
-        supportingContent = {
-            description?.let { Text(it) }
-        },
-        trailingContent = {
-            if (showTrailingIcon) {
-                Icon(
-                    ImageVector.vectorResource(id = R.drawable.ic_round_arrow_right),
-                    contentDescription = stringResource(R.string.arrow_icon)
-                )
-            }
-        },
-        colors = ListItemDefaults.colors(
-            headlineColor = if (enabled) colors.headlineColor else colors.disabledHeadlineColor,
-            supportingColor = if (enabled) colors.supportingTextColor else colors.disabledHeadlineColor,
-            trailingIconColor = if (enabled) colors.trailingIconColor else colors.disabledTrailingIconColor
+    if (showLeadingIcon) {
+        ListItem(
+            modifier = clickableModifier,
+            headlineContent = { Text(title) },
+            supportingContent = {
+                description?.let { Text(it) }
+            },
+            leadingContent = { leadingIcon() },
+            trailingContent = {
+                if (showTrailingIcon) {
+                    Icon(
+                        ImageVector.vectorResource(id = R.drawable.ic_round_arrow_right),
+                        contentDescription = stringResource(R.string.arrow_icon)
+                    )
+                }
+            },
+            colors = ListItemDefaults.colors(
+                headlineColor = if (enabled) colors.headlineColor else colors.disabledHeadlineColor,
+                supportingColor = if (enabled) colors.supportingTextColor else colors.disabledHeadlineColor,
+                trailingIconColor = if (enabled) colors.trailingIconColor else colors.disabledTrailingIconColor
+            )
         )
-    )
+    } else {
+        ListItem(
+            modifier = clickableModifier,
+            headlineContent = { Text(title) },
+            supportingContent = {
+                description?.let { Text(it) }
+            },
+            trailingContent = {
+                if (showTrailingIcon) {
+                    Icon(
+                        ImageVector.vectorResource(id = R.drawable.ic_round_arrow_right),
+                        contentDescription = stringResource(R.string.arrow_icon)
+                    )
+                }
+            },
+            colors = ListItemDefaults.colors(
+                headlineColor = if (enabled) colors.headlineColor else colors.disabledHeadlineColor,
+                supportingColor = if (enabled) colors.supportingTextColor else colors.disabledHeadlineColor,
+                trailingIconColor = if (enabled) colors.trailingIconColor else colors.disabledTrailingIconColor
+            )
+        )
+    }
 }

@@ -81,4 +81,6 @@
     <string name="api_model">API Model</string>
     <string name="dynamic_theme">Dynamic Theme</string>
     <string name="dark_mode">Dark Mode</string>
+    <string name="key_icon">Key Icon</string>
+    <string name="model_icon">Model Icon</string>
 </resources>

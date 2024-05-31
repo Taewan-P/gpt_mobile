@@ -79,7 +79,8 @@ fun SettingScreen(
                     title = getPlatformSettingTitle(apiType),
                     description = getPlatformSettingDescription(apiType),
                     onItemClick = { onNavigate(apiType) },
-                    showTrailingIcon = true
+                    showTrailingIcon = true,
+                    showLeadingIcon = false
                 )
             }
 
@@ -129,7 +130,8 @@ fun ThemeSetting(
         title = stringResource(R.string.theme_settings),
         description = stringResource(R.string.theme_description),
         onItemClick = onItemClick,
-        showTrailingIcon = false
+        showTrailingIcon = false,
+        showLeadingIcon = false
     )
 }
 
