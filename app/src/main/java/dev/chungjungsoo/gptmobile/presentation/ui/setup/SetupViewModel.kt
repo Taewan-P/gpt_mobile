@@ -6,6 +6,9 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
+import dev.chungjungsoo.gptmobile.presentation.common.ModelConstants.anthropicModels
+import dev.chungjungsoo.gptmobile.presentation.common.ModelConstants.googleModels
+import dev.chungjungsoo.gptmobile.presentation.common.ModelConstants.openaiModels
 import dev.chungjungsoo.gptmobile.presentation.common.Route
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,11 +19,6 @@ import kotlinx.coroutines.launch
 
 @HiltViewModel
 class SetupViewModel @Inject constructor(private val settingRepository: SettingRepository) : ViewModel() {
-
-    // LinkedHashSet should be used to guarantee item order
-    val openaiModels = linkedSetOf("gpt-4o", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo")
-    val anthropicModels = linkedSetOf("claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307")
-    val googleModels = linkedSetOf("gemini-1.5-pro-latest", "gemini-1.5-flash-latest", "gemini-1.0-pro")
 
     private val _platformState = MutableStateFlow(
         listOf(

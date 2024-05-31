@@ -23,6 +23,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.dto.APIModel
 import dev.chungjungsoo.gptmobile.data.model.ApiType
+import dev.chungjungsoo.gptmobile.presentation.common.ModelConstants.anthropicModels
+import dev.chungjungsoo.gptmobile.presentation.common.ModelConstants.googleModels
+import dev.chungjungsoo.gptmobile.presentation.common.ModelConstants.openaiModels
 import dev.chungjungsoo.gptmobile.presentation.common.PrimaryLongButton
 import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
 import dev.chungjungsoo.gptmobile.util.collectManagedState
@@ -44,9 +47,9 @@ fun SelectModelScreen(
     val title = getAPIModelSelectTitle(platformType)
     val description = getAPIModelSelectDescription(platformType)
     val availableModels = when (platformType) {
-        ApiType.OPENAI -> generateOpenAIModelList(models = setupViewModel.openaiModels)
-        ApiType.ANTHROPIC -> generateAnthropicModelList(models = setupViewModel.anthropicModels)
-        ApiType.GOOGLE -> generateGoogleModelList(models = setupViewModel.googleModels)
+        ApiType.OPENAI -> generateOpenAIModelList(models = openaiModels)
+        ApiType.ANTHROPIC -> generateAnthropicModelList(models = anthropicModels)
+        ApiType.GOOGLE -> generateGoogleModelList(models = googleModels)
     }
     val defaultModel = remember {
         derivedStateOf {
