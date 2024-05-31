@@ -30,11 +30,9 @@ class MainViewModel @Inject constructor(private val settingRepository: SettingRe
 
     init {
         viewModelScope.launch {
-            val enabledPlatforms = fetchPlatformSettings()
+            val platforms = settingRepository.fetchPlatforms()
 
-            if (enabledPlatforms.isEmpty() ||
-                enabledPlatforms.any { it.token == null || it.model == null }
-            ) {
+            if (platforms.all { it.token == null || it.model == null }) {
                 // Initialize
                 sendSplashEvent(SplashEvent.OpenIntro)
             } else {
@@ -44,8 +42,6 @@ class MainViewModel @Inject constructor(private val settingRepository: SettingRe
             setAsReady()
         }
     }
-
-    private suspend fun fetchPlatformSettings() = settingRepository.fetchPlatforms().filter { it.enabled }
 
     private suspend fun sendSplashEvent(event: SplashEvent) {
         _event.emit(event)
