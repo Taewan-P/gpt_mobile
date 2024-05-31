@@ -1,6 +1,8 @@
 package dev.chungjungsoo.gptmobile.presentation.common
 
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -9,6 +11,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -26,10 +29,14 @@ fun PlatformCheckBoxItem(
     description: String? = stringResource(R.string.sample_item_description),
     onClickEvent: (Platform) -> Unit
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     val rowModifier = if (enabled) {
         modifier
             .fillMaxWidth()
-            .clickable { onClickEvent.invoke(platform) }
+            .clickable(
+                interactionSource = interactionSource,
+                indication = LocalIndication.current
+            ) { onClickEvent.invoke(platform) }
             .padding(top = 12.dp, bottom = 12.dp, start = 16.dp, end = 16.dp)
     } else {
         modifier
@@ -45,6 +52,7 @@ fun PlatformCheckBoxItem(
         Checkbox(
             enabled = enabled,
             checked = platform.selected,
+            interactionSource = interactionSource,
             onCheckedChange = { onClickEvent.invoke(platform) }
         )
         Column(horizontalAlignment = Alignment.Start) {
