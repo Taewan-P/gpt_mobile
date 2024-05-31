@@ -142,7 +142,9 @@ fun ThemeSettingDialog(
     val themeViewModel = LocalThemeViewModel.current
     AlertDialog(
         text = {
-            Column {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState())
+            ) {
                 Text(text = stringResource(R.string.dynamic_theme), style = MaterialTheme.typography.titleMedium)
                 Spacer(
                     modifier = Modifier
