@@ -83,6 +83,12 @@ class SetupViewModel @Inject constructor(private val settingRepository: SettingR
     }
 
     fun savePlatformState() {
+        _platformState.update { platforms ->
+            // Update to platform enabled value
+            platforms.map { p ->
+                p.copy(enabled = p.selected, selected = false)
+            }
+        }
         viewModelScope.launch {
             settingRepository.updatePlatforms(_platformState.value)
         }
