@@ -43,7 +43,7 @@ class MainActivity : ComponentActivity() {
                     dynamicTheme = LocalDynamicTheme.current,
                     themeMode = LocalThemeMode.current
                 ) {
-                    SetupNavGraph()
+                    SetupNavGraph(navController)
                 }
             }
         }

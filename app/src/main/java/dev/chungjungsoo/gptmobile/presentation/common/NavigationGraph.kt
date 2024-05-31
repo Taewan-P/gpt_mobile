@@ -11,7 +11,6 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navigation
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.presentation.ui.home.HomeScreen
@@ -26,9 +25,7 @@ import dev.chungjungsoo.gptmobile.presentation.ui.setup.TokenInputScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.startscreen.StartScreen
 
 @Composable
-fun SetupNavGraph() {
-    val navController = rememberNavController()
-
+fun SetupNavGraph(navController: NavHostController) {
     NavHost(
         modifier = Modifier
             .fillMaxSize()
