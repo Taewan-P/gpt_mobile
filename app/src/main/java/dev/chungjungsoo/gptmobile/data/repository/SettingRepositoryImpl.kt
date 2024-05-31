@@ -31,7 +31,7 @@ class SettingRepositoryImpl @Inject constructor(
 
     override suspend fun updatePlatforms(platforms: List<Platform>) {
         platforms.forEach { platform ->
-            settingDataSource.updateStatus(platform.name, platform.selected)
+            settingDataSource.updateStatus(platform.name, platform.enabled)
 
             if (platform.token != null) {
                 settingDataSource.updateToken(platform.name, platform.token)
