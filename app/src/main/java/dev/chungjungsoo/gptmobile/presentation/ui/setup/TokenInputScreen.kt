@@ -8,15 +8,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Clear
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,14 +19,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -40,6 +30,7 @@ import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.presentation.common.PrimaryLongButton
 import dev.chungjungsoo.gptmobile.presentation.common.Route
+import dev.chungjungsoo.gptmobile.presentation.common.TokenInputField
 import dev.chungjungsoo.gptmobile.util.collectManagedState
 import dev.chungjungsoo.gptmobile.util.getPlatformAPILabelResources
 import dev.chungjungsoo.gptmobile.util.getPlatformHelpLinkResources
@@ -139,73 +130,4 @@ fun TokenInput(
             )
         }
     }
-}
-
-@Preview
-@Composable
-fun TokenInputField(
-    modifier: Modifier = Modifier,
-    value: String = "",
-    onValueChange: (String) -> Unit = { },
-    keyboardOptions: KeyboardOptions = KeyboardOptions(),
-    onClearClick: () -> Unit = { },
-    label: String = "",
-    helpLink: String = ""
-) {
-    OutlinedTextField(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(top = 16.dp, bottom = 16.dp, start = 20.dp, end = 20.dp),
-        value = value,
-        onValueChange = onValueChange,
-        label = {
-            Text(label)
-        },
-        keyboardOptions = keyboardOptions,
-        supportingText = {
-            HelpText(helpLink)
-        },
-        trailingIcon = {
-            if (value.isNotBlank()) {
-                IconButton(onClick = onClearClick) {
-                    Icon(Icons.Outlined.Clear, contentDescription = stringResource(R.string.clear_token))
-                }
-            }
-        }
-    )
-}
-
-@Preview
-@Composable
-fun HelpText(helpLink: String = "") {
-    val uriHandler = LocalUriHandler.current
-    val annotatedString = buildAnnotatedString {
-        val str = stringResource(R.string.need_help)
-        append(str)
-        addStyle(
-            style = SpanStyle(
-                color = MaterialTheme.colorScheme.tertiary,
-                textDecoration = TextDecoration.Underline
-            ),
-            0,
-            str.length
-        )
-        addStringAnnotation(
-            "URL",
-            annotation = helpLink,
-            start = 0,
-            end = str.length
-        )
-    }
-
-    ClickableText(
-        text = annotatedString,
-        onClick = {
-            annotatedString
-                .getStringAnnotations("URL", it, it)
-                .firstOrNull()?.let { stringAnnotation ->
-                    uriHandler.openUri(stringAnnotation.item)
-                }
-        }
-    )
 }

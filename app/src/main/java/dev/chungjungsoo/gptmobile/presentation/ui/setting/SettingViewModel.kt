@@ -4,7 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.chungjungsoo.gptmobile.data.dto.Platform
+import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
+import dev.chungjungsoo.gptmobile.presentation.common.ModelConstants
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,6 +33,68 @@ class SettingViewModel @Inject constructor(
         viewModelScope.launch {
             val platforms = settingRepository.fetchPlatforms()
             _platformState.update { platforms }
+        }
+    }
+
+    fun toggleAPI(apiType: ApiType) {
+        val index = _platformState.value.indexOfFirst { it.name == apiType }
+
+        if (index >= 0) {
+            _platformState.update {
+                it.mapIndexed { i, p ->
+                    if (index == i) {
+                        p.copy(enabled = p.enabled.not())
+                    } else {
+                        p
+                    }
+                }
+            }
+            viewModelScope.launch {
+                settingRepository.updatePlatforms(_platformState.value)
+            }
+        }
+    }
+
+    fun updateToken(apiType: ApiType, token: String) {
+        val index = _platformState.value.indexOfFirst { it.name == apiType }
+
+        if (index >= 0) {
+            _platformState.update {
+                it.mapIndexed { i, p ->
+                    if (index == i && token.isNotBlank()) {
+                        p.copy(token = token)
+                    } else {
+                        p
+                    }
+                }
+            }
+            viewModelScope.launch {
+                settingRepository.updatePlatforms(_platformState.value)
+            }
+        }
+    }
+
+    fun updateModel(apiType: ApiType, model: String) {
+        val index = _platformState.value.indexOfFirst { it.name == apiType }
+        val models = when (apiType) {
+            ApiType.OPENAI -> ModelConstants.openaiModels
+            ApiType.ANTHROPIC -> ModelConstants.anthropicModels
+            ApiType.GOOGLE -> ModelConstants.googleModels
+        }
+
+        if (index >= 0) {
+            _platformState.update {
+                it.mapIndexed { i, p ->
+                    if (index == i && model in models) {
+                        p.copy(model = model)
+                    } else {
+                        p
+                    }
+                }
+            }
+            viewModelScope.launch {
+                settingRepository.updatePlatforms(_platformState.value)
+            }
         }
     }
 

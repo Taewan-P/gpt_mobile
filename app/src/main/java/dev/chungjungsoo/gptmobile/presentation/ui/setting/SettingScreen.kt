@@ -1,6 +1,5 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.setting
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,7 +14,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -25,10 +23,8 @@ import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -40,6 +36,7 @@ import dev.chungjungsoo.gptmobile.presentation.common.LocalDynamicTheme
 import dev.chungjungsoo.gptmobile.presentation.common.LocalThemeMode
 import dev.chungjungsoo.gptmobile.presentation.common.LocalThemeViewModel
 import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
+import dev.chungjungsoo.gptmobile.presentation.common.SettingItem
 import dev.chungjungsoo.gptmobile.util.collectManagedState
 import dev.chungjungsoo.gptmobile.util.getDynamicThemeTitle
 import dev.chungjungsoo.gptmobile.util.getPlatformSettingDescription
@@ -137,33 +134,6 @@ fun ThemeSetting(
 }
 
 @Composable
-private fun SettingItem(
-    title: String,
-    description: String? = null,
-    onItemClick: () -> Unit,
-    showTrailingIcon: Boolean
-) {
-    ListItem(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onItemClick)
-            .padding(horizontal = 8.dp),
-        headlineContent = { Text(title) },
-        supportingContent = {
-            description?.let { Text(it) }
-        },
-        trailingContent = {
-            if (showTrailingIcon) {
-                Icon(
-                    ImageVector.vectorResource(id = R.drawable.ic_round_arrow_right),
-                    contentDescription = stringResource(R.string.arrow_icon)
-                )
-            }
-        }
-    )
-}
-
-@Composable
 fun ThemeSettingDialog(
     settingViewModel: SettingViewModel = hiltViewModel()
 ) {
@@ -171,7 +141,7 @@ fun ThemeSettingDialog(
     AlertDialog(
         text = {
             Column {
-                Text(text = "Dynamic Theme", style = MaterialTheme.typography.titleMedium)
+                Text(text = stringResource(R.string.dynamic_theme), style = MaterialTheme.typography.titleMedium)
                 Spacer(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -192,7 +162,7 @@ fun ThemeSettingDialog(
                         .fillMaxWidth()
                         .height(24.dp)
                 )
-                Text(text = "Dark Mode", style = MaterialTheme.typography.titleMedium)
+                Text(text = stringResource(R.string.dark_mode), style = MaterialTheme.typography.titleMedium)
                 Spacer(
                     modifier = Modifier
                         .fillMaxWidth()
