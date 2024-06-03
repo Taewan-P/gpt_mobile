@@ -9,10 +9,13 @@ import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import androidx.navigation.navigation
 import dev.chungjungsoo.gptmobile.data.model.ApiType
+import dev.chungjungsoo.gptmobile.presentation.ui.chat.ChatScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.home.HomeScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.PlatformSettingScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.SettingScreen
@@ -37,6 +40,7 @@ fun SetupNavGraph(navController: NavHostController) {
         startScreenNavigation(navController)
         setupNavigation(navController)
         settingNavigation(navController)
+        chatScreenNavigation(navController)
     }
 }
 
@@ -133,9 +137,23 @@ fun NavGraphBuilder.homeScreenNavigation(navController: NavHostController) {
     composable(Route.CHAT_LIST) {
         HomeScreen(
             settingOnClick = { navController.navigate(Route.SETTING_ROUTE) { launchSingleTop = true } },
-            onExistingChatClick = {},
-            navigateToNewChat = {}
+            onExistingChatClick = { chatRoom ->
+                navController.navigate(Route.CHAT_ROOM.replace(oldValue = "{chatRoomId}", newValue = "${chatRoom.id}"))
+            },
+            navigateToNewChat = {
+                navController.navigate(Route.CHAT_ROOM.replace(oldValue = "{chatRoomId}", newValue = "0"))
+            }
         )
+    }
+}
+
+fun NavGraphBuilder.chatScreenNavigation(navController: NavHostController) {
+    composable(
+        Route.CHAT_ROOM,
+        arguments = listOf(navArgument("chatRoomId") { type = NavType.IntType })
+    ) { backStackEntry ->
+        val chatRoomId = backStackEntry.arguments?.getInt("chatRoomId")
+        ChatScreen(chatRoomId = chatRoomId, onBackAction = { navController.navigateUp() })
     }
 }
 
