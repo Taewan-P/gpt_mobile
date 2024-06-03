@@ -44,5 +44,76 @@ fun ChatScreen(
     chatViewModel: ChatViewModel = hiltViewModel(),
     onBackAction: () -> Unit
 ) {
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        topBar = {
+            TopAppBar(
+                title = { /*TODO*/ },
+                navigationIcon = {
+                    IconButton(
+                        onClick = onBackAction
+                    ) {
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.go_back))
+                    }
+                }
+            )
+        },
+        bottomBar = {
+            ChatInputBox(value = "chatroomid: $chatRoomId") {}
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier.padding(innerPadding)
+        ) {
+        }
+    }
 }
 
+@Preview
+@Composable
+fun ChatInputBox(
+    value: String = "",
+    onValueChange: (String) -> Unit = {},
+    sendButtonEnabled: Boolean = true,
+    onSendButtonClick: (String) -> Unit = {}
+) {
+    val localStyle = LocalTextStyle.current
+    val mergedStyle = localStyle.merge(TextStyle(color = LocalContentColor.current))
+
+    BasicTextField(
+        modifier = Modifier
+            .windowInsetsPadding(BottomAppBarDefaults.windowInsets)
+            .padding(BottomAppBarDefaults.ContentPadding)
+            .heightIn(max = 120.dp),
+        value = value,
+        textStyle = mergedStyle,
+        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+        onValueChange = onValueChange,
+        decorationBox = { innerTextField ->
+            Row(
+                modifier = Modifier
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Min)
+                    .background(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(size = 24.dp))
+                    .padding(all = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .align(Alignment.CenterVertically)
+                        .padding(start = 16.dp)
+                ) {
+                    innerTextField()
+                }
+                IconButton(
+                    enabled = sendButtonEnabled,
+                    onClick = { onSendButtonClick(value) }
+                ) {
+                    Icon(imageVector = ImageVector.vectorResource(id = R.drawable.ic_send), contentDescription = stringResource(R.string.send))
+                }
+            }
+        }
+    )
+}

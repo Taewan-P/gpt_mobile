@@ -83,4 +83,5 @@
     <string name="dark_mode">Dark Mode</string>
     <string name="key_icon">Key Icon</string>
     <string name="model_icon">Model Icon</string>
+    <string name="send">Send</string>
 </resources>
