@@ -4,7 +4,8 @@ plugins {
     alias(libs.plugins.android.hilt)
     alias(libs.plugins.kotlin.kapt)
     alias(libs.plugins.kotlin.ksp)
-    id("kotlin-parcelize")
+    alias(libs.plugins.kotlin.parcelize)
+    kotlin(libs.plugins.kotlin.serialization.get().pluginId).version(libs.versions.kotlin)
 }
 
 android {
@@ -85,6 +86,17 @@ dependencies {
     // Navigation
     implementation(libs.hilt.navigation)
     implementation(libs.androidx.navigation)
+
+    // Ktor
+    implementation(libs.ktor.engine)
+
+    // OpenAI (Ktor required)
+    implementation(libs.openai)
+
+    // Retrofit, Serialization
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.converter)
+    implementation(libs.kotlin.serialization)
 
     // Room
     implementation(libs.room)

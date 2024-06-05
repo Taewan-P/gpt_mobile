@@ -14,7 +14,10 @@ ksp = "1.9.20-1.0.14"
 androidxHilt = "1.2.0"
 navigation = "2.7.7"
 material = "1.12.0"
+openai = "3.7.2"
+serialization = "1.6.3"
 splashscreen = "1.0.1"
+retrofit = "2.11.0"
 room = "2.6.1"
 viewmodelCompose = "2.8.0"
 lifecycleRuntimeComposeAndroid = "2.8.0"
@@ -40,8 +43,13 @@ androidx-material3 = { group = "androidx.compose.material3", name = "material3" 
 hilt = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hilt" }
 hilt-navigation = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "androidxHilt" }
+kotlin-serialization = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
+ktor-engine = { group = "io.ktor", name = "ktor-client-android", version = "2.3.11" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
+openai = { group = "com.aallam.openai", name = "openai-client", version.ref = "openai" }
 splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splashscreen" }
+retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
+retrofit-converter = { group = "com.squareup.retrofit2", name = "converter-kotlinx-serialization", version.ref = "retrofit" }
 room = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
@@ -53,4 +61,6 @@ android-hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 jetbrains-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-kapt = { id = "org.jetbrains.kotlin.kapt", version.ref = "kotlin" }
 kotlin-ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+kotlin-parcelize = { id = "org.jetbrains.kotlin.plugin.parcelize", version.ref = "kotlin" }
+kotlin-serialization = { id = "plugin.serialization", version.ref = "kotlin" }
 
