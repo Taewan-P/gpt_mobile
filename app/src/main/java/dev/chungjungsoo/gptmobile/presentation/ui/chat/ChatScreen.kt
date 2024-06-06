@@ -61,7 +61,11 @@ fun ChatScreen(
             )
         },
         bottomBar = {
-            ChatInputBox(value = "chatroomid: $chatRoomId") {}
+            ChatInputBox(
+                value = question,
+                onValueChange = { s -> chatViewModel.updateQuestion(s) },
+                sendButtonEnabled = question.trim().isNotBlank()
+            ) {}
         }
     ) { innerPadding ->
         Column(
@@ -82,46 +86,52 @@ fun ChatInputBox(
     val localStyle = LocalTextStyle.current
     val mergedStyle = localStyle.merge(TextStyle(color = LocalContentColor.current))
 
-    BasicTextField(
+    Box(
         modifier = Modifier
+            .fillMaxWidth()
             .windowInsetsPadding(BottomAppBarDefaults.windowInsets)
             .padding(BottomAppBarDefaults.ContentPadding)
-            .heightIn(max = 120.dp),
-        value = value,
-        textStyle = mergedStyle,
-        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-        onValueChange = onValueChange,
-        decorationBox = { innerTextField ->
-            Row(
-                modifier = Modifier
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .fillMaxWidth()
-                    .height(IntrinsicSize.Min)
-                    .background(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(size = 24.dp))
-                    .padding(all = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
+            .background(color = MaterialTheme.colorScheme.surface)
+    ) {
+        BasicTextField(
+            modifier = Modifier
+                .heightIn(max = 120.dp),
+            value = value,
+            textStyle = mergedStyle,
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+            onValueChange = onValueChange,
+            decorationBox = { innerTextField ->
+                Row(
                     modifier = Modifier
-                        .weight(1f)
-                        .align(Alignment.CenterVertically)
-                        .padding(start = 16.dp)
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Min)
+                        .background(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(size = 24.dp))
+                        .padding(all = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (value.trim().isEmpty()) {
-                        Text(
-                            modifier = Modifier.alpha(0.38f),
-                            text = stringResource(R.string.ask_a_question)
-                        )
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .align(Alignment.CenterVertically)
+                            .padding(start = 16.dp)
+                    ) {
+                        if (value.isEmpty()) {
+                            Text(
+                                modifier = Modifier.alpha(0.38f),
+                                text = stringResource(R.string.ask_a_question)
+                            )
+                        }
+                        innerTextField()
                     }
-                    innerTextField()
-                }
-                IconButton(
-                    enabled = sendButtonEnabled,
-                    onClick = { onSendButtonClick(value) }
-                ) {
-                    Icon(imageVector = ImageVector.vectorResource(id = R.drawable.ic_send), contentDescription = stringResource(R.string.send))
+                    IconButton(
+                        enabled = sendButtonEnabled,
+                        onClick = { onSendButtonClick(value) }
+                    ) {
+                        Icon(imageVector = ImageVector.vectorResource(id = R.drawable.ic_send), contentDescription = stringResource(R.string.send))
+                    }
                 }
             }
-        }
-    )
+        )
+    }
 }
