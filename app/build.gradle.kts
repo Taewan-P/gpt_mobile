@@ -83,12 +83,16 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose.android)
     kapt(libs.hilt.compiler)
 
+    // Ktor
+    implementation(libs.ktor.engine)
+
+    // Markdown
+    implementation(libs.compose.markdown)
+    implementation(libs.richtext)
+
     // Navigation
     implementation(libs.hilt.navigation)
     implementation(libs.androidx.navigation)
-
-    // Ktor
-    implementation(libs.ktor.engine)
 
     // OpenAI (Ktor required)
     implementation(libs.openai)
