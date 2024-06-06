@@ -23,10 +23,12 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -105,6 +107,12 @@ fun ChatInputBox(
                         .align(Alignment.CenterVertically)
                         .padding(start = 16.dp)
                 ) {
+                    if (value.trim().isEmpty()) {
+                        Text(
+                            modifier = Modifier.alpha(0.38f),
+                            text = stringResource(R.string.ask_a_question)
+                        )
+                    }
                     innerTextField()
                 }
                 IconButton(
