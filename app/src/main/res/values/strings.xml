@@ -84,4 +84,6 @@
     <string name="key_icon">Key Icon</string>
     <string name="model_icon">Model Icon</string>
     <string name="send">Send</string>
+    <string name="copy_text">Copy Text</string>
+    <string name="retry">Retry</string>
 </resources>
