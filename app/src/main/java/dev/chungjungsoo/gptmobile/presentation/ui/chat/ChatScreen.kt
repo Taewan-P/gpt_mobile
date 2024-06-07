@@ -1,6 +1,9 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
+import android.util.Log
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -26,18 +29,24 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
 import dev.chungjungsoo.gptmobile.R
+import dev.chungjungsoo.gptmobile.util.collectManagedState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,8 +55,28 @@ fun ChatScreen(
     chatViewModel: ChatViewModel = hiltViewModel(),
     onBackAction: () -> Unit
 ) {
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectManagedState()
+    val focusManager = LocalFocusManager.current
+    val messages by chatViewModel.messages.collectManagedState()
+    val question by chatViewModel.question.collectManagedState()
+
+    LaunchedEffect(lifecycleState) {
+        if (lifecycleState == Lifecycle.State.RESUMED) {
+            Log.d("launchedEffect", "Resumed: no.$chatRoomId")
+            if (chatRoomId != null && messages.isEmpty()) {
+                chatViewModel.fetchMessages(chatRoomId)
+            }
+        }
+    }
+
     Scaffold(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .clickable(
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() }
+            ) { focusManager.clearFocus() },
         topBar = {
             TopAppBar(
                 title = { /*TODO*/ },
@@ -65,7 +94,11 @@ fun ChatScreen(
                 value = question,
                 onValueChange = { s -> chatViewModel.updateQuestion(s) },
                 sendButtonEnabled = question.trim().isNotBlank()
-            ) {}
+            ) {
+                Log.d("Question", question)
+                chatViewModel.updateQuestion("")
+                focusManager.clearFocus()
+            }
         }
     ) { innerPadding ->
         Column(
