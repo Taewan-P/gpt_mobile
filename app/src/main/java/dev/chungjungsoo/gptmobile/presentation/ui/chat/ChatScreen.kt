@@ -29,7 +29,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -44,14 +43,12 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.Lifecycle
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.util.collectManagedState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
-    chatRoomId: Int?,
     chatViewModel: ChatViewModel = hiltViewModel(),
     onBackAction: () -> Unit
 ) {
@@ -60,15 +57,6 @@ fun ChatScreen(
     val focusManager = LocalFocusManager.current
     val messages by chatViewModel.messages.collectManagedState()
     val question by chatViewModel.question.collectManagedState()
-
-    LaunchedEffect(lifecycleState) {
-        if (lifecycleState == Lifecycle.State.RESUMED) {
-            Log.d("launchedEffect", "Resumed: no.$chatRoomId")
-            if (chatRoomId != null && messages.isEmpty()) {
-                chatViewModel.fetchMessages(chatRoomId)
-            }
-        }
-    }
 
     Scaffold(
         modifier = Modifier

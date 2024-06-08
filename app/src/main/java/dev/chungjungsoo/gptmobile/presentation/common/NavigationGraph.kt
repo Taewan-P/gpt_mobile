@@ -138,10 +138,20 @@ fun NavGraphBuilder.homeScreenNavigation(navController: NavHostController) {
         HomeScreen(
             settingOnClick = { navController.navigate(Route.SETTING_ROUTE) { launchSingleTop = true } },
             onExistingChatClick = { chatRoom ->
-                navController.navigate(Route.CHAT_ROOM.replace(oldValue = "{chatRoomId}", newValue = "${chatRoom.id}"))
+                val enabledPlatformString = chatRoom.enabledPlatform.joinToString(",") { v -> v.name }
+                navController.navigate(
+                    Route.CHAT_ROOM
+                        .replace(oldValue = "{chatRoomId}", newValue = "${chatRoom.id}")
+                        .replace(oldValue = "{enabledPlatforms}", newValue = enabledPlatformString)
+                )
             },
             navigateToNewChat = {
-                navController.navigate(Route.CHAT_ROOM.replace(oldValue = "{chatRoomId}", newValue = "0"))
+                val enabledPlatformString = it.joinToString(",") { v -> v.name }
+                navController.navigate(
+                    Route.CHAT_ROOM
+                        .replace(oldValue = "{chatRoomId}", newValue = "0")
+                        .replace(oldValue = "{enabledPlatforms}", newValue = enabledPlatformString)
+                )
             }
         )
     }
@@ -150,10 +160,14 @@ fun NavGraphBuilder.homeScreenNavigation(navController: NavHostController) {
 fun NavGraphBuilder.chatScreenNavigation(navController: NavHostController) {
     composable(
         Route.CHAT_ROOM,
-        arguments = listOf(navArgument("chatRoomId") { type = NavType.IntType })
-    ) { backStackEntry ->
-        val chatRoomId = backStackEntry.arguments?.getInt("chatRoomId")
-        ChatScreen(chatRoomId = chatRoomId, onBackAction = { navController.navigateUp() })
+        arguments = listOf(
+            navArgument("chatRoomId") { type = NavType.IntType },
+            navArgument("enabledPlatforms") { defaultValue = "" }
+        )
+    ) {
+        ChatScreen(
+            onBackAction = { navController.navigateUp() }
+        )
     }
 }
 

@@ -70,7 +70,7 @@ fun HomeScreen(
     homeViewModel: HomeViewModel = hiltViewModel(),
     settingOnClick: () -> Unit,
     onExistingChatClick: (ChatRoom) -> Unit,
-    navigateToNewChat: () -> Unit
+    navigateToNewChat: (enabledPlatforms: List<ApiType>) -> Unit
 ) {
     val platformTitles = getPlatformTitleResources()
     val listState = rememberLazyListState()
@@ -125,7 +125,7 @@ fun HomeScreen(
                 onDismissRequest = { homeViewModel.closeSelectModelDialog() },
                 onConfirmation = {
                     homeViewModel.closeSelectModelDialog()
-                    navigateToNewChat()
+                    navigateToNewChat(it)
                 },
                 onPlatformSelect = { homeViewModel.updateCheckedState(it) }
             )
@@ -208,7 +208,7 @@ fun NewChatButton(
 fun SelectPlatformDialog(
     platforms: List<Platform>,
     onDismissRequest: () -> Unit,
-    onConfirmation: () -> Unit,
+    onConfirmation: (enabledPlatforms: List<ApiType>) -> Unit,
     onPlatformSelect: (Platform) -> Unit
 ) {
     val titles = getPlatformTitleResources()
@@ -254,7 +254,7 @@ fun SelectPlatformDialog(
         confirmButton = {
             TextButton(
                 enabled = platforms.any { it.selected },
-                onClick = { onConfirmation() }
+                onClick = { onConfirmation(platforms.filter { it.selected }.map { it.name }) }
             ) {
                 Text(stringResource(R.string.confirm))
             }
