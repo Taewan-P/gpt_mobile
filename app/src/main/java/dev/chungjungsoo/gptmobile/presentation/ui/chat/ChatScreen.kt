@@ -215,7 +215,7 @@ fun ChatInputBox(
             enabled = chatEnabled,
             textStyle = mergedStyle,
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-            onValueChange = onValueChange,
+            onValueChange = { if (chatEnabled) onValueChange(it) },
             decorationBox = { innerTextField ->
                 Row(
                     modifier = Modifier
