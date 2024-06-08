@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Refresh
@@ -60,6 +61,7 @@ fun UserChatBubble(
 @Composable
 fun OpponentChatBubble(
     modifier: Modifier = Modifier,
+    canRetry: Boolean,
     isLoading: Boolean,
     isError: Boolean = false,
     text: String,
@@ -93,7 +95,6 @@ fun OpponentChatBubble(
             if (!isError) {
                 AssistChip(
                     enabled = !isLoading,
-                    modifier = Modifier.padding(horizontal = 4.dp),
                     onClick = onCopyClick,
                     label = { Text(stringResource(R.string.copy_text)) },
                     leadingIcon = {
@@ -105,19 +106,21 @@ fun OpponentChatBubble(
                     }
                 )
             }
-            AssistChip(
-                enabled = !isLoading,
-                modifier = Modifier.padding(horizontal = 4.dp),
-                onClick = onRetryClick,
-                label = { Text(stringResource(R.string.retry)) },
-                leadingIcon = {
-                    Icon(
-                        Icons.Rounded.Refresh,
-                        contentDescription = stringResource(R.string.retry),
-                        modifier = Modifier.size(AssistChipDefaults.IconSize)
-                    )
-                }
-            )
+            Spacer(modifier = Modifier.width(8.dp))
+            if (canRetry) {
+                AssistChip(
+                    enabled = !isLoading,
+                    onClick = onRetryClick,
+                    label = { Text(stringResource(R.string.retry)) },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Rounded.Refresh,
+                            contentDescription = stringResource(R.string.retry),
+                            modifier = Modifier.size(AssistChipDefaults.IconSize)
+                        )
+                    }
+                )
+            }
         }
     }
 }
@@ -155,6 +158,7 @@ fun OpponentChatBubblePreview() {
     GPTMobileTheme {
         OpponentChatBubble(
             text = sampleText,
+            canRetry = true,
             isLoading = false,
             onCopyClick = {},
             onRetryClick = {}
