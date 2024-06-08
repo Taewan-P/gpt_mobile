@@ -3,18 +3,22 @@ package dev.chungjungsoo.gptmobile.presentation.ui.chat
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
@@ -40,14 +44,18 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import dev.chungjungsoo.gptmobile.R
+import dev.chungjungsoo.gptmobile.data.database.entity.Message
 import dev.chungjungsoo.gptmobile.util.collectManagedState
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,13 +64,19 @@ fun ChatScreen(
     chatViewModel: ChatViewModel = hiltViewModel(),
     onBackAction: () -> Unit
 ) {
-    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
-    val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectManagedState()
+    val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+    val focusManager = LocalFocusManager.current
+    val clipboardManager = LocalClipboardManager.current
+    val systemChatMargin = 40.dp
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
-    val focusManager = LocalFocusManager.current
+
     val messages by chatViewModel.messages.collectManagedState()
     val question by chatViewModel.question.collectManagedState()
+    val appEnabledPlatforms by chatViewModel.enabledPlatformsInApp.collectManagedState()
+    val canUseChat = (chatViewModel.enabledPlatformsInChat.toSet() - appEnabledPlatforms.toSet()).isEmpty()
+    val groupedMessages = remember(messages) { groupMessages(messages) }
+    val latestMessageIndex = groupedMessages.keys.max()
 
     Scaffold(
         modifier = Modifier
@@ -77,6 +91,7 @@ fun ChatScreen(
             ChatInputBox(
                 value = question,
                 onValueChange = { s -> chatViewModel.updateQuestion(s) },
+                chatEnabled = canUseChat,
                 sendButtonEnabled = question.trim().isNotBlank()
             ) {
                 Log.d("Question", question)
@@ -89,8 +104,70 @@ fun ChatScreen(
             modifier = Modifier.padding(innerPadding),
             state = listState
         ) {
+            groupedMessages.keys.sorted().forEach { key ->
+                if (key % 2 == 0) {
+                    // User
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                        ) {
+                            Spacer(modifier = Modifier.weight(1f))
+                            UserChatBubble(text = groupedMessages[key]!![0].content)
+                        }
+                    }
+                } else {
+                    // Assistant
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState())
+                        ) {
+                            groupedMessages[key]!!.sortedByDescending { it.platformType }.forEach { m ->
+                                OpponentChatBubble(
+                                    modifier = Modifier
+                                        .padding(horizontal = 8.dp, vertical = 12.dp)
+                                        .width(screenWidth - 32.dp - systemChatMargin),
+                                    canRetry = canUseChat && key >= latestMessageIndex,
+                                    // TODO: Update loading state
+                                    isLoading = false,
+                                    text = m.content,
+                                    onCopyClick = { clipboardManager.setText(AnnotatedString(m.content.trim())) },
+                                    onRetryClick = { /*TODO*/ }
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(systemChatMargin))
+                        }
+                    }
+                }
+            }
         }
     }
+}
+
+private fun groupMessages(messages: List<Message>): HashMap<Int, MutableList<Message>> {
+    val classifiedMessages = hashMapOf<Int, MutableList<Message>>()
+    var counter = 0
+
+    messages.forEach { message ->
+        if (message.platformType == null) {
+            if (classifiedMessages.containsKey(counter)) {
+                counter++
+            }
+
+            classifiedMessages[counter] = mutableListOf(message)
+            counter++
+        } else {
+            if (classifiedMessages.containsKey(counter)) {
+                classifiedMessages[counter]?.add(message)
+            } else {
+                classifiedMessages[counter] = mutableListOf(message)
+            }
+        }
+    }
+    return classifiedMessages
 }
 
 @Composable
@@ -117,6 +194,7 @@ private fun ChatTopBar(
 fun ChatInputBox(
     value: String = "",
     onValueChange: (String) -> Unit = {},
+    chatEnabled: Boolean = true,
     sendButtonEnabled: Boolean = true,
     onSendButtonClick: (String) -> Unit = {}
 ) {
@@ -134,6 +212,7 @@ fun ChatInputBox(
             modifier = Modifier
                 .heightIn(max = 120.dp),
             value = value,
+            enabled = chatEnabled,
             textStyle = mergedStyle,
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
             onValueChange = onValueChange,
@@ -156,13 +235,13 @@ fun ChatInputBox(
                         if (value.isEmpty()) {
                             Text(
                                 modifier = Modifier.alpha(0.38f),
-                                text = stringResource(R.string.ask_a_question)
+                                text = if (chatEnabled) stringResource(R.string.ask_a_question) else stringResource(R.string.some_platforms_disabled)
                             )
                         }
                         innerTextField()
                     }
                     IconButton(
-                        enabled = sendButtonEnabled,
+                        enabled = chatEnabled && sendButtonEnabled,
                         onClick = { onSendButtonClick(value) }
                     ) {
                         Icon(imageVector = ImageVector.vectorResource(id = R.drawable.ic_send), contentDescription = stringResource(R.string.send))

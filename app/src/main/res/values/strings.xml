@@ -87,4 +87,5 @@
     <string name="copy_text">Copy Text</string>
     <string name="retry">Retry</string>
     <string name="ask_a_question">Ask a question...</string>
+    <string name="some_platforms_disabled">Some APIs are disabled</string>
 </resources>
