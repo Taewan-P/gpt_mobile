@@ -21,12 +21,10 @@ private const val TOKEN_PREF_FILE = "token"
 object DataStoreModule {
     @Provides
     @Singleton
-    fun providePreferencesDataStore(@ApplicationContext applicationContext: Context): DataStore<Preferences> {
-        return PreferenceDataStoreFactory.create(
-            corruptionHandler = ReplaceFileCorruptionHandler(
-                produceNewData = { emptyPreferences() }
-            ),
-            produceFile = { applicationContext.preferencesDataStoreFile(TOKEN_PREF_FILE) }
-        )
-    }
+    fun providePreferencesDataStore(@ApplicationContext applicationContext: Context): DataStore<Preferences> = PreferenceDataStoreFactory.create(
+        corruptionHandler = ReplaceFileCorruptionHandler(
+            produceNewData = { emptyPreferences() }
+        ),
+        produceFile = { applicationContext.preferencesDataStoreFile(TOKEN_PREF_FILE) }
+    )
 }

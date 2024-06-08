@@ -80,21 +80,15 @@ class SettingDataSourceImpl @Inject constructor(
         return ThemeMode.getByValue(mode)
     }
 
-    override suspend fun getStatus(apiType: ApiType): Boolean? {
-        return dataStore.data.map { pref ->
-            pref[apiStatusMap[apiType]!!]
-        }.first()
-    }
+    override suspend fun getStatus(apiType: ApiType): Boolean? = dataStore.data.map { pref ->
+        pref[apiStatusMap[apiType]!!]
+    }.first()
 
-    override suspend fun getToken(apiType: ApiType): String? {
-        return dataStore.data.map { pref ->
-            pref[apiTokenMap[apiType]!!]
-        }.first()
-    }
+    override suspend fun getToken(apiType: ApiType): String? = dataStore.data.map { pref ->
+        pref[apiTokenMap[apiType]!!]
+    }.first()
 
-    override suspend fun getModel(apiType: ApiType): String? {
-        return dataStore.data.map { pref ->
-            pref[apiModelMap[apiType]!!]
-        }.first()
-    }
+    override suspend fun getModel(apiType: ApiType): String? = dataStore.data.map { pref ->
+        pref[apiModelMap[apiType]!!]
+    }.first()
 }

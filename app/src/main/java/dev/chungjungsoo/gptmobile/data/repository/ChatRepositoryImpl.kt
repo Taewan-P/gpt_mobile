@@ -11,13 +11,9 @@ class ChatRepositoryImpl @Inject constructor(
     private val messageDao: MessageDao
 ) : ChatRepository {
 
-    override suspend fun fetchChatList(): List<ChatRoom> {
-        return chatRoomDao.getChatRooms()
-    }
+    override suspend fun fetchChatList(): List<ChatRoom> = chatRoomDao.getChatRooms()
 
-    override suspend fun fetchMessages(chatId: Int): List<Message> {
-        return messageDao.loadMessages(chatId)
-    }
+    override suspend fun fetchMessages(chatId: Int): List<Message> = messageDao.loadMessages(chatId)
 
     override suspend fun updateChatTitle(chatRoom: ChatRoom, title: String) {
         chatRoomDao.editChatRoom(chatRoom.copy(title = title.take(50)))

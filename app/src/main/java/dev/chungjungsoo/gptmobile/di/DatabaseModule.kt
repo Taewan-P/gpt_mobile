@@ -18,22 +18,16 @@ object DatabaseModule {
     private const val DB_NAME = "chat"
 
     @Provides
-    fun provideChatRoomDao(chatDatabase: ChatDatabase): ChatRoomDao {
-        return chatDatabase.chatRoomDao()
-    }
+    fun provideChatRoomDao(chatDatabase: ChatDatabase): ChatRoomDao = chatDatabase.chatRoomDao()
 
     @Provides
-    fun provideMessageDao(chatDatabase: ChatDatabase): MessageDao {
-        return chatDatabase.messageDao()
-    }
+    fun provideMessageDao(chatDatabase: ChatDatabase): MessageDao = chatDatabase.messageDao()
 
     @Provides
     @Singleton
-    fun provideChatDatabase(@ApplicationContext appContext: Context): ChatDatabase {
-        return Room.databaseBuilder(
-            appContext,
-            ChatDatabase::class.java,
-            DB_NAME
-        ).build()
-    }
+    fun provideChatDatabase(@ApplicationContext appContext: Context): ChatDatabase = Room.databaseBuilder(
+        appContext,
+        ChatDatabase::class.java,
+        DB_NAME
+    ).build()
 }

@@ -9,40 +9,32 @@ import dev.chungjungsoo.gptmobile.data.model.DynamicTheme
 import dev.chungjungsoo.gptmobile.data.model.ThemeMode
 
 @Composable
-fun getPlatformTitleResources(): Map<ApiType, String> {
-    return mapOf(
-        ApiType.OPENAI to stringResource(R.string.openai),
-        ApiType.ANTHROPIC to stringResource(R.string.anthropic),
-        ApiType.GOOGLE to stringResource(R.string.google)
-    )
-}
+fun getPlatformTitleResources(): Map<ApiType, String> = mapOf(
+    ApiType.OPENAI to stringResource(R.string.openai),
+    ApiType.ANTHROPIC to stringResource(R.string.anthropic),
+    ApiType.GOOGLE to stringResource(R.string.google)
+)
 
 @Composable
-fun getPlatformDescriptionResources(): Map<ApiType, String> {
-    return mapOf(
-        ApiType.OPENAI to stringResource(R.string.openai_description),
-        ApiType.ANTHROPIC to stringResource(R.string.anthropic_description),
-        ApiType.GOOGLE to stringResource(R.string.google_description)
-    )
-}
+fun getPlatformDescriptionResources(): Map<ApiType, String> = mapOf(
+    ApiType.OPENAI to stringResource(R.string.openai_description),
+    ApiType.ANTHROPIC to stringResource(R.string.anthropic_description),
+    ApiType.GOOGLE to stringResource(R.string.google_description)
+)
 
 @Composable
-fun getPlatformAPILabelResources(): Map<ApiType, String> {
-    return mapOf(
-        ApiType.OPENAI to stringResource(R.string.openai_api_key),
-        ApiType.ANTHROPIC to stringResource(R.string.anthropic_api_key),
-        ApiType.GOOGLE to stringResource(R.string.google_api_key)
-    )
-}
+fun getPlatformAPILabelResources(): Map<ApiType, String> = mapOf(
+    ApiType.OPENAI to stringResource(R.string.openai_api_key),
+    ApiType.ANTHROPIC to stringResource(R.string.anthropic_api_key),
+    ApiType.GOOGLE to stringResource(R.string.google_api_key)
+)
 
 @Composable
-fun getPlatformHelpLinkResources(): Map<ApiType, String> {
-    return mapOf(
-        ApiType.OPENAI to stringResource(R.string.openai_api_help),
-        ApiType.ANTHROPIC to stringResource(R.string.anthropic_api_help),
-        ApiType.GOOGLE to stringResource(R.string.google_api_help)
-    )
-}
+fun getPlatformHelpLinkResources(): Map<ApiType, String> = mapOf(
+    ApiType.OPENAI to stringResource(R.string.openai_api_help),
+    ApiType.ANTHROPIC to stringResource(R.string.anthropic_api_help),
+    ApiType.GOOGLE to stringResource(R.string.google_api_help)
+)
 
 @Composable
 fun generateOpenAIModelList(models: LinkedHashSet<String>) = models.mapIndexed { index, model ->

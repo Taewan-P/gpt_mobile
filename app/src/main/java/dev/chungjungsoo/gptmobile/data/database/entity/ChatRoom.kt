@@ -34,7 +34,5 @@ class APITypeConverter {
     }
 
     @TypeConverter
-    fun fromList(value: List<ApiType>): String {
-        return value.joinToString(",") { v -> v.name }
-    }
+    fun fromList(value: List<ApiType>): String = value.joinToString(",") { v -> v.name }
 }
