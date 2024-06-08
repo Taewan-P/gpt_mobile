@@ -72,11 +72,6 @@ fun ChatScreen(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() }
             ) { focusManager.clearFocus() },
-        topBar = {
-            TopAppBar(
-                title = { /*TODO*/ },
-                navigationIcon = {
-                    IconButton(
         topBar = { ChatTopBar(onBackAction, scrollBehavior) },
         bottomBar = {
             ChatInputBox(
@@ -98,6 +93,17 @@ fun ChatScreen(
     }
 }
 
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun ChatTopBar(
+    onBackAction: () -> Unit,
+    scrollBehavior: TopAppBarScrollBehavior
+) {
+    TopAppBar(
+        title = { /*TODO*/ },
+        navigationIcon = {
+            IconButton(
+                onClick = onBackAction
             ) {
                 Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.go_back))
             }
