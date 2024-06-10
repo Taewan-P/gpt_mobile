@@ -3,7 +3,6 @@ package dev.chungjungsoo.gptmobile.presentation.ui.chat
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -19,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -65,12 +65,12 @@ fun OpponentChatBubble(
     isLoading: Boolean,
     isError: Boolean = false,
     text: String,
-    onCopyClick: () -> Unit,
-    onRetryClick: () -> Unit
+    onCopyClick: () -> Unit = {},
+    onRetryClick: () -> Unit = {}
 ) {
     val markdownParseOptions = remember { MarkdownParseOptions(autolink = false) }
     val parser = remember(markdownParseOptions) { CommonmarkAstNodeParser(markdownParseOptions) }
-    val astNode = remember(text) { parser.parse(text.trimIndent()) }
+    val astNode = remember(text) { parser.parse(text.trimIndent() + if (isLoading) "▊" else "") }
     val cardColor = CardColors(
         containerColor = MaterialTheme.colorScheme.secondaryContainer,
         contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -79,47 +79,46 @@ fun OpponentChatBubble(
     )
 
     Column(modifier = modifier) {
-        Card(
-            shape = RoundedCornerShape(32.dp),
-            colors = cardColor
-        ) {
-            RichText(modifier = Modifier.padding(24.dp)) {
-                BasicMarkdown(astNode = astNode)
+        Column(horizontalAlignment = Alignment.End) {
+            Card(
+                shape = RoundedCornerShape(32.dp),
+                colors = cardColor
+            ) {
+                RichText(modifier = Modifier.padding(24.dp)) {
+                    BasicMarkdown(astNode = astNode)
+                }
             }
-        }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-        ) {
-            Spacer(modifier = Modifier.weight(1f))
-            if (!isError) {
-                AssistChip(
-                    enabled = !isLoading,
-                    onClick = onCopyClick,
-                    label = { Text(stringResource(R.string.copy_text)) },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = ImageVector.vectorResource(id = R.drawable.ic_copy),
-                            contentDescription = stringResource(R.string.copy_text),
-                            modifier = Modifier.size(AssistChipDefaults.IconSize)
+
+            if (!isLoading) {
+                Row {
+                    if (!isError) {
+                        AssistChip(
+                            onClick = onCopyClick,
+                            label = { Text(stringResource(R.string.copy_text)) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = ImageVector.vectorResource(id = R.drawable.ic_copy),
+                                    contentDescription = stringResource(R.string.copy_text),
+                                    modifier = Modifier.size(AssistChipDefaults.IconSize)
+                                )
+                            }
                         )
                     }
-                )
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            if (canRetry) {
-                AssistChip(
-                    enabled = !isLoading,
-                    onClick = onRetryClick,
-                    label = { Text(stringResource(R.string.retry)) },
-                    leadingIcon = {
-                        Icon(
-                            Icons.Rounded.Refresh,
-                            contentDescription = stringResource(R.string.retry),
-                            modifier = Modifier.size(AssistChipDefaults.IconSize)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    if (canRetry) {
+                        AssistChip(
+                            onClick = onRetryClick,
+                            label = { Text(stringResource(R.string.retry)) },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Rounded.Refresh,
+                                    contentDescription = stringResource(R.string.retry),
+                                    modifier = Modifier.size(AssistChipDefaults.IconSize)
+                                )
+                            }
                         )
                     }
-                )
+                }
             }
         }
     }

@@ -1,6 +1,5 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
-import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -15,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -68,15 +68,20 @@ fun ChatScreen(
     val focusManager = LocalFocusManager.current
     val clipboardManager = LocalClipboardManager.current
     val systemChatMargin = 40.dp
+    val maximumChatBubbleWidth = screenWidth - 32.dp - systemChatMargin
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
+    val isIdle by chatViewModel.isIdle.collectManagedState()
     val messages by chatViewModel.messages.collectManagedState()
     val question by chatViewModel.question.collectManagedState()
     val appEnabledPlatforms by chatViewModel.enabledPlatformsInApp.collectManagedState()
+    val userMessage by chatViewModel.userMessage.collectManagedState()
+    val openAIMessage by chatViewModel.openAIMessage.collectManagedState()
+
     val canUseChat = (chatViewModel.enabledPlatformsInChat.toSet() - appEnabledPlatforms.toSet()).isEmpty()
     val groupedMessages = remember(messages) { groupMessages(messages) }
-    val latestMessageIndex = groupedMessages.keys.max()
+    val latestMessageIndex = groupedMessages.keys.maxOrNull() ?: 0
 
     Scaffold(
         modifier = Modifier
@@ -92,10 +97,9 @@ fun ChatScreen(
                 value = question,
                 onValueChange = { s -> chatViewModel.updateQuestion(s) },
                 chatEnabled = canUseChat,
-                sendButtonEnabled = question.trim().isNotBlank()
+                sendButtonEnabled = question.trim().isNotBlank() && isIdle
             ) {
-                Log.d("Question", question)
-                chatViewModel.updateQuestion("")
+                chatViewModel.askQuestion()
                 focusManager.clearFocus()
             }
         }
@@ -114,7 +118,10 @@ fun ChatScreen(
                                 .padding(horizontal = 16.dp, vertical = 12.dp)
                         ) {
                             Spacer(modifier = Modifier.weight(1f))
-                            UserChatBubble(text = groupedMessages[key]!![0].content)
+                            UserChatBubble(
+                                modifier = Modifier.widthIn(max = maximumChatBubbleWidth),
+                                text = groupedMessages[key]!![0].content
+                            )
                         }
                     }
                 } else {
@@ -125,21 +132,55 @@ fun ChatScreen(
                                 .fillMaxWidth()
                                 .horizontalScroll(rememberScrollState())
                         ) {
+                            Spacer(modifier = Modifier.width(8.dp))
                             groupedMessages[key]!!.sortedByDescending { it.platformType }.forEach { m ->
                                 OpponentChatBubble(
                                     modifier = Modifier
                                         .padding(horizontal = 8.dp, vertical = 12.dp)
-                                        .width(screenWidth - 32.dp - systemChatMargin),
-                                    canRetry = canUseChat && key >= latestMessageIndex,
-                                    // TODO: Update loading state
+                                        .widthIn(max = maximumChatBubbleWidth),
+                                    canRetry = canUseChat && isIdle && key >= latestMessageIndex,
                                     isLoading = false,
                                     text = m.content,
                                     onCopyClick = { clipboardManager.setText(AnnotatedString(m.content.trim())) },
-                                    onRetryClick = { /*TODO*/ }
+                                    onRetryClick = { chatViewModel.retryQuestion(m) }
                                 )
                             }
                             Spacer(modifier = Modifier.width(systemChatMargin))
                         }
+                    }
+                }
+            }
+
+            if (!isIdle) {
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                    ) {
+                        Spacer(modifier = Modifier.weight(1f))
+                        UserChatBubble(modifier = Modifier.widthIn(max = maximumChatBubbleWidth), text = userMessage.content)
+                    }
+                }
+
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                    ) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        OpponentChatBubble(
+                            modifier = Modifier
+                                .padding(horizontal = 8.dp, vertical = 12.dp)
+                                .width(maximumChatBubbleWidth),
+                            canRetry = canUseChat,
+                            isLoading = true,
+                            text = openAIMessage.content,
+                            onCopyClick = { clipboardManager.setText(AnnotatedString(openAIMessage.content.trim())) },
+                            onRetryClick = { chatViewModel.retryQuestion(openAIMessage) }
+                        )
+                        Spacer(modifier = Modifier.width(systemChatMargin))
                     }
                 }
             }

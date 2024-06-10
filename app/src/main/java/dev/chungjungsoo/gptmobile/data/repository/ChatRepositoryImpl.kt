@@ -29,10 +29,7 @@ class ChatRepositoryImpl @Inject constructor(
 
     override suspend fun completeOpenAIChat(messages: List<Message>): Flow<ApiState<ChatChunk>> {
         val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.OPENAI })
-
-        if (!::openAI.isInitialized) {
-            openAI = OpenAI(platform.token ?: "")
-        }
+        openAI = OpenAI(platform.token ?: "")
 
         val generatedMessages = messageToOpenAIMessage(messages)
         val chatCompletionRequest = ChatCompletionRequest(
@@ -56,30 +53,37 @@ class ChatRepositoryImpl @Inject constructor(
         chatRoomDao.editChatRoom(chatRoom.copy(title = title.take(50)))
     }
 
-    override suspend fun saveChat(chatRoom: ChatRoom, messages: List<Message>) {
+    override suspend fun saveChat(chatRoom: ChatRoom, messages: List<Message>): ChatRoom {
         if (chatRoom.id == 0) {
             // New Chat
             val chatId = chatRoomDao.addChatRoom(chatRoom)
             val updatedMessages = messages.map { it.copy(chatId = chatId.toInt()) }
             messageDao.addMessages(*updatedMessages.toTypedArray())
-            return
+
+            val savedChatRoom = chatRoom.copy(id = chatId.toInt())
+            updateChatTitle(savedChatRoom, updatedMessages[0].content)
+
+            return savedChatRoom.copy(title = updatedMessages[0].content.take(50))
         }
 
         val savedMessages = fetchMessages(chatRoom.id)
+        val updatedMessages = messages.map { it.copy(chatId = chatRoom.id) }
 
         val shouldBeDeleted = savedMessages.filter { m ->
-            messages.firstOrNull { it.id == m.id } == null
+            updatedMessages.firstOrNull { it.id == m.id } == null
         }
-        val shouldBeUpdated = messages.filter { m ->
+        val shouldBeUpdated = updatedMessages.filter { m ->
             savedMessages.firstOrNull { it.id == m.id && it != m } != null
         }
-        val shouldBeAdded = messages.filter { m ->
+        val shouldBeAdded = updatedMessages.filter { m ->
             savedMessages.firstOrNull { it.id == m.id } == null
         }
 
         messageDao.deleteMessages(*shouldBeDeleted.toTypedArray())
         messageDao.editMessages(*shouldBeUpdated.toTypedArray())
         messageDao.addMessages(*shouldBeAdded.toTypedArray())
+
+        return chatRoom
     }
 
     override suspend fun deleteChat(chatRoom: ChatRoom) {

@@ -9,6 +9,5 @@ object ModelConstants {
     const val OPENAI_PROMPT =
         "You are a helpful, clever, and very friendly assistant. " +
             "You are familiar with various languages in the world. " +
-            "You are to answer my questions precisely. " +
-            "Always answer in the language that the user asked unless the user requests you to reply in another language. "
+            "You are to answer my questions precisely. "
 }
