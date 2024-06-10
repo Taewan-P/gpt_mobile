@@ -29,10 +29,10 @@ data class Message(
     val content: String,
 
     @ColumnInfo(name = "image_data")
-    val imageData: String?,
+    val imageData: String? = null,
 
     @ColumnInfo(name = "linked_message_id")
-    val linkedMessageId: Int,
+    val linkedMessageId: Int = 0,
 
     @ColumnInfo(name = "platform_type")
     val platformType: ApiType?,
