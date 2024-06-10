@@ -8,6 +8,7 @@ import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageDao
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepositoryImpl
+import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import javax.inject.Singleton
 
 @Module
@@ -18,6 +19,7 @@ object ChatRepositoryModule {
     @Singleton
     fun provideChatRepository(
         chatRoomDao: ChatRoomDao,
-        messageDao: MessageDao
-    ): ChatRepository = ChatRepositoryImpl(chatRoomDao, messageDao)
+        messageDao: MessageDao,
+        settingRepository: SettingRepository
+    ): ChatRepository = ChatRepositoryImpl(chatRoomDao, messageDao, settingRepository)
 }
