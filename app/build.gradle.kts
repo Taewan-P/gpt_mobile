@@ -50,7 +50,7 @@ android {
         compose = true
     }
     composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.5" // Make sure to update this when Kotlin version is updated
+        kotlinCompilerExtensionVersion = "1.5.13" // Make sure to update this when Kotlin version is updated
     }
     packaging {
         resources {
