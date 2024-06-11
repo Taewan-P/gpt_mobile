@@ -1,8 +1,8 @@
 package dev.chungjungsoo.gptmobile.data.network
 
-sealed class ApiState<out T> {
-    data object Loading : ApiState<Nothing>()
-    data class Success<T>(val data: T) : ApiState<T>()
-    data class Error(val message: String) : ApiState<Nothing>()
-    data object Done : ApiState<Nothing>()
+sealed class ApiState {
+    data object Loading : ApiState()
+    data class Success(val textChunk: String) : ApiState()
+    data class Error(val message: String) : ApiState()
+    data object Done : ApiState()
 }

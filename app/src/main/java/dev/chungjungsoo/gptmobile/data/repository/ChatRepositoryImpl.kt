@@ -1,6 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.repository
 
-import com.aallam.openai.api.chat.ChatChunk
+import com.aallam.openai.api.chat.ChatCompletionChunk
 import com.aallam.openai.api.chat.ChatCompletionRequest
 import com.aallam.openai.api.chat.ChatMessage
 import com.aallam.openai.api.chat.ChatRole
@@ -33,7 +33,7 @@ class ChatRepositoryImpl @Inject constructor(
     private lateinit var openAI: OpenAI
     private lateinit var google: GenerativeModel
 
-    override suspend fun completeOpenAIChat(question: Message, history: List<Message>): Flow<ApiState<ChatChunk>> {
+    override suspend fun completeOpenAIChat(question: Message, history: List<Message>): Flow<ApiState> {
         val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.OPENAI })
         openAI = OpenAI(platform.token ?: "")
 
@@ -44,14 +44,13 @@ class ChatRepositoryImpl @Inject constructor(
         )
 
         return openAI.chatCompletions(chatCompletionRequest)
-            .map { chunk -> ApiState.Success(chunk.choices[0]) as ApiState<ChatChunk> }
-            .catch { throwable ->
-                emit(ApiState.Error(throwable.message ?: "Unknown error"))
-            }
+            .map<ChatCompletionChunk, ApiState> { chunk -> ApiState.Success(chunk.choices[0].delta.content ?: "") }
+            .catch { throwable -> emit(ApiState.Error(throwable.message ?: "Unknown error")) }
             .onStart { emit(ApiState.Loading) }
+            .onCompletion { emit(ApiState.Done) }
     }
 
-    override suspend fun completeGoogleChat(question: Message, history: List<Message>): Flow<ApiState<GenerateContentResponse>> {
+    override suspend fun completeGoogleChat(question: Message, history: List<Message>): Flow<ApiState> {
         val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.GOOGLE })
         google = GenerativeModel(
             modelName = platform.model ?: "",
@@ -62,7 +61,7 @@ class ChatRepositoryImpl @Inject constructor(
         val chat = google.startChat(history = inputContent)
 
         return chat.sendMessageStream(question.content)
-            .map { response -> ApiState.Success(response) as ApiState<GenerateContentResponse> }
+            .map<GenerateContentResponse, ApiState> { response -> ApiState.Success(response.text ?: "") }
             .catch { throwable -> emit(ApiState.Error(throwable.message ?: "Unknown error")) }
             .onStart { emit(ApiState.Loading) }
             .onCompletion { emit(ApiState.Done) }

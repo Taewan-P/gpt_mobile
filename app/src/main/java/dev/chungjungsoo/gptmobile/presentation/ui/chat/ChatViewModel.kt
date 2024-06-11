@@ -4,7 +4,6 @@ import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.aallam.openai.api.chat.ChatChunk
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoom
 import dev.chungjungsoo.gptmobile.data.database.entity.Message
@@ -67,8 +66,8 @@ class ChatViewModel @Inject constructor(
     private val _googleMessage = MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = ApiType.GOOGLE))
     val googleMessage = _googleMessage.asStateFlow()
 
-    private val openAIFlow = MutableSharedFlow<ApiState<ChatChunk>>()
-    private val googleFlow = MutableSharedFlow<ApiState<String>>()
+    private val openAIFlow = MutableSharedFlow<ApiState>()
+    private val googleFlow = MutableSharedFlow<ApiState>()
 
     init {
         Log.d("ViewModel", "$chatRoomId")
@@ -151,35 +150,14 @@ class ChatViewModel @Inject constructor(
     private fun completeGoogleChat() {
         viewModelScope.launch {
             val chatFlow = chatRepository.completeGoogleChat(question = _userMessage.value, history = messages.value)
-
-            chatFlow.collect { chunk ->
-                when (chunk) {
-                    is ApiState.Success -> googleFlow.emit(ApiState.Success(chunk.data.text ?: ""))
-                    is ApiState.Error -> googleFlow.emit(ApiState.Error(chunk.message))
-                    ApiState.Done -> googleFlow.emit(ApiState.Done)
-                    else -> {}
-                }
-            }
+            chatFlow.collect { chunk -> googleFlow.emit(chunk) }
         }
     }
 
     private fun completeOpenAIChat() {
         viewModelScope.launch {
             val chatFlow = chatRepository.completeOpenAIChat(question = _userMessage.value, history = messages.value)
-
-            chatFlow.collect { chunk ->
-                if (chunk is ApiState.Success) {
-                    openAIFlow.emit(chunk)
-
-                    if (chunk.data.finishReason != null) {
-                        // Finished
-                        openAIFlow.emit(ApiState.Done)
-                    }
-                } else if (chunk !is ApiState.Loading) {
-                    openAIFlow.emit(chunk)
-                    return@collect
-                }
-            }
+            chatFlow.collect { chunk -> openAIFlow.emit(chunk) }
         }
     }
 
@@ -213,12 +191,8 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             openAIFlow.collect { chunk ->
                 when (chunk) {
-                    is ApiState.Success -> _openAIMessage.update { it.copy(content = it.content + (chunk.data.delta.content ?: "")) }
-                    ApiState.Done -> {
-                        Log.d("message", "${_messages.value}")
-                        updateLoadingState(ApiType.OPENAI, LoadingState.Idle)
-                    }
-
+                    is ApiState.Success -> _openAIMessage.update { it.copy(content = it.content + (chunk.textChunk)) }
+                    ApiState.Done -> updateLoadingState(ApiType.OPENAI, LoadingState.Idle)
                     is ApiState.Error -> {
                         _openAIMessage.update { it.copy(content = "Error: ${chunk.message}") }
                         updateLoadingState(ApiType.OPENAI, LoadingState.Idle)
@@ -232,14 +206,8 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             googleFlow.collect { chunk ->
                 when (chunk) {
-                    is ApiState.Success -> {
-                        _googleMessage.update { message -> message.copy(content = message.content + chunk.data) }
-                    }
-
-                    ApiState.Done -> {
-                        updateLoadingState(ApiType.GOOGLE, LoadingState.Idle)
-                    }
-
+                    is ApiState.Success -> _googleMessage.update { message -> message.copy(content = message.content + chunk.textChunk) }
+                    ApiState.Done -> updateLoadingState(ApiType.GOOGLE, LoadingState.Idle)
                     is ApiState.Error -> {
                         _googleMessage.update { it.copy(content = "Error: ${chunk.message}") }
                         updateLoadingState(ApiType.GOOGLE, LoadingState.Idle)
