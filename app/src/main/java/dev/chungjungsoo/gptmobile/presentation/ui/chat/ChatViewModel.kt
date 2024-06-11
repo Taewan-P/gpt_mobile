@@ -64,14 +64,11 @@ class ChatViewModel @Inject constructor(
     private val _openAIMessage = MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = ApiType.OPENAI))
     val openAIMessage = _openAIMessage.asStateFlow()
 
-    private val sampleMessages = listOf(
-        Message(id = 1, chatId = 1, content = "How can I print hello world in Python?", linkedMessageId = 0, platformType = null, imageData = null),
-        Message(id = 2, chatId = 1, content = "To print \"Hello, world!\" in Python, you can use the print() function. Here's an example code: \n\n```python\nprint('hello world')\n```\n\n", linkedMessageId = 0, platformType = ApiType.OPENAI, imageData = null),
-        Message(id = 3, chatId = 1, content = "Here is the code: \n\n```python\nprint('hello world')\n```\n\nWhen you run this code, you should see the text \"Hello, world!\" printed to the console.", linkedMessageId = 0, platformType = ApiType.ANTHROPIC, imageData = null)
-//        Message(id = 4, chatId = 1, content = "How about in Kotlin?", linkedMessageId = 0, platformType = null, imageData = null),
-    )
+    private val _googleMessage = MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = ApiType.GOOGLE))
+    val googleMessage = _googleMessage.asStateFlow()
 
     private val openAIFlow = MutableSharedFlow<ApiState<ChatChunk>>()
+    private val googleFlow = MutableSharedFlow<ApiState<String>>()
 
     init {
         Log.d("ViewModel", "$chatRoomId")
@@ -91,10 +88,27 @@ class ChatViewModel @Inject constructor(
 
     fun retryQuestion(message: Message) {
         val latestQuestionIndex = _messages.value.indexOfLast { it.platformType == null }
-        _userMessage.update { _messages.value[latestQuestionIndex] }
-        _messages.update { it - setOf(_messages.value[latestQuestionIndex], message) }
+
+        if (latestQuestionIndex != -1) {
+            _userMessage.update { _messages.value[latestQuestionIndex] }
+        }
+
+        val previousAnswers = enabledPlatformsInChat.mapNotNull { apiType -> _messages.value.lastOrNull { it.platformType == apiType } }
+        _messages.update {
+            if (latestQuestionIndex != -1) {
+                it - setOf(_messages.value[latestQuestionIndex]) - previousAnswers.toSet()
+            } else {
+                it - previousAnswers.toSet()
+            }
+        }
 
         message.platformType?.let { updateLoadingState(it, LoadingState.Loading) }
+        enabledPlatformsInChat.forEach { apiType ->
+            when (apiType) {
+                message.platformType -> {}
+                else -> restoreMessageState(apiType, previousAnswers)
+            }
+        }
 
         when (message.platformType) {
             ApiType.OPENAI -> {
@@ -103,7 +117,11 @@ class ChatViewModel @Inject constructor(
             }
 
             ApiType.ANTHROPIC -> TODO()
-            ApiType.GOOGLE -> TODO()
+            ApiType.GOOGLE -> {
+                _googleMessage.update { it.copy(content = "") }
+                completeGoogleChat()
+            }
+
             else -> {}
         }
     }
@@ -115,6 +133,7 @@ class ChatViewModel @Inject constructor(
     private fun clearQuestionAndAnswers() {
         _userMessage.update { it.copy(content = "") }
         _openAIMessage.update { it.copy(content = "") }
+        _googleMessage.update { it.copy(content = "") }
     }
 
     private fun completeChat() {
@@ -123,11 +142,30 @@ class ChatViewModel @Inject constructor(
         if (ApiType.OPENAI in enabledPlatformsInChat.toSet()) {
             completeOpenAIChat()
         }
+
+        if (ApiType.GOOGLE in enabledPlatformsInChat.toSet()) {
+            completeGoogleChat()
+        }
+    }
+
+    private fun completeGoogleChat() {
+        viewModelScope.launch {
+            val chatFlow = chatRepository.completeGoogleChat(question = _userMessage.value, history = messages.value)
+
+            chatFlow.collect { chunk ->
+                when (chunk) {
+                    is ApiState.Success -> googleFlow.emit(ApiState.Success(chunk.data.text ?: ""))
+                    is ApiState.Error -> googleFlow.emit(ApiState.Error(chunk.message))
+                    ApiState.Done -> googleFlow.emit(ApiState.Done)
+                    else -> {}
+                }
+            }
+        }
     }
 
     private fun completeOpenAIChat() {
         viewModelScope.launch {
-            val chatFlow = chatRepository.completeOpenAIChat(messages = messages.value + listOf(_userMessage.value))
+            val chatFlow = chatRepository.completeOpenAIChat(question = _userMessage.value, history = messages.value)
 
             chatFlow.collect { chunk ->
                 if (chunk is ApiState.Success) {
@@ -177,18 +215,34 @@ class ChatViewModel @Inject constructor(
                 when (chunk) {
                     is ApiState.Success -> _openAIMessage.update { it.copy(content = it.content + (chunk.data.delta.content ?: "")) }
                     ApiState.Done -> {
-                        // TODO: Remove this when multiple api calls are implemented
-                        addMessage(_userMessage.value)
-                        addMessage(_openAIMessage.value)
                         Log.d("message", "${_messages.value}")
                         updateLoadingState(ApiType.OPENAI, LoadingState.Idle)
                     }
 
                     is ApiState.Error -> {
                         _openAIMessage.update { it.copy(content = "Error: ${chunk.message}") }
-                        addMessage(_userMessage.value)
-                        addMessage(_openAIMessage.value)
                         updateLoadingState(ApiType.OPENAI, LoadingState.Idle)
+                    }
+
+                    else -> {}
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            googleFlow.collect { chunk ->
+                when (chunk) {
+                    is ApiState.Success -> {
+                        _googleMessage.update { message -> message.copy(content = message.content + chunk.data) }
+                    }
+
+                    ApiState.Done -> {
+                        updateLoadingState(ApiType.GOOGLE, LoadingState.Idle)
+                    }
+
+                    is ApiState.Error -> {
+                        _googleMessage.update { it.copy(content = "Error: ${chunk.message}") }
+                        updateLoadingState(ApiType.GOOGLE, LoadingState.Idle)
                     }
 
                     else -> {}
@@ -199,14 +253,39 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             _isIdle.collect { status ->
                 if (status) {
-                    // TODO: Add question and answers before clearing
-                    clearQuestionAndAnswers()
-
-                    if (::chatRoom.isInitialized && _messages.value.isNotEmpty()) {
+                    Log.d("status", "val: ${_userMessage.value}")
+                    if (::chatRoom.isInitialized && _userMessage.value.content.isNotBlank()) {
+                        syncQuestionAndAnswers()
+                        Log.d("message", "${_messages.value}")
                         chatRoom = chatRepository.saveChat(chatRoom, _messages.value)
                     }
+                    clearQuestionAndAnswers()
                 }
             }
+        }
+    }
+
+    private fun restoreMessageState(apiType: ApiType, previousAnswers: List<Message>) {
+        val message = previousAnswers.firstOrNull { it.platformType == apiType }
+
+        if (message == null) return
+
+        when (apiType) {
+            ApiType.OPENAI -> _openAIMessage.update { it.copy(content = message.content) }
+            ApiType.ANTHROPIC -> TODO()
+            ApiType.GOOGLE -> _googleMessage.update { it.copy(content = message.content) }
+        }
+    }
+
+    private fun syncQuestionAndAnswers() {
+        addMessage(_userMessage.value)
+
+        if (ApiType.OPENAI in enabledPlatformsInChat.toSet()) {
+            addMessage(_openAIMessage.value)
+        }
+
+        if (ApiType.GOOGLE in enabledPlatformsInChat.toSet()) {
+            addMessage(_googleMessage.value)
         }
     }
 

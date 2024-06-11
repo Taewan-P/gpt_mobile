@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.Message
+import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.util.collectManagedState
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,8 +68,8 @@ fun ChatScreen(
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
     val focusManager = LocalFocusManager.current
     val clipboardManager = LocalClipboardManager.current
-    val systemChatMargin = 40.dp
-    val maximumChatBubbleWidth = screenWidth - 32.dp - systemChatMargin
+    val systemChatMargin = 32.dp
+    val maximumChatBubbleWidth = screenWidth - 48.dp - systemChatMargin
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
@@ -76,8 +77,12 @@ fun ChatScreen(
     val messages by chatViewModel.messages.collectManagedState()
     val question by chatViewModel.question.collectManagedState()
     val appEnabledPlatforms by chatViewModel.enabledPlatformsInApp.collectManagedState()
+    val openaiLoadingState by chatViewModel.openaiLoadingState.collectManagedState()
+    val anthropicLoadingState by chatViewModel.anthropicLoadingState.collectManagedState()
+    val googleLoadingState by chatViewModel.googleLoadingState.collectManagedState()
     val userMessage by chatViewModel.userMessage.collectManagedState()
     val openAIMessage by chatViewModel.openAIMessage.collectManagedState()
+    val googleMessage by chatViewModel.googleMessage.collectManagedState()
 
     val canUseChat = (chatViewModel.enabledPlatformsInChat.toSet() - appEnabledPlatforms.toSet()).isEmpty()
     val groupedMessages = remember(messages) { groupMessages(messages) }
@@ -170,16 +175,30 @@ fun ChatScreen(
                             .horizontalScroll(rememberScrollState())
                     ) {
                         Spacer(modifier = Modifier.width(8.dp))
-                        OpponentChatBubble(
-                            modifier = Modifier
-                                .padding(horizontal = 8.dp, vertical = 12.dp)
-                                .width(maximumChatBubbleWidth),
-                            canRetry = canUseChat,
-                            isLoading = true,
-                            text = openAIMessage.content,
-                            onCopyClick = { clipboardManager.setText(AnnotatedString(openAIMessage.content.trim())) },
-                            onRetryClick = { chatViewModel.retryQuestion(openAIMessage) }
-                        )
+                        chatViewModel.enabledPlatformsInChat.sortedDescending().forEach { apiType ->
+                            val message = when (apiType) {
+                                ApiType.OPENAI -> openAIMessage
+                                ApiType.ANTHROPIC -> TODO()
+                                ApiType.GOOGLE -> googleMessage
+                            }
+
+                            val loadingState = when (apiType) {
+                                ApiType.OPENAI -> openaiLoadingState
+                                ApiType.ANTHROPIC -> anthropicLoadingState
+                                ApiType.GOOGLE -> googleLoadingState
+                            }
+
+                            OpponentChatBubble(
+                                modifier = Modifier
+                                    .padding(horizontal = 8.dp, vertical = 12.dp)
+                                    .widthIn(max = maximumChatBubbleWidth),
+                                canRetry = canUseChat,
+                                isLoading = loadingState == ChatViewModel.LoadingState.Loading,
+                                text = message.content,
+                                onCopyClick = { clipboardManager.setText(AnnotatedString(message.content.trim())) },
+                                onRetryClick = { chatViewModel.retryQuestion(message) }
+                            )
+                        }
                         Spacer(modifier = Modifier.width(systemChatMargin))
                     }
                 }
@@ -192,7 +211,7 @@ private fun groupMessages(messages: List<Message>): HashMap<Int, MutableList<Mes
     val classifiedMessages = hashMapOf<Int, MutableList<Message>>()
     var counter = 0
 
-    messages.forEach { message ->
+    messages.sortedBy { it.createdAt }.forEach { message ->
         if (message.platformType == null) {
             if (classifiedMessages.containsKey(counter)) {
                 counter++

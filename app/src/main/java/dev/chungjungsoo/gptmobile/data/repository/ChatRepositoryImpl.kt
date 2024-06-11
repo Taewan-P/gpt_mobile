@@ -6,6 +6,10 @@ import com.aallam.openai.api.chat.ChatMessage
 import com.aallam.openai.api.chat.ChatRole
 import com.aallam.openai.api.model.ModelId
 import com.aallam.openai.client.OpenAI
+import com.google.ai.client.generativeai.GenerativeModel
+import com.google.ai.client.generativeai.type.Content
+import com.google.ai.client.generativeai.type.GenerateContentResponse
+import com.google.ai.client.generativeai.type.content
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageDao
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoom
@@ -17,6 +21,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onStart
 
 class ChatRepositoryImpl @Inject constructor(
@@ -26,12 +31,13 @@ class ChatRepositoryImpl @Inject constructor(
 ) : ChatRepository {
 
     private lateinit var openAI: OpenAI
+    private lateinit var google: GenerativeModel
 
-    override suspend fun completeOpenAIChat(messages: List<Message>): Flow<ApiState<ChatChunk>> {
+    override suspend fun completeOpenAIChat(question: Message, history: List<Message>): Flow<ApiState<ChatChunk>> {
         val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.OPENAI })
         openAI = OpenAI(platform.token ?: "")
 
-        val generatedMessages = messageToOpenAIMessage(messages)
+        val generatedMessages = messageToOpenAIMessage(history + listOf(question))
         val chatCompletionRequest = ChatCompletionRequest(
             model = ModelId(platform.model ?: ""),
             messages = generatedMessages
@@ -43,6 +49,23 @@ class ChatRepositoryImpl @Inject constructor(
                 emit(ApiState.Error(throwable.message ?: "Unknown error"))
             }
             .onStart { emit(ApiState.Loading) }
+    }
+
+    override suspend fun completeGoogleChat(question: Message, history: List<Message>): Flow<ApiState<GenerateContentResponse>> {
+        val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.GOOGLE })
+        google = GenerativeModel(
+            modelName = platform.model ?: "",
+            apiKey = platform.token ?: ""
+        )
+
+        val inputContent = messageToGoogleMessage(history)
+        val chat = google.startChat(history = inputContent)
+
+        return chat.sendMessageStream(question.content)
+            .map { response -> ApiState.Success(response) as ApiState<GenerateContentResponse> }
+            .catch { throwable -> emit(ApiState.Error(throwable.message ?: "Unknown error")) }
+            .onStart { emit(ApiState.Loading) }
+            .onCompletion { emit(ApiState.Done) }
     }
 
     override suspend fun fetchChatList(): List<ChatRoom> = chatRoomDao.getChatRooms()
@@ -96,22 +119,42 @@ class ChatRepositoryImpl @Inject constructor(
         )
 
         messages.forEach { message ->
-            if (message.platformType == null) {
-                // User
-                result.add(
-                    ChatMessage(
-                        role = ChatRole.User,
-                        content = message.content
+            when (message.platformType) {
+                null -> {
+                    result.add(
+                        ChatMessage(
+                            role = ChatRole.User,
+                            content = message.content
+                        )
                     )
-                )
-            } else if (message.platformType == ApiType.OPENAI) {
-                // Assistant
-                result.add(
-                    ChatMessage(
-                        role = ChatRole.Assistant,
-                        content = message.content
+                }
+
+                ApiType.OPENAI -> {
+                    result.add(
+                        ChatMessage(
+                            role = ChatRole.Assistant,
+                            content = message.content
+                        )
                     )
-                )
+                }
+
+                else -> {}
+            }
+        }
+
+        return result
+    }
+
+    private fun messageToGoogleMessage(messages: List<Message>): List<Content> {
+        val result = mutableListOf<Content>()
+
+        messages.forEach { message ->
+            when (message.platformType) {
+                null -> result.add(content(role = "user") { text(message.content) })
+
+                ApiType.GOOGLE -> result.add(content(role = "model") { text(message.content) })
+
+                else -> {}
             }
         }
 
