@@ -54,7 +54,8 @@ class ChatRepositoryImpl @Inject constructor(
         val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.GOOGLE })
         google = GenerativeModel(
             modelName = platform.model ?: "",
-            apiKey = platform.token ?: ""
+            apiKey = platform.token ?: "",
+            systemInstruction = content { text(ModelConstants.GOOGLE_PROMPT) }
         )
 
         val inputContent = messageToGoogleMessage(history)

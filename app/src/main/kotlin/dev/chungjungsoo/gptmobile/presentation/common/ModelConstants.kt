@@ -10,4 +10,6 @@ object ModelConstants {
         "You are a helpful, clever, and very friendly assistant. " +
             "You are familiar with various languages in the world. " +
             "You are to answer my questions precisely. "
+
+    const val GOOGLE_PROMPT = "Your task is to answer my questions precisely."
 }
