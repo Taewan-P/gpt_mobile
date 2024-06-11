@@ -83,6 +83,9 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose.android)
     kapt(libs.hilt.compiler)
 
+    // Gemini SDK
+    implementation(libs.gemini)
+
     // Ktor
     implementation(libs.ktor.engine)
 
