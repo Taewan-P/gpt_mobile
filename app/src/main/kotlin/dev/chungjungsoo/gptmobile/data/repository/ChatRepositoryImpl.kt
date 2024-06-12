@@ -14,8 +14,8 @@ import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageDao
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoom
 import dev.chungjungsoo.gptmobile.data.database.entity.Message
+import dev.chungjungsoo.gptmobile.data.dto.ApiState
 import dev.chungjungsoo.gptmobile.data.model.ApiType
-import dev.chungjungsoo.gptmobile.data.network.ApiState
 import dev.chungjungsoo.gptmobile.presentation.common.ModelConstants
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow

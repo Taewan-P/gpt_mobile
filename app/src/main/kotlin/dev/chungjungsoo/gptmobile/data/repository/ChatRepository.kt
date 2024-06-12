@@ -2,7 +2,7 @@ package dev.chungjungsoo.gptmobile.data.repository
 
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoom
 import dev.chungjungsoo.gptmobile.data.database.entity.Message
-import dev.chungjungsoo.gptmobile.data.network.ApiState
+import dev.chungjungsoo.gptmobile.data.dto.ApiState
 import kotlinx.coroutines.flow.Flow
 
 interface ChatRepository {

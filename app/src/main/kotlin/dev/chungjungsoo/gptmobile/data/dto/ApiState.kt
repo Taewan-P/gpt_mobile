@@ -1,4 +1,4 @@
-package dev.chungjungsoo.gptmobile.data.network
+package dev.chungjungsoo.gptmobile.data.dto
 
 sealed class ApiState {
     data object Loading : ApiState()
