@@ -220,6 +220,10 @@ private fun groupMessages(messages: List<Message>): HashMap<Int, MutableList<Mes
             classifiedMessages[counter] = mutableListOf(message)
             counter++
         } else {
+            if (counter % 2 == 0) {
+                counter++
+            }
+
             if (classifiedMessages.containsKey(counter)) {
                 classifiedMessages[counter]?.add(message)
             } else {
