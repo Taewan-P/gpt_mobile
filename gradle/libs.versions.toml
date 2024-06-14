@@ -12,12 +12,13 @@ datastore = "1.1.1"
 gemini = "0.7.0"
 hilt = "2.51.1"
 ksp = "1.9.23-1.0.20"
+ktor = "2.3.11"
 androidxHilt = "1.2.0"
 navigation = "2.7.7"
 markdown = "1.0.0-alpha01"
 material = "1.12.0"
 openai = "3.7.2"
-serialization = "1.6.3"
+serialization = "1.6.3" # Should not update due to kotlin version
 splashscreen = "1.0.1"
 retrofit = "2.11.0"
 room = "2.6.1"
@@ -48,7 +49,11 @@ hilt = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt
 hilt-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hilt" }
 hilt-navigation = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "androidxHilt" }
 kotlin-serialization = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
-ktor-engine = { group = "io.ktor", name = "ktor-client-android", version = "2.3.11" }
+ktor-content-negotiation = { group = "io.ktor", name = "ktor-client-content-negotiation", version.ref = "ktor" }
+ktor-core = { group = "io.ktor", name = "ktor-client-core", version.ref = "ktor" }
+ktor-engine = { group = "io.ktor", name = "ktor-client-cio", version.ref = "ktor" }
+ktor-logging = { group = "io.ktor", name = "ktor-client-logging-jvm", version.ref = "ktor" }
+ktor-serialization = { group = "io.ktor", name = "ktor-serialization-kotlinx-json", version.ref = "ktor" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 openai = { group = "com.aallam.openai", name = "openai-client", version.ref = "openai" }
 splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splashscreen" }

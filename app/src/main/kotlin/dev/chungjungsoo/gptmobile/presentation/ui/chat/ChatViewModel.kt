@@ -63,10 +63,14 @@ class ChatViewModel @Inject constructor(
     private val _openAIMessage = MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = ApiType.OPENAI))
     val openAIMessage = _openAIMessage.asStateFlow()
 
+    private val _anthropicMessage = MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = ApiType.ANTHROPIC))
+    val anthropicMessage = _anthropicMessage.asStateFlow()
+
     private val _googleMessage = MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = ApiType.GOOGLE))
     val googleMessage = _googleMessage.asStateFlow()
 
     private val openAIFlow = MutableSharedFlow<ApiState>()
+    private val anthropicFlow = MutableSharedFlow<ApiState>()
     private val googleFlow = MutableSharedFlow<ApiState>()
 
     init {
@@ -115,7 +119,10 @@ class ChatViewModel @Inject constructor(
                 completeOpenAIChat()
             }
 
-            ApiType.ANTHROPIC -> TODO()
+            ApiType.ANTHROPIC -> {
+                _anthropicMessage.update { it.copy(content = "") }
+                completeAnthropicChat()
+            }
             ApiType.GOOGLE -> {
                 _googleMessage.update { it.copy(content = "") }
                 completeGoogleChat()
@@ -132,31 +139,44 @@ class ChatViewModel @Inject constructor(
     private fun clearQuestionAndAnswers() {
         _userMessage.update { it.copy(content = "") }
         _openAIMessage.update { it.copy(content = "") }
+        _anthropicMessage.update { it.copy(content = "") }
         _googleMessage.update { it.copy(content = "") }
     }
 
     private fun completeChat() {
         enabledPlatformsInChat.forEach { apiType -> updateLoadingState(apiType, LoadingState.Loading) }
+        val enabledPlatforms = enabledPlatformsInChat.toSet()
 
-        if (ApiType.OPENAI in enabledPlatformsInChat.toSet()) {
+        if (ApiType.OPENAI in enabledPlatforms) {
             completeOpenAIChat()
         }
 
-        if (ApiType.GOOGLE in enabledPlatformsInChat.toSet()) {
+        if (ApiType.ANTHROPIC in enabledPlatforms) {
+            completeAnthropicChat()
+        }
+
+        if (ApiType.GOOGLE in enabledPlatforms) {
             completeGoogleChat()
+        }
+    }
+
+    private fun completeAnthropicChat() {
+        viewModelScope.launch {
+            val chatFlow = chatRepository.completeAnthropicChat(question = _userMessage.value, history = _messages.value)
+            chatFlow.collect { chunk -> anthropicFlow.emit(chunk) }
         }
     }
 
     private fun completeGoogleChat() {
         viewModelScope.launch {
-            val chatFlow = chatRepository.completeGoogleChat(question = _userMessage.value, history = messages.value)
+            val chatFlow = chatRepository.completeGoogleChat(question = _userMessage.value, history = _messages.value)
             chatFlow.collect { chunk -> googleFlow.emit(chunk) }
         }
     }
 
     private fun completeOpenAIChat() {
         viewModelScope.launch {
-            val chatFlow = chatRepository.completeOpenAIChat(question = _userMessage.value, history = messages.value)
+            val chatFlow = chatRepository.completeOpenAIChat(question = _userMessage.value, history = _messages.value)
             chatFlow.collect { chunk -> openAIFlow.emit(chunk) }
         }
     }
@@ -191,7 +211,7 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             openAIFlow.collect { chunk ->
                 when (chunk) {
-                    is ApiState.Success -> _openAIMessage.update { it.copy(content = it.content + (chunk.textChunk)) }
+                    is ApiState.Success -> _openAIMessage.update { it.copy(content = it.content + chunk.textChunk) }
                     ApiState.Done -> updateLoadingState(ApiType.OPENAI, LoadingState.Idle)
                     is ApiState.Error -> {
                         _openAIMessage.update { it.copy(content = "Error: ${chunk.message}") }
@@ -204,9 +224,24 @@ class ChatViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
+            anthropicFlow.collect { chunk ->
+                when (chunk) {
+                    is ApiState.Success -> _anthropicMessage.update { it.copy(content = it.content + chunk.textChunk) }
+                    ApiState.Done -> updateLoadingState(ApiType.ANTHROPIC, LoadingState.Idle)
+                    is ApiState.Error -> {
+                        _anthropicMessage.update { it.copy(content = "Error: ${chunk.message}") }
+                        updateLoadingState(ApiType.ANTHROPIC, LoadingState.Idle)
+                    }
+
+                    else -> {}
+                }
+            }
+        }
+
+        viewModelScope.launch {
             googleFlow.collect { chunk ->
                 when (chunk) {
-                    is ApiState.Success -> _googleMessage.update { message -> message.copy(content = message.content + chunk.textChunk) }
+                    is ApiState.Success -> _googleMessage.update { it.copy(content = it.content + chunk.textChunk) }
                     ApiState.Done -> updateLoadingState(ApiType.GOOGLE, LoadingState.Idle)
                     is ApiState.Error -> {
                         _googleMessage.update { it.copy(content = "Error: ${chunk.message}") }
@@ -240,19 +275,24 @@ class ChatViewModel @Inject constructor(
 
         when (apiType) {
             ApiType.OPENAI -> _openAIMessage.update { it.copy(content = message.content) }
-            ApiType.ANTHROPIC -> TODO()
+            ApiType.ANTHROPIC -> _anthropicMessage.update { it.copy(content = message.content) }
             ApiType.GOOGLE -> _googleMessage.update { it.copy(content = message.content) }
         }
     }
 
     private fun syncQuestionAndAnswers() {
         addMessage(_userMessage.value)
+        val enabledPlatforms = enabledPlatformsInChat.toSet()
 
-        if (ApiType.OPENAI in enabledPlatformsInChat.toSet()) {
+        if (ApiType.OPENAI in enabledPlatforms) {
             addMessage(_openAIMessage.value)
         }
 
-        if (ApiType.GOOGLE in enabledPlatformsInChat.toSet()) {
+        if (ApiType.ANTHROPIC in enabledPlatforms) {
+            addMessage(_anthropicMessage.value)
+        }
+
+        if (ApiType.GOOGLE in enabledPlatforms) {
             addMessage(_googleMessage.value)
         }
     }

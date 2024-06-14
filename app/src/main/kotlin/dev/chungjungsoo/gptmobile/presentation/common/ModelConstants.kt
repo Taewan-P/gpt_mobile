@@ -6,6 +6,8 @@ object ModelConstants {
     val anthropicModels = linkedSetOf("claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307")
     val googleModels = linkedSetOf("gemini-1.5-pro-latest", "gemini-1.5-flash-latest", "gemini-1.0-pro")
 
+    const val ANTHROPIC_MAXIMUM_TOKEN = 200_000
+
     const val OPENAI_PROMPT =
         "You are a helpful, clever, and very friendly assistant. " +
             "You are familiar with various languages in the world. " +

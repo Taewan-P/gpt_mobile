@@ -15,7 +15,15 @@ import dev.chungjungsoo.gptmobile.data.database.dao.MessageDao
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoom
 import dev.chungjungsoo.gptmobile.data.database.entity.Message
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
+import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.MessageRole
+import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.TextContent
+import dev.chungjungsoo.gptmobile.data.dto.anthropic.request.InputMessage
+import dev.chungjungsoo.gptmobile.data.dto.anthropic.request.MessageRequest
+import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ContentDeltaResponseChunk
+import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ErrorResponseChunk
+import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.MessageResponseChunk
 import dev.chungjungsoo.gptmobile.data.model.ApiType
+import dev.chungjungsoo.gptmobile.data.network.AnthropicAPI
 import dev.chungjungsoo.gptmobile.presentation.common.ModelConstants
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
@@ -27,7 +35,8 @@ import kotlinx.coroutines.flow.onStart
 class ChatRepositoryImpl @Inject constructor(
     private val chatRoomDao: ChatRoomDao,
     private val messageDao: MessageDao,
-    private val settingRepository: SettingRepository
+    private val settingRepository: SettingRepository,
+    private val anthropic: AnthropicAPI
 ) : ChatRepository {
 
     private lateinit var openAI: OpenAI
@@ -45,6 +54,30 @@ class ChatRepositoryImpl @Inject constructor(
 
         return openAI.chatCompletions(chatCompletionRequest)
             .map<ChatCompletionChunk, ApiState> { chunk -> ApiState.Success(chunk.choices[0].delta.content ?: "") }
+            .catch { throwable -> emit(ApiState.Error(throwable.message ?: "Unknown error")) }
+            .onStart { emit(ApiState.Loading) }
+            .onCompletion { emit(ApiState.Done) }
+    }
+
+    override suspend fun completeAnthropicChat(question: Message, history: List<Message>): Flow<ApiState> {
+        val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.ANTHROPIC })
+        anthropic.setToken(platform.token)
+
+        val generatedMessages = messageToAnthropicMessage(history + listOf(question))
+        val messageRequest = MessageRequest(
+            model = platform.model ?: "",
+            messages = generatedMessages,
+            maxTokens = ModelConstants.ANTHROPIC_MAXIMUM_TOKEN
+        )
+
+        return anthropic.streamChatMessage(messageRequest)
+            .map<MessageResponseChunk, ApiState> { chunk ->
+                when (chunk) {
+                    is ContentDeltaResponseChunk -> ApiState.Success(chunk.delta.text)
+                    is ErrorResponseChunk -> throw Error(chunk.error.message)
+                    else -> ApiState.Success("")
+                }
+            }
             .catch { throwable -> emit(ApiState.Error(throwable.message ?: "Unknown error")) }
             .onStart { emit(ApiState.Loading) }
             .onCompletion { emit(ApiState.Done) }
@@ -137,6 +170,26 @@ class ChatRepositoryImpl @Inject constructor(
                         )
                     )
                 }
+
+                else -> {}
+            }
+        }
+
+        return result
+    }
+
+    private fun messageToAnthropicMessage(messages: List<Message>): List<InputMessage> {
+        val result = mutableListOf<InputMessage>()
+
+        messages.forEach { message ->
+            when (message.platformType) {
+                null -> result.add(
+                    InputMessage(role = MessageRole.USER, content = listOf(TextContent(text = message.content)))
+                )
+
+                ApiType.ANTHROPIC -> result.add(
+                    InputMessage(role = MessageRole.ASSISTANT, content = listOf(TextContent(text = message.content)))
+                )
 
                 else -> {}
             }

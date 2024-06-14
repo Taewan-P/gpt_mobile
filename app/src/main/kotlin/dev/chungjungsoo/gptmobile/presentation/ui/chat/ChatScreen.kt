@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -82,6 +83,7 @@ fun ChatScreen(
     val googleLoadingState by chatViewModel.googleLoadingState.collectManagedState()
     val userMessage by chatViewModel.userMessage.collectManagedState()
     val openAIMessage by chatViewModel.openAIMessage.collectManagedState()
+    val anthropicMessage by chatViewModel.anthropicMessage.collectManagedState()
     val googleMessage by chatViewModel.googleMessage.collectManagedState()
 
     val canUseChat = (chatViewModel.enabledPlatformsInChat.toSet() - appEnabledPlatforms.toSet()).isEmpty()
@@ -109,6 +111,7 @@ fun ChatScreen(
             }
         }
     ) { innerPadding ->
+        groupedMessages.forEach { (i, k) -> Log.d("grouped", "idx: $i, data: $k") }
         LazyColumn(
             modifier = Modifier.padding(innerPadding),
             state = listState
@@ -178,7 +181,7 @@ fun ChatScreen(
                         chatViewModel.enabledPlatformsInChat.sortedDescending().forEach { apiType ->
                             val message = when (apiType) {
                                 ApiType.OPENAI -> openAIMessage
-                                ApiType.ANTHROPIC -> TODO()
+                                ApiType.ANTHROPIC -> anthropicMessage
                                 ApiType.GOOGLE -> googleMessage
                             }
 

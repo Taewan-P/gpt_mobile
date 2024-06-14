@@ -87,7 +87,11 @@ dependencies {
     implementation(libs.gemini)
 
     // Ktor
+    implementation(libs.ktor.content.negotiation)
+    implementation(libs.ktor.core)
     implementation(libs.ktor.engine)
+    implementation(libs.ktor.logging)
+    implementation(libs.ktor.serialization)
 
     // Markdown
     implementation(libs.compose.markdown)
