@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.network
 
+import android.util.Log
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.request.MessageRequest
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.MessageResponseChunk
 import io.ktor.client.call.body
@@ -40,12 +41,12 @@ class AnthropicAPIImpl @Inject constructor(
 
         val builder = HttpRequestBuilder().apply {
             method = HttpMethod.Post
-            url(path = "${ANTHROPIC_CHAT_API}/v1/messages")
+            url("${ANTHROPIC_CHAT_API}/v1/messages")
             contentType(ContentType.Application.Json)
             setBody(body)
             accept(ContentType.Text.EventStream)
             headers {
-                token?.let { append(API_KEY_HEADER, token ?: "") }
+                append(API_KEY_HEADER, token ?: "")
                 append(VERSION_HEADER, ANTHROPIC_VERSION)
             }
         }

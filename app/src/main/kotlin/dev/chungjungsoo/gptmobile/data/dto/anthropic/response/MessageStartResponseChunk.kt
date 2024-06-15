@@ -4,9 +4,8 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
+@SerialName("message_start")
 data class MessageStartResponseChunk(
-
-    override val type: EventType = EventType.MESSAGE_START,
 
     @SerialName("message")
     val message: MessageResponse

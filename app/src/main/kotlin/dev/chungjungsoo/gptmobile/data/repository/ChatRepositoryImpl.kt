@@ -67,7 +67,8 @@ class ChatRepositoryImpl @Inject constructor(
         val messageRequest = MessageRequest(
             model = platform.model ?: "",
             messages = generatedMessages,
-            maxTokens = ModelConstants.ANTHROPIC_MAXIMUM_TOKEN
+            maxTokens = ModelConstants.ANTHROPIC_MAXIMUM_TOKEN,
+            stream = true
         )
 
         return anthropic.streamChatMessage(messageRequest)

@@ -4,9 +4,8 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
+@SerialName("content_block_delta")
 data class ContentDeltaResponseChunk(
-
-    override val type: EventType = EventType.CONTENT_DELTA,
 
     @SerialName("index")
     val index: Int,

@@ -4,9 +4,8 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
+@SerialName("message_delta")
 data class MessageDeltaResponseChunk(
-
-    override val type: EventType = EventType.MESSAGE_DELTA,
 
     @SerialName("delta")
     val delta: StopReasonDelta,

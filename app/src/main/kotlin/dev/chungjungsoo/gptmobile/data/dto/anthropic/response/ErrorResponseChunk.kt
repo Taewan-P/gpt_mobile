@@ -4,9 +4,8 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
+@SerialName("error")
 data class ErrorResponseChunk(
-
-    override val type: EventType = EventType.ERROR,
 
     @SerialName("error")
     val error: ErrorDetail

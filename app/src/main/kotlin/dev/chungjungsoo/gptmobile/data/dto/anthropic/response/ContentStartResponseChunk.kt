@@ -4,9 +4,8 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
+@SerialName("content_block_start")
 data class ContentStartResponseChunk(
-
-    override val type: EventType = EventType.CONTENT_START,
 
     @SerialName("index")
     val index: Int,
