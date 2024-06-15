@@ -1,6 +1,8 @@
 package dev.chungjungsoo.gptmobile.data.network
 
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.request.MessageRequest
+import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ErrorDetail
+import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ErrorResponseChunk
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.MessageResponseChunk
 import io.ktor.client.call.body
 import io.ktor.client.request.HttpRequestBuilder
@@ -55,7 +57,8 @@ class AnthropicAPIImpl @Inject constructor(
                 HttpStatement(builder = builder, client = networkClient()).execute {
                     streamEventsFrom(it)
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                emit(ErrorResponseChunk(error = ErrorDetail(type = "network_error", message = e.message ?: "")))
             }
         }
     }
