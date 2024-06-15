@@ -216,7 +216,7 @@ private fun groupMessages(messages: List<Message>): HashMap<Int, MutableList<Mes
 
     messages.sortedBy { it.createdAt }.forEach { message ->
         if (message.platformType == null) {
-            if (classifiedMessages.containsKey(counter)) {
+            if (classifiedMessages.containsKey(counter) || counter % 2 == 1) {
                 counter++
             }
 
