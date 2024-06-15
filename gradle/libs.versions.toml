@@ -51,7 +51,7 @@ hilt-navigation = { group = "androidx.hilt", name = "hilt-navigation-compose", v
 kotlin-serialization = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
 ktor-content-negotiation = { group = "io.ktor", name = "ktor-client-content-negotiation", version.ref = "ktor" }
 ktor-core = { group = "io.ktor", name = "ktor-client-core", version.ref = "ktor" }
-ktor-engine = { group = "io.ktor", name = "ktor-client-cio", version.ref = "ktor" }
+ktor-engine = { group = "io.ktor", name = "ktor-client-okhttp", version.ref = "ktor" }
 ktor-logging = { group = "io.ktor", name = "ktor-client-logging-jvm", version.ref = "ktor" }
 ktor-serialization = { group = "io.ktor", name = "ktor-serialization-kotlinx-json", version.ref = "ktor" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
