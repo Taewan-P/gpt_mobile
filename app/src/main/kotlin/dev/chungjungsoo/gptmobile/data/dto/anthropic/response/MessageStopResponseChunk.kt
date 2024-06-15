@@ -5,4 +5,4 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 @SerialName("message_stop")
-class MessageStopResponseChunk : MessageResponseChunk()
+data object MessageStopResponseChunk : MessageResponseChunk()

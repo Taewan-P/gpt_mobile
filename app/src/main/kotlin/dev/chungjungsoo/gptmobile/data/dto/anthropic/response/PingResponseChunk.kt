@@ -5,4 +5,4 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 @SerialName("ping")
-class PingResponseChunk : MessageResponseChunk()
+data object PingResponseChunk : MessageResponseChunk()
