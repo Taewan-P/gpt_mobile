@@ -68,6 +68,7 @@ class ChatRepositoryImpl @Inject constructor(
             model = platform.model ?: "",
             messages = generatedMessages,
             maxTokens = ModelConstants.ANTHROPIC_MAXIMUM_TOKEN,
+            systemPrompt = ModelConstants.ANTHROPIC_PROMPT,
             stream = true
         )
 

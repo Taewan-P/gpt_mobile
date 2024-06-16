@@ -13,5 +13,7 @@ object ModelConstants {
             "You are familiar with various languages in the world. " +
             "You are to answer my questions precisely. "
 
+    const val ANTHROPIC_PROMPT = "Your task is to answer my questions precisely."
+
     const val GOOGLE_PROMPT = "Your task is to answer my questions precisely."
 }

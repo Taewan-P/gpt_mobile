@@ -32,6 +32,7 @@ data class MessageRequest(
     val stream: Boolean = false,
 
     @SerialName("system")
+    @EncodeDefault
     val systemPrompt: String? = null,
 
     @SerialName("temperature")
