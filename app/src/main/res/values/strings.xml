@@ -88,7 +88,7 @@
     <string name="retry">Retry</string>
     <string name="ask_a_question">Ask a question...</string>
     <string name="some_platforms_disabled">Some APIs are disabled</string>
-    <string name="openai_brand_text">Powered by OpenAI</string>
-    <string name="anthropic_brand_text">Powered by Claude</string>
-    <string name="google_brand_text">Powered by Gemini</string>
+    <string name="openai_brand_text" translatable="false">Powered by OpenAI</string>
+    <string name="anthropic_brand_text" translatable="false">Powered by Claude</string>
+    <string name="google_brand_text" translatable="false">Powered by Gemini</string>
 </resources>
