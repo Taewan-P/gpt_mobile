@@ -59,4 +59,4 @@ Download the latest APK from the [releases page](https://github.com/Taewan-P/rel
 
 ## License
 
-See [LICENSE.md](./LICENSE.md) for details.
+See [LICENSE](./LICENSE) for details.
