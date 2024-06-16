@@ -11,6 +11,7 @@ on:
       - ".idea/**"
       - ".github/**"
       - ".editorconfig"
+      - "images/**"
   workflow_dispatch:
 
 jobs:
