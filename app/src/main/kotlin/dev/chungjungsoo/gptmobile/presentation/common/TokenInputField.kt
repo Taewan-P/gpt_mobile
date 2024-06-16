@@ -42,6 +42,7 @@ fun TokenInputField(
         label = {
             Text(label)
         },
+        singleLine = true,
         keyboardOptions = keyboardOptions,
         supportingText = {
             HelpText(helpLink)
