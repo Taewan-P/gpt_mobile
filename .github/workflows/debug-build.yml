@@ -6,7 +6,7 @@ on:
       - main
     paths-ignore:
       - ".gitignore"
-      - "README.md"
+      - "**.md"
       - "LICENSE"
       - ".idea/**"
       - ".github/**"
