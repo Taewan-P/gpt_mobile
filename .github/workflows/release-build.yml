@@ -1,0 +1,51 @@
+name: Release build APK
+
+on:
+  push:
+    branches:
+      - "main"
+    paths-ignore:
+      - ".gitignore"
+      - "**.md"
+      - "LICENSE"
+      - ".idea/**"
+      - ".github/**"
+      - ".editorconfig"
+      - "images/**"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: "oracle"
+          java-version: "17"
+          cache: "gradle"
+
+      - name: Generate Keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.APP_KEYSTORE }}
+        run: |
+          echo $KEYSTORE_B64 > keystore_b64.txt
+          base64 --decode --ignore-garbage keystore_b64.txt > keystore.jks
+        working-directory: ./app
+
+      - name: Build Release APK
+        env:
+          SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          SIGNING_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew assembleRelease
+
+      - name: Upload Release APK
+        uses: actions/upload-artifact@v4
+        id: artifact-upload-step
+        with:
+          name: release-${{ github.sha }}
+          path: ${{ github.workspace }}/app/build/outputs/apk/release/app-release.apk
