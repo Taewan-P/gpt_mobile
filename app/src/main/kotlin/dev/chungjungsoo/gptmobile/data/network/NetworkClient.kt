@@ -56,6 +56,6 @@ class NetworkClient @Inject constructor(
     operator fun invoke(): HttpClient = client
 
     companion object {
-        private const val TIMEOUT = 10_000
+        private const val TIMEOUT = 1_000 * 60 * 5
     }
 }
