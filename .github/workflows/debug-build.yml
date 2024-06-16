@@ -1,9 +1,9 @@
 name: Debug build APK
 
 on:
-  push:
+  pull_request_target:
     branches:
-      - main
+      - "main"
     paths-ignore:
       - ".gitignore"
       - "**.md"
@@ -12,7 +12,6 @@ on:
       - ".github/**"
       - ".editorconfig"
       - "images/**"
-  workflow_dispatch:
 
 jobs:
   run:
@@ -35,6 +34,14 @@ jobs:
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
+        id: artifact-upload-step
         with:
           name: debug-${{ github.sha }}
           path: ${{ github.workspace }}/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Comment APK Link
+        uses: thollander/actions-comment-pull-request@v2
+        with:
+          comment_tag: apk
+          message: |
+            Build complete! Here's the debug APK: ${{ steps.artifact-upload-step.outputs.artifact-url }}
