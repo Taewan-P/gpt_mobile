@@ -33,8 +33,9 @@ jobs:
         env:
           KEYSTORE_B64: ${{ secrets.APP_KEYSTORE }}
         run: |
-          echo $KEYSTORE_B64 > keystore_b64.txt
-          base64 --decode --ignore-garbage keystore_b64.txt > keystore.jks
+          echo $KEYSTORE_B64 \
+          | sed 's/[^A-Za-z0-9+/=]//g' \
+          | base64 -d > keystore.jks
         working-directory: ./app
 
       - name: Build Release APK
