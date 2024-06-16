@@ -49,7 +49,7 @@ If you have any feature requests, please open an issue.
 
 ## Downloads
 
-Download the latest APK from the [releases page](https://github.com/Taewan-P/releases)
+Download the latest APK from the [releases page](https://github.com/Taewan-P/gpt_mobile/releases)
 
 
 ## Build
