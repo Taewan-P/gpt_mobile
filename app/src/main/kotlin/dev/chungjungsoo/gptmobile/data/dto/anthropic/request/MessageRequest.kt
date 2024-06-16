@@ -1,5 +1,7 @@
 package dev.chungjungsoo.gptmobile.data.dto.anthropic.request
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -7,6 +9,7 @@ import kotlinx.serialization.Serializable
  When certain value is used in the future, use @EncodeDefault or remove default values
  */
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class MessageRequest(
     @SerialName("model")
@@ -25,7 +28,8 @@ data class MessageRequest(
     val stopSequences: List<String>? = null,
 
     @SerialName("stream")
-    val stream: Boolean,
+    @EncodeDefault
+    val stream: Boolean = false,
 
     @SerialName("system")
     val systemPrompt: String? = null,
