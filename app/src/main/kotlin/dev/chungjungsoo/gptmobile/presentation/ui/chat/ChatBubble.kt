@@ -89,7 +89,7 @@ fun OpponentChatBubble(
                 shape = RoundedCornerShape(32.dp),
                 colors = cardColor
             ) {
-                RichText(modifier = Modifier.padding(top = 24.dp, start = 24.dp, end = 24.dp)) {
+                RichText(modifier = Modifier.padding(24.dp)) {
                     BasicMarkdown(astNode = astNode)
                 }
                 if (!isLoading) {
@@ -136,7 +136,7 @@ fun OpponentChatBubble(
 private fun BrandText(apiType: ApiType) {
     Box(
         modifier = Modifier
-            .padding(horizontal = 20.dp, vertical = 16.dp)
+            .padding(start = 24.dp, end = 24.dp, bottom = 16.dp)
             .fillMaxWidth()
     ) {
         Text(
