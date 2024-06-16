@@ -7,6 +7,7 @@
 ### Chat Assistant for Android that supports chatting with multiple models at once.
 
 [![GitHub all releases](https://img.shields.io/github/downloads/Taewan-P/gpt_mobile/total?label=Downloads&logo=github)](https://github.com/Taewan-P/gpt_mobile/releases/)
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/Taewan-P/gpt_mobile?color=black&label=Stable&logo=github)](https://github.com/Taewan-P/gpt_mobile/releases/latest/)
 
 </div>
 
@@ -21,7 +22,7 @@
 
 ## Features
 
-- Chat with multiple models at once
+- **Chat with multiple models at once**
   - Uses official APIs for each platforms
   - Supported platforms:
     - OpenAI GPT
