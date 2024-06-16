@@ -104,15 +104,13 @@ dependencies {
     // OpenAI (Ktor required)
     implementation(libs.openai)
 
-    // Retrofit, Serialization
-    implementation(libs.retrofit)
-    implementation(libs.retrofit.converter)
-    implementation(libs.kotlin.serialization)
-
     // Room
     implementation(libs.room)
     ksp(libs.room.compiler)
     implementation(libs.room.ktx)
+
+    // Serialization
+    implementation(libs.kotlin.serialization)
 
     // Test
     testImplementation(libs.junit)
