@@ -110,3 +110,10 @@ fun getPlatformSettingDescription(apiType: ApiType) = when (apiType) {
     ApiType.ANTHROPIC -> stringResource(R.string.platform_setting_description)
     ApiType.GOOGLE -> stringResource(R.string.platform_setting_description)
 }
+
+@Composable
+fun getPlatformAPIBrandText(apiType: ApiType) = when (apiType) {
+    ApiType.OPENAI -> stringResource(R.string.openai_brand_text)
+    ApiType.ANTHROPIC -> stringResource(R.string.anthropic_brand_text)
+    ApiType.GOOGLE -> stringResource(R.string.google_brand_text)
+}

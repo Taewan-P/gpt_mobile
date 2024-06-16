@@ -1,8 +1,10 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -30,7 +32,9 @@ import com.halilibo.richtext.commonmark.MarkdownParseOptions
 import com.halilibo.richtext.markdown.BasicMarkdown
 import com.halilibo.richtext.ui.material3.RichText
 import dev.chungjungsoo.gptmobile.R
+import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
+import dev.chungjungsoo.gptmobile.util.getPlatformAPIBrandText
 
 @Composable
 fun UserChatBubble(
@@ -64,6 +68,7 @@ fun OpponentChatBubble(
     canRetry: Boolean,
     isLoading: Boolean,
     isError: Boolean = false,
+    apiType: ApiType,
     text: String,
     onCopyClick: () -> Unit = {},
     onRetryClick: () -> Unit = {}
@@ -84,8 +89,11 @@ fun OpponentChatBubble(
                 shape = RoundedCornerShape(32.dp),
                 colors = cardColor
             ) {
-                RichText(modifier = Modifier.padding(24.dp)) {
+                RichText(modifier = Modifier.padding(top = 24.dp, start = 24.dp, end = 24.dp)) {
                     BasicMarkdown(astNode = astNode)
+                }
+                if (!isLoading) {
+                    BrandText(apiType)
                 }
             }
 
@@ -124,6 +132,22 @@ fun OpponentChatBubble(
     }
 }
 
+@Composable
+private fun BrandText(apiType: ApiType) {
+    Box(
+        modifier = Modifier
+            .padding(horizontal = 20.dp, vertical = 16.dp)
+            .fillMaxWidth()
+    ) {
+        Text(
+            modifier = Modifier.align(Alignment.CenterEnd),
+            text = getPlatformAPIBrandText(apiType),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
 @Preview
 @Composable
 fun UserChatBubblePreview() {
@@ -159,6 +183,7 @@ fun OpponentChatBubblePreview() {
             text = sampleText,
             canRetry = true,
             isLoading = false,
+            apiType = ApiType.OPENAI,
             onCopyClick = {},
             onRetryClick = {}
         )

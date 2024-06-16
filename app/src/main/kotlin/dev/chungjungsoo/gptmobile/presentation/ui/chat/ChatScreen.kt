@@ -142,16 +142,19 @@ fun ChatScreen(
                         ) {
                             Spacer(modifier = Modifier.width(8.dp))
                             groupedMessages[key]!!.sortedByDescending { it.platformType }.forEach { m ->
-                                OpponentChatBubble(
-                                    modifier = Modifier
-                                        .padding(horizontal = 8.dp, vertical = 12.dp)
-                                        .widthIn(max = maximumChatBubbleWidth),
-                                    canRetry = canUseChat && isIdle && key >= latestMessageIndex,
-                                    isLoading = false,
-                                    text = m.content,
-                                    onCopyClick = { clipboardManager.setText(AnnotatedString(m.content.trim())) },
-                                    onRetryClick = { chatViewModel.retryQuestion(m) }
-                                )
+                                m.platformType?.let { apiType ->
+                                    OpponentChatBubble(
+                                        modifier = Modifier
+                                            .padding(horizontal = 8.dp, vertical = 12.dp)
+                                            .widthIn(max = maximumChatBubbleWidth),
+                                        canRetry = canUseChat && isIdle && key >= latestMessageIndex,
+                                        isLoading = false,
+                                        apiType = apiType,
+                                        text = m.content,
+                                        onCopyClick = { clipboardManager.setText(AnnotatedString(m.content.trim())) },
+                                        onRetryClick = { chatViewModel.retryQuestion(m) }
+                                    )
+                                }
                             }
                             Spacer(modifier = Modifier.width(systemChatMargin))
                         }
@@ -197,6 +200,7 @@ fun ChatScreen(
                                     .widthIn(max = maximumChatBubbleWidth),
                                 canRetry = canUseChat,
                                 isLoading = loadingState == ChatViewModel.LoadingState.Loading,
+                                apiType = apiType,
                                 text = message.content,
                                 onCopyClick = { clipboardManager.setText(AnnotatedString(message.content.trim())) },
                                 onRetryClick = { chatViewModel.retryQuestion(message) }
