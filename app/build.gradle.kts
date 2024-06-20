@@ -2,7 +2,6 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.jetbrains.kotlin.android)
     alias(libs.plugins.android.hilt)
-    alias(libs.plugins.kotlin.kapt)
     alias(libs.plugins.kotlin.ksp)
     alias(libs.plugins.kotlin.parcelize)
     kotlin(libs.plugins.kotlin.serialization.get().pluginId).version(libs.versions.kotlin)
@@ -91,7 +90,7 @@ dependencies {
     // Dependency Injection
     implementation(libs.hilt)
     implementation(libs.androidx.lifecycle.runtime.compose.android)
-    kapt(libs.hilt.compiler)
+    ksp(libs.hilt.compiler)
 
     // Gemini SDK
     implementation(libs.gemini)
@@ -130,8 +129,4 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
-}
-
-kapt {
-    correctErrorTypes = true
 }
