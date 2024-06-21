@@ -101,6 +101,7 @@ fun PlatformSettingScreen(
             val platform = platformState.firstOrNull { it.name == apiType }
             val enabled = platform?.enabled ?: false
             val model = platform?.model
+            val token = platform?.token
 
             PreferenceSwitchWithContainer(
                 title = stringResource(R.string.enable_api),
@@ -109,6 +110,7 @@ fun PlatformSettingScreen(
             SettingItem(
                 modifier = Modifier.height(64.dp),
                 title = stringResource(R.string.api_key),
+                description = token?.let { stringResource(R.string.token_set, it[0]) } ?: stringResource(R.string.token_not_set),
                 enabled = enabled,
                 onItemClick = { isApiTokenDialogOpen = true },
                 showTrailingIcon = false,

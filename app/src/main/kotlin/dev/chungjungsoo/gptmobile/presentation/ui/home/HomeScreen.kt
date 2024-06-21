@@ -97,7 +97,7 @@ fun HomeScreen(
             modifier = Modifier.padding(innerPadding),
             state = listState
         ) {
-            item { ChatsTitle() }
+            item { ChatsTitle(scrollBehavior) }
             items(chatList, key = { it.id }) { chatRoom ->
                 val usingPlatform = chatRoom.enabledPlatform.joinToString(", ") { platformTitles[it] ?: "" }
                 ListItem(
@@ -163,13 +163,15 @@ fun HomeTopAppBar(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ChatsTitle() {
+private fun ChatsTitle(scrollBehavior: TopAppBarScrollBehavior) {
     Text(
         modifier = Modifier
             .padding(top = 32.dp)
             .padding(horizontal = 20.dp, vertical = 16.dp),
         text = stringResource(R.string.chats),
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 1.0F - scrollBehavior.state.overlappedFraction),
         style = MaterialTheme.typography.headlineLarge
     )
 }

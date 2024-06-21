@@ -7,8 +7,11 @@ import com.aallam.openai.api.chat.ChatRole
 import com.aallam.openai.api.model.ModelId
 import com.aallam.openai.client.OpenAI
 import com.google.ai.client.generativeai.GenerativeModel
+import com.google.ai.client.generativeai.type.BlockThreshold
 import com.google.ai.client.generativeai.type.Content
 import com.google.ai.client.generativeai.type.GenerateContentResponse
+import com.google.ai.client.generativeai.type.HarmCategory
+import com.google.ai.client.generativeai.type.SafetySetting
 import com.google.ai.client.generativeai.type.content
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageDao
@@ -90,7 +93,11 @@ class ChatRepositoryImpl @Inject constructor(
         google = GenerativeModel(
             modelName = platform.model ?: "",
             apiKey = platform.token ?: "",
-            systemInstruction = content { text(ModelConstants.GOOGLE_PROMPT) }
+            systemInstruction = content { text(ModelConstants.GOOGLE_PROMPT) },
+            safetySettings = listOf(
+                SafetySetting(HarmCategory.DANGEROUS_CONTENT, BlockThreshold.ONLY_HIGH),
+                SafetySetting(HarmCategory.SEXUALLY_EXPLICIT, BlockThreshold.NONE)
+            )
         )
 
         val inputContent = messageToGoogleMessage(history)
