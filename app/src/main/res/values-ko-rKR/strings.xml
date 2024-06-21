@@ -74,4 +74,6 @@
     <string name="ask_a_question">질문을 입력하세요…</string>
     <string name="some_platforms_disabled">일부 API가 비활성화되었습니다</string>
     <string name="claude_3_5_sonnet_description">Anthropic사의 가장 지능적인 모델입니다.</string>
+    <string name="token_not_set">토큰이 설정되지 않았습니다.</string>
+    <string name="token_set">토큰이 설정되었습니다: %s*****</string>
 </resources>

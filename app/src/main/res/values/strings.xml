@@ -93,4 +93,6 @@
     <string name="openai_brand_text" translatable="false">Powered by OpenAI</string>
     <string name="anthropic_brand_text" translatable="false">Powered by Claude</string>
     <string name="google_brand_text" translatable="false">Powered by Gemini</string>
+    <string name="token_not_set">Token not set</string>
+    <string name="token_set">Token is set as %s*****</string>
 </resources>
