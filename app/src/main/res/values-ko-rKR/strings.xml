@@ -27,7 +27,7 @@
     <string name="gpt_3_5_description">"간단한 작업을 위한 빠르고 저렴한 모델입니다. "</string>
     <string name="select_anthropic_model">Anthropic 모델 선택</string>
     <string name="select_anthropic_model_description">Anthropic 채팅 모델을 선택해 주세요. 현재 Claude3 제품군만 지원하고 텍스트 입력만 지원합니다.</string>
-    <string name="claude_3_opus_description">Anthropic의 가장 강력한 모델입니다.</string>
+    <string name="claude_3_opus_description">글쓰기 및 복잡한 작업에 탁월한 모델입니다.</string>
     <string name="claude_3_sonnet_description">"지능과 속도 사이의 균형 잡힌 모델입니다. "</string>
     <string name="claude_3_haiku_description">Anthropic의 가장 빠르고 컴팩트한 모델입니다.</string>
     <string name="select_google_model">Google 모델 선택</string>
@@ -71,6 +71,7 @@
     <string name="send">전송</string>
     <string name="copy_text">복사</string>
     <string name="retry">재시도</string>
-    <string name="ask_a_question">질문을 입력하세요...</string>
+    <string name="ask_a_question">질문을 입력하세요…</string>
     <string name="some_platforms_disabled">일부 API가 비활성화되었습니다</string>
+    <string name="claude_3_5_sonnet_description">Anthropic사의 가장 지능적인 모델입니다.</string>
 </resources>
