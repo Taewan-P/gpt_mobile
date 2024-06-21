@@ -51,9 +51,10 @@ fun generateOpenAIModelList(models: LinkedHashSet<String>) = models.mapIndexed {
 @Composable
 fun generateAnthropicModelList(models: LinkedHashSet<String>) = models.mapIndexed { index, model ->
     val (name, description) = when (index) {
-        0 -> stringResource(R.string.claude_3_opus) to stringResource(R.string.claude_3_opus_description)
-        1 -> stringResource(R.string.claude_3_sonnet) to stringResource(R.string.claude_3_sonnet_description)
-        2 -> stringResource(R.string.claude_3_haiku) to stringResource(R.string.claude_3_haiku_description)
+        0 -> stringResource(R.string.claude_3_5_sonnet) to stringResource(R.string.claude_3_5_sonnet_description)
+        1 -> stringResource(R.string.claude_3_opus) to stringResource(R.string.claude_3_opus_description)
+        2 -> stringResource(R.string.claude_3_sonnet) to stringResource(R.string.claude_3_sonnet_description)
+        3 -> stringResource(R.string.claude_3_haiku) to stringResource(R.string.claude_3_haiku_description)
         else -> "" to ""
     }
     APIModel(name, description, model)
