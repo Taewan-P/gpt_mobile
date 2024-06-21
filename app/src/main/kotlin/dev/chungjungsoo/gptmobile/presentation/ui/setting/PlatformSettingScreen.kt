@@ -142,6 +142,7 @@ fun PlatformSettingScreen(
                     onDismissRequest = { isApiTokenDialogOpen = false }
                 ) { token ->
                     settingViewModel.updateToken(apiType, token)
+                    settingViewModel.savePlatformSettings()
                     isApiTokenDialogOpen = false
                 }
             }
@@ -150,9 +151,11 @@ fun PlatformSettingScreen(
                 ModelDialog(
                     apiType = apiType,
                     model = model ?: "",
+                    onModelSelected = { m -> settingViewModel.updateModel(apiType, m) },
                     onDismissRequest = { isModelDialogOpen = false }
                 ) { m ->
                     settingViewModel.updateModel(apiType, m)
+                    settingViewModel.savePlatformSettings()
                     isModelDialogOpen = false
                 }
             }
@@ -309,6 +312,7 @@ fun APIKeyDialog(
 fun ModelDialog(
     apiType: ApiType,
     model: String,
+    onModelSelected: (String) -> Unit,
     onDismissRequest: () -> Unit,
     onConfirmRequest: (model: String) -> Unit
 ) {
@@ -322,7 +326,6 @@ fun ModelDialog(
         ApiType.ANTHROPIC -> generateAnthropicModelList(models = modelList)
         ApiType.GOOGLE -> generateGoogleModelList(models = modelList)
     }
-    var model by remember { mutableStateOf(model) }
     val configuration = LocalConfiguration.current
 
     AlertDialog(
@@ -337,7 +340,7 @@ fun ModelDialog(
                         selected = model == m.aliasValue,
                         title = m.name,
                         description = m.description,
-                        onSelected = { model = it }
+                        onSelected = { onModelSelected(it) }
                     )
                 }
             }

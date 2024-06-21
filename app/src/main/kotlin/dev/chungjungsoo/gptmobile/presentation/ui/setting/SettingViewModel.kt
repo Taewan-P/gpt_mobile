@@ -29,13 +29,6 @@ class SettingViewModel @Inject constructor(
         fetchPlatformStatus()
     }
 
-    fun fetchPlatformStatus() {
-        viewModelScope.launch {
-            val platforms = settingRepository.fetchPlatforms()
-            _platformState.update { platforms }
-        }
-    }
-
     fun toggleAPI(apiType: ApiType) {
         val index = _platformState.value.indexOfFirst { it.name == apiType }
 
@@ -55,6 +48,12 @@ class SettingViewModel @Inject constructor(
         }
     }
 
+    fun savePlatformSettings() {
+        viewModelScope.launch {
+            settingRepository.updatePlatforms(_platformState.value)
+        }
+    }
+
     fun updateToken(apiType: ApiType, token: String) {
         val index = _platformState.value.indexOfFirst { it.name == apiType }
 
@@ -67,9 +66,6 @@ class SettingViewModel @Inject constructor(
                         p
                     }
                 }
-            }
-            viewModelScope.launch {
-                settingRepository.updatePlatforms(_platformState.value)
             }
         }
     }
@@ -92,9 +88,6 @@ class SettingViewModel @Inject constructor(
                     }
                 }
             }
-            viewModelScope.launch {
-                settingRepository.updatePlatforms(_platformState.value)
-            }
         }
     }
 
@@ -104,5 +97,12 @@ class SettingViewModel @Inject constructor(
 
     fun closeThemeDialog() {
         _isThemeDialogOpen.update { false }
+    }
+
+    private fun fetchPlatformStatus() {
+        viewModelScope.launch {
+            val platforms = settingRepository.fetchPlatforms()
+            _platformState.update { platforms }
+        }
     }
 }
