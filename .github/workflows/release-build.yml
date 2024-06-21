@@ -1,17 +1,6 @@
 name: Release build APK
 
 on:
-  push:
-    branches:
-      - "main"
-    paths-ignore:
-      - ".gitignore"
-      - "**.md"
-      - "LICENSE"
-      - ".idea/**"
-      - ".github/**"
-      - ".editorconfig"
-      - "images/**"
   workflow_dispatch:
 
 jobs:
