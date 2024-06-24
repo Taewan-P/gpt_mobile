@@ -142,8 +142,8 @@ fun PlatformSettingScreen(
                 APIKeyDialog(
                     apiType = apiType,
                     onDismissRequest = { isApiTokenDialogOpen = false }
-                ) { token ->
-                    settingViewModel.updateToken(apiType, token)
+                ) { apiToken ->
+                    settingViewModel.updateToken(apiType, apiToken)
                     settingViewModel.savePlatformSettings()
                     isApiTokenDialogOpen = false
                 }
