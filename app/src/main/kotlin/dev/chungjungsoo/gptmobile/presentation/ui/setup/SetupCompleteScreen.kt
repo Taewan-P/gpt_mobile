@@ -16,7 +16,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -26,6 +25,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.presentation.common.PrimaryLongButton
 import dev.chungjungsoo.gptmobile.presentation.common.Route
+import dev.chungjungsoo.gptmobile.presentation.icons.Done
 
 @Composable
 fun SetupCompleteScreen(
@@ -95,7 +95,7 @@ private fun SetupCompleteText(modifier: Modifier = Modifier) {
 @Composable
 private fun SetupCompleteLogo(modifier: Modifier = Modifier) {
     Image(
-        painter = painterResource(id = R.drawable.ic_done),
+        imageVector = Done,
         contentDescription = stringResource(R.string.setup_complete_logo),
         modifier = modifier
             .padding(64.dp)
