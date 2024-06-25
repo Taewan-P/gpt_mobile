@@ -21,11 +21,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import dev.chungjungsoo.gptmobile.R
+import dev.chungjungsoo.gptmobile.data.ModelConstants.anthropicModels
+import dev.chungjungsoo.gptmobile.data.ModelConstants.googleModels
+import dev.chungjungsoo.gptmobile.data.ModelConstants.openaiModels
 import dev.chungjungsoo.gptmobile.data.dto.APIModel
 import dev.chungjungsoo.gptmobile.data.model.ApiType
-import dev.chungjungsoo.gptmobile.presentation.common.ModelConstants.anthropicModels
-import dev.chungjungsoo.gptmobile.presentation.common.ModelConstants.googleModels
-import dev.chungjungsoo.gptmobile.presentation.common.ModelConstants.openaiModels
 import dev.chungjungsoo.gptmobile.presentation.common.PrimaryLongButton
 import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
 import dev.chungjungsoo.gptmobile.util.collectManagedState

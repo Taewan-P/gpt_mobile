@@ -1,4 +1,4 @@
-package dev.chungjungsoo.gptmobile.presentation.common
+package dev.chungjungsoo.gptmobile.data
 
 object ModelConstants {
     // LinkedHashSet should be used to guarantee item order

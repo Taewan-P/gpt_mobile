@@ -3,12 +3,12 @@ package dev.chungjungsoo.gptmobile.presentation.ui.setup
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.chungjungsoo.gptmobile.data.ModelConstants.anthropicModels
+import dev.chungjungsoo.gptmobile.data.ModelConstants.googleModels
+import dev.chungjungsoo.gptmobile.data.ModelConstants.openaiModels
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
-import dev.chungjungsoo.gptmobile.presentation.common.ModelConstants.anthropicModels
-import dev.chungjungsoo.gptmobile.presentation.common.ModelConstants.googleModels
-import dev.chungjungsoo.gptmobile.presentation.common.ModelConstants.openaiModels
 import dev.chungjungsoo.gptmobile.presentation.common.Route
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
