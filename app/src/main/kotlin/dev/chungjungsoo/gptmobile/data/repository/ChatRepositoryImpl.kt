@@ -151,8 +151,8 @@ class ChatRepositoryImpl @Inject constructor(
         return chatRoom
     }
 
-    override suspend fun deleteChat(chatRoom: ChatRoom) {
-        chatRoomDao.deleteChatRooms(chatRoom)
+    override suspend fun deleteChats(chatRooms: List<ChatRoom>) {
+        chatRoomDao.deleteChatRooms(*chatRooms.toTypedArray())
     }
 
     private fun messageToOpenAIMessage(messages: List<Message>): List<ChatMessage> {
