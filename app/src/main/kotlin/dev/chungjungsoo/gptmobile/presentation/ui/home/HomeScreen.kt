@@ -2,6 +2,7 @@ package dev.chungjungsoo.gptmobile.presentation.ui.home
 
 import android.content.res.Configuration
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
@@ -93,6 +94,10 @@ fun HomeScreen(
             homeViewModel.fetchChats()
             homeViewModel.fetchPlatformStatus()
         }
+    }
+
+    BackHandler(enabled = chatListState.isSelectionMode) {
+        homeViewModel.disableSelectionMode()
     }
 
     Scaffold(
