@@ -29,9 +29,9 @@
     - Anthropic Claude
     - Google Gemini
 - Local chat history
-  - Chat history is only saved locally
+  - Chat history is **only saved locally**
   - Only sends to official API servers while chatting
-- [Material You](https://m3.material.io/) style UI
+- [Material You](https://m3.material.io/) style UI, Icons
   - Supports dark mode, system dynamic theming **without Activity restart**
 - Per app language setting for Android 13+
 - 100% Kotlin, Jetpack Compose, Single Activity, [Modern App Architecture](https://developer.android.com/topic/architecture#modern-app-architecture) in Android developers documentation
@@ -41,7 +41,6 @@
 
 - Manual Languages Setting for Android 12 and below
 - System prompting/instructions for each models
-- Delete chats
 - More platforms
 - Image, file support for multimodal models
 
