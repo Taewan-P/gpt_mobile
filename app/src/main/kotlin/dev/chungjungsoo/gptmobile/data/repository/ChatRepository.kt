@@ -14,5 +14,5 @@ interface ChatRepository {
     suspend fun fetchMessages(chatId: Int): List<Message>
     suspend fun updateChatTitle(chatRoom: ChatRoom, title: String)
     suspend fun saveChat(chatRoom: ChatRoom, messages: List<Message>): ChatRoom
-    suspend fun deleteChat(chatRoom: ChatRoom)
+    suspend fun deleteChats(chatRooms: List<ChatRoom>)
 }

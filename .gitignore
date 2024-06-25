@@ -15,6 +15,7 @@
 /.idea/inspectionProfiles/Project_Default.xml
 /.idea/appInsightsSettings.xml
 /.idea/deploymentTargetSelector.xml
+/.idea/other.xml
 
 # MacOS
 .DS_Store

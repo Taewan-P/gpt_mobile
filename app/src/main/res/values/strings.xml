@@ -95,4 +95,10 @@
     <string name="google_brand_text" translatable="false">Powered by Gemini</string>
     <string name="token_not_set">Token not set</string>
     <string name="token_set">Token is set as %s*****</string>
+    <string name="close">Close</string>
+    <string name="delete">Delete</string>
+    <string name="chats_selected">%d selected</string>
+    <string name="deleted_chats">Deleted %d chats.</string>
+    <string name="delete_selected_chats">Delete selected chats?</string>
+    <string name="this_operation_can_t_be_undone">This operation can\'t be undone.</string>
 </resources>

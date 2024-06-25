@@ -1,25 +1,31 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.home
 
 import android.content.res.Configuration
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -42,9 +48,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.style.TextAlign
@@ -73,23 +81,45 @@ fun HomeScreen(
     val platformTitles = getPlatformTitleResources()
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
-    val chatList by homeViewModel.chatList.collectManagedState()
+    val chatListState by homeViewModel.chatListState.collectManagedState()
     val showSelectModelDialog by homeViewModel.showSelectModelDialog.collectManagedState()
+    val showDeleteWarningDialog by homeViewModel.showDeleteWarningDialog.collectManagedState()
     val platformState by homeViewModel.platformState.collectManagedState()
     val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
     val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectManagedState()
+    val context = LocalContext.current
 
     LaunchedEffect(lifecycleState) {
-        if (lifecycleState == Lifecycle.State.RESUMED) {
+        if (lifecycleState == Lifecycle.State.RESUMED && !chatListState.isSelectionMode) {
             homeViewModel.fetchChats()
             homeViewModel.fetchPlatformStatus()
         }
     }
 
+    BackHandler(enabled = chatListState.isSelectionMode) {
+        homeViewModel.disableSelectionMode()
+    }
+
     Scaffold(
         modifier = Modifier
             .nestedScroll(scrollBehavior.nestedScrollConnection),
-        topBar = { HomeTopAppBar(scrollBehavior, settingOnClick) },
+        topBar = {
+            HomeTopAppBar(
+                chatListState.isSelectionMode,
+                selectedChats = chatListState.selected.count { it },
+                scrollBehavior,
+                actionOnClick = {
+                    if (chatListState.isSelectionMode) {
+                        homeViewModel.openDeleteWarningDialog()
+                    } else {
+                        settingOnClick()
+                    }
+                },
+                navigationOnClick = {
+                    homeViewModel.disableSelectionMode()
+                }
+            )
+        },
         floatingActionButton = { NewChatButton(expanded = listState.isScrollingUp(), onClick = homeViewModel::openSelectModelDialog) }
     ) { innerPadding ->
         LazyColumn(
@@ -97,25 +127,45 @@ fun HomeScreen(
             state = listState
         ) {
             item { ChatsTitle(scrollBehavior) }
-            items(chatList, key = { it.id }) { chatRoom ->
+            itemsIndexed(chatListState.chats, key = { _, it -> it.id }) { idx, chatRoom ->
                 val usingPlatform = chatRoom.enabledPlatform.joinToString(", ") { platformTitles[it] ?: "" }
                 ListItem(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onExistingChatClick(chatRoom) }
+                        .combinedClickable(
+                            onLongClick = {
+                                homeViewModel.enableSelectionMode()
+                                homeViewModel.selectChat(idx)
+                            },
+                            onClick = {
+                                if (chatListState.isSelectionMode) {
+                                    homeViewModel.selectChat(idx)
+                                } else {
+                                    onExistingChatClick(chatRoom)
+                                }
+                            }
+                        )
                         .padding(start = 8.dp, end = 8.dp)
                         .animateItemPlacement(),
                     headlineContent = { Text(text = chatRoom.title) },
                     leadingContent = {
-                        Icon(
-                            ImageVector.vectorResource(id = R.drawable.ic_rounded_chat),
-                            contentDescription = stringResource(R.string.chat_icon)
-                        )
+                        if (chatListState.isSelectionMode) {
+                            Checkbox(
+                                checked = chatListState.selected[idx],
+                                onCheckedChange = { homeViewModel.selectChat(idx) }
+                            )
+                        } else {
+                            Icon(
+                                ImageVector.vectorResource(id = R.drawable.ic_rounded_chat),
+                                contentDescription = stringResource(R.string.chat_icon)
+                            )
+                        }
                     },
                     supportingContent = { Text(text = stringResource(R.string.using_certain_platform, usingPlatform)) }
                 )
             }
         }
+
         if (showSelectModelDialog) {
             SelectPlatformDialog(
                 platformState,
@@ -127,35 +177,88 @@ fun HomeScreen(
                 onPlatformSelect = { homeViewModel.updateCheckedState(it) }
             )
         }
+
+        if (showDeleteWarningDialog) {
+            DeleteWarningDialog(
+                onDismissRequest = homeViewModel::closeDeleteWarningDialog,
+                onConfirm = {
+                    val deletedChatRoomCount = chatListState.selected.count { it }
+                    homeViewModel.deleteSelectedChats()
+                    Toast.makeText(context, context.getString(R.string.deleted_chats, deletedChatRoomCount), Toast.LENGTH_SHORT).show()
+                    homeViewModel.closeDeleteWarningDialog()
+                }
+            )
+        }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeTopAppBar(
+    isSelectionMode: Boolean,
+    selectedChats: Int,
     scrollBehavior: TopAppBarScrollBehavior,
-    actionOnClick: () -> Unit
+    actionOnClick: () -> Unit,
+    navigationOnClick: () -> Unit
 ) {
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background,
-            titleContentColor = MaterialTheme.colorScheme.onBackground
+            scrolledContainerColor = if (isSelectionMode) MaterialTheme.colorScheme.primaryContainer else Color.Unspecified,
+            containerColor = if (isSelectionMode) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.background,
+            titleContentColor = if (isSelectionMode) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onBackground
         ),
         title = {
-            Text(
-                modifier = Modifier.padding(4.dp),
-                text = stringResource(R.string.chats),
-                maxLines = 1,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = scrollBehavior.state.overlappedFraction),
-                overflow = TextOverflow.Ellipsis
-            )
+            if (isSelectionMode) {
+                Text(
+                    modifier = Modifier.padding(4.dp),
+                    text = stringResource(R.string.chats_selected, selectedChats),
+                    maxLines = 1,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    overflow = TextOverflow.Ellipsis
+                )
+            } else {
+                Text(
+                    modifier = Modifier.padding(4.dp),
+                    text = stringResource(R.string.chats),
+                    maxLines = 1,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = scrollBehavior.state.overlappedFraction),
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        },
+        navigationIcon = {
+            if (isSelectionMode) {
+                IconButton(
+                    modifier = Modifier.padding(4.dp),
+                    onClick = navigationOnClick
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Close,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        contentDescription = stringResource(R.string.close)
+                    )
+                }
+            }
         },
         actions = {
-            IconButton(
-                modifier = Modifier.padding(4.dp),
-                onClick = actionOnClick
-            ) {
-                Icon(imageVector = Icons.Outlined.Settings, contentDescription = stringResource(R.string.settings))
+            if (isSelectionMode) {
+                IconButton(
+                    modifier = Modifier.padding(4.dp),
+                    onClick = actionOnClick
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Delete,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        contentDescription = stringResource(R.string.delete)
+                    )
+                }
+            } else {
+                IconButton(
+                    modifier = Modifier.padding(4.dp),
+                    onClick = actionOnClick
+                ) {
+                    Icon(imageVector = Icons.Outlined.Settings, contentDescription = stringResource(R.string.settings))
+                }
             }
         },
         scrollBehavior = scrollBehavior
@@ -307,5 +410,37 @@ private fun SelectPlatformDialogPreview() {
         onDismissRequest = {},
         onConfirmation = {},
         onPlatformSelect = {}
+    )
+}
+
+@Composable
+fun DeleteWarningDialog(
+    onDismissRequest: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    val configuration = LocalConfiguration.current
+    AlertDialog(
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier.width(configuration.screenWidthDp.dp - 40.dp),
+        title = {
+            Text(
+                text = stringResource(R.string.delete_selected_chats),
+                style = MaterialTheme.typography.headlineSmall
+            )
+        },
+        text = {
+            Text(stringResource(R.string.this_operation_can_t_be_undone))
+        },
+        onDismissRequest = onDismissRequest,
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
     )
 }
