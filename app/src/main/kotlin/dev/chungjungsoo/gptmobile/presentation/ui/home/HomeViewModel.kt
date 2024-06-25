@@ -21,14 +21,23 @@ class HomeViewModel @Inject constructor(
     private val settingRepository: SettingRepository
 ) : ViewModel() {
 
-    private val _chatList = MutableStateFlow(listOf<ChatRoom>())
-    val chatList: StateFlow<List<ChatRoom>> = _chatList.asStateFlow()
+    data class ChatListState(
+        val chats: List<ChatRoom> = listOf(),
+        val isSelectionMode: Boolean = false,
+        val selected: List<Boolean> = listOf()
+    )
+
+    private val _chatListState = MutableStateFlow(ChatListState())
+    val chatListState: StateFlow<ChatListState> = _chatListState.asStateFlow()
 
     private val _platformState = MutableStateFlow(listOf<Platform>())
     val platformState: StateFlow<List<Platform>> = _platformState.asStateFlow()
 
     private val _showSelectModelDialog = MutableStateFlow(false)
     val showSelectModelDialog: StateFlow<Boolean> = _showSelectModelDialog.asStateFlow()
+
+    private val _showDeleteWarningDialog = MutableStateFlow(false)
+    val showDeleteWarningDialog: StateFlow<Boolean> = _showDeleteWarningDialog.asStateFlow()
 
     fun updateCheckedState(platform: Platform) {
         val index = _platformState.value.indexOf(platform)
@@ -46,19 +55,62 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    fun openDeleteWarningDialog() {
+        closeSelectModelDialog()
+        _showDeleteWarningDialog.update { true }
+    }
+
+    fun closeDeleteWarningDialog() {
+        _showDeleteWarningDialog.update { false }
+    }
+
     fun openSelectModelDialog() {
         _showSelectModelDialog.update { true }
+        disableSelectionMode()
     }
 
     fun closeSelectModelDialog() {
         _showSelectModelDialog.update { false }
     }
 
+    fun deleteSelectedChats() {
+        viewModelScope.launch {
+            val selectedChats = _chatListState.value.chats.filterIndexed { index, _ ->
+                _chatListState.value.selected[index]
+            }
+
+            chatRepository.deleteChats(selectedChats)
+            _chatListState.update { it.copy(chats = chatRepository.fetchChatList()) }
+            disableSelectionMode()
+        }
+    }
+
+    fun disableSelectionMode() {
+        _chatListState.update {
+            it.copy(
+                selected = List(it.chats.size) { false },
+                isSelectionMode = false
+            )
+        }
+    }
+
+    fun enableSelectionMode() {
+        _chatListState.update { it.copy(isSelectionMode = true) }
+    }
+
     fun fetchChats() {
         viewModelScope.launch {
-            _chatList.update { chatRepository.fetchChatList() }
+            val chats = chatRepository.fetchChatList()
 
-            Log.d("chats", "${chatList.value}")
+            _chatListState.update {
+                it.copy(
+                    chats = chats,
+                    selected = List(chats.size) { false },
+                    isSelectionMode = false
+                )
+            }
+
+            Log.d("chats", "${_chatListState.value.chats}")
         }
     }
 
@@ -66,6 +118,26 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             val platforms = settingRepository.fetchPlatforms()
             _platformState.update { platforms }
+        }
+    }
+
+    fun selectChat(chatRoomIdx: Int) {
+        if (chatRoomIdx < 0 || chatRoomIdx > _chatListState.value.chats.size) return
+
+        _chatListState.update {
+            it.copy(
+                selected = it.selected.mapIndexed { index, b ->
+                    if (index == chatRoomIdx) {
+                        !b
+                    } else {
+                        b
+                    }
+                }
+            )
+        }
+
+        if (_chatListState.value.selected.count { it } == 0) {
+            disableSelectionMode()
         }
     }
 }

@@ -76,4 +76,10 @@
     <string name="claude_3_5_sonnet_description">Anthropic사의 가장 지능적인 모델입니다.</string>
     <string name="token_not_set">토큰이 설정되지 않았습니다.</string>
     <string name="token_set">토큰이 설정되었습니다: %s*****</string>
+    <string name="close">닫기</string>
+    <string name="delete">삭제</string>
+    <string name="chats_selected">%d개 선택됨</string>
+    <string name="deleted_chats">%d개의 채팅을 삭제했습니다.</string>
+    <string name="delete_selected_chats">선택한 채팅들을 삭제하시겠습니까?</string>
+    <string name="this_operation_can_t_be_undone">이 작업은 복구할 수 없습니다.</string>
 </resources>
