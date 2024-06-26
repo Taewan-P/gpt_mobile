@@ -1,0 +1,11 @@
+This is an Material3 style chat app that supports answers from multiple LLMs at once.
+
+Supported Platforms
+- OpenAI GPT (GPT-4o, turbo, etc)
+- Anthropic Claude (3.5 Sonnet, 3 Opus, etc)
+- Google Gemini (1.5 Pro, Flash, etc)
+
+Local chat history
+Chat history is only saved locally. The app only sends to official API servers while chatting. NOT SHARED anywhere else.
+
+Note that some platforms may not be supported in some countries.
