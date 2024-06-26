@@ -35,6 +35,8 @@ class ChatViewModel @Inject constructor(
     private val enabledPlatformString: String = checkNotNull(savedStateHandle["enabledPlatforms"])
     val enabledPlatformsInChat = enabledPlatformString.split(',').map { s -> ApiType.valueOf(s) }
     private lateinit var chatRoom: ChatRoom
+    private val currentTimeStamp: Long
+        get() = System.currentTimeMillis() / 1000
 
     private val _enabledPlatformsInApp = MutableStateFlow(listOf<ApiType>())
     val enabledPlatformsInApp = _enabledPlatformsInApp.asStateFlow()
@@ -84,7 +86,7 @@ class ChatViewModel @Inject constructor(
 
     fun askQuestion() {
         Log.d("Question: ", _question.value)
-        _userMessage.update { it.copy(content = _question.value) }
+        _userMessage.update { it.copy(content = _question.value, createdAt = currentTimeStamp) }
         _question.update { "" }
         completeChat()
     }
@@ -109,22 +111,22 @@ class ChatViewModel @Inject constructor(
         enabledPlatformsInChat.forEach { apiType ->
             when (apiType) {
                 message.platformType -> {}
-                else -> restoreMessageState(apiType, previousAnswers)
+                else -> restoreMessageState(apiType, previousAnswers) // Restore messages that are not retrying
             }
         }
 
         when (message.platformType) {
             ApiType.OPENAI -> {
-                _openAIMessage.update { it.copy(content = "") }
+                _openAIMessage.update { it.copy(id = message.id, content = "", createdAt = currentTimeStamp) }
                 completeOpenAIChat()
             }
 
             ApiType.ANTHROPIC -> {
-                _anthropicMessage.update { it.copy(content = "") }
+                _anthropicMessage.update { it.copy(id = message.id, content = "", createdAt = currentTimeStamp) }
                 completeAnthropicChat()
             }
             ApiType.GOOGLE -> {
-                _googleMessage.update { it.copy(content = "") }
+                _googleMessage.update { it.copy(id = message.id, content = "", createdAt = currentTimeStamp) }
                 completeGoogleChat()
             }
 
@@ -137,10 +139,10 @@ class ChatViewModel @Inject constructor(
     private fun addMessage(message: Message) = _messages.update { it + listOf(message) }
 
     private fun clearQuestionAndAnswers() {
-        _userMessage.update { it.copy(content = "") }
-        _openAIMessage.update { it.copy(content = "") }
-        _anthropicMessage.update { it.copy(content = "") }
-        _googleMessage.update { it.copy(content = "") }
+        _userMessage.update { it.copy(id = 0, content = "") }
+        _openAIMessage.update { it.copy(id = 0, content = "") }
+        _anthropicMessage.update { it.copy(id = 0, content = "") }
+        _googleMessage.update { it.copy(id = 0, content = "") }
     }
 
     private fun completeChat() {
@@ -183,8 +185,16 @@ class ChatViewModel @Inject constructor(
 
     private fun fetchMessages() {
         viewModelScope.launch {
+            // If the room isn't new
             if (chatRoomId != 0) {
                 _messages.update { chatRepository.fetchMessages(chatRoomId) }
+                return@launch
+            }
+
+            // When message id should sync after saving chats
+            if (chatRoom.id != 0) {
+                _messages.update { chatRepository.fetchMessages(chatRoom.id) }
+                return@launch
             }
         }
     }
@@ -212,9 +222,12 @@ class ChatViewModel @Inject constructor(
             openAIFlow.collect { chunk ->
                 when (chunk) {
                     is ApiState.Success -> _openAIMessage.update { it.copy(content = it.content + chunk.textChunk) }
-                    ApiState.Done -> updateLoadingState(ApiType.OPENAI, LoadingState.Idle)
+                    ApiState.Done -> {
+                        _openAIMessage.update { it.copy(createdAt = currentTimeStamp) }
+                        updateLoadingState(ApiType.OPENAI, LoadingState.Idle)
+                    }
                     is ApiState.Error -> {
-                        _openAIMessage.update { it.copy(content = "Error: ${chunk.message}") }
+                        _openAIMessage.update { it.copy(content = "Error: ${chunk.message}", createdAt = currentTimeStamp) }
                         updateLoadingState(ApiType.OPENAI, LoadingState.Idle)
                     }
 
@@ -227,9 +240,12 @@ class ChatViewModel @Inject constructor(
             anthropicFlow.collect { chunk ->
                 when (chunk) {
                     is ApiState.Success -> _anthropicMessage.update { it.copy(content = it.content + chunk.textChunk) }
-                    ApiState.Done -> updateLoadingState(ApiType.ANTHROPIC, LoadingState.Idle)
+                    ApiState.Done -> {
+                        _anthropicMessage.update { it.copy(createdAt = currentTimeStamp) }
+                        updateLoadingState(ApiType.ANTHROPIC, LoadingState.Idle)
+                    }
                     is ApiState.Error -> {
-                        _anthropicMessage.update { it.copy(content = "Error: ${chunk.message}") }
+                        _anthropicMessage.update { it.copy(content = "Error: ${chunk.message}", createdAt = currentTimeStamp) }
                         updateLoadingState(ApiType.ANTHROPIC, LoadingState.Idle)
                     }
 
@@ -242,9 +258,12 @@ class ChatViewModel @Inject constructor(
             googleFlow.collect { chunk ->
                 when (chunk) {
                     is ApiState.Success -> _googleMessage.update { it.copy(content = it.content + chunk.textChunk) }
-                    ApiState.Done -> updateLoadingState(ApiType.GOOGLE, LoadingState.Idle)
+                    ApiState.Done -> {
+                        _googleMessage.update { it.copy(createdAt = currentTimeStamp) }
+                        updateLoadingState(ApiType.GOOGLE, LoadingState.Idle)
+                    }
                     is ApiState.Error -> {
-                        _googleMessage.update { it.copy(content = "Error: ${chunk.message}") }
+                        _googleMessage.update { it.copy(content = "Error: ${chunk.message}", createdAt = currentTimeStamp) }
                         updateLoadingState(ApiType.GOOGLE, LoadingState.Idle)
                     }
 
@@ -261,6 +280,7 @@ class ChatViewModel @Inject constructor(
                         syncQuestionAndAnswers()
                         Log.d("message", "${_messages.value}")
                         chatRoom = chatRepository.saveChat(chatRoom, _messages.value)
+                        fetchMessages() // For syncing message ids
                     }
                     clearQuestionAndAnswers()
                 }
@@ -274,9 +294,9 @@ class ChatViewModel @Inject constructor(
         if (message == null) return
 
         when (apiType) {
-            ApiType.OPENAI -> _openAIMessage.update { it.copy(content = message.content) }
-            ApiType.ANTHROPIC -> _anthropicMessage.update { it.copy(content = message.content) }
-            ApiType.GOOGLE -> _googleMessage.update { it.copy(content = message.content) }
+            ApiType.OPENAI -> _openAIMessage.update { message }
+            ApiType.ANTHROPIC -> _anthropicMessage.update { message }
+            ApiType.GOOGLE -> _googleMessage.update { message }
         }
     }
 
