@@ -105,6 +105,10 @@ fun ChatScreen(
         }
     }
 
+    LaunchedEffect(isIdle) {
+        listState.animateScrollToItem(groupedMessages.keys.size)
+    }
+
     Scaffold(
         modifier = Modifier
             .fillMaxSize()
