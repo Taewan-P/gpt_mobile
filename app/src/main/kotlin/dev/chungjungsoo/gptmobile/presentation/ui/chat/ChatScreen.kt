@@ -92,7 +92,7 @@ fun ChatScreen(
     val canUseChat = (chatViewModel.enabledPlatformsInChat.toSet() - appEnabledPlatforms.toSet()).isEmpty()
     val groupedMessages = remember(messages) { groupMessages(messages) }
     val latestMessageIndex = groupedMessages.keys.maxOrNull() ?: 0
-    val chatBubbleScrollStates = rememberSaveable(saver = multiScrollStateSaver) { MutableList(latestMessageIndex + 1) { ScrollState(0) } }
+    val chatBubbleScrollStates = rememberSaveable(saver = multiScrollStateSaver) { MutableList(latestMessageIndex + 2) { ScrollState(0) } }
 
     LaunchedEffect(latestMessageIndex) {
         val opponentBubbles = ((latestMessageIndex + 1) / 2) + 1
