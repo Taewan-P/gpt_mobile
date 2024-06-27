@@ -54,7 +54,7 @@ jobs:
         run: |
           unsigned_hash=$(md5 -q app-release-unsigned.apk)
           signed_hash=$(md5 -q app-release.apk)
-          certificate_hash=$(apksigner verify --print-certs GPTMobile-v0.3.2.apk | grep "SHA-256" | awk -F': ' '{print $2}')
+          certificate_hash=$(apksigner verify --print-certs app-release.apk | grep "SHA-256" | awk -F': ' '{print $2}')
           echo "### Release Build Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Unsigned APK md5**: $unsigned_hash" >> $GITHUB_STEP_SUMMARY
