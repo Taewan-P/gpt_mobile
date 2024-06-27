@@ -57,9 +57,9 @@ jobs:
           certificate_hash=$(apksigner verify --print-certs app-release.apk | grep "SHA-256" | awk -F': ' '{print $2}')
           echo "### Release Build Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Unsigned APK md5**: $unsigned_hash" >> $GITHUB_STEP_SUMMARY
-          echo "**Signed APK md5**: $signed_hash" >> $GITHUB_STEP_SUMMARY
-          echo "**Certificate SHA-256**: $certificate_hash" >> $GITHUB_STEP_SUMMARY
+          echo "**Unsigned APK md5**: \`$unsigned_hash\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Signed APK md5**: \`$signed_hash\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Certificate SHA-256**: \`$certificate_hash\`" >> $GITHUB_STEP_SUMMARY
         working-directory: ${{ github.workspace }}/app/build/outputs/apk/release
 
       - name: Upload Signed APK
