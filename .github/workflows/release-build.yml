@@ -1,10 +1,11 @@
-name: Release build APK
+name: Generate Release Version
 
 on:
   workflow_dispatch:
 
 jobs:
-  deploy:
+  build:
+    name: Build Release APK
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
@@ -14,26 +15,52 @@ jobs:
       - name: Setup JDK
         uses: actions/setup-java@v4
         with:
-          distribution: "oracle"
+          distribution: "temurin"
           java-version: "17"
           cache: "gradle"
 
-      - name: Generate Keystore
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Latest Build Tools
+        run: |
+          build_tools_list=$(sdkmanager --list | sed -n 's/.*\(build-tools;[0-9.][0-9.a-zA-Z-]*\).*/\1/p')
+          stable_build_tools_list=$(echo "$build_tools_list" | grep -v "\-rc")
+          latest_stable_version=$(echo "$stable_build_tools_list" | sort -V | tail -n 1)
+          latest_version_number=$(echo $latest_stable_version | sed 's/.*;//')
+          sdkmanager "$latest_stable_version"
+          echo "$ANDROID_SDK_ROOT/build-tools/$latest_version_number" >> $GITHUB_PATH
+
+      - name: Build Unsigned Release APK
+        run: ./gradlew assembleRelease
+
+      - name: Generate Signing Key
         env:
           KEYSTORE_B64: ${{ secrets.APP_KEYSTORE }}
         run: |
-          echo $KEYSTORE_B64 \
-          | sed 's/[^A-Za-z0-9+/=]//g' \
-          | base64 -d > keystore.jks
-        working-directory: ./app
+          echo $KEYSTORE_B64 | base64 -d > keystore.jks
+        working-directory: ${{ github.workspace }}/app/build/outputs/apk/release
 
-      - name: Build Release APK
+      - name: Sign Release APK
         env:
-          SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           SIGNING_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew assembleRelease
+        run: |
+          apksigner sign --ks keystore.jks --ks-pass env:SIGNING_PASSWORD --out app-release.apk app-release-unsigned.apk
+        working-directory: ${{ github.workspace }}/app/build/outputs/apk/release
 
-      - name: Upload Release APK
+      - name: Create Job Summary
+        run: |
+          unsigned_hash=$(md5 -q app-release-unsigned.apk)
+          signed_hash=$(md5 -q app-release.apk)
+          certificate_hash=$(apksigner verify --print-certs app-release.apk | grep "SHA-256" | awk -F': ' '{print $2}')
+          echo "### Release Build Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Unsigned APK md5**: \`$unsigned_hash\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Signed APK md5**: \`$signed_hash\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Certificate SHA-256**: \`$certificate_hash\`" >> $GITHUB_STEP_SUMMARY
+        working-directory: ${{ github.workspace }}/app/build/outputs/apk/release
+
+      - name: Upload Signed APK
         uses: actions/upload-artifact@v4
         id: artifact-upload-step
         with:
