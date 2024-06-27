@@ -1,6 +1,7 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
 import android.util.Log
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -19,7 +20,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
@@ -37,8 +37,10 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -59,6 +61,7 @@ import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.Message
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.util.collectManagedState
+import dev.chungjungsoo.gptmobile.util.multiScrollStateSaver
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,6 +92,22 @@ fun ChatScreen(
     val canUseChat = (chatViewModel.enabledPlatformsInChat.toSet() - appEnabledPlatforms.toSet()).isEmpty()
     val groupedMessages = remember(messages) { groupMessages(messages) }
     val latestMessageIndex = groupedMessages.keys.maxOrNull() ?: 0
+    val chatBubbleScrollStates = rememberSaveable(saver = multiScrollStateSaver) { MutableList(latestMessageIndex + 2) { ScrollState(0) } }
+
+    LaunchedEffect(latestMessageIndex) {
+        val opponentBubbles = ((latestMessageIndex + 1) / 2) + 1
+        val scrollStatesToAdd = opponentBubbles - chatBubbleScrollStates.size
+
+        if (scrollStatesToAdd > 0) {
+            repeat(scrollStatesToAdd) {
+                chatBubbleScrollStates.add(ScrollState(0))
+            }
+        }
+    }
+
+    LaunchedEffect(isIdle) {
+        listState.animateScrollToItem(groupedMessages.keys.size)
+    }
 
     Scaffold(
         modifier = Modifier
@@ -138,7 +157,7 @@ fun ChatScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState())
+                                .horizontalScroll(chatBubbleScrollStates[(key - 1) / 2])
                         ) {
                             Spacer(modifier = Modifier.width(8.dp))
                             groupedMessages[key]!!.sortedByDescending { it.platformType }.forEach { m ->
@@ -178,7 +197,7 @@ fun ChatScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState())
+                            .horizontalScroll(chatBubbleScrollStates[(latestMessageIndex + 1) / 2])
                     ) {
                         Spacer(modifier = Modifier.width(8.dp))
                         chatViewModel.enabledPlatformsInChat.sortedDescending().forEach { apiType ->
