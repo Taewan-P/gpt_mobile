@@ -38,9 +38,7 @@ jobs:
         env:
           KEYSTORE_B64: ${{ secrets.APP_KEYSTORE }}
         run: |
-          echo $KEYSTORE_B64 \
-          | sed 's/[^A-Za-z0-9+/=]//g' \
-          | base64 -d > keystore.jks
+          echo $KEYSTORE_B64 | base64 -d > keystore.jks
         working-directory: ${{ github.workspace }}/app/build/outputs/apk/release
 
       - name: Sign Release APK
