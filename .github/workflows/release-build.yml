@@ -29,7 +29,7 @@ jobs:
           latest_stable_version=$(echo "$stable_build_tools_list" | sort -V | tail -n 1)
           latest_version_number=$(echo $latest_stable_version | sed 's/.*;//')
           sdkmanager "$latest_stable_version"
-          export PATH="$ANDROID_SDK_ROOT/build-tools/$latest_version_number:$PATH"
+          echo "$ANDROID_SDK_ROOT/build-tools/$latest_version_number" >> $GITHUB_PATH
 
       - name: Build Unsigned Release APK
         run: ./gradlew assembleRelease
