@@ -1,12 +1,16 @@
 name: Kotlin Lint Check
+
 on:
-  push:
+  pull_request_target:
+    branches:
+      - "main"
     paths-ignore:
       - ".gitignore"
       - "**.md"
       - "LICENSE"
       - ".idea/**"
       - ".github/**"
+      - ".editorconfig"
       - "images/**"
       - "metadata/**"
 
