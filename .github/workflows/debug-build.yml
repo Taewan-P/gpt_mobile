@@ -12,9 +12,11 @@ on:
       - ".github/**"
       - ".editorconfig"
       - "images/**"
+      - "metadata/**"
 
 jobs:
   run:
+    name: Build debug APK
     runs-on: macos-14
 
     permissions:
