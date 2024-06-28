@@ -49,7 +49,10 @@ If you have any feature requests, please open an issue.
 
 ## Downloads
 
-Download the latest APK from the [releases page](https://github.com/Taewan-P/gpt_mobile/releases)
+You can download the app from the following sites:
+
+[<img width="250px" alt='Get it on Google Play' src='https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png'/>](https://play.google.com/store/apps/details?id=dev.chungjungsoo.gptmobile&utm_source=github&utm_campaign=gh-readme)
+[<img width="250px" alt='Get it on GitHub' src='https://raw.githubusercontent.com/Kunzisoft/Github-badge/main/get-it-on-github.png'/>](https://github.com/Taewan-P/gpt_mobile/releases)
 
 
 ## Build
