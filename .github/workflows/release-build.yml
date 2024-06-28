@@ -34,11 +34,15 @@ jobs:
       - name: Build Unsigned Release APK
         run: ./gradlew assembleRelease
 
+      - name: Build Unsigned Release App Bundle
+        run: ./gradlew bundleRelease
+
       - name: Generate Signing Key
         env:
           KEYSTORE_B64: ${{ secrets.APP_KEYSTORE }}
         run: |
           echo $KEYSTORE_B64 | base64 -d > keystore.jks
+          cp keystore.jks ${{ github.workspace }}/app/build/outputs/bundle/release/keystore.jks
         working-directory: ${{ github.workspace }}/app/build/outputs/apk/release
 
       - name: Sign Release APK
@@ -48,21 +52,33 @@ jobs:
           apksigner sign --ks keystore.jks --ks-pass env:SIGNING_PASSWORD --out app-release.apk app-release-unsigned.apk
         working-directory: ${{ github.workspace }}/app/build/outputs/apk/release
 
+      - name: Sign Release App Bundle
+        env:
+          SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          SIGNING_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 -keystore keystore.jks -keypass $SIGNING_PASSWORD -storepass $SIGNING_PASSWORD app-release.aab $SIGNING_KEY_ALIAS
+        working-directory: ${{ github.workspace }}/app/build/outputs/bundle/release
+
       - name: Create Job Summary
         run: |
-          unsigned_hash=$(md5 -q app-release-unsigned.apk)
-          signed_hash=$(md5 -q app-release.apk)
-          certificate_hash=$(apksigner verify --print-certs app-release.apk | grep "SHA-256" | awk -F': ' '{print $2}')
+          unsigned_hash=$(md5 -q ./apk/release/app-release-unsigned.apk)
+          signed_hash=$(md5 -q ./apk/release/app-release.apk)
+          signed_aab_hash=$(md5 -q ./bundle/release/app-release.aab)
+          certificate_hash=$(apksigner verify --print-certs ./apk/release/app-release.apk | grep "SHA-256" | awk -F': ' '{print $2}')
           echo "### Release Build Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Unsigned APK md5**: \`$unsigned_hash\`" >> $GITHUB_STEP_SUMMARY
           echo "**Signed APK md5**: \`$signed_hash\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Signed AAB md5**: \`$signed_aab_hash\`" >> $GITHUB_STEP_SUMMARY
           echo "**Certificate SHA-256**: \`$certificate_hash\`" >> $GITHUB_STEP_SUMMARY
-        working-directory: ${{ github.workspace }}/app/build/outputs/apk/release
+        working-directory: ${{ github.workspace }}/app/build/outputs
 
       - name: Upload Signed APK
         uses: actions/upload-artifact@v4
         id: artifact-upload-step
         with:
           name: release-${{ github.sha }}
-          path: ${{ github.workspace }}/app/build/outputs/apk/release/app-release.apk
+          path: |
+            ${{ github.workspace }}/app/build/outputs/apk/release/app-release.apk
+            ${{ github.workspace }}/app/build/outputs/bundle/release/app-release.aab
