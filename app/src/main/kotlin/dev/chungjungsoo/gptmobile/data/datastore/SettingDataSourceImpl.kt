@@ -4,6 +4,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import dev.chungjungsoo.gptmobile.data.model.ApiType
@@ -30,6 +31,21 @@ class SettingDataSourceImpl @Inject constructor(
         ApiType.OPENAI to stringPreferencesKey("openai_model"),
         ApiType.ANTHROPIC to stringPreferencesKey("anthropic_model"),
         ApiType.GOOGLE to stringPreferencesKey("google_model")
+    )
+    private val apiTemperatureMap = mapOf(
+        ApiType.OPENAI to floatPreferencesKey("openai_temperature"),
+        ApiType.ANTHROPIC to floatPreferencesKey("anthropic_temperature"),
+        ApiType.GOOGLE to floatPreferencesKey("google_temperature")
+    )
+    private val apiTopPMap = mapOf(
+        ApiType.OPENAI to floatPreferencesKey("openai_top_p"),
+        ApiType.ANTHROPIC to floatPreferencesKey("anthropic_top_p"),
+        ApiType.GOOGLE to floatPreferencesKey("google_top_p")
+    )
+    private val apiSystemPromptMap = mapOf(
+        ApiType.OPENAI to stringPreferencesKey("openai_system_prompt"),
+        ApiType.ANTHROPIC to stringPreferencesKey("anthropic_system_prompt"),
+        ApiType.GOOGLE to stringPreferencesKey("google_system_prompt")
     )
     private val dynamicThemeKey = intPreferencesKey("dynamic_mode")
     private val themeModeKey = intPreferencesKey("theme_mode")
@@ -64,6 +80,24 @@ class SettingDataSourceImpl @Inject constructor(
         }
     }
 
+    override suspend fun updateTemperature(apiType: ApiType, temperature: Float) {
+        dataStore.edit { pref ->
+            pref[apiTemperatureMap[apiType]!!] = temperature
+        }
+    }
+
+    override suspend fun updateTopP(apiType: ApiType, topP: Float) {
+        dataStore.edit { pref ->
+            pref[apiTopPMap[apiType]!!] = topP
+        }
+    }
+
+    override suspend fun updateSystemPrompt(apiType: ApiType, prompt: String) {
+        dataStore.edit { pref ->
+            pref[apiSystemPromptMap[apiType]!!] = prompt
+        }
+    }
+
     override suspend fun getDynamicTheme(): DynamicTheme? {
         val mode = dataStore.data.map { pref ->
             pref[dynamicThemeKey]
@@ -90,5 +124,17 @@ class SettingDataSourceImpl @Inject constructor(
 
     override suspend fun getModel(apiType: ApiType): String? = dataStore.data.map { pref ->
         pref[apiModelMap[apiType]!!]
+    }.first()
+
+    override suspend fun getTemperature(apiType: ApiType): Float? = dataStore.data.map { pref ->
+        pref[apiTemperatureMap[apiType]!!]
+    }.first()
+
+    override suspend fun getTopP(apiType: ApiType): Float? = dataStore.data.map { pref ->
+        pref[apiTopPMap[apiType]!!]
+    }.first()
+
+    override suspend fun getSystemPrompt(apiType: ApiType): String? = dataStore.data.map { pref ->
+        pref[apiSystemPromptMap[apiType]!!]
     }.first()
 }

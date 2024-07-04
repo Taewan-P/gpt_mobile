@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.repository
 
+import dev.chungjungsoo.gptmobile.data.ModelConstants
 import dev.chungjungsoo.gptmobile.data.datastore.SettingDataSource
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.data.dto.ThemeSetting
@@ -16,8 +17,23 @@ class SettingRepositoryImpl @Inject constructor(
         val status = settingDataSource.getStatus(apiType)
         val token = settingDataSource.getToken(apiType)
         val model = settingDataSource.getModel(apiType)
+        val temperature = settingDataSource.getTemperature(apiType)
+        val topP = settingDataSource.getTopP(apiType)
+        val systemPrompt = when (apiType) {
+            ApiType.OPENAI -> settingDataSource.getSystemPrompt(ApiType.OPENAI) ?: ModelConstants.OPENAI_PROMPT
+            ApiType.ANTHROPIC -> settingDataSource.getSystemPrompt(ApiType.ANTHROPIC) ?: ModelConstants.ANTHROPIC_PROMPT
+            ApiType.GOOGLE -> settingDataSource.getSystemPrompt(ApiType.GOOGLE) ?: ModelConstants.GOOGLE_PROMPT
+        }
 
-        Platform(apiType, enabled = status ?: false, token = token, model = model)
+        Platform(
+            name = apiType,
+            enabled = status ?: false,
+            token = token,
+            model = model,
+            temperature = temperature,
+            topP = topP,
+            systemPrompt = systemPrompt
+        )
     }
 
     override suspend fun fetchThemes(): ThemeSetting = ThemeSetting(
@@ -35,6 +51,18 @@ class SettingRepositoryImpl @Inject constructor(
 
             if (platform.model != null) {
                 settingDataSource.updateModel(platform.name, platform.model)
+            }
+
+            if (platform.temperature != null) {
+                settingDataSource.updateTemperature(platform.name, platform.temperature)
+            }
+
+            if (platform.topP != null) {
+                settingDataSource.updateTopP(platform.name, platform.topP)
+            }
+
+            if (platform.systemPrompt != null) {
+                settingDataSource.updateSystemPrompt(platform.name, platform.systemPrompt)
             }
         }
     }

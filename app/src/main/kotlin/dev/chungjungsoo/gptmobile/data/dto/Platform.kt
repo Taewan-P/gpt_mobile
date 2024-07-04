@@ -7,5 +7,8 @@ data class Platform(
     val selected: Boolean = false,
     val enabled: Boolean = false,
     val token: String? = null,
-    val model: String? = null
+    val model: String? = null,
+    val temperature: Float? = null,
+    val topP: Float? = null,
+    val systemPrompt: String? = null
 )

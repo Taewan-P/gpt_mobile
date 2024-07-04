@@ -101,4 +101,16 @@
     <string name="deleted_chats">Deleted %d chats.</string>
     <string name="delete_selected_chats">Delete selected chats?</string>
     <string name="this_operation_can_t_be_undone">This operation can\'t be undone.</string>
+    <string name="system_prompt">System Prompt</string>
+    <string name="temperature">Temperature</string>
+    <string name="top_p">Nucleus sampling (Top p)</string>
+    <string name="system_prompt_setting">System Prompt Setting</string>
+    <string name="system_prompt_description">A system prompt is a set of instructions, guidelines, and contextual information that\'s given to AI models before they interact with user queries.</string>
+    <string name="temperature_icon">Temperature Icon</string>
+    <string name="top_p_icon">Nucleus sampling icon</string>
+    <string name="system_prompt_icon">System Prompt Icon</string>
+    <string name="temperature_setting">Temperature Setting</string>
+    <string name="temperature_setting_description">Temperature is an amount of randomness injected into the response. Usually defaults to 1.0.\nSet low temperature for more focused and deterministic answers, and high for random answers.</string>
+    <string name="top_p_setting">Nucleus Sampling Setting</string>
+    <string name="top_p_setting_description">In nucleus sampling, we compute the cumulative distribution over all the options for each subsequent token in decreasing probability order and cut it off once it reaches a particular probability specified by this value.\nMost models usually recommend altering this or temperature but not both.</string>
 </resources>

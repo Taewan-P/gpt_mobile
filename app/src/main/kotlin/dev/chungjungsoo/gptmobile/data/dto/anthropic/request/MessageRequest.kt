@@ -22,25 +22,30 @@ data class MessageRequest(
     val maxTokens: Int,
 
     @SerialName("metadata")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
     val metadata: RequestMetadata? = null,
 
     @SerialName("stop_sequences")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
     val stopSequences: List<String>? = null,
 
     @SerialName("stream")
-    @EncodeDefault
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
     val stream: Boolean = false,
 
     @SerialName("system")
-    @EncodeDefault
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
     val systemPrompt: String? = null,
 
     @SerialName("temperature")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
     val temperature: Float? = null,
 
     @SerialName("top_k")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
     val topK: Int? = null,
 
     @SerialName("top_p")
-    val topP: Int? = null
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val topP: Float? = null
 )

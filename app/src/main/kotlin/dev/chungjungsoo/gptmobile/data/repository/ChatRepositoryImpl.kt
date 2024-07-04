@@ -13,6 +13,7 @@ import com.google.ai.client.generativeai.type.GenerateContentResponse
 import com.google.ai.client.generativeai.type.HarmCategory
 import com.google.ai.client.generativeai.type.SafetySetting
 import com.google.ai.client.generativeai.type.content
+import com.google.ai.client.generativeai.type.generationConfig
 import dev.chungjungsoo.gptmobile.data.ModelConstants
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageDao
@@ -50,9 +51,14 @@ class ChatRepositoryImpl @Inject constructor(
         openAI = OpenAI(platform.token ?: "")
 
         val generatedMessages = messageToOpenAIMessage(history + listOf(question))
+        val generatedMessageWithPrompt = listOf(
+            ChatMessage(role = ChatRole.System, content = platform.systemPrompt ?: ModelConstants.OPENAI_PROMPT)
+        ) + generatedMessages
         val chatCompletionRequest = ChatCompletionRequest(
             model = ModelId(platform.model ?: ""),
-            messages = generatedMessages
+            messages = generatedMessageWithPrompt,
+            temperature = platform.temperature?.toDouble(),
+            topP = platform.topP?.toDouble()
         )
 
         return openAI.chatCompletions(chatCompletionRequest)
@@ -71,8 +77,10 @@ class ChatRepositoryImpl @Inject constructor(
             model = platform.model ?: "",
             messages = generatedMessages,
             maxTokens = ModelConstants.ANTHROPIC_MAXIMUM_TOKEN,
-            systemPrompt = ModelConstants.ANTHROPIC_PROMPT,
-            stream = true
+            systemPrompt = platform.systemPrompt ?: ModelConstants.ANTHROPIC_PROMPT,
+            stream = true,
+            temperature = platform.temperature,
+            topP = platform.topP
         )
 
         return anthropic.streamChatMessage(messageRequest)
@@ -90,10 +98,15 @@ class ChatRepositoryImpl @Inject constructor(
 
     override suspend fun completeGoogleChat(question: Message, history: List<Message>): Flow<ApiState> {
         val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.GOOGLE })
+        val config = generationConfig {
+            temperature = platform.temperature
+            topP = platform.topP
+        }
         google = GenerativeModel(
             modelName = platform.model ?: "",
             apiKey = platform.token ?: "",
-            systemInstruction = content { text(ModelConstants.GOOGLE_PROMPT) },
+            systemInstruction = content { text(platform.systemPrompt ?: ModelConstants.GOOGLE_PROMPT) },
+            generationConfig = config,
             safetySettings = listOf(
                 SafetySetting(HarmCategory.DANGEROUS_CONTENT, BlockThreshold.ONLY_HIGH),
                 SafetySetting(HarmCategory.SEXUALLY_EXPLICIT, BlockThreshold.NONE)
@@ -156,9 +169,7 @@ class ChatRepositoryImpl @Inject constructor(
     }
 
     private fun messageToOpenAIMessage(messages: List<Message>): List<ChatMessage> {
-        val result = mutableListOf(
-            ChatMessage(role = ChatRole.System, content = ModelConstants.OPENAI_PROMPT)
-        )
+        val result = mutableListOf<ChatMessage>()
 
         messages.forEach { message ->
             when (message.platformType) {

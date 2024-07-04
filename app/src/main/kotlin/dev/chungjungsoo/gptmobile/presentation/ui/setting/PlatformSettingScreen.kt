@@ -9,15 +9,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -27,41 +24,26 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import dev.chungjungsoo.gptmobile.R
-import dev.chungjungsoo.gptmobile.data.ModelConstants.anthropicModels
-import dev.chungjungsoo.gptmobile.data.ModelConstants.googleModels
-import dev.chungjungsoo.gptmobile.data.ModelConstants.openaiModels
+import dev.chungjungsoo.gptmobile.data.ModelConstants
 import dev.chungjungsoo.gptmobile.data.model.ApiType
-import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
 import dev.chungjungsoo.gptmobile.presentation.common.SettingItem
-import dev.chungjungsoo.gptmobile.presentation.common.TokenInputField
 import dev.chungjungsoo.gptmobile.util.collectManagedState
-import dev.chungjungsoo.gptmobile.util.generateAnthropicModelList
-import dev.chungjungsoo.gptmobile.util.generateGoogleModelList
-import dev.chungjungsoo.gptmobile.util.generateOpenAIModelList
-import dev.chungjungsoo.gptmobile.util.getPlatformAPILabelResources
-import dev.chungjungsoo.gptmobile.util.getPlatformHelpLinkResources
 import dev.chungjungsoo.gptmobile.util.getPlatformSettingTitle
 import dev.chungjungsoo.gptmobile.util.pinnedExitUntilCollapsedScrollBehavior
 
@@ -79,8 +61,7 @@ fun PlatformSettingScreen(
     )
     val title = getPlatformSettingTitle(apiType)
     val platformState by settingViewModel.platformState.collectManagedState()
-    var isApiTokenDialogOpen by remember { mutableStateOf(false) }
-    var isModelDialogOpen by remember { mutableStateOf(false) }
+    val dialogState by settingViewModel.dialogState.collectManagedState()
 
     Scaffold(
         modifier = modifier
@@ -102,6 +83,13 @@ fun PlatformSettingScreen(
             val enabled = platform?.enabled ?: false
             val model = platform?.model
             val token = platform?.token
+            val temperature = platform?.temperature ?: 1F
+            val topP = platform?.topP
+            val systemPrompt = platform?.systemPrompt ?: when (apiType) {
+                ApiType.OPENAI -> ModelConstants.OPENAI_PROMPT
+                ApiType.ANTHROPIC -> ModelConstants.ANTHROPIC_PROMPT
+                ApiType.GOOGLE -> ModelConstants.GOOGLE_PROMPT
+            }
 
             PreferenceSwitchWithContainer(
                 title = stringResource(R.string.enable_api),
@@ -112,7 +100,7 @@ fun PlatformSettingScreen(
                 title = stringResource(R.string.api_key),
                 description = token?.let { stringResource(R.string.token_set, it[0]) } ?: stringResource(R.string.token_not_set),
                 enabled = enabled,
-                onItemClick = { isApiTokenDialogOpen = true },
+                onItemClick = settingViewModel::openApiTokenDialog,
                 showTrailingIcon = false,
                 showLeadingIcon = true,
                 leadingIcon = {
@@ -127,7 +115,7 @@ fun PlatformSettingScreen(
                 title = stringResource(R.string.api_model),
                 description = model,
                 enabled = enabled,
-                onItemClick = { isModelDialogOpen = true },
+                onItemClick = settingViewModel::openApiModelDialog,
                 showTrailingIcon = false,
                 showLeadingIcon = true,
                 leadingIcon = {
@@ -137,30 +125,57 @@ fun PlatformSettingScreen(
                     )
                 }
             )
-
-            if (isApiTokenDialogOpen) {
-                APIKeyDialog(
-                    apiType = apiType,
-                    onDismissRequest = { isApiTokenDialogOpen = false }
-                ) { apiToken ->
-                    settingViewModel.updateToken(apiType, apiToken)
-                    settingViewModel.savePlatformSettings()
-                    isApiTokenDialogOpen = false
+            SettingItem(
+                modifier = Modifier.height(64.dp),
+                title = stringResource(R.string.temperature),
+                description = temperature.toString(),
+                enabled = enabled,
+                onItemClick = settingViewModel::openTemperatureDialog,
+                showTrailingIcon = false,
+                showLeadingIcon = true,
+                leadingIcon = {
+                    Icon(
+                        ImageVector.vectorResource(id = R.drawable.ic_temperature),
+                        contentDescription = stringResource(R.string.temperature_icon)
+                    )
                 }
-            }
-
-            if (isModelDialogOpen) {
-                ModelDialog(
-                    apiType = apiType,
-                    model = model ?: "",
-                    onModelSelected = { m -> settingViewModel.updateModel(apiType, m) },
-                    onDismissRequest = { isModelDialogOpen = false }
-                ) { m ->
-                    settingViewModel.updateModel(apiType, m)
-                    settingViewModel.savePlatformSettings()
-                    isModelDialogOpen = false
+            )
+            SettingItem(
+                modifier = Modifier.height(64.dp),
+                title = stringResource(R.string.top_p),
+                description = topP?.toString(),
+                enabled = enabled,
+                onItemClick = settingViewModel::openTopPDialog,
+                showTrailingIcon = false,
+                showLeadingIcon = true,
+                leadingIcon = {
+                    Icon(
+                        ImageVector.vectorResource(id = R.drawable.ic_chart),
+                        contentDescription = stringResource(R.string.top_p_icon)
+                    )
                 }
-            }
+            )
+            SettingItem(
+                modifier = Modifier.height(64.dp),
+                title = stringResource(R.string.system_prompt),
+                description = systemPrompt,
+                enabled = enabled,
+                onItemClick = settingViewModel::openSystemPromptDialog,
+                showTrailingIcon = false,
+                showLeadingIcon = true,
+                leadingIcon = {
+                    Icon(
+                        ImageVector.vectorResource(id = R.drawable.ic_instructions),
+                        contentDescription = stringResource(R.string.system_prompt_icon)
+                    )
+                }
+            )
+
+            APIKeyDialog(dialogState, apiType, settingViewModel)
+            ModelDialog(dialogState, apiType, model, settingViewModel)
+            TemperatureDialog(dialogState, apiType, temperature, settingViewModel)
+            TopPDialog(dialogState, apiType, topP, settingViewModel)
+            SystemPromptDialog(dialogState, apiType, systemPrompt, settingViewModel)
         }
     }
 }
@@ -266,102 +281,4 @@ fun PreferenceSwitchWithContainer(
             thumbContent = thumbContent
         )
     }
-}
-
-@Composable
-fun APIKeyDialog(
-    apiType: ApiType,
-    onDismissRequest: () -> Unit,
-    onConfirmRequest: (token: String) -> Unit
-) {
-    var token by remember { mutableStateOf("") }
-    val configuration = LocalConfiguration.current
-
-    AlertDialog(
-        properties = DialogProperties(usePlatformDefaultWidth = false),
-        modifier = Modifier.widthIn(max = configuration.screenWidthDp.dp - 40.dp),
-        title = { Text(text = getPlatformAPILabelResources()[apiType]!!) },
-        text = {
-            TokenInputField(
-                value = token,
-                onValueChange = { token = it },
-                onClearClick = { token = "" },
-                label = getPlatformAPILabelResources()[apiType]!!,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                helpLink = getPlatformHelpLinkResources()[apiType]!!
-            )
-        },
-        onDismissRequest = onDismissRequest,
-        confirmButton = {
-            TextButton(
-                enabled = token.isNotBlank(),
-                onClick = { onConfirmRequest(token) }
-            ) {
-                Text(stringResource(R.string.confirm))
-            }
-        },
-        dismissButton = {
-            TextButton(
-                onClick = onDismissRequest
-            ) {
-                Text(stringResource(R.string.cancel))
-            }
-        }
-    )
-}
-
-@Composable
-fun ModelDialog(
-    apiType: ApiType,
-    model: String,
-    onModelSelected: (String) -> Unit,
-    onDismissRequest: () -> Unit,
-    onConfirmRequest: (model: String) -> Unit
-) {
-    val modelList = when (apiType) {
-        ApiType.OPENAI -> openaiModels
-        ApiType.ANTHROPIC -> anthropicModels
-        ApiType.GOOGLE -> googleModels
-    }
-    val availableModels = when (apiType) {
-        ApiType.OPENAI -> generateOpenAIModelList(models = modelList)
-        ApiType.ANTHROPIC -> generateAnthropicModelList(models = modelList)
-        ApiType.GOOGLE -> generateGoogleModelList(models = modelList)
-    }
-    val configuration = LocalConfiguration.current
-
-    AlertDialog(
-        properties = DialogProperties(usePlatformDefaultWidth = false),
-        modifier = Modifier.widthIn(max = configuration.screenWidthDp.dp - 40.dp),
-        title = { Text(text = stringResource(R.string.api_model)) },
-        text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                availableModels.forEach { m ->
-                    RadioItem(
-                        value = m.aliasValue,
-                        selected = model == m.aliasValue,
-                        title = m.name,
-                        description = m.description,
-                        onSelected = { onModelSelected(it) }
-                    )
-                }
-            }
-        },
-        onDismissRequest = onDismissRequest,
-        confirmButton = {
-            TextButton(
-                enabled = model.isNotBlank() && model in modelList,
-                onClick = { onConfirmRequest(model) }
-            ) {
-                Text(stringResource(R.string.confirm))
-            }
-        },
-        dismissButton = {
-            TextButton(
-                onClick = onDismissRequest
-            ) {
-                Text(stringResource(R.string.cancel))
-            }
-        }
-    )
 }

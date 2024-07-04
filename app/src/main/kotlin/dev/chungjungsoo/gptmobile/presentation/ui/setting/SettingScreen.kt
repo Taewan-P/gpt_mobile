@@ -56,7 +56,7 @@ fun SettingScreen(
     val scrollBehavior = pinnedExitUntilCollapsedScrollBehavior(
         canScroll = { scrollState.canScrollForward || scrollState.canScrollBackward }
     )
-    val isThemeDialogOpen by settingViewModel.isThemeDialogOpen.collectManagedState()
+    val dialogState by settingViewModel.dialogState.collectManagedState()
 
     Scaffold(
         modifier = modifier
@@ -84,7 +84,7 @@ fun SettingScreen(
                 )
             }
 
-            if (isThemeDialogOpen) {
+            if (dialogState.isThemeDialogOpen) {
                 ThemeSettingDialog(settingViewModel)
             }
         }
