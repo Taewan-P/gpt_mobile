@@ -82,4 +82,16 @@
     <string name="deleted_chats">%d개의 채팅을 삭제했습니다.</string>
     <string name="delete_selected_chats">선택한 채팅들을 삭제하시겠습니까?</string>
     <string name="this_operation_can_t_be_undone">이 작업은 복구할 수 없습니다.</string>
+    <string name="system_prompt">시스템 프롬프트</string>
+    <string name="temperature">Temperature</string>
+    <string name="top_p">Nucleus sampling (Top p)</string>
+    <string name="system_prompt_setting">시스템 프롬프트 설정</string>
+    <string name="system_prompt_description">시스템 프롬프트는 AI 모델이 사용자 쿼리를 처리하기 전에 제공되는 일련의 지침, 가이드라인 및 컨텍스트 정보입니다.</string>
+    <string name="temperature_icon">Temperature 아이콘</string>
+    <string name="top_p_icon">Nucleus sampling 아이콘</string>
+    <string name="system_prompt_icon">시스템 프롬프트 아이콘</string>
+    <string name="temperature_setting">Temperature 설정</string>
+    <string name="temperature_setting_description">Temperature는 답변에 주입되는 무작위성의 정도입니다. 일반적으로 기본값은 1.0입니다.\n보다 집중적이고 결정적인 답변을 원하면 Temperature를 낮게 설정하고, 무작위 답변을 원하면 Temperature를 높게 설정합니다.</string>
+    <string name="top_p_setting">Nucleus sampling 설정</string>
+    <string name="top_p_setting_description">Nucleus sampling이란 모델이 특정 확률 값(p)에 따라 단어를 선택하는 설정입니다.\n대부분의 모델은 일반적으로 이 값 또는 Temperature 중 하나를 변경할 것을 권장하지만 둘 다 변경하는건 권장하지 않습니다.</string>
 </resources>

@@ -22,8 +22,8 @@ class SettingViewModel @Inject constructor(
     private val _platformState = MutableStateFlow(listOf<Platform>())
     val platformState: StateFlow<List<Platform>> = _platformState.asStateFlow()
 
-    private val _isThemeDialogOpen = MutableStateFlow(false)
-    val isThemeDialogOpen: StateFlow<Boolean> = _isThemeDialogOpen.asStateFlow()
+    private val _dialogState = MutableStateFlow(DialogState())
+    val dialogState: StateFlow<DialogState> = _dialogState.asStateFlow()
 
     init {
         fetchPlatformStatus()
@@ -91,13 +91,82 @@ class SettingViewModel @Inject constructor(
         }
     }
 
-    fun openThemeDialog() {
-        _isThemeDialogOpen.update { true }
+    fun updateTemperature(apiType: ApiType, temperature: Float) {
+        val index = _platformState.value.indexOfFirst { it.name == apiType }
+        val modifiedTemperature = when (apiType) {
+            ApiType.ANTHROPIC -> temperature.coerceIn(0F, 1F)
+            else -> temperature.coerceIn(0F, 2F)
+        }
+
+        if (index >= 0) {
+            _platformState.update {
+                it.mapIndexed { i, p ->
+                    if (index == i) {
+                        p.copy(temperature = modifiedTemperature)
+                    } else {
+                        p
+                    }
+                }
+            }
+        }
     }
 
-    fun closeThemeDialog() {
-        _isThemeDialogOpen.update { false }
+    fun updateTopP(apiType: ApiType, topP: Float) {
+        val index = _platformState.value.indexOfFirst { it.name == apiType }
+        val modifiedTopP = topP.coerceIn(0.1F, 1F)
+
+        if (index >= 0) {
+            _platformState.update {
+                it.mapIndexed { i, p ->
+                    if (index == i) {
+                        p.copy(topP = modifiedTopP)
+                    } else {
+                        p
+                    }
+                }
+            }
+        }
     }
+
+    fun updateSystemPrompt(apiType: ApiType, prompt: String) {
+        val index = _platformState.value.indexOfFirst { it.name == apiType }
+
+        if (index >= 0) {
+            _platformState.update {
+                it.mapIndexed { i, p ->
+                    if (index == i && prompt.isNotBlank()) {
+                        p.copy(systemPrompt = prompt)
+                    } else {
+                        p
+                    }
+                }
+            }
+        }
+    }
+
+    fun openThemeDialog() = _dialogState.update { it.copy(isThemeDialogOpen = true) }
+
+    fun openApiTokenDialog() = _dialogState.update { it.copy(isApiTokenDialogOpen = true) }
+
+    fun openApiModelDialog() = _dialogState.update { it.copy(isApiModelDialogOpen = true) }
+
+    fun openTemperatureDialog() = _dialogState.update { it.copy(isTemperatureDialogOpen = true) }
+
+    fun openTopPDialog() = _dialogState.update { it.copy(isTopPDialogOpen = true) }
+
+    fun openSystemPromptDialog() = _dialogState.update { it.copy(isSystemPromptDialogOpen = true) }
+
+    fun closeThemeDialog() = _dialogState.update { it.copy(isThemeDialogOpen = false) }
+
+    fun closeApiTokenDialog() = _dialogState.update { it.copy(isApiTokenDialogOpen = false) }
+
+    fun closeApiModelDialog() = _dialogState.update { it.copy(isApiModelDialogOpen = false) }
+
+    fun closeTemperatureDialog() = _dialogState.update { it.copy(isTemperatureDialogOpen = false) }
+
+    fun closeTopPDialog() = _dialogState.update { it.copy(isTopPDialogOpen = false) }
+
+    fun closeSystemPromptDialog() = _dialogState.update { it.copy(isSystemPromptDialogOpen = false) }
 
     private fun fetchPlatformStatus() {
         viewModelScope.launch {
@@ -105,4 +174,13 @@ class SettingViewModel @Inject constructor(
             _platformState.update { platforms }
         }
     }
+
+    data class DialogState(
+        val isThemeDialogOpen: Boolean = false,
+        val isApiTokenDialogOpen: Boolean = false,
+        val isApiModelDialogOpen: Boolean = false,
+        val isTemperatureDialogOpen: Boolean = false,
+        val isTopPDialogOpen: Boolean = false,
+        val isSystemPromptDialogOpen: Boolean = false
+    )
 }

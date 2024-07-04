@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.chungjungsoo.gptmobile.R
 
@@ -41,9 +42,9 @@ fun SettingItem(
     if (showLeadingIcon) {
         ListItem(
             modifier = clickableModifier,
-            headlineContent = { Text(title) },
+            headlineContent = { Text(title, overflow = TextOverflow.Ellipsis) },
             supportingContent = {
-                description?.let { Text(it) }
+                description?.let { Text(it, overflow = TextOverflow.Ellipsis) }
             },
             leadingContent = { leadingIcon() },
             trailingContent = {
