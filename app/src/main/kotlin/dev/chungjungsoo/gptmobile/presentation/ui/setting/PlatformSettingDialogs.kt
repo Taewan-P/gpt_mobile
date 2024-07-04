@@ -127,9 +127,9 @@ fun SystemPromptDialog(
     if (dialogState.isSystemPromptDialogOpen) {
         SystemPromptDialog(
             prompt = systemPrompt,
-            onTextChange = { settingViewModel.updateSystemPrompt(apiType, it) },
             onDismissRequest = settingViewModel::closeSystemPromptDialog
         ) {
+            settingViewModel.updateSystemPrompt(apiType, it)
             settingViewModel.savePlatformSettings()
             settingViewModel.closeSystemPromptDialog()
         }
@@ -384,11 +384,11 @@ private fun TopPDialog(
 @Composable
 private fun SystemPromptDialog(
     prompt: String,
-    onTextChange: (text: String) -> Unit,
     onDismissRequest: () -> Unit,
-    onConfirmRequest: () -> Unit
+    onConfirmRequest: (text: String) -> Unit
 ) {
     val configuration = LocalConfiguration.current
+    var textFieldPrompt by remember { mutableStateOf(prompt) }
 
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -403,8 +403,8 @@ private fun SystemPromptDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp, vertical = 16.dp),
-                    value = prompt,
-                    onValueChange = onTextChange,
+                    value = textFieldPrompt,
+                    onValueChange = { textFieldPrompt = it },
                     label = {
                         Text(stringResource(R.string.system_prompt))
                     }
@@ -414,8 +414,8 @@ private fun SystemPromptDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = {
             TextButton(
-                enabled = prompt.isNotBlank(),
-                onClick = { onConfirmRequest() }
+                enabled = textFieldPrompt.isNotBlank(),
+                onClick = { onConfirmRequest(textFieldPrompt) }
             ) {
                 Text(stringResource(R.string.confirm))
             }
