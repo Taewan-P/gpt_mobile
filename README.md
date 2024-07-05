@@ -35,6 +35,7 @@
     - OpenAI GPT
     - Anthropic Claude
     - Google Gemini
+  - Can customize temperature, top p (Nucleus sampling), and system prompt
 - Local chat history
   - Chat history is **only saved locally**
   - Only sends to official API servers while chatting
