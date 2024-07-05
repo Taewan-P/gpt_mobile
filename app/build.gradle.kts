@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.android.hilt)
     alias(libs.plugins.kotlin.ksp)
     alias(libs.plugins.kotlin.parcelize)
+    alias(libs.plugins.auto.license)
     kotlin(libs.plugins.kotlin.serialization.get().pluginId).version(libs.versions.kotlin)
 }
 
@@ -92,6 +93,10 @@ dependencies {
     implementation(libs.ktor.engine)
     implementation(libs.ktor.logging)
     implementation(libs.ktor.serialization)
+
+    // License page UI
+    implementation(libs.auto.license.core)
+    implementation(libs.auto.license.ui)
 
     // Markdown
     implementation(libs.compose.markdown)
