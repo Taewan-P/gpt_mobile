@@ -62,7 +62,7 @@ class SettingRepositoryImpl @Inject constructor(
             }
 
             if (platform.systemPrompt != null) {
-                settingDataSource.updateSystemPrompt(platform.name, platform.systemPrompt)
+                settingDataSource.updateSystemPrompt(platform.name, platform.systemPrompt.trim())
             }
         }
     }
