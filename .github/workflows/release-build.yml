@@ -49,7 +49,7 @@ jobs:
         env:
           SIGNING_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          apksigner sign --ks keystore.jks --ks-pass env:SIGNING_PASSWORD --out app-release.apk app-release-unsigned.apk
+          apksigner sign --ks keystore.jks --alignment-preserved true --ks-pass env:SIGNING_PASSWORD --out app-release.apk app-release-unsigned.apk
         working-directory: ${{ github.workspace }}/app/build/outputs/apk/release
 
       - name: Sign Release App Bundle
