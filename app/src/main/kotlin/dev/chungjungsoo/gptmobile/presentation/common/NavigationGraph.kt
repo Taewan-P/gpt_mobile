@@ -17,6 +17,7 @@ import androidx.navigation.navigation
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.presentation.ui.chat.ChatScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.home.HomeScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.setting.AboutScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.PlatformSettingScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.SettingScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.SettingViewModel
@@ -181,13 +182,14 @@ fun NavGraphBuilder.settingNavigation(navController: NavHostController) {
             SettingScreen(
                 settingViewModel = settingViewModel,
                 onNavigationClick = { navController.navigateUp() },
-                onNavigate = { apiType ->
+                onNavigateToPlatformSetting = { apiType ->
                     when (apiType) {
                         ApiType.OPENAI -> navController.navigate(Route.OPENAI_SETTINGS)
                         ApiType.ANTHROPIC -> navController.navigate(Route.ANTHROPIC_SETTINGS)
                         ApiType.GOOGLE -> navController.navigate(Route.GOOGLE_SETTINGS)
                     }
-                }
+                },
+                onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) }
             )
         }
         composable(Route.OPENAI_SETTINGS) {
@@ -219,6 +221,14 @@ fun NavGraphBuilder.settingNavigation(navController: NavHostController) {
                 settingViewModel = settingViewModel,
                 apiType = ApiType.GOOGLE
             ) { navController.navigateUp() }
+        }
+        composable(Route.ABOUT_PAGE) {
+            AboutScreen(
+                onNavigationClick = { navController.navigateUp() },
+                onNavigationToLicense = { navController.navigate(Route.LICENSE) }
+            )
+        }
+        composable(Route.LICENSE) {
         }
     }
 }

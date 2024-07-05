@@ -74,3 +74,6 @@ Cross platform updates are supported. However, GitHub Releases will be the faste
 ## License
 
 See [LICENSE](./LICENSE) for details.
+
+[F-Droid Icon License](https://gitlab.com/fdroid/artwork/-/blob/master/fdroid-logo-2015/README.md)
+

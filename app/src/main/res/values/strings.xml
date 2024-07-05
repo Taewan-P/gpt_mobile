@@ -77,7 +77,7 @@
     <string name="openai_setting">OpenAI Settings</string>
     <string name="anthropic_setting">Anthropic Settings</string>
     <string name="google_setting">Google Settings</string>
-    <string name="platform_setting_description">API Key, Model</string>
+    <string name="platform_setting_description">API Key, Model, System Prompt</string>
     <string name="enable_api">Enable API</string>
     <string name="api_key">API Key</string>
     <string name="api_model">API Model</string>
@@ -113,4 +113,24 @@
     <string name="temperature_setting_description">Temperature is an amount of randomness injected into the response. Usually defaults to 1.0.\nSet low temperature for more focused and deterministic answers, and high for random answers.</string>
     <string name="top_p_setting">Nucleus Sampling Setting</string>
     <string name="top_p_setting_description">In nucleus sampling, we compute the cumulative distribution over all the options for each subsequent token in decreasing probability order and cut it off once it reaches a particular probability specified by this value.\nMost models usually recommend altering this or temperature but not both.</string>
+    <string name="about">About</string>
+    <string name="about_description">Version, License, Feedback</string>
+    <string name="version">Version</string>
+    <string name="license">License</string>
+    <string name="github" translatable="false">GitHub</string>
+    <string name="f_droid" translatable="false">F-Droid</string>
+    <string name="play_store" translatable="false">Play Store</string>
+    <string name="feedback">Feedback</string>
+    <string name="license_description">Open Source Licenses</string>
+    <string name="feedback_description">We are open to all kinds of feedback!</string>
+    <string name="version_icon">Version Icon</string>
+    <string name="license_icon">License Icon</string>
+    <string name="feedback_icon">Feedback Icon</string>
+    <string name="github_icon">GitHub Icon</string>
+    <string name="f_droid_icon">F-Droid Icon</string>
+    <string name="play_store_icon">Play Store Icon</string>
+    <string name="github_link" translatable="false">https://github.com/Taewan-P/gpt_mobile</string>
+    <string name="f_droid_link" translatable="false">https://f-droid.org/packages/dev.chungjungsoo.gptmobile/</string>
+    <string name="play_store_link" translatable="false">https://play.google.com/store/apps/details?id=dev.chungjungsoo.gptmobile</string>
+    <string name="feedback_link" translatable="false">https://github.com/Taewan-P/gpt_mobile/issues/new</string>
 </resources>

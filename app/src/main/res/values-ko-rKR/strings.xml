@@ -60,7 +60,7 @@
     <string name="openai_setting">OpenAI 설정</string>
     <string name="anthropic_setting">Anthropic 설정</string>
     <string name="google_setting">Google 설정</string>
-    <string name="platform_setting_description">API 키, 모델</string>
+    <string name="platform_setting_description">API 키, 모델, 시스템 프롬프트</string>
     <string name="enable_api">API 활성화</string>
     <string name="api_key">API 키</string>
     <string name="api_model">API 모델</string>
@@ -94,4 +94,17 @@
     <string name="temperature_setting_description">Temperature는 답변에 주입되는 무작위성의 정도입니다. 일반적으로 기본값은 1.0입니다.\n보다 집중적이고 결정적인 답변을 원하면 Temperature를 낮게 설정하고, 무작위 답변을 원하면 Temperature를 높게 설정합니다.</string>
     <string name="top_p_setting">Nucleus sampling 설정</string>
     <string name="top_p_setting_description">Nucleus sampling이란 모델이 특정 확률 값(p)에 따라 단어를 선택하는 설정입니다.\n대부분의 모델은 일반적으로 이 값 또는 Temperature 중 하나를 변경할 것을 권장하지만 둘 다 변경하는건 권장하지 않습니다.</string>
+    <string name="about">앱 정보</string>
+    <string name="about_description">버전, 라이선스, 피드백</string>
+    <string name="version">버전</string>
+    <string name="license">라이선스</string>
+    <string name="feedback">피드백</string>
+    <string name="license_description">오픈 소스 라이선스</string>
+    <string name="feedback_description">다양한 피드백에 열려 있습니다!</string>
+    <string name="version_icon">버전 아이콘</string>
+    <string name="license_icon">라이선스 아이콘</string>
+    <string name="feedback_icon">피드백 아이콘</string>
+    <string name="github_icon">GitHub 아이콘</string>
+    <string name="f_droid_icon">F-Droid 아이콘</string>
+    <string name="play_store_icon">Play Store 아이콘</string>
 </resources>
