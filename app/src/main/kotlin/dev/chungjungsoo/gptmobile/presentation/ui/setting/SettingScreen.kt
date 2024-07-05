@@ -50,7 +50,8 @@ fun SettingScreen(
     modifier: Modifier = Modifier,
     settingViewModel: SettingViewModel = hiltViewModel(),
     onNavigationClick: () -> Unit,
-    onNavigate: (ApiType) -> Unit
+    onNavigateToPlatformSetting: (ApiType) -> Unit,
+    onNavigateToAboutPage: () -> Unit
 ) {
     val scrollState = rememberScrollState()
     val scrollBehavior = pinnedExitUntilCollapsedScrollBehavior(
@@ -78,11 +79,12 @@ fun SettingScreen(
                 SettingItem(
                     title = getPlatformSettingTitle(apiType),
                     description = getPlatformSettingDescription(apiType),
-                    onItemClick = { onNavigate(apiType) },
+                    onItemClick = { onNavigateToPlatformSetting(apiType) },
                     showTrailingIcon = true,
                     showLeadingIcon = false
                 )
             }
+            AboutPageItem(onItemClick = onNavigateToAboutPage)
 
             if (dialogState.isThemeDialogOpen) {
                 ThemeSettingDialog(settingViewModel)
@@ -131,6 +133,19 @@ fun ThemeSetting(
         description = stringResource(R.string.theme_description),
         onItemClick = onItemClick,
         showTrailingIcon = false,
+        showLeadingIcon = false
+    )
+}
+
+@Composable
+fun AboutPageItem(
+    onItemClick: () -> Unit
+) {
+    SettingItem(
+        title = stringResource(R.string.about),
+        description = stringResource(R.string.about_description),
+        onItemClick = onItemClick,
+        showTrailingIcon = true,
         showLeadingIcon = false
     )
 }

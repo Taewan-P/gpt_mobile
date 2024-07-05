@@ -21,4 +21,5 @@ object Route {
     const val ANTHROPIC_SETTINGS = "anthropic_settings"
     const val GOOGLE_SETTINGS = "google_settings"
     const val ABOUT_PAGE = "about"
+    const val LICENSE = "license"
 }
