@@ -160,7 +160,7 @@ fun ChatScreen(
                                 .horizontalScroll(chatBubbleScrollStates[(key - 1) / 2])
                         ) {
                             Spacer(modifier = Modifier.width(8.dp))
-                            groupedMessages[key]!!.sortedByDescending { it.platformType }.forEach { m ->
+                            groupedMessages[key]!!.sortedBy { it.platformType }.forEach { m ->
                                 m.platformType?.let { apiType ->
                                     OpponentChatBubble(
                                         modifier = Modifier
@@ -200,7 +200,7 @@ fun ChatScreen(
                             .horizontalScroll(chatBubbleScrollStates[(latestMessageIndex + 1) / 2])
                     ) {
                         Spacer(modifier = Modifier.width(8.dp))
-                        chatViewModel.enabledPlatformsInChat.sortedDescending().forEach { apiType ->
+                        chatViewModel.enabledPlatformsInChat.sorted().forEach { apiType ->
                             val message = when (apiType) {
                                 ApiType.OPENAI -> openAIMessage
                                 ApiType.ANTHROPIC -> anthropicMessage
