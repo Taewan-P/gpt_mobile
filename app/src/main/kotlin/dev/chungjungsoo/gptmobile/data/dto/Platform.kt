@@ -6,6 +6,7 @@ data class Platform(
     val name: ApiType,
     val selected: Boolean = false,
     val enabled: Boolean = false,
+    val apiUrl: String = "",
     val token: String? = null,
     val model: String? = null,
     val temperature: Float? = null,

@@ -37,7 +37,26 @@ import dev.chungjungsoo.gptmobile.util.generateGoogleModelList
 import dev.chungjungsoo.gptmobile.util.generateOpenAIModelList
 import dev.chungjungsoo.gptmobile.util.getPlatformAPILabelResources
 import dev.chungjungsoo.gptmobile.util.getPlatformHelpLinkResources
+import dev.chungjungsoo.gptmobile.util.isValidUrl
 import kotlin.math.roundToInt
+
+@Composable
+fun APIUrlDialog(
+    dialogState: SettingViewModel.DialogState,
+    apiType: ApiType,
+    settingViewModel: SettingViewModel
+) {
+    if (dialogState.isApiUrlDialogOpen) {
+        APIUrlDialog(
+            apiType = apiType,
+            onDismissRequest = settingViewModel::closeApiUrlDialog
+        ) { apiUrl ->
+            settingViewModel.updateURL(apiType, apiUrl)
+            settingViewModel.savePlatformSettings()
+            settingViewModel.closeApiUrlDialog()
+        }
+    }
+}
 
 @Composable
 fun APIKeyDialog(
@@ -134,6 +153,56 @@ fun SystemPromptDialog(
             settingViewModel.closeSystemPromptDialog()
         }
     }
+}
+
+@Composable
+private fun APIUrlDialog(
+    apiType: ApiType,
+    onDismissRequest: () -> Unit,
+    onConfirmRequest: (url: String) -> Unit
+) {
+    var apiUrl by remember { mutableStateOf("") }
+    val configuration = LocalConfiguration.current
+
+    AlertDialog(
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier.widthIn(max = configuration.screenWidthDp.dp - 40.dp),
+        title = { Text(text = stringResource(R.string.api_url)) },
+        text = {
+            OutlinedTextField(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                value = apiUrl,
+                isError = apiUrl.isValidUrl(),
+                onValueChange = { apiUrl = it },
+                label = {
+                    Text(stringResource(R.string.api_url))
+                },
+                supportingText = {
+                    if (apiUrl.isValidUrl().not()) {
+                        Text(text = stringResource(R.string.invalid_api_url))
+                    }
+                }
+            )
+        },
+        onDismissRequest = onDismissRequest,
+        confirmButton = {
+            TextButton(
+                enabled = apiUrl.isNotBlank() && apiUrl.isValidUrl(),
+                onClick = { onConfirmRequest(apiUrl) }
+            ) {
+                Text(stringResource(R.string.confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismissRequest
+            ) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
 }
 
 @Composable

@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.network
 
+import dev.chungjungsoo.gptmobile.data.ModelConstants
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.request.MessageRequest
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ErrorDetail
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ErrorResponseChunk
@@ -32,9 +33,14 @@ class AnthropicAPIImpl @Inject constructor(
 ) : AnthropicAPI {
 
     private var token: String? = null
+    private var apiUrl: String = ModelConstants.ANTHROPIC_API_URL
 
     override fun setToken(token: String?) {
         this.token = token
+    }
+
+    override fun setAPIUrl(url: String) {
+        this.apiUrl = url
     }
 
     override fun streamChatMessage(messageRequest: MessageRequest): Flow<MessageResponseChunk> {
@@ -42,7 +48,7 @@ class AnthropicAPIImpl @Inject constructor(
 
         val builder = HttpRequestBuilder().apply {
             method = HttpMethod.Post
-            url("${ANTHROPIC_CHAT_API}/v1/messages")
+            url("$apiUrl/v1/messages")
             contentType(ContentType.Application.Json)
             setBody(body)
             accept(ContentType.Text.EventStream)
@@ -81,7 +87,6 @@ class AnthropicAPIImpl @Inject constructor(
     }
 
     companion object {
-        private const val ANTHROPIC_CHAT_API = "https://api.anthropic.com"
         private const val STREAM_PREFIX = "data:"
         private const val STREAM_END_TOKEN = "event: message_stop"
         private const val API_KEY_HEADER = "x-api-key"

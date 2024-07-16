@@ -107,4 +107,7 @@
     <string name="github_icon">GitHub 아이콘</string>
     <string name="f_droid_icon">F-Droid 아이콘</string>
     <string name="play_store_icon">Play Store 아이콘</string>
+    <string name="api_url">API 주소</string>
+    <string name="url_icon">주소 아이콘</string>
+    <string name="invalid_api_url">유효한 주소를 입력해 주세요.</string>
 </resources>

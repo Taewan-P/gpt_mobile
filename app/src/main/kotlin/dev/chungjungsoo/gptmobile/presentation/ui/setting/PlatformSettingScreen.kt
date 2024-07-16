@@ -87,14 +87,29 @@ fun PlatformSettingScreen(
             val topP = platform?.topP
             val systemPrompt = platform?.systemPrompt ?: when (apiType) {
                 ApiType.OPENAI -> ModelConstants.OPENAI_PROMPT
-                ApiType.ANTHROPIC -> ModelConstants.ANTHROPIC_PROMPT
-                ApiType.GOOGLE -> ModelConstants.GOOGLE_PROMPT
+                ApiType.ANTHROPIC -> ModelConstants.DEFAULT_PROMPT
+                ApiType.GOOGLE -> ModelConstants.DEFAULT_PROMPT
             }
 
             PreferenceSwitchWithContainer(
                 title = stringResource(R.string.enable_api),
                 isChecked = enabled
             ) { settingViewModel.toggleAPI(apiType) }
+            SettingItem(
+                modifier = Modifier.height(64.dp),
+                title = stringResource(R.string.api_url),
+                description = "",
+                enabled = enabled,
+                onItemClick = settingViewModel::openApiUrlDialog,
+                showTrailingIcon = false,
+                showLeadingIcon = true,
+                leadingIcon = {
+                    Icon(
+                        ImageVector.vectorResource(id = R.drawable.ic_link),
+                        contentDescription = stringResource(R.string.url_icon)
+                    )
+                }
+            )
             SettingItem(
                 modifier = Modifier.height(64.dp),
                 title = stringResource(R.string.api_key),
