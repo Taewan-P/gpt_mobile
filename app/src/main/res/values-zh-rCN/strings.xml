@@ -93,7 +93,7 @@
     <string name="temperature_setting">温度</string>
     <string name="temperature_setting_description">温度是一个注入到回答中的随机量，温度越低，答案越集中和确定;温度越高，答案越为灵活</string>
     <string name="top_p_setting">核心采样</string>
-    <string name="top_p_setting_description">在核心采样中，我们按递减概率顺序计算每个后续令牌的所有选项的累积分布，并在达到该值指定的特定概率后将其截断。大多数模型通常建议改变这个或温度，但不是两者都改变。</string>
+    <string name="top_p_setting_description">在核心采样中，我们按递减概率顺序计算每个后续令牌的所有选项的累积分布，并在达到该值指定的特定概率后将其截断。\n大多数模型通常建议改变这个或温度，但不是两者都改变。</string>
     <string name="about">关于</string>
     <string name="about_description">版本,许可证,反馈</string>
     <string name="version">版本</string>
