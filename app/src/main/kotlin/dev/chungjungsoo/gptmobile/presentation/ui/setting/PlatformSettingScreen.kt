@@ -99,7 +99,7 @@ fun PlatformSettingScreen(
                 modifier = Modifier.height(64.dp),
                 title = stringResource(R.string.api_url),
                 description = "",
-                enabled = enabled,
+                enabled = enabled && platform?.name != ApiType.GOOGLE,
                 onItemClick = settingViewModel::openApiUrlDialog,
                 showTrailingIcon = false,
                 showLeadingIcon = true,
