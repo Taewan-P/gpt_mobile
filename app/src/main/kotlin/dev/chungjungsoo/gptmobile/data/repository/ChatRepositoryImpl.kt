@@ -6,6 +6,7 @@ import com.aallam.openai.api.chat.ChatMessage
 import com.aallam.openai.api.chat.ChatRole
 import com.aallam.openai.api.model.ModelId
 import com.aallam.openai.client.OpenAI
+import com.aallam.openai.client.OpenAIHost
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.BlockThreshold
 import com.google.ai.client.generativeai.type.Content
@@ -48,7 +49,7 @@ class ChatRepositoryImpl @Inject constructor(
 
     override suspend fun completeOpenAIChat(question: Message, history: List<Message>): Flow<ApiState> {
         val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.OPENAI })
-        openAI = OpenAI(platform.token ?: "")
+        openAI = OpenAI(platform.token ?: "", host = OpenAIHost(baseUrl = platform.apiUrl))
 
         val generatedMessages = messageToOpenAIMessage(history + listOf(question))
         val generatedMessageWithPrompt = listOf(
@@ -71,13 +72,14 @@ class ChatRepositoryImpl @Inject constructor(
     override suspend fun completeAnthropicChat(question: Message, history: List<Message>): Flow<ApiState> {
         val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.ANTHROPIC })
         anthropic.setToken(platform.token)
+        anthropic.setAPIUrl(platform.apiUrl)
 
         val generatedMessages = messageToAnthropicMessage(history + listOf(question))
         val messageRequest = MessageRequest(
             model = platform.model ?: "",
             messages = generatedMessages,
             maxTokens = ModelConstants.ANTHROPIC_MAXIMUM_TOKEN,
-            systemPrompt = platform.systemPrompt ?: ModelConstants.ANTHROPIC_PROMPT,
+            systemPrompt = platform.systemPrompt ?: ModelConstants.DEFAULT_PROMPT,
             stream = true,
             temperature = platform.temperature,
             topP = platform.topP
@@ -105,7 +107,7 @@ class ChatRepositoryImpl @Inject constructor(
         google = GenerativeModel(
             modelName = platform.model ?: "",
             apiKey = platform.token ?: "",
-            systemInstruction = content { text(platform.systemPrompt ?: ModelConstants.GOOGLE_PROMPT) },
+            systemInstruction = content { text(platform.systemPrompt ?: ModelConstants.DEFAULT_PROMPT) },
             generationConfig = config,
             safetySettings = listOf(
                 SafetySetting(HarmCategory.DANGEROUS_CONTENT, BlockThreshold.ONLY_HIGH),

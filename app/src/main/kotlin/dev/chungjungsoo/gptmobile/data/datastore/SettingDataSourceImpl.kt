@@ -22,6 +22,11 @@ class SettingDataSourceImpl @Inject constructor(
         ApiType.ANTHROPIC to booleanPreferencesKey("anthropic_status"),
         ApiType.GOOGLE to booleanPreferencesKey("google_status")
     )
+    private val apiUrlMap = mapOf(
+        ApiType.OPENAI to stringPreferencesKey("openai_url"),
+        ApiType.ANTHROPIC to stringPreferencesKey("anthropic_url"),
+        ApiType.GOOGLE to stringPreferencesKey("google_url")
+    )
     private val apiTokenMap = mapOf(
         ApiType.OPENAI to stringPreferencesKey("openai_token"),
         ApiType.ANTHROPIC to stringPreferencesKey("anthropic_token"),
@@ -65,6 +70,12 @@ class SettingDataSourceImpl @Inject constructor(
     override suspend fun updateStatus(apiType: ApiType, status: Boolean) {
         dataStore.edit { pref ->
             pref[apiStatusMap[apiType]!!] = status
+        }
+    }
+
+    override suspend fun updateAPIUrl(apiType: ApiType, url: String) {
+        dataStore.edit { pref ->
+            pref[apiUrlMap[apiType]!!] = url
         }
     }
 
@@ -116,6 +127,10 @@ class SettingDataSourceImpl @Inject constructor(
 
     override suspend fun getStatus(apiType: ApiType): Boolean? = dataStore.data.map { pref ->
         pref[apiStatusMap[apiType]!!]
+    }.first()
+
+    override suspend fun getAPIUrl(apiType: ApiType): String? = dataStore.data.map { pref ->
+        pref[apiUrlMap[apiType]!!]
     }.first()
 
     override suspend fun getToken(apiType: ApiType): String? = dataStore.data.map { pref ->

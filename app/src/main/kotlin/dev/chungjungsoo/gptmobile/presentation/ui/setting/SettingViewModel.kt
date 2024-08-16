@@ -54,6 +54,22 @@ class SettingViewModel @Inject constructor(
         }
     }
 
+    fun updateURL(apiType: ApiType, url: String) {
+        val index = _platformState.value.indexOfFirst { it.name == apiType }
+
+        if (index >= 0) {
+            _platformState.update {
+                it.mapIndexed { i, p ->
+                    if (index == i && url.isNotBlank()) {
+                        p.copy(apiUrl = url)
+                    } else {
+                        p
+                    }
+                }
+            }
+        }
+    }
+
     fun updateToken(apiType: ApiType, token: String) {
         val index = _platformState.value.indexOfFirst { it.name == apiType }
 
@@ -146,6 +162,8 @@ class SettingViewModel @Inject constructor(
 
     fun openThemeDialog() = _dialogState.update { it.copy(isThemeDialogOpen = true) }
 
+    fun openApiUrlDialog() = _dialogState.update { it.copy(isApiUrlDialogOpen = true) }
+
     fun openApiTokenDialog() = _dialogState.update { it.copy(isApiTokenDialogOpen = true) }
 
     fun openApiModelDialog() = _dialogState.update { it.copy(isApiModelDialogOpen = true) }
@@ -157,6 +175,8 @@ class SettingViewModel @Inject constructor(
     fun openSystemPromptDialog() = _dialogState.update { it.copy(isSystemPromptDialogOpen = true) }
 
     fun closeThemeDialog() = _dialogState.update { it.copy(isThemeDialogOpen = false) }
+
+    fun closeApiUrlDialog() = _dialogState.update { it.copy(isApiUrlDialogOpen = false) }
 
     fun closeApiTokenDialog() = _dialogState.update { it.copy(isApiTokenDialogOpen = false) }
 
@@ -177,6 +197,7 @@ class SettingViewModel @Inject constructor(
 
     data class DialogState(
         val isThemeDialogOpen: Boolean = false,
+        val isApiUrlDialogOpen: Boolean = false,
         val isApiTokenDialogOpen: Boolean = false,
         val isApiModelDialogOpen: Boolean = false,
         val isTemperatureDialogOpen: Boolean = false,
