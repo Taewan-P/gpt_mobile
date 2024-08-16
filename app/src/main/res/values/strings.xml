@@ -136,4 +136,5 @@
     <string name="api_url">API URL</string>
     <string name="url_icon">URL Icon</string>
     <string name="invalid_api_url">Please enter a valid URL.</string>
+    <string name="reset">Reset</string>
 </resources>

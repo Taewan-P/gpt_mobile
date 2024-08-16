@@ -110,4 +110,5 @@
     <string name="api_url">API 주소</string>
     <string name="url_icon">주소 아이콘</string>
     <string name="invalid_api_url">유효한 주소를 입력해 주세요.</string>
+    <string name="reset">초기화</string>
 </resources>

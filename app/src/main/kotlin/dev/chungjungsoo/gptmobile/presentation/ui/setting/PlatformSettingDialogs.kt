@@ -1,6 +1,7 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.setting
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
@@ -27,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.ModelConstants.anthropicModels
+import dev.chungjungsoo.gptmobile.data.ModelConstants.getDefaultAPIUrl
 import dev.chungjungsoo.gptmobile.data.ModelConstants.googleModels
 import dev.chungjungsoo.gptmobile.data.ModelConstants.openaiModels
 import dev.chungjungsoo.gptmobile.data.model.ApiType
@@ -44,17 +46,25 @@ import kotlin.math.roundToInt
 fun APIUrlDialog(
     dialogState: SettingViewModel.DialogState,
     apiType: ApiType,
+    initialValue: String,
     settingViewModel: SettingViewModel
 ) {
     if (dialogState.isApiUrlDialogOpen) {
         APIUrlDialog(
             apiType = apiType,
-            onDismissRequest = settingViewModel::closeApiUrlDialog
-        ) { apiUrl ->
-            settingViewModel.updateURL(apiType, apiUrl)
-            settingViewModel.savePlatformSettings()
-            settingViewModel.closeApiUrlDialog()
-        }
+            initialValue = initialValue,
+            onDismissRequest = settingViewModel::closeApiUrlDialog,
+            onResetRequest = {
+                settingViewModel.updateURL(apiType, getDefaultAPIUrl(apiType))
+                settingViewModel.savePlatformSettings()
+                settingViewModel.closeApiUrlDialog()
+            },
+            onConfirmRequest = { apiUrl ->
+                settingViewModel.updateURL(apiType, apiUrl)
+                settingViewModel.savePlatformSettings()
+                settingViewModel.closeApiUrlDialog()
+            }
+        )
     }
 }
 
@@ -158,10 +168,12 @@ fun SystemPromptDialog(
 @Composable
 private fun APIUrlDialog(
     apiType: ApiType,
+    initialValue: String,
     onDismissRequest: () -> Unit,
+    onResetRequest: () -> Unit,
     onConfirmRequest: (url: String) -> Unit
 ) {
-    var apiUrl by remember { mutableStateOf("") }
+    var apiUrl by remember { mutableStateOf(initialValue) }
     val configuration = LocalConfiguration.current
 
     AlertDialog(
@@ -174,7 +186,7 @@ private fun APIUrlDialog(
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 16.dp),
                 value = apiUrl,
-                isError = apiUrl.isValidUrl(),
+                isError = apiUrl.isValidUrl().not(),
                 onValueChange = { apiUrl = it },
                 label = {
                     Text(stringResource(R.string.api_url))
@@ -196,10 +208,16 @@ private fun APIUrlDialog(
             }
         },
         dismissButton = {
-            TextButton(
-                onClick = onDismissRequest
-            ) {
-                Text(stringResource(R.string.cancel))
+            Row {
+                TextButton(
+                    modifier = Modifier.padding(end = 8.dp),
+                    onClick = onResetRequest
+                ) {
+                    Text(stringResource(R.string.reset))
+                }
+                TextButton(onClick = onDismissRequest) {
+                    Text(stringResource(R.string.cancel))
+                }
             }
         }
     )
