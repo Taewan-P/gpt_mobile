@@ -80,6 +80,7 @@ fun PlatformSettingScreen(
                 .verticalScroll(scrollState)
         ) {
             val platform = platformState.firstOrNull { it.name == apiType }
+            val url = platform?.apiUrl ?: ModelConstants.getDefaultAPIUrl(apiType)
             val enabled = platform?.enabled ?: false
             val model = platform?.model
             val token = platform?.token
@@ -87,14 +88,29 @@ fun PlatformSettingScreen(
             val topP = platform?.topP
             val systemPrompt = platform?.systemPrompt ?: when (apiType) {
                 ApiType.OPENAI -> ModelConstants.OPENAI_PROMPT
-                ApiType.ANTHROPIC -> ModelConstants.ANTHROPIC_PROMPT
-                ApiType.GOOGLE -> ModelConstants.GOOGLE_PROMPT
+                ApiType.ANTHROPIC -> ModelConstants.DEFAULT_PROMPT
+                ApiType.GOOGLE -> ModelConstants.DEFAULT_PROMPT
             }
 
             PreferenceSwitchWithContainer(
                 title = stringResource(R.string.enable_api),
                 isChecked = enabled
             ) { settingViewModel.toggleAPI(apiType) }
+            SettingItem(
+                modifier = Modifier.height(64.dp),
+                title = stringResource(R.string.api_url),
+                description = url,
+                enabled = enabled && platform?.name != ApiType.GOOGLE,
+                onItemClick = settingViewModel::openApiUrlDialog,
+                showTrailingIcon = false,
+                showLeadingIcon = true,
+                leadingIcon = {
+                    Icon(
+                        ImageVector.vectorResource(id = R.drawable.ic_link),
+                        contentDescription = stringResource(R.string.url_icon)
+                    )
+                }
+            )
             SettingItem(
                 modifier = Modifier.height(64.dp),
                 title = stringResource(R.string.api_key),
@@ -171,6 +187,7 @@ fun PlatformSettingScreen(
                 }
             )
 
+            APIUrlDialog(dialogState, apiType, url, settingViewModel)
             APIKeyDialog(dialogState, apiType, settingViewModel)
             ModelDialog(dialogState, apiType, model, settingViewModel)
             TemperatureDialog(dialogState, apiType, temperature, settingViewModel)
