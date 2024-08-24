@@ -36,7 +36,7 @@
     <string name="gemini_1_5_pro_description">对代码和生成文本等推理任务有优化的模型</string>
     <string name="gemini_1_5_flash_description">胜任不同场景的高性能模型</string>
     <string name="gemini_1_0_pro_description">自然语言，上下文对话和代码生成与修正</string>
-    <string name="setup_complete">你已经准备好了!</string>
+    <string name="setup_complete">已经准备好了!</string>
     <string name="setup_complete_description">让我们开始使用GPT Mobile!</string>
     <string name="done">完成</string>
     <string name="setup_complete_logo">设置完整的图标</string>
