@@ -1,8 +1,7 @@
 <resources>
     <string name="app_name">GPTMobile</string>
     <string name="gpt_mobile_introduction_logo">GPT Mobile的介绍图标</string>
-    <string name="welcome_title">最好的AI助理\n
-    你可以在你的手机上用它</string>
+    <string name="welcome_title">最好的AI助理，你可以在你的手机上用它</string>
     <string name="welcome_description">选择一个最适合你的模型，问一切你想问的!</string>
     <string name="get_started">开始使用</string>
     <string name="platform_select_description">选择您要使用的平台，也可以稍后在设置中更改</string>
