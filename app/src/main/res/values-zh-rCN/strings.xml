@@ -1,8 +1,7 @@
 <resources>
     <string name="app_name">GPTMobile</string>
     <string name="gpt_mobile_introduction_logo">GPT Mobile的介绍图标</string>
-    <string name="welcome_title">最好的AI助理\n
- 你可以在你的手机上用它</string>
+    <string name="welcome_title">最好的AI助理，你可以在你的手机上用它</string>
     <string name="welcome_description">选择一个最适合你的模型，问一切你想问的!</string>
     <string name="get_started">开始使用</string>
     <string name="platform_select_description">选择您要使用的平台，也可以稍后在设置中更改</string>
@@ -93,7 +92,7 @@
     <string name="temperature_setting">温度</string>
     <string name="temperature_setting_description">温度是一个注入到回答中的随机量，温度越低，答案越集中和确定;温度越高，答案越为灵活</string>
     <string name="top_p_setting">核心采样</string>
-    <string name="top_p_setting_description">在核心采样中，我们按递减概率顺序计算每个后续令牌的所有选项的累积分布，并在达到该值指定的特定概率后将其截断。\n大多数模型通常建议改变这个或温度，但不是两者都改变。</string>
+    <string name="top_p_setting_description">在核心采样中，我们按递减概率顺序计算每个后续令牌的所有选项的累积分布，并在达到该值指定的特定概率后将其截断。大多数模型通常建议改变这个或温度，但不是两者都改变。</string>
     <string name="about">关于</string>
     <string name="about_description">版本,许可证,反馈</string>
     <string name="version">版本</string>
@@ -107,4 +106,8 @@
     <string name="github_icon">Github的图标</string>
     <string name="f_droid_icon">F-droid的图标</string>
     <string name="play_store_icon">Play商店的图标</string>
+    <string name="api_url">API网址</string>
+    <string name="url_icon">URL图标</string>
+    <string name="invalid_api_url">请输入有效的地址</string>
+    <string name="reset">重置</string>
 </resources>
