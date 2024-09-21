@@ -92,6 +92,7 @@ class SettingViewModel @Inject constructor(
             ApiType.OPENAI -> ModelConstants.openaiModels
             ApiType.ANTHROPIC -> ModelConstants.anthropicModels
             ApiType.GOOGLE -> ModelConstants.googleModels
+            ApiType.OLLAMA -> ModelConstants.ollamaModels
         }
 
         if (index >= 0) {

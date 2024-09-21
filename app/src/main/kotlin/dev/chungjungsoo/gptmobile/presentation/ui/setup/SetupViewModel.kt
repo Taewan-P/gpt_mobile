@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.chungjungsoo.gptmobile.data.ModelConstants.anthropicModels
 import dev.chungjungsoo.gptmobile.data.ModelConstants.googleModels
+import dev.chungjungsoo.gptmobile.data.ModelConstants.ollamaModels
 import dev.chungjungsoo.gptmobile.data.ModelConstants.openaiModels
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.data.model.ApiType
@@ -24,7 +25,8 @@ class SetupViewModel @Inject constructor(private val settingRepository: SettingR
         listOf(
             Platform(ApiType.OPENAI),
             Platform(ApiType.ANTHROPIC),
-            Platform(ApiType.GOOGLE)
+            Platform(ApiType.GOOGLE),
+            Platform(ApiType.OLLAMA)
         )
     )
     val platformState: StateFlow<List<Platform>> = _platformState.asStateFlow()
@@ -63,17 +65,12 @@ class SetupViewModel @Inject constructor(private val settingRepository: SettingR
 
     fun updateModel(apiType: ApiType, model: String) {
         val index = _platformState.value.indexOfFirst { it.name == apiType }
-        val models = when (apiType) {
-            ApiType.OPENAI -> openaiModels
-            ApiType.ANTHROPIC -> anthropicModels
-            ApiType.GOOGLE -> googleModels
-        }
 
         if (index >= 0) {
             _platformState.update {
                 it.mapIndexed { i, p ->
                     if (index == i) {
-                        p.copy(model = if (model in models) model else null)
+                        p.copy(model = model)
                     } else {
                         p
                     }
@@ -130,7 +127,10 @@ class SetupViewModel @Inject constructor(private val settingRepository: SettingR
             ApiType.OPENAI -> openaiModels
             ApiType.ANTHROPIC -> anthropicModels
             ApiType.GOOGLE -> googleModels
+            ApiType.OLLAMA -> ollamaModels
         }.toList()
+
+        if (modelList.size < defaultModelIndex) {}
 
         val model = modelList[defaultModelIndex]
         updateModel(apiType, model)

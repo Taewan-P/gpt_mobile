@@ -125,6 +125,10 @@ class ChatRepositoryImpl @Inject constructor(
             .onCompletion { emit(ApiState.Done) }
     }
 
+    override suspend fun completeOllamaChat(question: Message, history: List<Message>): Flow<ApiState> {
+        TODO("Not yet implemented")
+    }
+
     override suspend fun fetchChatList(): List<ChatRoom> = chatRoomDao.getChatRooms()
 
     override suspend fun fetchMessages(chatId: Int): List<Message> = messageDao.loadMessages(chatId)

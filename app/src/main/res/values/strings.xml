@@ -136,4 +136,13 @@
     <string name="api_url">API URL</string>
     <string name="url_icon">URL Icon</string>
     <string name="invalid_api_url">Please enter a valid URL.</string>
+    <string name="ollama" translatable="false">Ollama</string>
+    <string name="ollama_description">Use your own model.</string>
+    <string name="select_ollama_model">Select Ollama Chat Model</string>
+    <string name="ollama_setting">Ollama Settings</string>
+    <string name="ollama_brand_text" translatable="false">Powered by Ollama</string>
+    <string name="select_ollama_model_description">Please select the Ollama model. Since there is so many models and tags that are supported, you can customize the model value. Make sure that the endpoint actually supports the model and get it running. Otherwise, it will not generate a response.</string>
+    <string name="custom">Custom</string>
+    <string name="custom_description">Use model that is not on the list.</string>
+    <string name="model_name">Model Name</string>
 </resources>

@@ -8,12 +8,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
@@ -50,6 +53,7 @@ fun SelectModelScreen(
         ApiType.OPENAI -> generateOpenAIModelList(models = openaiModels)
         ApiType.ANTHROPIC -> generateAnthropicModelList(models = anthropicModels)
         ApiType.GOOGLE -> generateGoogleModelList(models = googleModels)
+        ApiType.OLLAMA -> listOf()
     }
     val defaultModel = remember {
         derivedStateOf {
@@ -59,6 +63,7 @@ fun SelectModelScreen(
                     ApiType.OPENAI -> 0
                     ApiType.ANTHROPIC -> 0
                     ApiType.GOOGLE -> 1
+                    ApiType.OLLAMA -> TODO()
                 }
             )
         }
@@ -128,15 +133,36 @@ fun ModelRadioGroup(
     model: String,
     onChangeEvent: (String) -> Unit
 ) {
+    val customSelected = model !in availableModels.map { it.aliasValue }.toSet()
+    var customModel by remember { mutableStateOf(if (customSelected) model else "") }
+
     Column(modifier = modifier) {
         availableModels.forEach { m ->
             RadioItem(
                 value = m.aliasValue,
-                selected = model == m.aliasValue,
+                selected = !customSelected && customModel == "" && model == m.aliasValue,
                 title = m.name,
                 description = m.description,
                 onSelected = onChangeEvent
             )
         }
+        RadioItem(
+            value = model,
+            selected = customSelected,
+            title = stringResource(R.string.custom),
+            description = stringResource(R.string.custom_description),
+            onSelected = onChangeEvent
+        )
+        OutlinedTextField(
+            modifier = Modifier
+                .padding(start = 24.dp)
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            value = customModel,
+            onValueChange = { s -> customModel = s },
+            label = {
+                Text(stringResource(R.string.model_name))
+            }
+        )
     }
 }

@@ -110,4 +110,8 @@
     <string name="api_url">API 주소</string>
     <string name="url_icon">주소 아이콘</string>
     <string name="invalid_api_url">유효한 주소를 입력해 주세요.</string>
+    <string name="ollama_description">원하는 모델을 직접 사용하세요.</string>
+    <string name="select_ollama_model">Ollama 모델 선택</string>
+    <string name="ollama_setting">Ollama 설정</string>
+    <string name="select_ollama_model_description">Ollama 모델을 선택해 주세요. 현재 Ollama에서 지원하는 모델과 태그가 너무 많으므로, 직접 모델 값을 설정할 수도 있습니다. 입력한 Endpoint에서 해당 모델이 실행되고 있는지 꼭 확인해주세요. 실행되고 있지 않은 모델을 입력시, 답변 생성 시에 오류가 발생할 수 있습니다.</string>
 </resources>
