@@ -3,7 +3,6 @@ package dev.chungjungsoo.gptmobile.presentation.ui.setting
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dev.chungjungsoo.gptmobile.data.ModelConstants
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
@@ -88,17 +87,11 @@ class SettingViewModel @Inject constructor(
 
     fun updateModel(apiType: ApiType, model: String) {
         val index = _platformState.value.indexOfFirst { it.name == apiType }
-        val models = when (apiType) {
-            ApiType.OPENAI -> ModelConstants.openaiModels
-            ApiType.ANTHROPIC -> ModelConstants.anthropicModels
-            ApiType.GOOGLE -> ModelConstants.googleModels
-            ApiType.OLLAMA -> ModelConstants.ollamaModels
-        }
 
         if (index >= 0) {
             _platformState.update {
                 it.mapIndexed { i, p ->
-                    if (index == i && model in models) {
+                    if (index == i) {
                         p.copy(model = model)
                     } else {
                         p
