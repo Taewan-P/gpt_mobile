@@ -35,7 +35,9 @@
     - OpenAI GPT
     - Anthropic Claude
     - Google Gemini
+    - Ollama
   - Can customize temperature, top p (Nucleus sampling), and system prompt
+  - Custom API URLs, Custom Models are also supported
 - Local chat history
   - Chat history is **only saved locally**
   - Only sends to official API servers while chatting
