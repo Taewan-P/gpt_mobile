@@ -74,6 +74,10 @@ Cross platform updates are supported. However, GitHub Releases will be the faste
 3. Click `Run` or do Gradle build
 
 
+## Stargazers over time 🌟
+[![Stargazers over time](https://starchart.cc/Taewan-P/gpt_mobile.svg?variant=adaptive)](https://starchart.cc/Taewan-P/gpt_mobile)
+
+
 ## License
 
 See [LICENSE](./LICENSE) for details.
