@@ -34,7 +34,7 @@ class SettingRepositoryImpl @Inject constructor(
 
         Platform(
             name = apiType,
-            enabled = status ?: false,
+            enabled = status == true,
             apiUrl = apiUrl,
             token = token,
             model = model,
