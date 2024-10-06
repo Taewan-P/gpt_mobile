@@ -27,13 +27,13 @@
     <string name="select_openai_model">Select OpenAI Chat Model</string>
     <string name="select_openai_model_description">Please select the OpenAI chat model. Even if the selected model is multimodal, the app currently supports text inputs only. May be supported later in the future.</string>
     <string name="gpt_4o" translatable="false">GPT-4o</string>
+    <string name="gpt_4o_mini" translatable="false">GPT-4o mini</string>
     <string name="gpt_4_turbo" translatable="false">GPT-4 Turbo</string>
     <string name="gpt_4" translatable="false">GPT-4</string>
-    <string name="gpt_3_5_turbo" translatable="false">GPT-3.5 Turbo</string>
     <string name="gpt_4o_description">The fastest and most affordable flagship model.</string>
+    <string name="gpt_4o_mini_description">Affordable and intelligent small model for fast, lightweight tasks</string>
     <string name="gpt_4_turbo_description">Decent reliability, 3x cheaper than GPT-4.</string>
     <string name="gpt_4_description">Performs the best at solving abstract problems.</string>
-    <string name="gpt_3_5_description">A fast, inexpensive model for simple tasks.</string>
     <string name="select_anthropic_model">Select Anthropic Chat Model</string>
     <string name="select_anthropic_model_description">Please select the Anthropic chat model. We currently support the Claude 3 family of models with only text inputs.</string>
     <string name="claude_3_5_sonnet" translatable="false">Claude 3.5 Sonnet</string>
@@ -148,9 +148,9 @@
     <string name="model_custom_example">e.g. llama3.2, llava, llama3:latest, …</string>
     <string name="custom_model_warning">Note that the model name should be supported by the api.</string>
     <string name="enter_api_address">Enter API Address</string>
-    <string name="api_address_description">Please enter the address of your Ollama API including the port number. The app will be using /api/chat endpoint, so please enter only the front part of the full address. The address must end with a \'/\'.</string>
+    <string name="api_address_description">Please enter the address of your Ollama API including the port number. The app will be using v1/chat/completions endpoint, so please enter only the front part of the full address. The address must end with a \'/\'. e.g) http://192.168.1.100:11434/</string>
     <string name="ollama_api_address">Ollama API Address</string>
-    <string name="ollama_api_help">https://github.com/ollama/ollama/blob/main/docs/api.md</string>
+    <string name="ollama_api_help" translatable="false">https://ollama.com/blog/openai-compatibility</string>
     <string name="reset">Reset</string>
     <string name="ollama_api_key">Ollama API Key</string>
     <string name="api_url_cautions">The url must end with a \'/\'.</string>
