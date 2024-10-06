@@ -17,6 +17,7 @@ object ModelConstants {
         ApiType.OPENAI -> OPENAI_API_URL
         ApiType.ANTHROPIC -> ANTHROPIC_API_URL
         ApiType.GOOGLE -> GOOGLE_API_URL
+        ApiType.OLLAMA -> ""
     }
 
     const val ANTHROPIC_MAXIMUM_TOKEN = 4096
