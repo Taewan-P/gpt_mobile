@@ -99,7 +99,7 @@ fun SelectModelScreen(
             SelectModelText(title = title, description = description)
             ModelRadioGroup(
                 availableModels = availableModels,
-                model = model,
+                initModel = model,
                 onChangeEvent = { model -> setupViewModel.updateModel(platformType, model) }
             )
             Spacer(modifier = Modifier.weight(1f))
@@ -145,20 +145,25 @@ fun SelectModelText(
 fun ModelRadioGroup(
     modifier: Modifier = Modifier,
     availableModels: List<APIModel>,
-    model: String,
+    initModel: String,
     onChangeEvent: (String) -> Unit
 ) {
-    val customSelected = model !in availableModels.map { it.aliasValue }.toSet()
+    var model by remember { mutableStateOf(initModel) }
+    var customSelected by remember { mutableStateOf(model !in availableModels.map { it.aliasValue }.toSet()) }
     var customModel by remember { mutableStateOf(if (customSelected) model else "") }
 
     Column(modifier = modifier) {
         availableModels.forEach { m ->
             RadioItem(
                 value = m.aliasValue,
-                selected = model == m.aliasValue,
+                selected = model == m.aliasValue && !customSelected,
                 title = m.name,
                 description = m.description,
-                onSelected = onChangeEvent
+                onSelected = {
+                    model = it
+                    customSelected = false
+                    onChangeEvent(it)
+                }
             )
         }
         RadioItem(
@@ -166,7 +171,11 @@ fun ModelRadioGroup(
             selected = customSelected,
             title = stringResource(R.string.custom),
             description = stringResource(R.string.custom_description),
-            onSelected = onChangeEvent
+            onSelected = {
+                customSelected = true
+                customModel = it
+                onChangeEvent(it)
+            }
         )
         OutlinedTextField(
             modifier = Modifier
