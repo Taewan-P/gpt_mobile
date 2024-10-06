@@ -46,6 +46,7 @@ fun AboutScreen(
     val githubLink = stringResource(R.string.github_link)
     val fdroidLink = stringResource(R.string.f_droid_link)
     val googlePlayLink = stringResource(R.string.play_store_link)
+    val bugReportLink = stringResource(R.string.bug_report_link)
     val feedbackLink = stringResource(R.string.feedback_link)
 
     Scaffold(
@@ -127,6 +128,20 @@ fun AboutScreen(
                     Icon(
                         ImageVector.vectorResource(id = R.drawable.ic_play_store),
                         contentDescription = stringResource(R.string.play_store_icon)
+                    )
+                }
+            )
+            SettingItem(
+                modifier = Modifier.height(64.dp),
+                title = stringResource(R.string.bug_report),
+                description = stringResource(R.string.bug_report_description),
+                onItemClick = { uriHandler.openUri(bugReportLink) },
+                showTrailingIcon = false,
+                showLeadingIcon = true,
+                leadingIcon = {
+                    Icon(
+                        ImageVector.vectorResource(id = R.drawable.ic_bug_report),
+                        contentDescription = stringResource(R.string.bug_report_icon)
                     )
                 }
             )

@@ -125,4 +125,7 @@
     <string name="ollama_api_address">Ollama API 주소</string>
     <string name="ollama_api_key">Ollama API 키</string>
     <string name="api_url_cautions">URL이 \'/\'로 끝나야 합니다.</string>
+    <string name="bug_report">버그 제보</string>
+    <string name="bug_report_description">정상적으로 작동되지 않는 부분이 있어요.</string>
+    <string name="bug_report_icon">버그 제보 아이콘</string>
 </resources>
