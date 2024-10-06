@@ -145,4 +145,6 @@
     <string name="custom">Custom</string>
     <string name="custom_description">Use model that is not on the list.</string>
     <string name="model_name">Model Name</string>
+    <string name="model_custom_example">e.g. llama3.2, llava, llama3:latest, …</string>
+    <string name="custom_model_warning">Note that the model name should be supported by the api.</string>
 </resources>

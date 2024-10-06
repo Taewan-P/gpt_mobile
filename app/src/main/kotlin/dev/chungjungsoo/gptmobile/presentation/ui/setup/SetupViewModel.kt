@@ -98,13 +98,15 @@ class SetupViewModel @Inject constructor(private val settingRepository: SettingR
             Route.OPENAI_MODEL_SELECT,
             Route.ANTHROPIC_MODEL_SELECT,
             Route.GOOGLE_MODEL_SELECT,
+            Route.OLLAMA_MODEL_SELECT,
             Route.SETUP_COMPLETE
         )
         val commonSteps = setOf(Route.SELECT_PLATFORM, Route.TOKEN_INPUT, Route.SETUP_COMPLETE)
         val platformStep = mapOf(
             Route.OPENAI_MODEL_SELECT to ApiType.OPENAI,
             Route.ANTHROPIC_MODEL_SELECT to ApiType.ANTHROPIC,
-            Route.GOOGLE_MODEL_SELECT to ApiType.GOOGLE
+            Route.GOOGLE_MODEL_SELECT to ApiType.GOOGLE,
+            Route.OLLAMA_MODEL_SELECT to ApiType.OLLAMA
         )
 
         val currentIndex = steps.indexOfFirst { it == currentRoute }
@@ -130,7 +132,9 @@ class SetupViewModel @Inject constructor(private val settingRepository: SettingR
             ApiType.OLLAMA -> ollamaModels
         }.toList()
 
-        if (modelList.size < defaultModelIndex) {}
+        if (modelList.size <= defaultModelIndex) {
+            return ""
+        }
 
         val model = modelList[defaultModelIndex]
         updateModel(apiType, model)

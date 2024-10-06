@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.dto.Platform
+import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.presentation.common.PrimaryLongButton
 import dev.chungjungsoo.gptmobile.presentation.common.Route
 import dev.chungjungsoo.gptmobile.presentation.common.TokenInputField
@@ -72,7 +73,7 @@ fun TokenInputScreen(
             )
             Spacer(modifier = Modifier.weight(1f))
             PrimaryLongButton(
-                enabled = platformState.filter { it.selected }.all { platform -> platform.token != null },
+                enabled = platformState.filter { it.selected && it.name != ApiType.OLLAMA }.all { platform -> platform.token != null },
                 onClick = {
                     val nextStep = setupViewModel.getNextSetupRoute(currentRoute)
                     onNavigate(nextStep)
@@ -118,8 +119,9 @@ fun TokenInput(
     val helpLinks = getPlatformHelpLinkResources()
 
     Column(modifier = modifier) {
-        platforms.filter { it.selected }.forEachIndexed { i, platform ->
-            val isLast = platforms.filter { it.selected }.size - 1 == i
+        // Ollama doesn't currently support api keys
+        platforms.filter { it.selected && it.name != ApiType.OLLAMA }.forEachIndexed { i, platform ->
+            val isLast = platforms.filter { it.selected && it.name != ApiType.OLLAMA }.size - 1 == i
             TokenInputField(
                 value = platform.token ?: "",
                 onValueChange = { onChangeEvent(platform, it) },

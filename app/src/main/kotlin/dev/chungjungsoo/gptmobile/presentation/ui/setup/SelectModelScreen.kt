@@ -1,11 +1,14 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.setup
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -18,9 +21,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import dev.chungjungsoo.gptmobile.R
@@ -63,11 +69,13 @@ fun SelectModelScreen(
                     ApiType.OPENAI -> 0
                     ApiType.ANTHROPIC -> 0
                     ApiType.GOOGLE -> 1
-                    ApiType.OLLAMA -> TODO()
+                    ApiType.OLLAMA -> 0
                 }
             )
         }
     }
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val platformState by setupViewModel.platformState.collectManagedState()
     val model = platformState.firstOrNull { it.name == platformType }?.model ?: defaultModel.value
 
@@ -80,6 +88,13 @@ fun SelectModelScreen(
                 .padding(innerPadding)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) {
+                    keyboardController?.hide()
+                    focusManager.clearFocus()
+                }
         ) {
             SelectModelText(title = title, description = description)
             ModelRadioGroup(
@@ -89,7 +104,7 @@ fun SelectModelScreen(
             )
             Spacer(modifier = Modifier.weight(1f))
             PrimaryLongButton(
-                enabled = availableModels.any { it.aliasValue == model },
+                enabled = availableModels.any { it.aliasValue == model } || model.isNotBlank(),
                 onClick = {
                     val nextStep = setupViewModel.getNextSetupRoute(currentRoute)
                     onNavigate(nextStep)
@@ -140,14 +155,14 @@ fun ModelRadioGroup(
         availableModels.forEach { m ->
             RadioItem(
                 value = m.aliasValue,
-                selected = !customSelected && customModel == "" && model == m.aliasValue,
+                selected = model == m.aliasValue,
                 title = m.name,
                 description = m.description,
                 onSelected = onChangeEvent
             )
         }
         RadioItem(
-            value = model,
+            value = customModel,
             selected = customSelected,
             title = stringResource(R.string.custom),
             description = stringResource(R.string.custom_description),
@@ -158,10 +173,22 @@ fun ModelRadioGroup(
                 .padding(start = 24.dp)
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 16.dp),
+            enabled = customSelected,
             value = customModel,
-            onValueChange = { s -> customModel = s },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            onValueChange = { s ->
+                customModel = s
+                onChangeEvent(s)
+            },
             label = {
                 Text(stringResource(R.string.model_name))
+            },
+            placeholder = {
+                Text(stringResource(R.string.model_custom_example))
+            },
+            supportingText = {
+                Text(stringResource(R.string.custom_model_warning))
             }
         )
     }

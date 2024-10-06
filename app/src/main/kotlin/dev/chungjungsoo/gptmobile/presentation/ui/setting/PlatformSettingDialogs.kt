@@ -28,6 +28,7 @@ import androidx.compose.ui.window.DialogProperties
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.ModelConstants.anthropicModels
 import dev.chungjungsoo.gptmobile.data.ModelConstants.googleModels
+import dev.chungjungsoo.gptmobile.data.ModelConstants.ollamaModels
 import dev.chungjungsoo.gptmobile.data.ModelConstants.openaiModels
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
@@ -259,11 +260,13 @@ private fun ModelDialog(
         ApiType.OPENAI -> openaiModels
         ApiType.ANTHROPIC -> anthropicModels
         ApiType.GOOGLE -> googleModels
+        ApiType.OLLAMA -> ollamaModels
     }
     val availableModels = when (apiType) {
         ApiType.OPENAI -> generateOpenAIModelList(models = modelList)
         ApiType.ANTHROPIC -> generateAnthropicModelList(models = modelList)
         ApiType.GOOGLE -> generateGoogleModelList(models = modelList)
+        ApiType.OLLAMA -> listOf()
     }
     val configuration = LocalConfiguration.current
 
