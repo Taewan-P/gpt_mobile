@@ -24,6 +24,7 @@ import dev.chungjungsoo.gptmobile.presentation.ui.setting.SettingScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.SettingViewModel
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SelectModelScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SelectPlatformScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupAPIUrlScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupCompleteScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupViewModel
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.TokenInputScreen
@@ -126,6 +127,18 @@ fun NavGraphBuilder.setupNavigation(
                 setupViewModel = setupViewModel,
                 currentRoute = Route.OLLAMA_MODEL_SELECT,
                 platformType = ApiType.OLLAMA,
+                onNavigate = { route -> navController.navigate(route) },
+                onBackAction = { navController.navigateUp() }
+            )
+        }
+        composable(route = Route.OLLAMA_API_ADDRESS) {
+            val parentEntry = remember(it) {
+                navController.getBackStackEntry(Route.SETUP_ROUTE)
+            }
+            val setupViewModel: SetupViewModel = hiltViewModel(parentEntry)
+            SetupAPIUrlScreen(
+                setupViewModel = setupViewModel,
+                currentRoute = Route.OLLAMA_API_ADDRESS,
                 onNavigate = { route -> navController.navigate(route) },
                 onBackAction = { navController.navigateUp() }
             )

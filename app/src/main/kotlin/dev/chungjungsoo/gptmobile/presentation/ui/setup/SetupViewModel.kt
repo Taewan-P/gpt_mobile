@@ -31,6 +31,22 @@ class SetupViewModel @Inject constructor(private val settingRepository: SettingR
     )
     val platformState: StateFlow<List<Platform>> = _platformState.asStateFlow()
 
+    fun updateAPIAddress(platform: Platform, address: String) {
+        val index = _platformState.value.indexOf(platform)
+
+        if (index >= 0) {
+            _platformState.update {
+                it.mapIndexed { i, p ->
+                    if (index == i) {
+                        p.copy(apiUrl = address.trim())
+                    } else {
+                        p
+                    }
+                }
+            }
+        }
+    }
+
     fun updateCheckedState(platform: Platform) {
         val index = _platformState.value.indexOf(platform)
 
@@ -99,6 +115,7 @@ class SetupViewModel @Inject constructor(private val settingRepository: SettingR
             Route.ANTHROPIC_MODEL_SELECT,
             Route.GOOGLE_MODEL_SELECT,
             Route.OLLAMA_MODEL_SELECT,
+            Route.OLLAMA_API_ADDRESS,
             Route.SETUP_COMPLETE
         )
         val commonSteps = setOf(Route.SELECT_PLATFORM, Route.TOKEN_INPUT, Route.SETUP_COMPLETE)
@@ -106,7 +123,8 @@ class SetupViewModel @Inject constructor(private val settingRepository: SettingR
             Route.OPENAI_MODEL_SELECT to ApiType.OPENAI,
             Route.ANTHROPIC_MODEL_SELECT to ApiType.ANTHROPIC,
             Route.GOOGLE_MODEL_SELECT to ApiType.GOOGLE,
-            Route.OLLAMA_MODEL_SELECT to ApiType.OLLAMA
+            Route.OLLAMA_MODEL_SELECT to ApiType.OLLAMA,
+            Route.OLLAMA_API_ADDRESS to ApiType.OLLAMA
         )
 
         val currentIndex = steps.indexOfFirst { it == currentRoute }

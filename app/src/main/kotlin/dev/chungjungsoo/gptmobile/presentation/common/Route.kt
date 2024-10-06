@@ -11,6 +11,7 @@ object Route {
     const val ANTHROPIC_MODEL_SELECT = "anthropic_model_select"
     const val GOOGLE_MODEL_SELECT = "google_model_select"
     const val OLLAMA_MODEL_SELECT = "ollama_model_select"
+    const val OLLAMA_API_ADDRESS = "ollama_api_address"
     const val SETUP_COMPLETE = "setup_complete"
 
     const val CHAT_LIST = "chat_list"

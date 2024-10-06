@@ -35,7 +35,8 @@ fun getPlatformAPILabelResources(): Map<ApiType, String> = mapOf(
 fun getPlatformHelpLinkResources(): Map<ApiType, String> = mapOf(
     ApiType.OPENAI to stringResource(R.string.openai_api_help),
     ApiType.ANTHROPIC to stringResource(R.string.anthropic_api_help),
-    ApiType.GOOGLE to stringResource(R.string.google_api_help)
+    ApiType.GOOGLE to stringResource(R.string.google_api_help),
+    ApiType.OLLAMA to stringResource(R.string.ollama_api_help)
 )
 
 @Composable
