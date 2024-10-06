@@ -23,7 +23,6 @@
     <string name="gpt_4o_description">最快最实惠的旗舰模型</string>
     <string name="gpt_4_turbo_description">高可靠性的模型，而且比GPT-4便宜3倍</string>
     <string name="gpt_4_description">适合解决抽象问题</string>
-    <string name="gpt_3_5_description">适于处理简单任务的高速模型</string>
     <string name="select_anthropic_model">选择Anthropic会话的模型</string>
     <string name="select_anthropic_model_description">请选择Anthropic的会话模型，我们目前仅支持纯文本输入的Claude 3系列模型</string>
     <string name="claude_3_5_sonnet_description">Anthropic的最智能的模型</string>
