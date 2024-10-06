@@ -79,7 +79,7 @@ fun SetupAPIUrlScreen(
             )
             Spacer(modifier = Modifier.weight(1f))
             PrimaryLongButton(
-                enabled = ollamaPlatform.apiUrl.isValidUrl(),
+                enabled = ollamaPlatform.apiUrl.isValidUrl() && ollamaPlatform.apiUrl.endsWith("/"),
                 onClick = {
                     val nextStep = setupViewModel.getNextSetupRoute(currentRoute)
                     onNavigate(nextStep)

@@ -181,27 +181,33 @@ private fun APIUrlDialog(
         modifier = Modifier.widthIn(max = configuration.screenWidthDp.dp - 40.dp),
         title = { Text(text = stringResource(R.string.api_url)) },
         text = {
-            OutlinedTextField(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
-                value = apiUrl,
-                isError = apiUrl.isValidUrl().not(),
-                onValueChange = { apiUrl = it },
-                label = {
-                    Text(stringResource(R.string.api_url))
-                },
-                supportingText = {
-                    if (apiUrl.isValidUrl().not()) {
-                        Text(text = stringResource(R.string.invalid_api_url))
+            Column {
+                Text(
+                    text = stringResource(R.string.api_url_cautions)
+                )
+                OutlinedTextField(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 16.dp),
+                    value = apiUrl,
+                    singleLine = true,
+                    isError = apiUrl.isValidUrl().not(),
+                    onValueChange = { apiUrl = it },
+                    label = {
+                        Text(stringResource(R.string.api_url))
+                    },
+                    supportingText = {
+                        if (apiUrl.isValidUrl().not()) {
+                            Text(text = stringResource(R.string.invalid_api_url))
+                        }
                     }
-                }
-            )
+                )
+            }
         },
         onDismissRequest = onDismissRequest,
         confirmButton = {
             TextButton(
-                enabled = apiUrl.isNotBlank() && apiUrl.isValidUrl(),
+                enabled = apiUrl.isNotBlank() && apiUrl.isValidUrl() && apiUrl.endsWith("/"),
                 onClick = { onConfirmRequest(apiUrl) }
             ) {
                 Text(stringResource(R.string.confirm))
