@@ -136,5 +136,22 @@
     <string name="api_url">API URL</string>
     <string name="url_icon">URL Icon</string>
     <string name="invalid_api_url">Please enter a valid URL.</string>
+    <string name="ollama" translatable="false">Ollama</string>
+    <string name="ollama_description">Use your own model.</string>
+    <string name="select_ollama_model">Select Ollama Chat Model</string>
+    <string name="ollama_setting">Ollama Settings</string>
+    <string name="ollama_brand_text" translatable="false">Powered by Ollama</string>
+    <string name="select_ollama_model_description">Please select the Ollama model. Since there is so many models and tags that are supported, you can customize the model value. Make sure that the endpoint actually supports the model and get it running. Otherwise, it will not generate a response.</string>
+    <string name="custom">Custom</string>
+    <string name="custom_description">Use model that is not on the list.</string>
+    <string name="model_name">Model Name</string>
+    <string name="model_custom_example">e.g. llama3.2, llava, llama3:latest, …</string>
+    <string name="custom_model_warning">Note that the model name should be supported by the api.</string>
+    <string name="enter_api_address">Enter API Address</string>
+    <string name="api_address_description">Please enter the address of your Ollama API including the port number. The app will be using /api/chat endpoint, so please enter only the front part of the full address. The address must end with a \'/\'.</string>
+    <string name="ollama_api_address">Ollama API Address</string>
+    <string name="ollama_api_help">https://github.com/ollama/ollama/blob/main/docs/api.md</string>
     <string name="reset">Reset</string>
+    <string name="ollama_api_key">Ollama API Key</string>
+    <string name="api_url_cautions">The url must end with a \'/\'.</string>
 </resources>

@@ -10,6 +10,7 @@ interface ChatRepository {
     suspend fun completeOpenAIChat(question: Message, history: List<Message>): Flow<ApiState>
     suspend fun completeAnthropicChat(question: Message, history: List<Message>): Flow<ApiState>
     suspend fun completeGoogleChat(question: Message, history: List<Message>): Flow<ApiState>
+    suspend fun completeOllamaChat(question: Message, history: List<Message>): Flow<ApiState>
     suspend fun fetchChatList(): List<ChatRoom>
     suspend fun fetchMessages(chatId: Int): List<Message>
     suspend fun updateChatTitle(chatRoom: ChatRoom, title: String)

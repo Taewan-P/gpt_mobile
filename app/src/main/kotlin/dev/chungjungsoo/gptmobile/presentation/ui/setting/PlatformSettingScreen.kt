@@ -90,6 +90,7 @@ fun PlatformSettingScreen(
                 ApiType.OPENAI -> ModelConstants.OPENAI_PROMPT
                 ApiType.ANTHROPIC -> ModelConstants.DEFAULT_PROMPT
                 ApiType.GOOGLE -> ModelConstants.DEFAULT_PROMPT
+                ApiType.OLLAMA -> ModelConstants.DEFAULT_PROMPT
             }
 
             PreferenceSwitchWithContainer(

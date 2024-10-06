@@ -56,6 +56,9 @@ class ChatViewModel @Inject constructor(
     private val _googleLoadingState = MutableStateFlow<LoadingState>(LoadingState.Idle)
     val googleLoadingState = _googleLoadingState.asStateFlow()
 
+    private val _ollamaLoadingState = MutableStateFlow<LoadingState>(LoadingState.Idle)
+    val ollamaLoadingState = _ollamaLoadingState.asStateFlow()
+
     private val _isIdle = MutableStateFlow(true)
     val isIdle = _isIdle.asStateFlow()
 
@@ -71,9 +74,13 @@ class ChatViewModel @Inject constructor(
     private val _googleMessage = MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = ApiType.GOOGLE))
     val googleMessage = _googleMessage.asStateFlow()
 
+    private val _ollamaMessage = MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = ApiType.OLLAMA))
+    val ollamaMessage = _ollamaMessage.asStateFlow()
+
     private val openAIFlow = MutableSharedFlow<ApiState>()
     private val anthropicFlow = MutableSharedFlow<ApiState>()
     private val googleFlow = MutableSharedFlow<ApiState>()
+    private val ollamaFlow = MutableSharedFlow<ApiState>()
 
     init {
         Log.d("ViewModel", "$chatRoomId")
@@ -125,9 +132,15 @@ class ChatViewModel @Inject constructor(
                 _anthropicMessage.update { it.copy(id = message.id, content = "", createdAt = currentTimeStamp) }
                 completeAnthropicChat()
             }
+
             ApiType.GOOGLE -> {
                 _googleMessage.update { it.copy(id = message.id, content = "", createdAt = currentTimeStamp) }
                 completeGoogleChat()
+            }
+
+            ApiType.OLLAMA -> {
+                _ollamaMessage.update { it.copy(id = message.id, content = "", createdAt = currentTimeStamp) }
+                completeOllamaChat()
             }
 
             else -> {}
@@ -143,6 +156,7 @@ class ChatViewModel @Inject constructor(
         _openAIMessage.update { it.copy(id = 0, content = "") }
         _anthropicMessage.update { it.copy(id = 0, content = "") }
         _googleMessage.update { it.copy(id = 0, content = "") }
+        _ollamaMessage.update { it.copy(id = 0, content = "") }
     }
 
     private fun completeChat() {
@@ -160,6 +174,10 @@ class ChatViewModel @Inject constructor(
         if (ApiType.GOOGLE in enabledPlatforms) {
             completeGoogleChat()
         }
+
+        if (ApiType.OLLAMA in enabledPlatforms) {
+            completeOllamaChat()
+        }
     }
 
     private fun completeAnthropicChat() {
@@ -173,6 +191,13 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             val chatFlow = chatRepository.completeGoogleChat(question = _userMessage.value, history = _messages.value)
             chatFlow.collect { chunk -> googleFlow.emit(chunk) }
+        }
+    }
+
+    private fun completeOllamaChat() {
+        viewModelScope.launch {
+            val chatFlow = chatRepository.completeOllamaChat(question = _userMessage.value, history = _messages.value)
+            chatFlow.collect { chunk -> ollamaFlow.emit(chunk) }
         }
     }
 
@@ -226,6 +251,7 @@ class ChatViewModel @Inject constructor(
                         _openAIMessage.update { it.copy(createdAt = currentTimeStamp) }
                         updateLoadingState(ApiType.OPENAI, LoadingState.Idle)
                     }
+
                     is ApiState.Error -> {
                         _openAIMessage.update { it.copy(content = "Error: ${chunk.message}", createdAt = currentTimeStamp) }
                         updateLoadingState(ApiType.OPENAI, LoadingState.Idle)
@@ -244,6 +270,7 @@ class ChatViewModel @Inject constructor(
                         _anthropicMessage.update { it.copy(createdAt = currentTimeStamp) }
                         updateLoadingState(ApiType.ANTHROPIC, LoadingState.Idle)
                     }
+
                     is ApiState.Error -> {
                         _anthropicMessage.update { it.copy(content = "Error: ${chunk.message}", createdAt = currentTimeStamp) }
                         updateLoadingState(ApiType.ANTHROPIC, LoadingState.Idle)
@@ -262,9 +289,29 @@ class ChatViewModel @Inject constructor(
                         _googleMessage.update { it.copy(createdAt = currentTimeStamp) }
                         updateLoadingState(ApiType.GOOGLE, LoadingState.Idle)
                     }
+
                     is ApiState.Error -> {
                         _googleMessage.update { it.copy(content = "Error: ${chunk.message}", createdAt = currentTimeStamp) }
                         updateLoadingState(ApiType.GOOGLE, LoadingState.Idle)
+                    }
+
+                    else -> {}
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            ollamaFlow.collect { chunk ->
+                when (chunk) {
+                    is ApiState.Success -> _ollamaMessage.update { it.copy(content = it.content + chunk.textChunk) }
+                    ApiState.Done -> {
+                        _ollamaMessage.update { it.copy(createdAt = currentTimeStamp) }
+                        updateLoadingState(ApiType.OLLAMA, LoadingState.Idle)
+                    }
+
+                    is ApiState.Error -> {
+                        _ollamaMessage.update { it.copy(content = "Error: ${chunk.message}", createdAt = currentTimeStamp) }
+                        updateLoadingState(ApiType.OLLAMA, LoadingState.Idle)
                     }
 
                     else -> {}
@@ -297,6 +344,7 @@ class ChatViewModel @Inject constructor(
             ApiType.OPENAI -> _openAIMessage.update { message }
             ApiType.ANTHROPIC -> _anthropicMessage.update { message }
             ApiType.GOOGLE -> _googleMessage.update { message }
+            ApiType.OLLAMA -> _ollamaMessage.update { message }
         }
     }
 
@@ -315,6 +363,10 @@ class ChatViewModel @Inject constructor(
         if (ApiType.GOOGLE in enabledPlatforms) {
             addMessage(_googleMessage.value)
         }
+
+        if (ApiType.OLLAMA in enabledPlatforms) {
+            addMessage(_ollamaMessage.value)
+        }
     }
 
     private fun updateLoadingState(apiType: ApiType, loadingState: LoadingState) {
@@ -322,6 +374,7 @@ class ChatViewModel @Inject constructor(
             ApiType.OPENAI -> _openaiLoadingState.update { loadingState }
             ApiType.ANTHROPIC -> _anthropicLoadingState.update { loadingState }
             ApiType.GOOGLE -> _googleLoadingState.update { loadingState }
+            ApiType.OLLAMA -> _ollamaLoadingState.update { loadingState }
         }
 
         var result = true
@@ -330,6 +383,7 @@ class ChatViewModel @Inject constructor(
                 ApiType.OPENAI -> _openaiLoadingState
                 ApiType.ANTHROPIC -> _anthropicLoadingState
                 ApiType.GOOGLE -> _googleLoadingState
+                ApiType.OLLAMA -> _ollamaLoadingState
             }
 
             result = result && (state.value is LoadingState.Idle)
