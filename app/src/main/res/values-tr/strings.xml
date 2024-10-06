@@ -7,9 +7,6 @@
     <string name="platform_select_description">Kullanmak istediğiniz platformu seçin. Bu ayarı daha sonra değiştirebilirsiniz. Daha fazla platform desteklenecek.</string>
     <string name="sample_item_title">Öğe 1</string>
     <string name="sample_item_description">Öğe açıklaması</string>
-    <string name="openai" translatable="false">OpenAI</string>
-    <string name="anthropic" translatable="false">Anthropic</string>
-    <string name="google" translatable="false">Google</string>
     <string name="openai_description">ChatGPT\'nin yaratıcısı.</string>
     <string name="anthropic_description">Claude burada doğdu.</string>
     <string name="google_description">Gemini yolda.</string>
@@ -21,34 +18,19 @@
     <string name="openai_api_key">OpenAI API Anahtarı</string>
     <string name="anthropic_api_key">Anthropic API Anahtarı</string>
     <string name="google_api_key">Google API Anahtarı</string>
-    <string name="openai_api_help" translatable="false">https://platform.openai.com/account/api-keys</string>
-    <string name="anthropic_api_help" translatable="false">https://console.anthropic.com/settings/keys</string>
-    <string name="google_api_help" translatable="false">https://aistudio.google.com/app/apikey</string>
     <string name="select_openai_model">OpenAI Sohbet Modelini Seçin</string>
     <string name="select_openai_model_description">Lütfen OpenAI sohbet modelini seçin. Seçilen model çok modlu olsa bile, uygulama şu anda yalnızca metin girişlerini desteklemektedir. Gelecekte desteklenebilir.</string>
-    <string name="gpt_4o" translatable="false">GPT-4o</string>
-    <string name="gpt_4_turbo" translatable="false">GPT-4 Turbo</string>
-    <string name="gpt_4" translatable="false">GPT-4</string>
-    <string name="gpt_3_5_turbo" translatable="false">GPT-3.5 Turbo</string>
     <string name="gpt_4o_description">En hızlı ve en uygun fiyatlı amiral gemisi modeli.</string>
     <string name="gpt_4_turbo_description">Güvenilirlik, GPT-4\'ten 3 kat daha ucuz.</string>
     <string name="gpt_4_description">Soyut problemleri çözmede en iyi performansı gösterir.</string>
-    <string name="gpt_3_5_description">Basit görevler için hızlı ve uygun fiyatlı bir model.</string>
     <string name="select_anthropic_model">Anthropic Sohbet Modelini Seçin</string>
     <string name="select_anthropic_model_description">Lütfen Anthropic sohbet modelini seçin. Şu anda yalnızca Claude 3 ailesi metin girişlerini destekliyor.</string>
-    <string name="claude_3_5_sonnet" translatable="false">Claude 3.5 Sonnet</string>
-    <string name="claude_3_opus" translatable="false">Claude 3 Opus</string>
-    <string name="claude_3_sonnet" translatable="false">Claude 3 Sonnet</string>
-    <string name="claude_3_haiku" translatable="false">Claude 3 Haiku</string>
     <string name="claude_3_5_sonnet_description">Anthropic\'in en zeki modeli.</string>
     <string name="claude_3_opus_description">Yazım ve karmaşık görevlerde mükemmel.</string>
     <string name="claude_3_sonnet_description">Zeka ve hız arasında dengeli bir model.</string>
     <string name="claude_3_haiku_description">Anthropic\'in en hızlı ve en kompakt modeli.</string>
     <string name="select_google_model">Google Sohbet Modelini Seçin</string>
     <string name="select_google_model_description">Gemini, Google tarafından oluşturulmuş jeneratif AI model ailesidir. Yalnızca metin girişleri desteklenir.</string>
-    <string name="gemini_1_5_pro" translatable="false">Gemini 1.5 Pro</string>
-    <string name="gemini_1_5_flash" translatable="false">Gemini 1.5 Flash</string>
-    <string name="gemini_1_0_pro" translatable="false">Gemini 1.0 Pro</string>
     <string name="gemini_1_5_pro_description">Kod ve metin üretimi de dahil olmak üzere muhakeme görevleri için optimize edilmiştir.</string>
     <string name="gemini_1_5_flash_description">Çeşitli görevlerde hızlı ve çok yönlü performans.</string>
     <string name="gemini_1_0_pro_description">Doğal dil görevleri, çoklu metin ve kod sohbetleri ve kod üretimi.</string>
@@ -90,9 +72,6 @@
     <string name="retry">Yeniden Dene</string>
     <string name="ask_a_question">Bir soru sorun…</string>
     <string name="some_platforms_disabled">Bazı API\'ler devre dışı</string>
-    <string name="openai_brand_text" translatable="false">OpenAI tarafından desteklenmektedir</string>
-    <string name="anthropic_brand_text" translatable="false">Claude tarafından desteklenmektedir</string>
-    <string name="google_brand_text" translatable="false">Gemini tarafından desteklenmektedir</string>
     <string name="token_not_set">Token ayarlanmadı</string>
     <string name="token_set">Token şu şekilde ayarlandı: %s*****</string>
     <string name="close">Kapat</string>
@@ -117,9 +96,6 @@
     <string name="about_description">Sürüm, Lisans, Geri Bildirim</string>
     <string name="version">Sürüm</string>
     <string name="license">Lisans</string>
-    <string name="github" translatable="false">GitHub</string>
-    <string name="f_droid" translatable="false">F-Droid</string>
-    <string name="play_store" translatable="false">Play Store</string>
     <string name="feedback">Geri Bildirim</string>
     <string name="license_description">Açık Kaynak Lisansları</string>
     <string name="feedback_description">Her türlü geri bildirime açığız!</string>
@@ -129,10 +105,6 @@
     <string name="github_icon">GitHub Simgesi</string>
     <string name="f_droid_icon">F-Droid Simgesi</string>
     <string name="play_store_icon">Play Store Simgesi</string>
-    <string name="github_link" translatable="false">https://github.com/Taewan-P/gpt_mobile</string>
-    <string name="f_droid_link" translatable="false">https://f-droid.org/packages/dev.chungjungsoo.gptmobile/</string>
-    <string name="play_store_link" translatable="false">https://play.google.com/store/apps/details?id=dev.chungjungsoo.gptmobile</string>
-    <string name="feedback_link" translatable="false">https://github.com/Taewan-P/gpt_mobile/issues/new</string>
     <string name="api_url">API URL\'si</string>
     <string name="url_icon">URL Simgesi</string>
     <string name="invalid_api_url">Lütfen geçerli bir URL girin.</string>

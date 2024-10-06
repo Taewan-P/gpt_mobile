@@ -132,7 +132,8 @@
     <string name="github_link" translatable="false">https://github.com/Taewan-P/gpt_mobile</string>
     <string name="f_droid_link" translatable="false">https://f-droid.org/packages/dev.chungjungsoo.gptmobile/</string>
     <string name="play_store_link" translatable="false">https://play.google.com/store/apps/details?id=dev.chungjungsoo.gptmobile</string>
-    <string name="feedback_link" translatable="false">https://github.com/Taewan-P/gpt_mobile/issues/new</string>
+    <string name="bug_report_link" translatable="false">https://github.com/Taewan-P/gpt_mobile/issues/new/choose</string>
+    <string name="feedback_link" translatable="false">https://github.com/Taewan-P/gpt_mobile/discussions/new/choose</string>
     <string name="api_url">API URL</string>
     <string name="url_icon">URL Icon</string>
     <string name="invalid_api_url">Please enter a valid URL.</string>
@@ -154,4 +155,7 @@
     <string name="reset">Reset</string>
     <string name="ollama_api_key">Ollama API Key</string>
     <string name="api_url_cautions">The url must end with a \'/\'.</string>
+    <string name="bug_report">Bug Report</string>
+    <string name="bug_report_description">Something isn\'t working correctly?</string>
+    <string name="bug_report_icon">Bug Report Icon</string>
 </resources>

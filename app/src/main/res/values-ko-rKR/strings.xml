@@ -25,7 +25,6 @@
     <string name="gpt_4o_mini_description">빠르고 가벼운 작업을 위한 경제적이고 지능적인 소형 모델</string>
     <string name="gpt_4_turbo_description">"GPT-4보다 3배 저렴하고 안정성이 뛰어납니다. "</string>
     <string name="gpt_4_description">추상적인 문제 해결에 가장 뛰어납니다.</string>
-    <string name="gpt_3_5_description">"간단한 작업을 위한 빠르고 저렴한 모델입니다. "</string>
     <string name="select_anthropic_model">Anthropic 모델 선택</string>
     <string name="select_anthropic_model_description">Anthropic 채팅 모델을 선택해 주세요. 현재 Claude3 제품군만 지원하고 텍스트 입력만 지원합니다.</string>
     <string name="claude_3_opus_description">글쓰기 및 복잡한 작업에 탁월한 모델입니다.</string>
@@ -126,4 +125,7 @@
     <string name="ollama_api_address">Ollama API 주소</string>
     <string name="ollama_api_key">Ollama API 키</string>
     <string name="api_url_cautions">URL이 \'/\'로 끝나야 합니다.</string>
+    <string name="bug_report">버그 제보</string>
+    <string name="bug_report_description">정상적으로 작동되지 않는 부분이 있어요.</string>
+    <string name="bug_report_icon">버그 제보 아이콘</string>
 </resources>
