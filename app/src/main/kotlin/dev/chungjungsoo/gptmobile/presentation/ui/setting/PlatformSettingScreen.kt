@@ -80,6 +80,7 @@ fun PlatformSettingScreen(
                 .verticalScroll(scrollState)
         ) {
             val platform = platformState.firstOrNull { it.name == apiType }
+            val url = platform?.apiUrl ?: ModelConstants.getDefaultAPIUrl(apiType)
             val enabled = platform?.enabled ?: false
             val model = platform?.model
             val token = platform?.token
@@ -99,7 +100,7 @@ fun PlatformSettingScreen(
             SettingItem(
                 modifier = Modifier.height(64.dp),
                 title = stringResource(R.string.api_url),
-                description = "",
+                description = url,
                 enabled = enabled && platform?.name != ApiType.GOOGLE,
                 onItemClick = settingViewModel::openApiUrlDialog,
                 showTrailingIcon = false,
@@ -187,6 +188,7 @@ fun PlatformSettingScreen(
                 }
             )
 
+            APIUrlDialog(dialogState, apiType, url, settingViewModel)
             APIKeyDialog(dialogState, apiType, settingViewModel)
             ModelDialog(dialogState, apiType, model, settingViewModel)
             TemperatureDialog(dialogState, apiType, temperature, settingViewModel)

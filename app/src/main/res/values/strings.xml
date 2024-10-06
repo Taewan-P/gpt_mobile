@@ -151,4 +151,5 @@
     <string name="api_address_description">Please enter the address of your Ollama API including the port number. The app will be using /api/chat endpoint, so please enter only the front part of the full address.</string>
     <string name="ollama_api_address">Ollama API Address</string>
     <string name="ollama_api_help">https://github.com/ollama/ollama/blob/main/docs/api.md</string>
+    <string name="reset">Reset</string>
 </resources>

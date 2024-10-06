@@ -1,5 +1,7 @@
 package dev.chungjungsoo.gptmobile.data
 
+import dev.chungjungsoo.gptmobile.data.model.ApiType
+
 object ModelConstants {
     // LinkedHashSet should be used to guarantee item order
     val openaiModels = linkedSetOf("gpt-4o", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo")
@@ -10,6 +12,12 @@ object ModelConstants {
     const val OPENAI_API_URL = "https://api.openai.com"
     const val ANTHROPIC_API_URL = "https://api.anthropic.com"
     const val GOOGLE_API_URL = "https://generativelanguage.googleapis.com"
+
+    fun getDefaultAPIUrl(apiType: ApiType) = when (apiType) {
+        ApiType.OPENAI -> OPENAI_API_URL
+        ApiType.ANTHROPIC -> ANTHROPIC_API_URL
+        ApiType.GOOGLE -> GOOGLE_API_URL
+    }
 
     const val ANTHROPIC_MAXIMUM_TOKEN = 4096
 
