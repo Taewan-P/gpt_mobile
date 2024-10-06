@@ -9,8 +9,8 @@ object ModelConstants {
     val googleModels = linkedSetOf("gemini-1.5-pro-latest", "gemini-1.5-flash-latest", "gemini-1.0-pro")
     val ollamaModels = linkedSetOf<String>()
 
-    const val OPENAI_API_URL = "https://api.openai.com"
-    const val ANTHROPIC_API_URL = "https://api.anthropic.com"
+    const val OPENAI_API_URL = "https://api.openai.com/v1/"
+    const val ANTHROPIC_API_URL = "https://api.anthropic.com/"
     const val GOOGLE_API_URL = "https://generativelanguage.googleapis.com"
 
     fun getDefaultAPIUrl(apiType: ApiType) = when (apiType) {

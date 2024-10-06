@@ -48,7 +48,7 @@ class AnthropicAPIImpl @Inject constructor(
 
         val builder = HttpRequestBuilder().apply {
             method = HttpMethod.Post
-            url("$apiUrl/v1/messages")
+            if (apiUrl.endsWith("/")) url("${apiUrl}v1/messages") else url("$apiUrl/v1/messages")
             contentType(ContentType.Application.Json)
             setBody(body)
             accept(ContentType.Text.EventStream)
