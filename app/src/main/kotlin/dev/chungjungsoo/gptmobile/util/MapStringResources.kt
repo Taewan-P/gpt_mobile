@@ -44,9 +44,9 @@ fun getPlatformHelpLinkResources(): Map<ApiType, String> = mapOf(
 fun generateOpenAIModelList(models: LinkedHashSet<String>) = models.mapIndexed { index, model ->
     val (name, description) = when (index) {
         0 -> stringResource(R.string.gpt_4o) to stringResource(R.string.gpt_4o_description)
-        1 -> stringResource(R.string.gpt_4_turbo) to stringResource(R.string.gpt_4_turbo_description)
-        2 -> stringResource(R.string.gpt_4) to stringResource(R.string.gpt_4_description)
-        3 -> stringResource(R.string.gpt_3_5_turbo) to stringResource(R.string.gpt_3_5_description)
+        1 -> stringResource(R.string.gpt_4o_mini) to stringResource(R.string.gpt_4o_mini_description)
+        2 -> stringResource(R.string.gpt_4_turbo) to stringResource(R.string.gpt_4_turbo_description)
+        3 -> stringResource(R.string.gpt_4) to stringResource(R.string.gpt_4_description)
         else -> "" to ""
     }
     APIModel(name, description, model)
