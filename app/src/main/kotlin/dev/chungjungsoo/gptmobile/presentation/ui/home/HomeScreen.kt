@@ -120,7 +120,17 @@ fun HomeScreen(
                 }
             )
         },
-        floatingActionButton = { NewChatButton(expanded = listState.isScrollingUp(), onClick = homeViewModel::openSelectModelDialog) }
+        floatingActionButton = {
+            NewChatButton(expanded = listState.isScrollingUp(), onClick = {
+                val enabledApiTypes = platformState.filter { it.enabled }.map { it.name }
+                if (enabledApiTypes.size == 1) {
+                    // Navigate to new chat directly if only one platform is enabled
+                    navigateToNewChat(enabledApiTypes)
+                } else {
+                    homeViewModel.openSelectModelDialog()
+                }
+            })
+        }
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier.padding(innerPadding),
