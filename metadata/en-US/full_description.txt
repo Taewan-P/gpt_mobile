@@ -4,8 +4,11 @@ Supported Platforms
 - OpenAI GPT (GPT-4o, turbo, etc)
 - Anthropic Claude (3.5 Sonnet, 3 Opus, etc)
 - Google Gemini (1.5 Pro, Flash, etc)
+- Ollama (Your own server)
 
 Local chat history
 Chat history is only saved locally. The app only sends to official API servers while chatting. NOT SHARED anywhere else.
+
+Custom API address and custom model name supported. Also, adjust system prompt, top p, temperature, and more!
 
 Note that some platforms may not be supported in some countries.
