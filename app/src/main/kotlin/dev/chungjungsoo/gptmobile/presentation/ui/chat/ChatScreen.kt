@@ -62,6 +62,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.Message
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.util.collectManagedState
 import dev.chungjungsoo.gptmobile.util.multiScrollStateSaver
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,6 +79,7 @@ fun ChatScreen(
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
     val isIdle by chatViewModel.isIdle.collectManagedState()
+    val isLoaded by chatViewModel.isLoaded.collectManagedState()
     val messages by chatViewModel.messages.collectManagedState()
     val question by chatViewModel.question.collectManagedState()
     val appEnabledPlatforms by chatViewModel.enabledPlatformsInApp.collectManagedState()
@@ -114,6 +116,11 @@ fun ChatScreen(
         listState.animateScrollToItem(groupedMessages.keys.size)
     }
 
+    LaunchedEffect(isLoaded) {
+        delay(300)
+        listState.animateScrollToItem(groupedMessages.keys.size)
+    }
+
     Scaffold(
         modifier = Modifier
             .fillMaxSize()
@@ -133,7 +140,10 @@ fun ChatScreen(
                 chatViewModel.askQuestion()
                 focusManager.clearFocus()
             }
+        },
+        floatingActionButton = {
         }
+
     ) { innerPadding ->
         groupedMessages.forEach { (i, k) -> Log.d("grouped", "idx: $i, data: $k") }
         LazyColumn(

@@ -62,6 +62,9 @@ class ChatViewModel @Inject constructor(
     private val _isIdle = MutableStateFlow(true)
     val isIdle = _isIdle.asStateFlow()
 
+    private val _isLoaded = MutableStateFlow(false)
+    val isLoaded = _isLoaded.asStateFlow()
+
     private val _userMessage = MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = null))
     val userMessage = _userMessage.asStateFlow()
 
@@ -86,7 +89,9 @@ class ChatViewModel @Inject constructor(
         Log.d("ViewModel", "$chatRoomId")
         Log.d("ViewModel", "$enabledPlatformsInChat")
         fetchChatRoom()
-        fetchMessages()
+        viewModelScope.launch {
+            fetchMessages()
+        }
         fetchEnabledPlatformsInApp()
         observeFlow()
     }
@@ -208,19 +213,18 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    private fun fetchMessages() {
-        viewModelScope.launch {
-            // If the room isn't new
-            if (chatRoomId != 0) {
-                _messages.update { chatRepository.fetchMessages(chatRoomId) }
-                return@launch
-            }
+    private suspend fun fetchMessages() {
+        // If the room isn't new
+        if (chatRoomId != 0) {
+            _messages.update { chatRepository.fetchMessages(chatRoomId) }
+            _isLoaded.update { true } // Finish fetching
+            return
+        }
 
-            // When message id should sync after saving chats
-            if (chatRoom.id != 0) {
-                _messages.update { chatRepository.fetchMessages(chatRoom.id) }
-                return@launch
-            }
+        // When message id should sync after saving chats
+        if (chatRoom.id != 0) {
+            _messages.update { chatRepository.fetchMessages(chatRoom.id) }
+            return
         }
     }
 
