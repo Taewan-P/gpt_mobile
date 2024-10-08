@@ -153,7 +153,7 @@ class ChatRepositoryImpl @Inject constructor(
     override suspend fun fetchMessages(chatId: Int): List<Message> = messageDao.loadMessages(chatId)
 
     override suspend fun updateChatTitle(chatRoom: ChatRoom, title: String) {
-        chatRoomDao.editChatRoom(chatRoom.copy(title = title.take(50)))
+        chatRoomDao.editChatRoom(chatRoom.copy(title = title.replace('\n', ' ').take(50)))
     }
 
     override suspend fun saveChat(chatRoom: ChatRoom, messages: List<Message>): ChatRoom {
@@ -166,7 +166,7 @@ class ChatRepositoryImpl @Inject constructor(
             val savedChatRoom = chatRoom.copy(id = chatId.toInt())
             updateChatTitle(savedChatRoom, updatedMessages[0].content)
 
-            return savedChatRoom.copy(title = updatedMessages[0].content.take(50))
+            return savedChatRoom.copy(title = updatedMessages[0].content.replace('\n', ' ').take(50))
         }
 
         val savedMessages = fetchMessages(chatRoom.id)
