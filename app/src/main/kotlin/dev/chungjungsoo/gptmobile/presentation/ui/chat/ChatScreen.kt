@@ -24,14 +24,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material3.BottomAppBarDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FabPosition
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -40,6 +43,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,6 +67,7 @@ import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.util.collectManagedState
 import dev.chungjungsoo.gptmobile.util.multiScrollStateSaver
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -100,6 +105,8 @@ fun ChatScreen(
     val groupedMessages = remember(messages) { groupMessages(messages) }
     val latestMessageIndex = groupedMessages.keys.maxOrNull() ?: 0
     val chatBubbleScrollStates = rememberSaveable(saver = multiScrollStateSaver) { MutableList(latestMessageIndex + 2) { ScrollState(0) } }
+
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(latestMessageIndex) {
         val opponentBubbles = ((latestMessageIndex + 1) / 2) + 1
@@ -142,8 +149,15 @@ fun ChatScreen(
             }
         },
         floatingActionButton = {
-        }
-
+            if (listState.canScrollForward) {
+                ScrollToBottomButton {
+                    scope.launch {
+                        listState.animateScrollToItem(groupedMessages.keys.size)
+                    }
+                }
+            }
+        },
+        floatingActionButtonPosition = FabPosition.Center
     ) { innerPadding ->
         groupedMessages.forEach { (i, k) -> Log.d("grouped", "idx: $i, data: $k") }
         LazyColumn(
@@ -356,5 +370,16 @@ fun ChatInputBox(
                 }
             }
         )
+    }
+}
+
+@Composable
+fun ScrollToBottomButton(onClick: () -> Unit) {
+    SmallFloatingActionButton(
+        onClick = onClick,
+        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+        contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+    ) {
+        Icon(Icons.Rounded.KeyboardArrowDown, stringResource(R.string.scroll_to_bottom_icon))
     }
 }
