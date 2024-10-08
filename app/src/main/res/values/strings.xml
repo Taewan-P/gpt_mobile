@@ -158,4 +158,5 @@
     <string name="bug_report">Bug Report</string>
     <string name="bug_report_description">Something isn\'t working correctly?</string>
     <string name="bug_report_icon">Bug Report Icon</string>
+    <string name="scroll_to_bottom_icon">Scroll to bottom icon</string>
 </resources>
