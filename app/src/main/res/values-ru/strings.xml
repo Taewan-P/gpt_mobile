@@ -7,9 +7,6 @@
     <string name="platform_select_description">Выберите платформу, которую хотите использовать. Вы сможете изменить это позже в настройках. В будущем будет поддерживаться больше платформ.</string>
     <string name="sample_item_title">Элемент 1</string>
     <string name="sample_item_description">Описание элемента</string>
-    <string name="openai" translatable="false">OpenAI</string>
-    <string name="anthropic" translatable="false">Anthropic</string>
-    <string name="google" translatable="false">Google</string>
     <string name="openai_description">Создатель ChatGPT</string>
     <string name="anthropic_description">Здесь родился Claude</string>
     <string name="google_description">Gemini уже в пути</string>
@@ -21,34 +18,20 @@
     <string name="openai_api_key">API-ключ OpenAI</string>
     <string name="anthropic_api_key">API-ключ Anthropic</string>
     <string name="google_api_key">API-ключ Google</string>
-    <string name="openai_api_help" translatable="false">https://platform.openai.com/account/api-keys</string>
-    <string name="anthropic_api_help" translatable="false">https://console.anthropic.com/settings/keys</string>
-    <string name="google_api_help" translatable="false">https://aistudio.google.com/app/apikey</string>
     <string name="select_openai_model">Выберите модель чата OpenAI</string>
     <string name="select_openai_model_description">Пожалуйста, выберите модель чата OpenAI. Даже если выбранная модель поддерживает мультимодальные входы, в настоящее время приложение поддерживает только текстовые вводы. Возможно, в будущем будет добавлена поддержка.</string>
-    <string name="gpt_4o" translatable="false">GPT-4o</string>
-    <string name="gpt_4o_mini" translatable="false">GPT-4o mini</string>
-    <string name="gpt_4_turbo" translatable="false">GPT-4 Turbo</string>
-    <string name="gpt_4" translatable="false">GPT-4</string>
     <string name="gpt_4o_description">Самая быстрая и доступная флагманская модель.</string>
     <string name="gpt_4o_mini_description">Доступная и интеллектуальная маленькая модель для быстрых, легких задач</string>
     <string name="gpt_4_turbo_description">Достойная надежность, в 3 раза дешевле, чем GPT-4.</string>
     <string name="gpt_4_description">Лучше всего справляется с решением абстрактных задач.</string>
     <string name="select_anthropic_model">Выберите модель чата Anthropic</string>
     <string name="select_anthropic_model_description">Пожалуйста, выберите модель чата Anthropic. В настоящее время мы поддерживаем семейство моделей Claude 3 только с текстовыми входами.</string>
-    <string name="claude_3_5_sonnet" translatable="false">Claude 3.5 Sonnet</string>
-    <string name="claude_3_opus" translatable="false">Claude 3 Opus</string>
-    <string name="claude_3_sonnet" translatable="false">Claude 3 Sonnet</string>
-    <string name="claude_3_haiku" translatable="false">Claude 3 Haiku</string>
     <string name="claude_3_5_sonnet_description">Самая интеллектуальная модель Anthropic.</string>
     <string name="claude_3_opus_description">Отлично подходит для написания и сложных задач.</string>
     <string name="claude_3_sonnet_description">Сбалансированная модель между интеллектом и скоростью.</string>
     <string name="claude_3_haiku_description">Самая быстрая и компактная модель Anthropic.</string>
     <string name="select_google_model">Выберите модель чата Google</string>
     <string name="select_google_model_description">Gemini - это семейство моделей генеративного ИИ от Google. Поддерживаются только текстовые вводы.</string>
-    <string name="gemini_1_5_pro" translatable="false">Gemini 1.5 Pro</string>
-    <string name="gemini_1_5_flash" translatable="false">Gemini 1.5 Flash</string>
-    <string name="gemini_1_0_pro" translatable="false">Gemini 1.0 Pro</string>
     <string name="gemini_1_5_pro_description">Оптимизировано для задач рассуждения, включая генерацию кода и текста.</string>
     <string name="gemini_1_5_flash_description">Быстрая и универсальная производительность в широком спектре задач.</string>
     <string name="gemini_1_0_pro_description">Задачи обработки естественного языка, многоходовые текстовые и кодовые чаты и генерация кода.</string>
@@ -90,9 +73,6 @@
     <string name="retry">Повторить</string>
     <string name="ask_a_question">Задать вопрос…</string>
     <string name="some_platforms_disabled">Некоторые API отключены</string>
-    <string name="openai_brand_text" translatable="false">Powered by OpenAI</string>
-    <string name="anthropic_brand_text" translatable="false">Powered by Claude</string>
-    <string name="google_brand_text" translatable="false">Powered by Gemini</string>
     <string name="token_not_set">Токен не установлен</string>
     <string name="token_set">Токен установлен как %s*****</string>
     <string name="close">Закрыть</string>
@@ -118,9 +98,6 @@
     <string name="about_description">Версия, лицензия, обратная связь</string>
     <string name="version">Версия</string>
     <string name="license">Лицензия</string>
-    <string name="github" translatable="false">GitHub</string>
-    <string name="f_droid" translatable="false">F-Droid</string>
-    <string name="play_store" translatable="false">Play Store</string>
     <string name="feedback">Обратная связь</string>
     <string name="license_description">Открытые лицензии</string>
     <string name="feedback_description">Мы открыты для всех видов обратной связи!</string>
@@ -130,19 +107,12 @@
     <string name="github_icon">Иконка GitHub</string>
     <string name="f_droid_icon">Иконка F-Droid</string>
     <string name="play_store_icon">Иконка Play Store</string>
-    <string name="github_link" translatable="false">https://github.com/Taewan-P/gpt_mobile</string>
-    <string name="f_droid_link" translatable="false">https://f-droid.org/packages/dev.chungjungsoo.gptmobile/</string>
-    <string name="play_store_link" translatable="false">https://play.google.com/store/apps/details?id=dev.chungjungsoo.gptmobile</string>
-    <string name="bug_report_link" translatable="false">https://github.com/Taewan-P/gpt_mobile/issues/new/choose</string>
-    <string name="feedback_link" translatable="false">https://github.com/Taewan-P/gpt_mobile/discussions/new/choose</string>
     <string name="api_url">URL API</string>
     <string name="url_icon">Иконка URL</string>
     <string name="invalid_api_url">Пожалуйста, введите действительный URL.</string>
-    <string name="ollama" translatable="false">Ollama</string>
     <string name="ollama_description">Используйте свою модель.</string>
     <string name="select_ollama_model">Выберите модель чата Ollama</string>
     <string name="ollama_setting">Настройки Ollama</string>
-    <string name="ollama_brand_text" translatable="false">Powered by Ollama</string>
     <string name="select_ollama_model_description">Пожалуйста, выберите модель Ollama. Поскольку существует так много моделей и тегов, которые поддерживаются, вы можете настроить значение модели. Убедитесь, что конечная точка фактически поддерживает модель и запустите ее. В противном случае не будет генерироваться ответ.</string>
     <string name="custom">Пользовательский</string>
     <string name="custom_description">Используйте модель, которая не указана в списке.</string>
@@ -152,7 +122,6 @@
     <string name="enter_api_address">Введите адрес API</string>
     <string name="api_address_description">Пожалуйста, введите адрес вашего API Ollama, включая номер порта. Приложение будет использовать конечную точку v1/chat/completions, поэтому введите только переднюю часть полного адреса. Адрес должен заканчиваться на «/». например) http://192.168.1.100:11434/</string>
     <string name="ollama_api_address">Адрес API Ollama</string>
-    <string name="ollama_api_help" translatable="false">https://ollama.com/blog/openai-compatibility</string>
     <string name="reset">Сброс</string>
     <string name="ollama_api_key">API-ключ Ollama</string>
     <string name="api_url_cautions">Адрес должен заканчиваться на «/».</string>
