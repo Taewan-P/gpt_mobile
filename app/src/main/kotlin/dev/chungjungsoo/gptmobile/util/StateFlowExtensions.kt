@@ -9,6 +9,6 @@ import kotlinx.coroutines.flow.StateFlow
 fun <T> StateFlow<T>.collectManagedState(): State<T> {
     // Remove this when this issue is fixed: https://issuetracker.google.com/issues/336842920
     return this.collectAsStateWithLifecycle(
-        lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+        lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     )
 }
