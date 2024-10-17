@@ -64,6 +64,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.Message
 import dev.chungjungsoo.gptmobile.data.model.ApiType
+import dev.chungjungsoo.gptmobile.util.DefaultHashMap
 import dev.chungjungsoo.gptmobile.util.collectManagedState
 import dev.chungjungsoo.gptmobile.util.multiScrollStateSaver
 import kotlinx.coroutines.delay
@@ -104,20 +105,9 @@ fun ChatScreen(
     val canUseChat = (chatViewModel.enabledPlatformsInChat.toSet() - appEnabledPlatforms.toSet()).isEmpty()
     val groupedMessages = remember(messages) { groupMessages(messages) }
     val latestMessageIndex = groupedMessages.keys.maxOrNull() ?: 0
-    val chatBubbleScrollStates = rememberSaveable(saver = multiScrollStateSaver) { MutableList(latestMessageIndex + 2) { ScrollState(0) } }
+    val chatBubbleScrollStates = rememberSaveable(saver = multiScrollStateSaver) { DefaultHashMap<Int, ScrollState>({ ScrollState(0) }) }
 
     val scope = rememberCoroutineScope()
-
-    LaunchedEffect(latestMessageIndex) {
-        val opponentBubbles = ((latestMessageIndex + 1) / 2) + 1
-        val scrollStatesToAdd = opponentBubbles - chatBubbleScrollStates.size
-
-        if (scrollStatesToAdd > 0) {
-            repeat(scrollStatesToAdd) {
-                chatBubbleScrollStates.add(ScrollState(0))
-            }
-        }
-    }
 
     LaunchedEffect(isIdle) {
         listState.animateScrollToItem(groupedMessages.keys.size)
