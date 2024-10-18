@@ -89,9 +89,7 @@ class ChatViewModel @Inject constructor(
         Log.d("ViewModel", "$chatRoomId")
         Log.d("ViewModel", "$enabledPlatformsInChat")
         fetchChatRoom()
-        viewModelScope.launch {
-            fetchMessages()
-        }
+        viewModelScope.launch { fetchMessages() }
         fetchEnabledPlatformsInApp()
         observeFlow()
     }
@@ -106,26 +104,25 @@ class ChatViewModel @Inject constructor(
     fun retryQuestion(message: Message) {
         val latestQuestionIndex = _messages.value.indexOfLast { it.platformType == null }
 
-        if (latestQuestionIndex != -1) {
+        if (latestQuestionIndex != -1 && _isIdle.value) {
+            // Update user input to latest question
             _userMessage.update { _messages.value[latestQuestionIndex] }
-        }
 
-        val previousAnswers = enabledPlatformsInChat.mapNotNull { apiType -> _messages.value.lastOrNull { it.platformType == apiType } }
-        _messages.update {
-            if (latestQuestionIndex != -1) {
-                it - setOf(_messages.value[latestQuestionIndex]) - previousAnswers.toSet()
-            } else {
-                it - previousAnswers.toSet()
+            // Get previous answers from the assistant
+            val previousAnswers = enabledPlatformsInChat.mapNotNull { apiType -> _messages.value.lastOrNull { it.platformType == apiType } }
+
+            // Remove latest question & answers
+            _messages.update { it - setOf(_messages.value[latestQuestionIndex]) - previousAnswers.toSet() }
+
+            // Restore messages that are not retrying
+            enabledPlatformsInChat.forEach { apiType ->
+                when (apiType) {
+                    message.platformType -> {}
+                    else -> restoreMessageState(apiType, previousAnswers)
+                }
             }
         }
-
         message.platformType?.let { updateLoadingState(it, LoadingState.Loading) }
-        enabledPlatformsInChat.forEach { apiType ->
-            when (apiType) {
-                message.platformType -> {}
-                else -> restoreMessageState(apiType, previousAnswers) // Restore messages that are not retrying
-            }
-        }
 
         when (message.platformType) {
             ApiType.OPENAI -> {
@@ -341,7 +338,14 @@ class ChatViewModel @Inject constructor(
 
     private fun restoreMessageState(apiType: ApiType, previousAnswers: List<Message>) {
         val message = previousAnswers.firstOrNull { it.platformType == apiType }
+        val retryingState = when (apiType) {
+            ApiType.OPENAI -> _openaiLoadingState
+            ApiType.ANTHROPIC -> _anthropicLoadingState
+            ApiType.GOOGLE -> _googleLoadingState
+            ApiType.OLLAMA -> _ollamaLoadingState
+        }
 
+        if (retryingState == LoadingState.Loading) return
         if (message == null) return
 
         when (apiType) {
