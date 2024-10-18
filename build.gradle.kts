@@ -4,7 +4,6 @@ plugins {
     alias(libs.plugins.jetbrains.kotlin.android) apply false
     alias(libs.plugins.android.hilt) apply false
     alias(libs.plugins.compose.compiler) apply false
-    alias(libs.plugins.kotlin.kapt) apply false
     alias(libs.plugins.kotlin.ksp) apply false
     alias(libs.plugins.kotlin.parcelize) apply false
     alias(libs.plugins.auto.license).version(libs.versions.autoLicense) apply false

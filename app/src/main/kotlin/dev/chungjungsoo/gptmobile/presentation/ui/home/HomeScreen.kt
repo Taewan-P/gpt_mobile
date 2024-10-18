@@ -85,7 +85,7 @@ fun HomeScreen(
     val showSelectModelDialog by homeViewModel.showSelectModelDialog.collectManagedState()
     val showDeleteWarningDialog by homeViewModel.showDeleteWarningDialog.collectManagedState()
     val platformState by homeViewModel.platformState.collectManagedState()
-    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectManagedState()
     val context = LocalContext.current
 
@@ -156,7 +156,7 @@ fun HomeScreen(
                             }
                         )
                         .padding(start = 8.dp, end = 8.dp)
-                        .animateItemPlacement(),
+                        .animateItem(),
                     headlineContent = { Text(text = chatRoom.title) },
                     leadingContent = {
                         if (chatListState.isSelectionMode) {
