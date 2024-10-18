@@ -38,15 +38,19 @@ class ChatViewModel @Inject constructor(
     private val currentTimeStamp: Long
         get() = System.currentTimeMillis() / 1000
 
+    // Enabled platforms list
     private val _enabledPlatformsInApp = MutableStateFlow(listOf<ApiType>())
     val enabledPlatformsInApp = _enabledPlatformsInApp.asStateFlow()
 
+    // List of question & answers (User, Assistant)
     private val _messages = MutableStateFlow(listOf<Message>())
     val messages: StateFlow<List<Message>> = _messages.asStateFlow()
 
+    // User input used for TextField
     private val _question = MutableStateFlow("")
     val question: StateFlow<String> = _question.asStateFlow()
 
+    // Loading state for each platforms
     private val _openaiLoadingState = MutableStateFlow<LoadingState>(LoadingState.Idle)
     val openaiLoadingState = _openaiLoadingState.asStateFlow()
 
@@ -59,15 +63,20 @@ class ChatViewModel @Inject constructor(
     private val _ollamaLoadingState = MutableStateFlow<LoadingState>(LoadingState.Idle)
     val ollamaLoadingState = _ollamaLoadingState.asStateFlow()
 
+    // Total loading state. It should be updated if one of the loading state has changed.
+    // If all loading states are idle, this value should have `true`.
     private val _isIdle = MutableStateFlow(true)
     val isIdle = _isIdle.asStateFlow()
 
+    // State for the message loading state (From the database)
     private val _isLoaded = MutableStateFlow(false)
     val isLoaded = _isLoaded.asStateFlow()
 
+    // Currently active(chat completion) user input. This is used when user input is sent.
     private val _userMessage = MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = null))
     val userMessage = _userMessage.asStateFlow()
 
+    // Currently active(chat completion) assistant output. This is used when data is received from the API.
     private val _openAIMessage = MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = ApiType.OPENAI))
     val openAIMessage = _openAIMessage.asStateFlow()
 
@@ -80,6 +89,7 @@ class ChatViewModel @Inject constructor(
     private val _ollamaMessage = MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = ApiType.OLLAMA))
     val ollamaMessage = _ollamaMessage.asStateFlow()
 
+    // Flows for assistant message streams
     private val openAIFlow = MutableSharedFlow<ApiState>()
     private val anthropicFlow = MutableSharedFlow<ApiState>()
     private val googleFlow = MutableSharedFlow<ApiState>()
