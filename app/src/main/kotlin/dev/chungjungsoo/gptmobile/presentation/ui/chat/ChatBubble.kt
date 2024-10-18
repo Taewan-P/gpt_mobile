@@ -36,7 +36,8 @@ import dev.jeziellago.compose.markdowntext.MarkdownText
 @Composable
 fun UserChatBubble(
     modifier: Modifier = Modifier,
-    text: String
+    text: String,
+    onCopyClick: () -> Unit
 ) {
     val cardColor = CardColors(
         containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -45,17 +46,20 @@ fun UserChatBubble(
         disabledContainerColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.38f)
     )
 
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(32.dp),
-        colors = cardColor
-    ) {
-        MarkdownText(
-            modifier = Modifier.padding(16.dp),
-            markdown = text,
-            isTextSelectable = true,
-            linkifyMask = Linkify.WEB_URLS
-        )
+    Column(horizontalAlignment = Alignment.End) {
+        Card(
+            modifier = modifier,
+            shape = RoundedCornerShape(32.dp),
+            colors = cardColor
+        ) {
+            MarkdownText(
+                modifier = Modifier.padding(16.dp),
+                markdown = text,
+                isTextSelectable = true,
+                linkifyMask = Linkify.WEB_URLS
+            )
+        }
+        CopyTextChip(onCopyClick)
     }
 }
 
@@ -97,36 +101,46 @@ fun OpponentChatBubble(
             if (!isLoading) {
                 Row {
                     if (!isError) {
-                        AssistChip(
-                            onClick = onCopyClick,
-                            label = { Text(stringResource(R.string.copy_text)) },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = ImageVector.vectorResource(id = R.drawable.ic_copy),
-                                    contentDescription = stringResource(R.string.copy_text),
-                                    modifier = Modifier.size(AssistChipDefaults.IconSize)
-                                )
-                            }
-                        )
+                        CopyTextChip(onCopyClick)
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
                     if (canRetry) {
-                        AssistChip(
-                            onClick = onRetryClick,
-                            label = { Text(stringResource(R.string.retry)) },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Rounded.Refresh,
-                                    contentDescription = stringResource(R.string.retry),
-                                    modifier = Modifier.size(AssistChipDefaults.IconSize)
-                                )
-                            }
-                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        RetryChip(onRetryClick)
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun CopyTextChip(onCopyClick: () -> Unit) {
+    AssistChip(
+        onClick = onCopyClick,
+        label = { Text(stringResource(R.string.copy_text)) },
+        leadingIcon = {
+            Icon(
+                imageVector = ImageVector.vectorResource(id = R.drawable.ic_copy),
+                contentDescription = stringResource(R.string.copy_text),
+                modifier = Modifier.size(AssistChipDefaults.IconSize)
+            )
+        }
+    )
+}
+
+@Composable
+private fun RetryChip(onRetryClick: () -> Unit) {
+    AssistChip(
+        onClick = onRetryClick,
+        label = { Text(stringResource(R.string.retry)) },
+        leadingIcon = {
+            Icon(
+                Icons.Rounded.Refresh,
+                contentDescription = stringResource(R.string.retry),
+                modifier = Modifier.size(AssistChipDefaults.IconSize)
+            )
+        }
+    )
 }
 
 @Composable
@@ -153,7 +167,7 @@ fun UserChatBubblePreview() {
         in Python?
     """.trimIndent()
     GPTMobileTheme {
-        UserChatBubble(text = sampleText)
+        UserChatBubble(text = sampleText, onCopyClick = {})
     }
 }
 
