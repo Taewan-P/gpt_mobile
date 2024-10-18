@@ -166,7 +166,8 @@ fun ChatScreen(
                             Spacer(modifier = Modifier.weight(1f))
                             UserChatBubble(
                                 modifier = Modifier.widthIn(max = maximumChatBubbleWidth),
-                                text = groupedMessages[key]!![0].content
+                                text = groupedMessages[key]!![0].content,
+                                onCopyClick = { clipboardManager.setText(AnnotatedString(groupedMessages[key]!![0].content.trim())) }
                             )
                         }
                     }
@@ -208,7 +209,11 @@ fun ChatScreen(
                             .padding(horizontal = 16.dp, vertical = 12.dp)
                     ) {
                         Spacer(modifier = Modifier.weight(1f))
-                        UserChatBubble(modifier = Modifier.widthIn(max = maximumChatBubbleWidth), text = userMessage.content)
+                        UserChatBubble(
+                            modifier = Modifier.widthIn(max = maximumChatBubbleWidth),
+                            text = userMessage.content,
+                            onCopyClick = { clipboardManager.setText(AnnotatedString(userMessage.content.trim())) }
+                        )
                     }
                 }
 
