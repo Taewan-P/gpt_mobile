@@ -98,7 +98,6 @@ dependencies {
 
     // Markdown
     implementation(libs.compose.markdown)
-    implementation(libs.richtext)
 
     // Navigation
     implementation(libs.hilt.navigation)
