@@ -6,6 +6,7 @@ import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ErrorDetail
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ErrorResponseChunk
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.MessageResponseChunk
 import io.ktor.client.call.body
+import io.ktor.client.plugins.sse.sse
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.accept
 import io.ktor.client.request.headers
@@ -25,6 +26,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.encodeToJsonElement
 
@@ -55,6 +57,22 @@ class AnthropicAPIImpl @Inject constructor(
             headers {
                 append(API_KEY_HEADER, token ?: "")
                 append(VERSION_HEADER, ANTHROPIC_VERSION)
+            }
+        }
+
+        runBlocking {
+            networkClient().sse(
+                host = apiUrl,
+                path = if (apiUrl.endsWith("/")) "v1/messages" else "/v1/messages"
+            ) {
+                incoming.collect { event ->
+                    val line = event.data
+                    val value = when {
+                        line?.startsWith(STREAM_END_TOKEN) == true -> break
+                        line?.startsWith(STREAM_PREFIX) == true -> Json.decodeFromString(line.removePrefix(STREAM_PREFIX))
+                        else -> continue
+                    }
+                }
             }
         }
 
