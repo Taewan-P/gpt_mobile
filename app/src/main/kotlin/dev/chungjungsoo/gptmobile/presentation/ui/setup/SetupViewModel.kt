@@ -118,7 +118,7 @@ class SetupViewModel @Inject constructor(private val settingRepository: SettingR
             Route.OLLAMA_API_ADDRESS,
             Route.SETUP_COMPLETE
         )
-        val commonSteps = setOf(Route.SELECT_PLATFORM, Route.TOKEN_INPUT, Route.SETUP_COMPLETE)
+        val commonSteps = mutableSetOf(Route.SELECT_PLATFORM, Route.TOKEN_INPUT, Route.SETUP_COMPLETE)
         val platformStep = mapOf(
             Route.OPENAI_MODEL_SELECT to ApiType.OPENAI,
             Route.ANTHROPIC_MODEL_SELECT to ApiType.ANTHROPIC,
@@ -129,6 +129,12 @@ class SetupViewModel @Inject constructor(private val settingRepository: SettingR
 
         val currentIndex = steps.indexOfFirst { it == currentRoute }
         val enabledPlatform = platformState.value.filter { it.selected }.map { it.name }.toSet()
+
+        if (enabledPlatform.size == 1 && ApiType.OLLAMA in enabledPlatform) {
+            // Skip API Token input page
+            commonSteps.remove(Route.TOKEN_INPUT)
+        }
+
         val remainingSteps = steps.filterIndexed { index, setupStep ->
             index > currentIndex &&
                 (setupStep in commonSteps || platformStep[setupStep] in enabledPlatform)
