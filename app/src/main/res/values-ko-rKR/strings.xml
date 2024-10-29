@@ -128,4 +128,5 @@
     <string name="bug_report">버그 제보</string>
     <string name="bug_report_description">정상적으로 작동되지 않는 부분이 있어요.</string>
     <string name="bug_report_icon">버그 제보 아이콘</string>
+    <string name="scroll_to_bottom_icon">맨 아래로 이동 아이콘</string>
 </resources>
