@@ -52,7 +52,7 @@ class ChatRepositoryImpl @Inject constructor(
         val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.OPENAI })
         openAI = OpenAI(platform.token ?: "", host = OpenAIHost(baseUrl = platform.apiUrl))
 
-        val generatedMessages = messageToOpenAIMessage(history + listOf(question))
+        val generatedMessages = messageToOpenAICompatibleMessage(ApiType.OPENAI, history + listOf(question))
         val generatedMessageWithPrompt = listOf(
             ChatMessage(role = ChatRole.System, content = platform.systemPrompt ?: ModelConstants.OPENAI_PROMPT)
         ) + generatedMessages
@@ -130,7 +130,7 @@ class ChatRepositoryImpl @Inject constructor(
         val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.OLLAMA })
         ollama = OpenAI(platform.token ?: "", host = OpenAIHost(baseUrl = "${platform.apiUrl}v1/"))
 
-        val generatedMessages = messageToOpenAIMessage(history + listOf(question))
+        val generatedMessages = messageToOpenAICompatibleMessage(ApiType.OLLAMA, history + listOf(question))
         val generatedMessageWithPrompt = listOf(
             ChatMessage(role = ChatRole.System, content = platform.systemPrompt ?: ModelConstants.DEFAULT_PROMPT)
         ) + generatedMessages
@@ -193,7 +193,7 @@ class ChatRepositoryImpl @Inject constructor(
         chatRoomDao.deleteChatRooms(*chatRooms.toTypedArray())
     }
 
-    private fun messageToOpenAIMessage(messages: List<Message>): List<ChatMessage> {
+    private fun messageToOpenAICompatibleMessage(apiType: ApiType, messages: List<Message>): List<ChatMessage> {
         val result = mutableListOf<ChatMessage>()
 
         messages.forEach { message ->
@@ -207,7 +207,7 @@ class ChatRepositoryImpl @Inject constructor(
                     )
                 }
 
-                ApiType.OPENAI -> {
+                apiType -> {
                     result.add(
                         ChatMessage(
                             role = ChatRole.Assistant,
