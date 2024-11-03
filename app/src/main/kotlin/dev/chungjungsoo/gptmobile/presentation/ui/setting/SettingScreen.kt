@@ -28,6 +28,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.data.model.DynamicTheme
@@ -37,7 +38,6 @@ import dev.chungjungsoo.gptmobile.presentation.common.LocalThemeMode
 import dev.chungjungsoo.gptmobile.presentation.common.LocalThemeViewModel
 import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
 import dev.chungjungsoo.gptmobile.presentation.common.SettingItem
-import dev.chungjungsoo.gptmobile.util.collectManagedState
 import dev.chungjungsoo.gptmobile.util.getDynamicThemeTitle
 import dev.chungjungsoo.gptmobile.util.getPlatformSettingDescription
 import dev.chungjungsoo.gptmobile.util.getPlatformSettingTitle
@@ -57,7 +57,7 @@ fun SettingScreen(
     val scrollBehavior = pinnedExitUntilCollapsedScrollBehavior(
         canScroll = { scrollState.canScrollForward || scrollState.canScrollBackward }
     )
-    val dialogState by settingViewModel.dialogState.collectManagedState()
+    val dialogState by settingViewModel.dialogState.collectAsStateWithLifecycle()
 
     Scaffold(
         modifier = modifier

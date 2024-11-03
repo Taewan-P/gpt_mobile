@@ -29,6 +29,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.ModelConstants.anthropicModels
 import dev.chungjungsoo.gptmobile.data.ModelConstants.googleModels
@@ -38,7 +39,6 @@ import dev.chungjungsoo.gptmobile.data.dto.APIModel
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.presentation.common.PrimaryLongButton
 import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
-import dev.chungjungsoo.gptmobile.util.collectManagedState
 import dev.chungjungsoo.gptmobile.util.generateAnthropicModelList
 import dev.chungjungsoo.gptmobile.util.generateGoogleModelList
 import dev.chungjungsoo.gptmobile.util.generateGroqModelList
@@ -80,7 +80,7 @@ fun SelectModelScreen(
     }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
-    val platformState by setupViewModel.platformState.collectManagedState()
+    val platformState by setupViewModel.platformState.collectAsStateWithLifecycle()
     val model = platformState.firstOrNull { it.name == platformType }?.model ?: defaultModel.value
 
     Scaffold(

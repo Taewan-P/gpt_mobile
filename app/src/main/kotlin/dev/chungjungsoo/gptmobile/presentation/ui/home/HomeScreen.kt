@@ -62,12 +62,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoom
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.presentation.common.PlatformCheckBoxItem
-import dev.chungjungsoo.gptmobile.util.collectManagedState
 import dev.chungjungsoo.gptmobile.util.getPlatformTitleResources
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -81,12 +81,12 @@ fun HomeScreen(
     val platformTitles = getPlatformTitleResources()
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
-    val chatListState by homeViewModel.chatListState.collectManagedState()
-    val showSelectModelDialog by homeViewModel.showSelectModelDialog.collectManagedState()
-    val showDeleteWarningDialog by homeViewModel.showDeleteWarningDialog.collectManagedState()
-    val platformState by homeViewModel.platformState.collectManagedState()
+    val chatListState by homeViewModel.chatListState.collectAsStateWithLifecycle()
+    val showSelectModelDialog by homeViewModel.showSelectModelDialog.collectAsStateWithLifecycle()
+    val showDeleteWarningDialog by homeViewModel.showDeleteWarningDialog.collectAsStateWithLifecycle()
+    val platformState by homeViewModel.platformState.collectAsStateWithLifecycle()
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-    val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectManagedState()
+    val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     LaunchedEffect(lifecycleState) {
