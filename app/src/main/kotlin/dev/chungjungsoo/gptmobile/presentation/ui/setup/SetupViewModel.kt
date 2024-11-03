@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.chungjungsoo.gptmobile.data.ModelConstants.anthropicModels
 import dev.chungjungsoo.gptmobile.data.ModelConstants.googleModels
+import dev.chungjungsoo.gptmobile.data.ModelConstants.groqModels
 import dev.chungjungsoo.gptmobile.data.ModelConstants.ollamaModels
 import dev.chungjungsoo.gptmobile.data.ModelConstants.openaiModels
 import dev.chungjungsoo.gptmobile.data.dto.Platform
@@ -26,6 +27,7 @@ class SetupViewModel @Inject constructor(private val settingRepository: SettingR
             Platform(ApiType.OPENAI),
             Platform(ApiType.ANTHROPIC),
             Platform(ApiType.GOOGLE),
+            Platform(ApiType.GROQ),
             Platform(ApiType.OLLAMA)
         )
     )
@@ -114,6 +116,7 @@ class SetupViewModel @Inject constructor(private val settingRepository: SettingR
             Route.OPENAI_MODEL_SELECT,
             Route.ANTHROPIC_MODEL_SELECT,
             Route.GOOGLE_MODEL_SELECT,
+            Route.GROQ_MODEL_SELECT,
             Route.OLLAMA_MODEL_SELECT,
             Route.OLLAMA_API_ADDRESS,
             Route.SETUP_COMPLETE
@@ -123,6 +126,7 @@ class SetupViewModel @Inject constructor(private val settingRepository: SettingR
             Route.OPENAI_MODEL_SELECT to ApiType.OPENAI,
             Route.ANTHROPIC_MODEL_SELECT to ApiType.ANTHROPIC,
             Route.GOOGLE_MODEL_SELECT to ApiType.GOOGLE,
+            Route.GROQ_MODEL_SELECT to ApiType.GROQ,
             Route.OLLAMA_MODEL_SELECT to ApiType.OLLAMA,
             Route.OLLAMA_API_ADDRESS to ApiType.OLLAMA
         )
@@ -153,6 +157,7 @@ class SetupViewModel @Inject constructor(private val settingRepository: SettingR
             ApiType.OPENAI -> openaiModels
             ApiType.ANTHROPIC -> anthropicModels
             ApiType.GOOGLE -> googleModels
+            ApiType.GROQ -> groqModels
             ApiType.OLLAMA -> ollamaModels
         }.toList()
 

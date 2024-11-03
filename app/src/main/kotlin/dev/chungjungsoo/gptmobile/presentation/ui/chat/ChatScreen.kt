@@ -61,11 +61,11 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.Message
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.util.DefaultHashMap
-import dev.chungjungsoo.gptmobile.util.collectManagedState
 import dev.chungjungsoo.gptmobile.util.multiScrollStateSaver
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -84,23 +84,25 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
-    val isIdle by chatViewModel.isIdle.collectManagedState()
-    val isLoaded by chatViewModel.isLoaded.collectManagedState()
-    val messages by chatViewModel.messages.collectManagedState()
-    val question by chatViewModel.question.collectManagedState()
-    val appEnabledPlatforms by chatViewModel.enabledPlatformsInApp.collectManagedState()
+    val isIdle by chatViewModel.isIdle.collectAsStateWithLifecycle()
+    val isLoaded by chatViewModel.isLoaded.collectAsStateWithLifecycle()
+    val messages by chatViewModel.messages.collectAsStateWithLifecycle()
+    val question by chatViewModel.question.collectAsStateWithLifecycle()
+    val appEnabledPlatforms by chatViewModel.enabledPlatformsInApp.collectAsStateWithLifecycle()
 
-    val openaiLoadingState by chatViewModel.openaiLoadingState.collectManagedState()
-    val anthropicLoadingState by chatViewModel.anthropicLoadingState.collectManagedState()
-    val googleLoadingState by chatViewModel.googleLoadingState.collectManagedState()
-    val ollamaLoadingState by chatViewModel.ollamaLoadingState.collectManagedState()
+    val openaiLoadingState by chatViewModel.openaiLoadingState.collectAsStateWithLifecycle()
+    val anthropicLoadingState by chatViewModel.anthropicLoadingState.collectAsStateWithLifecycle()
+    val googleLoadingState by chatViewModel.googleLoadingState.collectAsStateWithLifecycle()
+    val groqLoadingState by chatViewModel.groqLoadingState.collectAsStateWithLifecycle()
+    val ollamaLoadingState by chatViewModel.ollamaLoadingState.collectAsStateWithLifecycle()
 
-    val userMessage by chatViewModel.userMessage.collectManagedState()
+    val userMessage by chatViewModel.userMessage.collectAsStateWithLifecycle()
 
-    val openAIMessage by chatViewModel.openAIMessage.collectManagedState()
-    val anthropicMessage by chatViewModel.anthropicMessage.collectManagedState()
-    val googleMessage by chatViewModel.googleMessage.collectManagedState()
-    val ollamaMessage by chatViewModel.ollamaMessage.collectManagedState()
+    val openAIMessage by chatViewModel.openAIMessage.collectAsStateWithLifecycle()
+    val anthropicMessage by chatViewModel.anthropicMessage.collectAsStateWithLifecycle()
+    val googleMessage by chatViewModel.googleMessage.collectAsStateWithLifecycle()
+    val groqMessage by chatViewModel.groqMessage.collectAsStateWithLifecycle()
+    val ollamaMessage by chatViewModel.ollamaMessage.collectAsStateWithLifecycle()
 
     val canUseChat = (chatViewModel.enabledPlatformsInChat.toSet() - appEnabledPlatforms.toSet()).isEmpty()
     val groupedMessages = remember(messages) { groupMessages(messages) }
@@ -229,6 +231,7 @@ fun ChatScreen(
                                 ApiType.OPENAI -> openAIMessage
                                 ApiType.ANTHROPIC -> anthropicMessage
                                 ApiType.GOOGLE -> googleMessage
+                                ApiType.GROQ -> groqMessage
                                 ApiType.OLLAMA -> ollamaMessage
                             }
 
@@ -236,6 +239,7 @@ fun ChatScreen(
                                 ApiType.OPENAI -> openaiLoadingState
                                 ApiType.ANTHROPIC -> anthropicLoadingState
                                 ApiType.GOOGLE -> googleLoadingState
+                                ApiType.GROQ -> groqLoadingState
                                 ApiType.OLLAMA -> ollamaLoadingState
                             }
 

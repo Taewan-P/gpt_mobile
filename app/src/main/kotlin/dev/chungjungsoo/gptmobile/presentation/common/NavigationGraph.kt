@@ -118,6 +118,19 @@ fun NavGraphBuilder.setupNavigation(
                 onBackAction = { navController.navigateUp() }
             )
         }
+        composable(route = Route.GROQ_MODEL_SELECT) {
+            val parentEntry = remember(it) {
+                navController.getBackStackEntry(Route.SETUP_ROUTE)
+            }
+            val setupViewModel: SetupViewModel = hiltViewModel(parentEntry)
+            SelectModelScreen(
+                setupViewModel = setupViewModel,
+                currentRoute = Route.GROQ_MODEL_SELECT,
+                platformType = ApiType.GROQ,
+                onNavigate = { route -> navController.navigate(route) },
+                onBackAction = { navController.navigateUp() }
+            )
+        }
         composable(route = Route.OLLAMA_MODEL_SELECT) {
             val parentEntry = remember(it) {
                 navController.getBackStackEntry(Route.SETUP_ROUTE)
@@ -214,6 +227,7 @@ fun NavGraphBuilder.settingNavigation(navController: NavHostController) {
                         ApiType.OPENAI -> navController.navigate(Route.OPENAI_SETTINGS)
                         ApiType.ANTHROPIC -> navController.navigate(Route.ANTHROPIC_SETTINGS)
                         ApiType.GOOGLE -> navController.navigate(Route.GOOGLE_SETTINGS)
+                        ApiType.GROQ -> navController.navigate(Route.GROQ_SETTINGS)
                         ApiType.OLLAMA -> navController.navigate(Route.OLLAMA_SETTINGS)
                     }
                 },
@@ -248,6 +262,16 @@ fun NavGraphBuilder.settingNavigation(navController: NavHostController) {
             PlatformSettingScreen(
                 settingViewModel = settingViewModel,
                 apiType = ApiType.GOOGLE
+            ) { navController.navigateUp() }
+        }
+        composable(Route.GROQ_SETTINGS) {
+            val parentEntry = remember(it) {
+                navController.getBackStackEntry(Route.SETTING_ROUTE)
+            }
+            val settingViewModel: SettingViewModel = hiltViewModel(parentEntry)
+            PlatformSettingScreen(
+                settingViewModel = settingViewModel,
+                apiType = ApiType.GROQ
             ) { navController.navigateUp() }
         }
         composable(Route.OLLAMA_SETTINGS) {

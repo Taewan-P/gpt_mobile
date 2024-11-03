@@ -11,6 +11,7 @@ import dev.chungjungsoo.gptmobile.data.dto.ApiState
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
+import dev.chungjungsoo.gptmobile.util.handleStates
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -60,6 +61,9 @@ class ChatViewModel @Inject constructor(
     private val _googleLoadingState = MutableStateFlow<LoadingState>(LoadingState.Idle)
     val googleLoadingState = _googleLoadingState.asStateFlow()
 
+    private val _groqLoadingState = MutableStateFlow<LoadingState>(LoadingState.Idle)
+    val groqLoadingState = _groqLoadingState.asStateFlow()
+
     private val _ollamaLoadingState = MutableStateFlow<LoadingState>(LoadingState.Idle)
     val ollamaLoadingState = _ollamaLoadingState.asStateFlow()
 
@@ -86,6 +90,9 @@ class ChatViewModel @Inject constructor(
     private val _googleMessage = MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = ApiType.GOOGLE))
     val googleMessage = _googleMessage.asStateFlow()
 
+    private val _groqMessage = MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = ApiType.GROQ))
+    val groqMessage = _groqMessage.asStateFlow()
+
     private val _ollamaMessage = MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = ApiType.OLLAMA))
     val ollamaMessage = _ollamaMessage.asStateFlow()
 
@@ -93,6 +100,7 @@ class ChatViewModel @Inject constructor(
     private val openAIFlow = MutableSharedFlow<ApiState>()
     private val anthropicFlow = MutableSharedFlow<ApiState>()
     private val googleFlow = MutableSharedFlow<ApiState>()
+    private val groqFlow = MutableSharedFlow<ApiState>()
     private val ollamaFlow = MutableSharedFlow<ApiState>()
 
     init {
@@ -150,6 +158,11 @@ class ChatViewModel @Inject constructor(
                 completeGoogleChat()
             }
 
+            ApiType.GROQ -> {
+                _groqMessage.update { it.copy(id = message.id, content = "", createdAt = currentTimeStamp) }
+                completeGroqChat()
+            }
+
             ApiType.OLLAMA -> {
                 _ollamaMessage.update { it.copy(id = message.id, content = "", createdAt = currentTimeStamp) }
                 completeOllamaChat()
@@ -168,6 +181,7 @@ class ChatViewModel @Inject constructor(
         _openAIMessage.update { it.copy(id = 0, content = "") }
         _anthropicMessage.update { it.copy(id = 0, content = "") }
         _googleMessage.update { it.copy(id = 0, content = "") }
+        _groqMessage.update { it.copy(id = 0, content = "") }
         _ollamaMessage.update { it.copy(id = 0, content = "") }
     }
 
@@ -187,6 +201,10 @@ class ChatViewModel @Inject constructor(
             completeGoogleChat()
         }
 
+        if (ApiType.GROQ in enabledPlatforms) {
+            completeGroqChat()
+        }
+
         if (ApiType.OLLAMA in enabledPlatforms) {
             completeOllamaChat()
         }
@@ -203,6 +221,13 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             val chatFlow = chatRepository.completeGoogleChat(question = _userMessage.value, history = _messages.value)
             chatFlow.collect { chunk -> googleFlow.emit(chunk) }
+        }
+    }
+
+    private fun completeGroqChat() {
+        viewModelScope.launch {
+            val chatFlow = chatRepository.completeGroqChat(question = _userMessage.value, history = _messages.value)
+            chatFlow.collect { chunk -> groqFlow.emit(chunk) }
         }
     }
 
@@ -255,79 +280,38 @@ class ChatViewModel @Inject constructor(
 
     private fun observeFlow() {
         viewModelScope.launch {
-            openAIFlow.collect { chunk ->
-                when (chunk) {
-                    is ApiState.Success -> _openAIMessage.update { it.copy(content = it.content + chunk.textChunk) }
-                    ApiState.Done -> {
-                        _openAIMessage.update { it.copy(createdAt = currentTimeStamp) }
-                        updateLoadingState(ApiType.OPENAI, LoadingState.Idle)
-                    }
-
-                    is ApiState.Error -> {
-                        _openAIMessage.update { it.copy(content = "Error: ${chunk.message}", createdAt = currentTimeStamp) }
-                        updateLoadingState(ApiType.OPENAI, LoadingState.Idle)
-                    }
-
-                    else -> {}
-                }
-            }
+            openAIFlow.handleStates(
+                messageFlow = _openAIMessage,
+                onLoadingComplete = { updateLoadingState(ApiType.OPENAI, LoadingState.Idle) }
+            )
         }
 
         viewModelScope.launch {
-            anthropicFlow.collect { chunk ->
-                when (chunk) {
-                    is ApiState.Success -> _anthropicMessage.update { it.copy(content = it.content + chunk.textChunk) }
-                    ApiState.Done -> {
-                        _anthropicMessage.update { it.copy(createdAt = currentTimeStamp) }
-                        updateLoadingState(ApiType.ANTHROPIC, LoadingState.Idle)
-                    }
-
-                    is ApiState.Error -> {
-                        _anthropicMessage.update { it.copy(content = "Error: ${chunk.message}", createdAt = currentTimeStamp) }
-                        updateLoadingState(ApiType.ANTHROPIC, LoadingState.Idle)
-                    }
-
-                    else -> {}
-                }
-            }
+            anthropicFlow.handleStates(
+                messageFlow = _anthropicMessage,
+                onLoadingComplete = { updateLoadingState(ApiType.ANTHROPIC, LoadingState.Idle) }
+            )
         }
 
         viewModelScope.launch {
-            googleFlow.collect { chunk ->
-                when (chunk) {
-                    is ApiState.Success -> _googleMessage.update { it.copy(content = it.content + chunk.textChunk) }
-                    ApiState.Done -> {
-                        _googleMessage.update { it.copy(createdAt = currentTimeStamp) }
-                        updateLoadingState(ApiType.GOOGLE, LoadingState.Idle)
-                    }
-
-                    is ApiState.Error -> {
-                        _googleMessage.update { it.copy(content = "Error: ${chunk.message}", createdAt = currentTimeStamp) }
-                        updateLoadingState(ApiType.GOOGLE, LoadingState.Idle)
-                    }
-
-                    else -> {}
-                }
-            }
+            googleFlow.handleStates(
+                messageFlow = _googleMessage,
+                onLoadingComplete = { updateLoadingState(ApiType.GOOGLE, LoadingState.Idle) }
+            )
         }
 
         viewModelScope.launch {
-            ollamaFlow.collect { chunk ->
-                when (chunk) {
-                    is ApiState.Success -> _ollamaMessage.update { it.copy(content = it.content + chunk.textChunk) }
-                    ApiState.Done -> {
-                        _ollamaMessage.update { it.copy(createdAt = currentTimeStamp) }
-                        updateLoadingState(ApiType.OLLAMA, LoadingState.Idle)
-                    }
+            groqFlow.handleStates(
+                messageFlow = _groqMessage,
+                onLoadingComplete = { updateLoadingState(ApiType.GROQ, LoadingState.Idle) }
+            )
+        }
 
-                    is ApiState.Error -> {
-                        _ollamaMessage.update { it.copy(content = "Error: ${chunk.message}", createdAt = currentTimeStamp) }
-                        updateLoadingState(ApiType.OLLAMA, LoadingState.Idle)
-                    }
-
-                    else -> {}
-                }
-            }
+        viewModelScope.launch {
+            ollamaFlow.handleStates(
+                messageFlow = _ollamaMessage,
+                onLoadingComplete = { updateLoadingState(ApiType.OLLAMA, LoadingState.Idle) }
+            )
         }
 
         viewModelScope.launch {
@@ -352,6 +336,7 @@ class ChatViewModel @Inject constructor(
             ApiType.OPENAI -> _openaiLoadingState
             ApiType.ANTHROPIC -> _anthropicLoadingState
             ApiType.GOOGLE -> _googleLoadingState
+            ApiType.GROQ -> _groqLoadingState
             ApiType.OLLAMA -> _ollamaLoadingState
         }
 
@@ -362,6 +347,7 @@ class ChatViewModel @Inject constructor(
             ApiType.OPENAI -> _openAIMessage.update { message }
             ApiType.ANTHROPIC -> _anthropicMessage.update { message }
             ApiType.GOOGLE -> _googleMessage.update { message }
+            ApiType.GROQ -> _groqMessage.update { message }
             ApiType.OLLAMA -> _ollamaMessage.update { message }
         }
     }
@@ -382,6 +368,10 @@ class ChatViewModel @Inject constructor(
             addMessage(_googleMessage.value)
         }
 
+        if (ApiType.GROQ in enabledPlatforms) {
+            addMessage(_groqMessage.value)
+        }
+
         if (ApiType.OLLAMA in enabledPlatforms) {
             addMessage(_ollamaMessage.value)
         }
@@ -392,6 +382,7 @@ class ChatViewModel @Inject constructor(
             ApiType.OPENAI -> _openaiLoadingState.update { loadingState }
             ApiType.ANTHROPIC -> _anthropicLoadingState.update { loadingState }
             ApiType.GOOGLE -> _googleLoadingState.update { loadingState }
+            ApiType.GROQ -> _groqLoadingState.update { loadingState }
             ApiType.OLLAMA -> _ollamaLoadingState.update { loadingState }
         }
 
@@ -401,6 +392,7 @@ class ChatViewModel @Inject constructor(
                 ApiType.OPENAI -> _openaiLoadingState
                 ApiType.ANTHROPIC -> _anthropicLoadingState
                 ApiType.GOOGLE -> _googleLoadingState
+                ApiType.GROQ -> _groqLoadingState
                 ApiType.OLLAMA -> _ollamaLoadingState
             }
 

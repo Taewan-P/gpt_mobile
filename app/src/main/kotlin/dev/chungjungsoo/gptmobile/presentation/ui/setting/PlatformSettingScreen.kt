@@ -39,11 +39,11 @@ import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.ModelConstants
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.presentation.common.SettingItem
-import dev.chungjungsoo.gptmobile.util.collectManagedState
 import dev.chungjungsoo.gptmobile.util.getPlatformSettingTitle
 import dev.chungjungsoo.gptmobile.util.pinnedExitUntilCollapsedScrollBehavior
 
@@ -60,8 +60,8 @@ fun PlatformSettingScreen(
         canScroll = { scrollState.canScrollForward || scrollState.canScrollBackward }
     )
     val title = getPlatformSettingTitle(apiType)
-    val platformState by settingViewModel.platformState.collectManagedState()
-    val dialogState by settingViewModel.dialogState.collectManagedState()
+    val platformState by settingViewModel.platformState.collectAsStateWithLifecycle()
+    val dialogState by settingViewModel.dialogState.collectAsStateWithLifecycle()
 
     Scaffold(
         modifier = modifier
@@ -81,7 +81,7 @@ fun PlatformSettingScreen(
         ) {
             val platform = platformState.firstOrNull { it.name == apiType }
             val url = platform?.apiUrl ?: ModelConstants.getDefaultAPIUrl(apiType)
-            val enabled = platform?.enabled ?: false
+            val enabled = platform?.enabled == true
             val model = platform?.model
             val token = platform?.token
             val temperature = platform?.temperature ?: 1F
@@ -90,6 +90,7 @@ fun PlatformSettingScreen(
                 ApiType.OPENAI -> ModelConstants.OPENAI_PROMPT
                 ApiType.ANTHROPIC -> ModelConstants.DEFAULT_PROMPT
                 ApiType.GOOGLE -> ModelConstants.DEFAULT_PROMPT
+                ApiType.GROQ -> ModelConstants.DEFAULT_PROMPT
                 ApiType.OLLAMA -> ModelConstants.DEFAULT_PROMPT
             }
 
@@ -101,7 +102,7 @@ fun PlatformSettingScreen(
                 modifier = Modifier.height(64.dp),
                 title = stringResource(R.string.api_url),
                 description = url,
-                enabled = enabled && platform?.name != ApiType.GOOGLE,
+                enabled = enabled && platform.name != ApiType.GOOGLE,
                 onItemClick = settingViewModel::openApiUrlDialog,
                 showTrailingIcon = false,
                 showLeadingIcon = true,
