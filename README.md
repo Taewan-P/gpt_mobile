@@ -6,8 +6,14 @@
 
 ### Chat Assistant for Android that supports chatting with multiple models at once.
 
-[![GitHub all releases](https://img.shields.io/github/downloads/Taewan-P/gpt_mobile/total?label=Downloads&logo=github)](https://github.com/Taewan-P/gpt_mobile/releases/)
-[![GitHub release (latest by date)](https://img.shields.io/github/v/release/Taewan-P/gpt_mobile?color=black&label=Stable&logo=github)](https://github.com/Taewan-P/gpt_mobile/releases/latest/)
+<p>
+  <a href="https://mailchi.mp/kotlinweekly/kotlin-weekly-431"><img alt="Kotlin Weekly" src="https://img.shields.io/badge/Kotlin%20Weekly-%23431-blue"/></a>
+  <img alt="Android" src="https://img.shields.io/badge/Platform-Android-green.svg"/>
+  <img alt="GitHub Actions Workflow Status" src="https://img.shields.io/github/actions/workflow/status/Taewan-P/gpt_mobile/release-build.yml">
+  <a href="https://github.com/Taewan-P/gpt_mobile/releases/"><img alt="GitHub Releases Total Downloads" src="https://img.shields.io/github/downloads/Taewan-P/gpt_mobile/total?label=Downloads&logo=github"/></a>
+  <a href="https://github.com/Taewan-P/gpt_mobile/releases/latest/"><img alt="GitHub Releases (latest by date)" src="https://img.shields.io/github/v/release/Taewan-P/gpt_mobile?color=black&label=Stable&logo=github"/></a>
+</p>
+
 
 </div>
 
@@ -35,6 +41,7 @@
     - OpenAI GPT
     - Anthropic Claude
     - Google Gemini
+    - Groq
     - Ollama
   - Can customize temperature, top p (Nucleus sampling), and system prompt
   - Custom API URLs, Custom Models are also supported
