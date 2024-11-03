@@ -159,4 +159,20 @@
     <string name="bug_report_description">Something isn\'t working correctly?</string>
     <string name="bug_report_icon">Bug Report Icon</string>
     <string name="scroll_to_bottom_icon">Scroll to bottom icon</string>
+    <string name="llama_3_2_3b" translatable="false">Llama 3.2 3B (Preview) 8k</string>
+    <string name="llama_3_2_1b" translatable="false">Llama 3.2 1B (Preview) 8k</string>
+    <string name="llama_3_1_70b_versatile" translatable="false">Llama 3.1 70B Versatile 128k</string>
+    <string name="llama_3_1_8b_instant" translatable="false">Llama 3.1 8B Instant 128k</string>
+    <string name="gemma_2_9b" translatable="false">Gemma 2 9B 8k</string>
+    <string name="llama_3_2_description">Latest Lightweight Open Source language model from Meta.</string>
+    <string name="llama_3_1_description">State-of-the-art multilingual open source large language model from Meta.</string>
+    <string name="gemma2_description">Small Language Model released by Google.</string>
+    <string name="select_groq_model">Select Groq Chat Model</string>
+    <string name="select_groq_model_description">Please select the Groq chat model. If you want models that are not on the list, check out Groq API documentation website and see what\'s available.</string>
+    <string name="groq_setting">Groq Settings</string>
+    <string name="groq_brand_text">Powered by Groq</string>
+    <string name="groq" translatable="false">Groq</string>
+    <string name="groq_description">Fast AI inference for openly-available models.</string>
+    <string name="groq_api_key">Groq API Key</string>
+    <string name="groq_api_help" translatable="false">https://console.groq.com/keys</string>
 </resources>

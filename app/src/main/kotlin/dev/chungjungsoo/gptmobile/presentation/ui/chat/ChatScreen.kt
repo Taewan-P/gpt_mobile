@@ -93,6 +93,7 @@ fun ChatScreen(
     val openaiLoadingState by chatViewModel.openaiLoadingState.collectManagedState()
     val anthropicLoadingState by chatViewModel.anthropicLoadingState.collectManagedState()
     val googleLoadingState by chatViewModel.googleLoadingState.collectManagedState()
+    val groqLoadingState by chatViewModel.groqLoadingState.collectManagedState()
     val ollamaLoadingState by chatViewModel.ollamaLoadingState.collectManagedState()
 
     val userMessage by chatViewModel.userMessage.collectManagedState()
@@ -100,6 +101,7 @@ fun ChatScreen(
     val openAIMessage by chatViewModel.openAIMessage.collectManagedState()
     val anthropicMessage by chatViewModel.anthropicMessage.collectManagedState()
     val googleMessage by chatViewModel.googleMessage.collectManagedState()
+    val groqMessage by chatViewModel.groqMessage.collectManagedState()
     val ollamaMessage by chatViewModel.ollamaMessage.collectManagedState()
 
     val canUseChat = (chatViewModel.enabledPlatformsInChat.toSet() - appEnabledPlatforms.toSet()).isEmpty()
@@ -229,6 +231,7 @@ fun ChatScreen(
                                 ApiType.OPENAI -> openAIMessage
                                 ApiType.ANTHROPIC -> anthropicMessage
                                 ApiType.GOOGLE -> googleMessage
+                                ApiType.GROQ -> groqMessage
                                 ApiType.OLLAMA -> ollamaMessage
                             }
 
@@ -236,6 +239,7 @@ fun ChatScreen(
                                 ApiType.OPENAI -> openaiLoadingState
                                 ApiType.ANTHROPIC -> anthropicLoadingState
                                 ApiType.GOOGLE -> googleLoadingState
+                                ApiType.GROQ -> groqLoadingState
                                 ApiType.OLLAMA -> ollamaLoadingState
                             }
 
