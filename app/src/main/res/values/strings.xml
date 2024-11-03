@@ -170,7 +170,7 @@
     <string name="select_groq_model">Select Groq Chat Model</string>
     <string name="select_groq_model_description">Please select the Groq chat model. If you want models that are not on the list, check out Groq API documentation website and see what\'s available.</string>
     <string name="groq_setting">Groq Settings</string>
-    <string name="groq_brand_text">Powered by Groq</string>
+    <string name="groq_brand_text" translatable="false">Powered by Groq</string>
     <string name="groq" translatable="false">Groq</string>
     <string name="groq_description">Fast AI inference for openly-available models.</string>
     <string name="groq_api_key">Groq API Key</string>
