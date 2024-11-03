@@ -70,7 +70,7 @@
     <string name="model_icon">模型的图标</string>
     <string name="send">发送</string>
     <string name="copy_text">复制</string>
-    <string name="retry">重试</string>
+    <string name="retry">重新生成</string>
     <string name="ask_a_question">问一个问题吧...</string>
     <string name="some_platforms_disabled">一些API已被禁用</string>
     <string name="token_not_set">没有设置Token</string>
