@@ -11,6 +11,7 @@ import dev.chungjungsoo.gptmobile.data.dto.ApiState
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
+import dev.chungjungsoo.gptmobile.util.handleStates
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -279,98 +280,38 @@ class ChatViewModel @Inject constructor(
 
     private fun observeFlow() {
         viewModelScope.launch {
-            openAIFlow.collect { chunk ->
-                when (chunk) {
-                    is ApiState.Success -> _openAIMessage.update { it.copy(content = it.content + chunk.textChunk) }
-                    ApiState.Done -> {
-                        _openAIMessage.update { it.copy(createdAt = currentTimeStamp) }
-                        updateLoadingState(ApiType.OPENAI, LoadingState.Idle)
-                    }
-
-                    is ApiState.Error -> {
-                        _openAIMessage.update { it.copy(content = "Error: ${chunk.message}", createdAt = currentTimeStamp) }
-                        updateLoadingState(ApiType.OPENAI, LoadingState.Idle)
-                    }
-
-                    else -> {}
-                }
-            }
+            openAIFlow.handleStates(
+                messageFlow = _openAIMessage,
+                onLoadingComplete = { updateLoadingState(ApiType.OPENAI, LoadingState.Idle) }
+            )
         }
 
         viewModelScope.launch {
-            anthropicFlow.collect { chunk ->
-                when (chunk) {
-                    is ApiState.Success -> _anthropicMessage.update { it.copy(content = it.content + chunk.textChunk) }
-                    ApiState.Done -> {
-                        _anthropicMessage.update { it.copy(createdAt = currentTimeStamp) }
-                        updateLoadingState(ApiType.ANTHROPIC, LoadingState.Idle)
-                    }
-
-                    is ApiState.Error -> {
-                        _anthropicMessage.update { it.copy(content = "Error: ${chunk.message}", createdAt = currentTimeStamp) }
-                        updateLoadingState(ApiType.ANTHROPIC, LoadingState.Idle)
-                    }
-
-                    else -> {}
-                }
-            }
+            anthropicFlow.handleStates(
+                messageFlow = _anthropicMessage,
+                onLoadingComplete = { updateLoadingState(ApiType.ANTHROPIC, LoadingState.Idle) }
+            )
         }
 
         viewModelScope.launch {
-            googleFlow.collect { chunk ->
-                when (chunk) {
-                    is ApiState.Success -> _googleMessage.update { it.copy(content = it.content + chunk.textChunk) }
-                    ApiState.Done -> {
-                        _googleMessage.update { it.copy(createdAt = currentTimeStamp) }
-                        updateLoadingState(ApiType.GOOGLE, LoadingState.Idle)
-                    }
-
-                    is ApiState.Error -> {
-                        _googleMessage.update { it.copy(content = "Error: ${chunk.message}", createdAt = currentTimeStamp) }
-                        updateLoadingState(ApiType.GOOGLE, LoadingState.Idle)
-                    }
-
-                    else -> {}
-                }
-            }
+            googleFlow.handleStates(
+                messageFlow = _googleMessage,
+                onLoadingComplete = { updateLoadingState(ApiType.GOOGLE, LoadingState.Idle) }
+            )
         }
 
         viewModelScope.launch {
-            groqFlow.collect { chunk ->
-                when (chunk) {
-                    is ApiState.Success -> _groqMessage.update { it.copy(content = it.content + chunk.textChunk) }
-                    ApiState.Done -> {
-                        _groqMessage.update { it.copy(createdAt = currentTimeStamp) }
-                        updateLoadingState(ApiType.GROQ, LoadingState.Idle)
-                    }
-
-                    is ApiState.Error -> {
-                        _groqMessage.update { it.copy(content = "Error: ${chunk.message}", createdAt = currentTimeStamp) }
-                        updateLoadingState(ApiType.GROQ, LoadingState.Idle)
-                    }
-
-                    else -> {}
-                }
-            }
+            groqFlow.handleStates(
+                messageFlow = _groqMessage,
+                onLoadingComplete = { updateLoadingState(ApiType.GROQ, LoadingState.Idle) }
+            )
         }
 
         viewModelScope.launch {
-            ollamaFlow.collect { chunk ->
-                when (chunk) {
-                    is ApiState.Success -> _ollamaMessage.update { it.copy(content = it.content + chunk.textChunk) }
-                    ApiState.Done -> {
-                        _ollamaMessage.update { it.copy(createdAt = currentTimeStamp) }
-                        updateLoadingState(ApiType.OLLAMA, LoadingState.Idle)
-                    }
-
-                    is ApiState.Error -> {
-                        _ollamaMessage.update { it.copy(content = "Error: ${chunk.message}", createdAt = currentTimeStamp) }
-                        updateLoadingState(ApiType.OLLAMA, LoadingState.Idle)
-                    }
-
-                    else -> {}
-                }
-            }
+            ollamaFlow.handleStates(
+                messageFlow = _ollamaMessage,
+                onLoadingComplete = { updateLoadingState(ApiType.OLLAMA, LoadingState.Idle) }
+            )
         }
 
         viewModelScope.launch {
