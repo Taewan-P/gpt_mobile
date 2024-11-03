@@ -11,12 +11,12 @@ plugins {
 
 android {
     namespace = "dev.chungjungsoo.gptmobile"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "dev.chungjungsoo.gptmobile"
         minSdk = 28
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 11
         versionName = "0.5.3"
 
