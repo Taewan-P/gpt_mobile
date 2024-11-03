@@ -8,6 +8,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
@@ -340,7 +341,9 @@ fun SelectPlatformDialog(
 
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
-        modifier = Modifier.widthIn(max = configuration.screenWidthDp.dp - 40.dp),
+        modifier = Modifier
+            .widthIn(max = configuration.screenWidthDp.dp - 40.dp)
+            .heightIn(max = configuration.screenHeightDp.dp - 80.dp),
         onDismissRequest = onDismissRequest,
         title = {
             Column {
@@ -433,7 +436,9 @@ fun DeleteWarningDialog(
     val configuration = LocalConfiguration.current
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
-        modifier = Modifier.width(configuration.screenWidthDp.dp - 40.dp),
+        modifier = Modifier
+            .width(configuration.screenWidthDp.dp - 40.dp)
+            .heightIn(max = configuration.screenHeightDp.dp - 80.dp),
         title = {
             Text(
                 text = stringResource(R.string.delete_selected_chats),
