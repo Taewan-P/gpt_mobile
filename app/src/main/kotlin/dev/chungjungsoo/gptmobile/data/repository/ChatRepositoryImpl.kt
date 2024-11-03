@@ -47,6 +47,7 @@ class ChatRepositoryImpl @Inject constructor(
     private lateinit var openAI: OpenAI
     private lateinit var google: GenerativeModel
     private lateinit var ollama: OpenAI
+    private lateinit var groq: OpenAI
 
     override suspend fun completeOpenAIChat(question: Message, history: List<Message>): Flow<ApiState> {
         val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.OPENAI })
@@ -121,6 +122,28 @@ class ChatRepositoryImpl @Inject constructor(
 
         return chat.sendMessageStream(question.content)
             .map<GenerateContentResponse, ApiState> { response -> ApiState.Success(response.text ?: "") }
+            .catch { throwable -> emit(ApiState.Error(throwable.message ?: "Unknown error")) }
+            .onStart { emit(ApiState.Loading) }
+            .onCompletion { emit(ApiState.Done) }
+    }
+
+    override suspend fun completeGroqChat(question: Message, history: List<Message>): Flow<ApiState> {
+        val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.GROQ })
+        groq = OpenAI(platform.token ?: "", host = OpenAIHost(baseUrl = platform.apiUrl))
+
+        val generatedMessages = messageToOpenAICompatibleMessage(ApiType.GROQ, history + listOf(question))
+        val generatedMessageWithPrompt = listOf(
+            ChatMessage(role = ChatRole.System, content = platform.systemPrompt ?: ModelConstants.DEFAULT_PROMPT)
+        ) + generatedMessages
+        val chatCompletionRequest = ChatCompletionRequest(
+            model = ModelId(platform.model ?: ""),
+            messages = generatedMessageWithPrompt,
+            temperature = platform.temperature?.toDouble(),
+            topP = platform.topP?.toDouble()
+        )
+
+        return groq.chatCompletions(chatCompletionRequest)
+            .map<ChatCompletionChunk, ApiState> { chunk -> ApiState.Success(chunk.choices[0].delta?.content ?: "") }
             .catch { throwable -> emit(ApiState.Error(throwable.message ?: "Unknown error")) }
             .onStart { emit(ApiState.Loading) }
             .onCompletion { emit(ApiState.Done) }
