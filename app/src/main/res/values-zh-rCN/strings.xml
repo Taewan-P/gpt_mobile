@@ -16,7 +16,7 @@
     <string name="clear_token">清空Token</string>
     <string name="need_help">需要帮助?</string>
     <string name="openai_api_key">OpenAI的API密钥</string>
-    <string name="anthropic_api_key">Anthropic API密钥</string>
+    <string name="anthropic_api_key">Anthropic的API密钥</string>
     <string name="google_api_key">Google的API密钥</string>
     <string name="select_openai_model">选择OpenAI会话的模型</string>
     <string name="select_openai_model_description">请选择OpenAI会话的模型，尽管部分模型是多功能的，但我们目前只支持纯文本输入，在未来可能会支持更多功能!</string>
@@ -70,7 +70,7 @@
     <string name="model_icon">模型的图标</string>
     <string name="send">发送</string>
     <string name="copy_text">复制</string>
-    <string name="retry">重新生成</string>
+    <string name="retry">重试</string>
     <string name="ask_a_question">问一个问题吧...</string>
     <string name="some_platforms_disabled">一些API已被禁用</string>
     <string name="token_not_set">没有设置Token</string>
@@ -107,12 +107,12 @@
     <string name="f_droid_icon">F-droid的图标</string>
     <string name="play_store_icon">Play商店的图标</string>
     <string name="api_url">API网址</string>
-    <string name="url_icon">URL图标</string>
+    <string name="url_icon">URL的图标</string>
     <string name="invalid_api_url">请输入一个有效的网址</string>
     <string name="ollama_description">使用您自己的模型</string>
     <string name="select_ollama_model">选择Ollama会话的模型</string>
     <string name="ollama_setting">Ollama</string>
-    <string name="select_ollama_model_description">由于Ollama的模型型号过多，您需要自定义模型值。确保API支持您输入的模型名称，否则会发生错误</string>
+    <string name="select_ollama_model_description">由于Ollama的模型型号过多，您需要自定义模型。确保API支持您自定义的模型，否则会发生错误</string>
     <string name="custom">自定义模型</string>
     <string name="custom_description">使用的模型不在这个列表中</string>
     <string name="model_name">模型名称</string>
@@ -128,4 +128,13 @@
     <string name="bug_report_description">有什么无法工作了吗?</string>
     <string name="bug_report_icon">错误报告的图标</string>
     <string name="scroll_to_bottom_icon">滚动到底部的图标</string>
+    <string name="llama_3_2_description">Meta最新的轻量开源模型</string>
+    <string name="llama_3_1_description">Meta最先进的大型开源模型</string>
+    <string name="gemma2_description">Google的轻量模型</string>
+    <string name="select_groq_model">选择Groq会话的模型</string>
+    <string name="select_groq_model_description">请选择Groq会话的模型，如果您想使用模型不在列表中，请查看Grop的API文档来知道可用的模型</string>
+    <string name="groq_setting">Groq</string>
+    <string name="groq_brand_text">由Groq提供</string>
+    <string name="groq_description">快速推理的开放模型</string>
+    <string name="groq_api_key">Groq的API密钥</string>
 </resources>
