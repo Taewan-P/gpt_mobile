@@ -23,7 +23,7 @@
 
 <div align="center">
 
-<img style="display: block;" src="./images/screenshots.png">
+<img style="display: block;" src="./images/screenshots.webp">
 
 </div>
 
@@ -97,4 +97,3 @@ For translations, we are using [Hosted Weblate](https://hosted.weblate.org/engag
 See [LICENSE](./LICENSE) for details.
 
 [F-Droid Icon License](https://gitlab.com/fdroid/artwork/-/blob/master/fdroid-logo-2015/README.md)
-
