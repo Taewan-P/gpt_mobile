@@ -128,4 +128,13 @@
     <string name="bug_report">버그 제보</string>
     <string name="bug_report_description">정상적으로 작동되지 않는 부분이 있어요.</string>
     <string name="bug_report_icon">버그 제보 아이콘</string>
+    <string name="scroll_to_bottom_icon">맨 아래로 이동 아이콘</string>
+    <string name="llama_3_2_description">Meta에서 배포한 최신 경량 오픈소스 언어 모델.</string>
+    <string name="llama_3_1_description">Meta의 최신 다국어 오픈 소스 대규모 언어 모델입니다.</string>
+    <string name="gemma2_description">구글에서 출시한 소형 언어모델입니다.</string>
+    <string name="select_groq_model">Groq 모델 선택</string>
+    <string name="select_groq_model_description">Groq 모델을 선택하세요. 목록에 없는 모델을 원하는 경우 Groq API 설명서 웹사이트를 참조하여 사용 가능한 모델을 확인하세요.</string>
+    <string name="groq_setting">Groq 설정</string>
+    <string name="groq_description">공개 언어 모델을 위한 고속 AI 추론 서비스.</string>
+    <string name="groq_api_key">Groq API 키</string>
 </resources>
