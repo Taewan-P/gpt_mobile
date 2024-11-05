@@ -131,9 +131,10 @@
     <string name="play_store_icon">Ícone da Play Store</string>
     <string name="platform_select_description">Selecione a plataforma que você quer usar. Você pode alterar isso mais tarde nas configurações. Mais plataformas serão suportadas.</string>
     <string name="token_input_description">Insira a chave API da plataforma que você selecionou. Este aplicativo nunca coleta esses dados. Essas chaves e dados de bate-papo serão armazenados apenas no seu dispositivo e não serão enviados para outros servidores além do ponto de extremidade da API.</string>
-    <string name="on">Sobre</string>
+    <string name="on">Ligar</string>
     <string name="select_ollama_model_description">Selecione o modelo Ollama. Como há muitos modelos e tags suportados, você pode personalizar o valor do modelo. Certifique-se de que o endpoint realmente suporte o modelo e coloque-o em execução</string>
     <string name="ollama_api_address">Endereço da API Ollama</string>
     <string name="ollama_api_key">Chave API Ollama</string>
     <string name="bug_report">Relatório de erro</string>
+    <string name="feedback">Opinião</string>
 </resources>
