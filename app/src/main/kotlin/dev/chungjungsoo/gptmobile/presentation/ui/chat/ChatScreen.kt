@@ -373,6 +373,63 @@ fun ChatInputBox(
 }
 
 @Composable
+fun ChatTitleDialog(
+    initialTitle: String,
+    aiCoreModeEnabled: Boolean,
+    onDefaultTitleMode: () -> Unit,
+    onAICoreTitleMode: () -> Unit,
+    onConfirmRequest: (title: String) -> Unit,
+    onDismissRequest: () -> Unit
+) {
+    val configuration = LocalConfiguration.current
+    var title by remember { mutableStateOf(initialTitle) }
+
+    AlertDialog(
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier
+            .widthIn(max = configuration.screenWidthDp.dp - 40.dp)
+            .heightIn(max = configuration.screenHeightDp.dp - 80.dp),
+        title = { Text(text = stringResource(R.string.chat_title)) },
+        text = {
+            Column {
+                Text(text = stringResource(R.string.chat_title_dialog_description))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    TextButton(
+                        modifier = Modifier.weight(1F),
+                        onClick = onDefaultTitleMode
+                    ) { Text(text = stringResource(R.string.default_mode)) }
+
+                    TextButton(
+                        enabled = aiCoreModeEnabled,
+                        modifier = Modifier.weight(1F),
+                        onClick = onAICoreTitleMode
+                    ) { Text(text = stringResource(R.string.ai_generated)) }
+                }
+            }
+        },
+        onDismissRequest = onDismissRequest,
+        confirmButton = {
+            TextButton(
+                enabled = title.isNotBlank(),
+                onClick = { onConfirmRequest(title) }
+            ) {
+                Text(stringResource(R.string.update))
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismissRequest
+            ) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
+@Composable
 fun ScrollToBottomButton(onClick: () -> Unit) {
     SmallFloatingActionButton(
         onClick = onClick,
