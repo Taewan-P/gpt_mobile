@@ -205,6 +205,7 @@ class ChatRepositoryImpl @Inject constructor(
             savedMessages.firstOrNull { it.id == m.id } == null
         }
 
+        chatRoomDao.editChatRoom(chatRoom)
         messageDao.deleteMessages(*shouldBeDeleted.toTypedArray())
         messageDao.editMessages(*shouldBeUpdated.toTypedArray())
         messageDao.addMessages(*shouldBeAdded.toTypedArray())
