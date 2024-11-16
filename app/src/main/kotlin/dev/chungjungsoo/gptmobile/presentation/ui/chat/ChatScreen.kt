@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,33 +19,43 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomAppBarDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FabPosition
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -58,8 +69,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
@@ -67,6 +80,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.Message
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.util.DefaultHashMap
 import dev.chungjungsoo.gptmobile.util.multiScrollStateSaver
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -84,6 +98,8 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
+    val chatRoom by chatViewModel.chatRoom.collectAsStateWithLifecycle()
+    val isChatTitleDialogOpen by chatViewModel.isChatTitleDialogOpen.collectAsStateWithLifecycle()
     val isIdle by chatViewModel.isIdle.collectAsStateWithLifecycle()
     val isLoaded by chatViewModel.isLoaded.collectAsStateWithLifecycle()
     val messages by chatViewModel.messages.collectAsStateWithLifecycle()
@@ -128,7 +144,7 @@ fun ChatScreen(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() }
             ) { focusManager.clearFocus() },
-        topBar = { ChatTopBar(onBackAction, scrollBehavior) },
+        topBar = { ChatTopBar(chatRoom.title, onBackAction, scrollBehavior, chatViewModel::openChatTitleDialog) },
         bottomBar = {
             ChatInputBox(
                 value = question,
@@ -260,6 +276,18 @@ fun ChatScreen(
                 }
             }
         }
+
+        if (isChatTitleDialogOpen) {
+            ChatTitleDialog(
+                initialTitle = chatRoom.title,
+                aiCoreModeEnabled = false,
+                scope = scope,
+                onDefaultTitleMode = chatViewModel::generateDefaultChatTitle,
+                onAICoreTitleMode = chatViewModel::generateAIChatTitle,
+                onConfirmRequest = { title -> chatViewModel.updateChatTitle(title) },
+                onDismissRequest = chatViewModel::closeChatTitleDialog
+            )
+        }
     }
 }
 
@@ -293,11 +321,15 @@ private fun groupMessages(messages: List<Message>): HashMap<Int, MutableList<Mes
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 private fun ChatTopBar(
+    title: String,
     onBackAction: () -> Unit,
-    scrollBehavior: TopAppBarScrollBehavior
+    scrollBehavior: TopAppBarScrollBehavior,
+    onChatTitleItemClick: () -> Unit
 ) {
+    var isDropDownMenuExpanded by remember { mutableStateOf(false) }
+
     TopAppBar(
-        title = { /*TODO*/ },
+        title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         navigationIcon = {
             IconButton(
                 onClick = onBackAction
@@ -305,8 +337,42 @@ private fun ChatTopBar(
                 Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.go_back))
             }
         },
+        actions = {
+            IconButton(
+                onClick = { isDropDownMenuExpanded = isDropDownMenuExpanded.not() }
+            ) {
+                Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.options))
+            }
+
+            ChatDropdownMenu(
+                isDropDownMenuExpanded = isDropDownMenuExpanded,
+                onDismissRequest = { isDropDownMenuExpanded = false },
+                onChatTitleItemClick = {
+                    onChatTitleItemClick.invoke()
+                    isDropDownMenuExpanded = false
+                }
+            )
+        },
         scrollBehavior = scrollBehavior
     )
+}
+
+@Composable
+fun ChatDropdownMenu(
+    isDropDownMenuExpanded: Boolean,
+    onDismissRequest: () -> Unit,
+    onChatTitleItemClick: () -> Unit
+) {
+    DropdownMenu(
+        modifier = Modifier.wrapContentSize(),
+        expanded = isDropDownMenuExpanded,
+        onDismissRequest = onDismissRequest
+    ) {
+        DropdownMenuItem(
+            text = { Text(text = stringResource(R.string.update_chat_title)) },
+            onClick = onChatTitleItemClick
+        )
+    }
 }
 
 @Preview
@@ -376,13 +442,15 @@ fun ChatInputBox(
 fun ChatTitleDialog(
     initialTitle: String,
     aiCoreModeEnabled: Boolean,
-    onDefaultTitleMode: () -> Unit,
-    onAICoreTitleMode: () -> Unit,
+    scope: CoroutineScope,
+    onDefaultTitleMode: () -> String?,
+    onAICoreTitleMode: suspend () -> String?,
     onConfirmRequest: (title: String) -> Unit,
     onDismissRequest: () -> Unit
 ) {
     val configuration = LocalConfiguration.current
     var title by remember { mutableStateOf(initialTitle) }
+    val untitledChat = stringResource(R.string.untitled_chat)
 
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -393,19 +461,39 @@ fun ChatTitleDialog(
         text = {
             Column {
                 Text(text = stringResource(R.string.chat_title_dialog_description))
-
+                OutlinedTextField(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 16.dp),
+                    value = title,
+                    singleLine = true,
+                    isError = title.length > 50,
+                    supportingText = {
+                        if (title.length > 50) {
+                            Text(stringResource(R.string.title_length_limit, title.length))
+                        }
+                    },
+                    onValueChange = { title = it },
+                    label = { Text(stringResource(R.string.chat_title)) }
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    TextButton(
-                        modifier = Modifier.weight(1F),
-                        onClick = onDefaultTitleMode
+                    FilledTonalButton(
+                        modifier = Modifier
+                            .padding(horizontal = 8.dp)
+                            .height(48.dp)
+                            .weight(1F),
+                        onClick = { title = onDefaultTitleMode.invoke() ?: untitledChat }
                     ) { Text(text = stringResource(R.string.default_mode)) }
 
-                    TextButton(
+                    FilledTonalButton(
                         enabled = aiCoreModeEnabled,
-                        modifier = Modifier.weight(1F),
-                        onClick = onAICoreTitleMode
+                        modifier = Modifier
+                            .padding(horizontal = 8.dp)
+                            .height(48.dp)
+                            .weight(1F),
+                        onClick = { scope.launch { title = onAICoreTitleMode.invoke() ?: untitledChat } }
                     ) { Text(text = stringResource(R.string.ai_generated)) }
                 }
             }
@@ -413,8 +501,11 @@ fun ChatTitleDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = {
             TextButton(
-                enabled = title.isNotBlank(),
-                onClick = { onConfirmRequest(title) }
+                enabled = title.isNotBlank() && title != initialTitle,
+                onClick = {
+                    onConfirmRequest(title)
+                    onDismissRequest()
+                }
             ) {
                 Text(stringResource(R.string.update))
             }

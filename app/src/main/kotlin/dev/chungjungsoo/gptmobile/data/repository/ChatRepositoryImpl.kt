@@ -175,6 +175,8 @@ class ChatRepositoryImpl @Inject constructor(
 
     override suspend fun fetchMessages(chatId: Int): List<Message> = messageDao.loadMessages(chatId)
 
+    override fun generateDefaultChatTitle(messages: List<Message>): String? = messages.sortedBy { it.createdAt }.firstOrNull { it.platformType == null }?.content?.replace('\n', ' ')?.take(50)
+
     override suspend fun updateChatTitle(chatRoom: ChatRoom, title: String) {
         chatRoomDao.editChatRoom(chatRoom.copy(title = title.replace('\n', ' ').take(50)))
     }

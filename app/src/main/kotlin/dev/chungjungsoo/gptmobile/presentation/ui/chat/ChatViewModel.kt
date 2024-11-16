@@ -35,9 +35,14 @@ class ChatViewModel @Inject constructor(
     private val chatRoomId: Int = checkNotNull(savedStateHandle["chatRoomId"])
     private val enabledPlatformString: String = checkNotNull(savedStateHandle["enabledPlatforms"])
     val enabledPlatformsInChat = enabledPlatformString.split(',').map { s -> ApiType.valueOf(s) }
-    private lateinit var chatRoom: ChatRoom
     private val currentTimeStamp: Long
         get() = System.currentTimeMillis() / 1000
+
+    private val _chatRoom = MutableStateFlow<ChatRoom>(ChatRoom(id = -1, title = "", enabledPlatform = enabledPlatformsInChat))
+    val chatRoom = _chatRoom.asStateFlow()
+
+    private val _isChatTitleDialogOpen = MutableStateFlow(false)
+    val isChatTitleDialogOpen = _isChatTitleDialogOpen.asStateFlow()
 
     // Enabled platforms list
     private val _enabledPlatformsInApp = MutableStateFlow(listOf<ApiType>())
@@ -119,6 +124,17 @@ class ChatViewModel @Inject constructor(
         completeChat()
     }
 
+    fun closeChatTitleDialog() = _isChatTitleDialogOpen.update { false }
+
+    fun openChatTitleDialog() = _isChatTitleDialogOpen.update { true }
+
+    fun generateDefaultChatTitle(): String? = chatRepository.generateDefaultChatTitle(_messages.value)
+
+    suspend fun generateAIChatTitle(): String? {
+        // TODO
+        return ""
+    }
+
     fun retryQuestion(message: Message) {
         val latestQuestionIndex = _messages.value.indexOfLast { it.platformType == null }
 
@@ -169,6 +185,16 @@ class ChatViewModel @Inject constructor(
             }
 
             else -> {}
+        }
+    }
+
+    fun updateChatTitle(title: String) {
+        // Should be only used for changing chat title after the chatroom is created.
+        if (_chatRoom.value.id > 0) {
+            _chatRoom.update { it.copy(title = title) }
+            viewModelScope.launch {
+                chatRepository.updateChatTitle(_chatRoom.value, title)
+            }
         }
     }
 
@@ -254,18 +280,20 @@ class ChatViewModel @Inject constructor(
         }
 
         // When message id should sync after saving chats
-        if (chatRoom.id != 0) {
-            _messages.update { chatRepository.fetchMessages(chatRoom.id) }
+        if (_chatRoom.value.id != 0) {
+            _messages.update { chatRepository.fetchMessages(_chatRoom.value.id) }
             return
         }
     }
 
     private fun fetchChatRoom() {
         viewModelScope.launch {
-            chatRoom = if (chatRoomId == 0) {
-                ChatRoom(title = "Untitled Chat", enabledPlatform = enabledPlatformsInChat)
-            } else {
-                chatRepository.fetchChatList().first { it.id == chatRoomId }
+            _chatRoom.update {
+                if (chatRoomId == 0) {
+                    ChatRoom(id = 0, title = "Untitled Chat", enabledPlatform = enabledPlatformsInChat)
+                } else {
+                    chatRepository.fetchChatList().first { it.id == chatRoomId }
+                }
             }
             Log.d("ViewModel", "chatroom: $chatRoom")
         }
@@ -318,10 +346,10 @@ class ChatViewModel @Inject constructor(
             _isIdle.collect { status ->
                 if (status) {
                     Log.d("status", "val: ${_userMessage.value}")
-                    if (::chatRoom.isInitialized && _userMessage.value.content.isNotBlank()) {
+                    if (_chatRoom.value.id != -1 && _userMessage.value.content.isNotBlank()) {
                         syncQuestionAndAnswers()
                         Log.d("message", "${_messages.value}")
-                        chatRoom = chatRepository.saveChat(chatRoom, _messages.value)
+                        _chatRoom.update { chatRepository.saveChat(_chatRoom.value, _messages.value) }
                         fetchMessages() // For syncing message ids
                     }
                     clearQuestionAndAnswers()
