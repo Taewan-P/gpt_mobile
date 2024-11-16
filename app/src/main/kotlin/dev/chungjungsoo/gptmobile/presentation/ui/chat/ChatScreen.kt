@@ -144,7 +144,7 @@ fun ChatScreen(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() }
             ) { focusManager.clearFocus() },
-        topBar = { ChatTopBar(chatRoom.title, onBackAction, scrollBehavior, chatViewModel::openChatTitleDialog) },
+        topBar = { ChatTopBar(chatRoom.title, chatRoom.id > 0, onBackAction, scrollBehavior, chatViewModel::openChatTitleDialog) },
         bottomBar = {
             ChatInputBox(
                 value = question,
@@ -322,6 +322,7 @@ private fun groupMessages(messages: List<Message>): HashMap<Int, MutableList<Mes
 @OptIn(ExperimentalMaterial3Api::class)
 private fun ChatTopBar(
     title: String,
+    isChatTitleUpdateEnabled: Boolean,
     onBackAction: () -> Unit,
     scrollBehavior: TopAppBarScrollBehavior,
     onChatTitleItemClick: () -> Unit
@@ -346,6 +347,7 @@ private fun ChatTopBar(
 
             ChatDropdownMenu(
                 isDropDownMenuExpanded = isDropDownMenuExpanded,
+                isChatTitleUpdateEnabled = isChatTitleUpdateEnabled,
                 onDismissRequest = { isDropDownMenuExpanded = false },
                 onChatTitleItemClick = {
                     onChatTitleItemClick.invoke()
@@ -360,6 +362,7 @@ private fun ChatTopBar(
 @Composable
 fun ChatDropdownMenu(
     isDropDownMenuExpanded: Boolean,
+    isChatTitleUpdateEnabled: Boolean,
     onDismissRequest: () -> Unit,
     onChatTitleItemClick: () -> Unit
 ) {
@@ -369,6 +372,7 @@ fun ChatDropdownMenu(
         onDismissRequest = onDismissRequest
     ) {
         DropdownMenuItem(
+            enabled = isChatTitleUpdateEnabled,
             text = { Text(text = stringResource(R.string.update_chat_title)) },
             onClick = onChatTitleItemClick
         )
