@@ -22,14 +22,20 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomAppBarDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -69,6 +75,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -80,7 +87,6 @@ import dev.chungjungsoo.gptmobile.data.database.entity.Message
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.util.DefaultHashMap
 import dev.chungjungsoo.gptmobile.util.multiScrollStateSaver
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -111,6 +117,7 @@ fun ChatScreen(
     val googleLoadingState by chatViewModel.googleLoadingState.collectAsStateWithLifecycle()
     val groqLoadingState by chatViewModel.groqLoadingState.collectAsStateWithLifecycle()
     val ollamaLoadingState by chatViewModel.ollamaLoadingState.collectAsStateWithLifecycle()
+    val geminiNanoLoadingState by chatViewModel.geminiNanoLoadingState.collectAsStateWithLifecycle()
 
     val userMessage by chatViewModel.userMessage.collectAsStateWithLifecycle()
 
@@ -119,6 +126,8 @@ fun ChatScreen(
     val googleMessage by chatViewModel.googleMessage.collectAsStateWithLifecycle()
     val groqMessage by chatViewModel.groqMessage.collectAsStateWithLifecycle()
     val ollamaMessage by chatViewModel.ollamaMessage.collectAsStateWithLifecycle()
+
+    val geminiNano by chatViewModel.geminiNanoMessage.collectAsStateWithLifecycle()
 
     val canUseChat = (chatViewModel.enabledPlatformsInChat.toSet() - appEnabledPlatforms.toSet()).isEmpty()
     val groupedMessages = remember(messages) { groupMessages(messages) }
@@ -280,10 +289,12 @@ fun ChatScreen(
         if (isChatTitleDialogOpen) {
             ChatTitleDialog(
                 initialTitle = chatRoom.title,
-                aiCoreModeEnabled = false,
-                scope = scope,
+                aiCoreModeEnabled = true,
+                aiGeneratedResult = geminiNano.content,
+                isAICoreLoading = geminiNanoLoadingState == ChatViewModel.LoadingState.Loading,
                 onDefaultTitleMode = chatViewModel::generateDefaultChatTitle,
                 onAICoreTitleMode = chatViewModel::generateAIChatTitle,
+                onRetryRequest = chatViewModel::generateAIChatTitle,
                 onConfirmRequest = { title -> chatViewModel.updateChatTitle(title) },
                 onDismissRequest = chatViewModel::closeChatTitleDialog
             )
@@ -446,14 +457,17 @@ fun ChatInputBox(
 fun ChatTitleDialog(
     initialTitle: String,
     aiCoreModeEnabled: Boolean,
-    scope: CoroutineScope,
+    aiGeneratedResult: String,
+    isAICoreLoading: Boolean,
     onDefaultTitleMode: () -> String?,
-    onAICoreTitleMode: suspend () -> String?,
+    onAICoreTitleMode: () -> Unit,
+    onRetryRequest: () -> Unit,
     onConfirmRequest: (title: String) -> Unit,
     onDismissRequest: () -> Unit
 ) {
     val configuration = LocalConfiguration.current
-    var title by remember { mutableStateOf(initialTitle) }
+    var title by rememberSaveable { mutableStateOf(initialTitle) }
+    var useAICore by rememberSaveable { mutableStateOf(false) }
     val untitledChat = stringResource(R.string.untitled_chat)
 
     AlertDialog(
@@ -463,7 +477,7 @@ fun ChatTitleDialog(
             .heightIn(max = configuration.screenHeightDp.dp - 80.dp),
         title = { Text(text = stringResource(R.string.chat_title)) },
         text = {
-            Column {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 Text(text = stringResource(R.string.chat_title_dialog_description))
                 OutlinedTextField(
                     modifier = Modifier
@@ -488,17 +502,58 @@ fun ChatTitleDialog(
                             .padding(horizontal = 8.dp)
                             .height(48.dp)
                             .weight(1F),
+                        enabled = !isAICoreLoading,
                         onClick = { title = onDefaultTitleMode.invoke() ?: untitledChat }
                     ) { Text(text = stringResource(R.string.default_mode)) }
 
                     FilledTonalButton(
-                        enabled = aiCoreModeEnabled,
+                        enabled = aiCoreModeEnabled && !isAICoreLoading,
                         modifier = Modifier
                             .padding(horizontal = 8.dp)
                             .height(48.dp)
                             .weight(1F),
-                        onClick = { scope.launch { title = onAICoreTitleMode.invoke() ?: untitledChat } }
+                        onClick = {
+                            onAICoreTitleMode.invoke()
+                            useAICore = true
+                        }
                     ) { Text(text = stringResource(R.string.ai_generated)) }
+                }
+
+                if (useAICore) {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 16.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 64.dp)
+                                .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 8.dp)
+                        ) {
+                            Text(
+                                text = aiGeneratedResult.trimIndent() + if (isAICoreLoading) "▊" else "",
+                                fontWeight = FontWeight.Bold
+                            )
+                            Row(modifier = Modifier.fillMaxWidth()) {
+                                Spacer(Modifier.weight(1f))
+                                if (!isAICoreLoading) {
+                                    IconButton(
+                                        onClick = {
+                                            title = aiGeneratedResult.trimIndent().replace('\n', ' ')
+                                            useAICore = false
+                                        }
+                                    ) { Icon(Icons.Default.Done, contentDescription = stringResource(R.string.apply_generated_title)) }
+                                    IconButton(
+                                        onClick = onRetryRequest
+                                    ) { Icon(Icons.Rounded.Refresh, contentDescription = stringResource(R.string.retry_ai_title)) }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         },

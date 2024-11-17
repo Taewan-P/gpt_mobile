@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.ai.edge.aicore.content
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoom
 import dev.chungjungsoo.gptmobile.data.database.entity.Message
@@ -72,6 +73,9 @@ class ChatViewModel @Inject constructor(
     private val _ollamaLoadingState = MutableStateFlow<LoadingState>(LoadingState.Idle)
     val ollamaLoadingState = _ollamaLoadingState.asStateFlow()
 
+    private val _geminiNanoLoadingState = MutableStateFlow<LoadingState>(LoadingState.Idle)
+    val geminiNanoLoadingState = _geminiNanoLoadingState.asStateFlow()
+
     // Total loading state. It should be updated if one of the loading state has changed.
     // If all loading states are idle, this value should have `true`.
     private val _isIdle = MutableStateFlow(true)
@@ -101,12 +105,16 @@ class ChatViewModel @Inject constructor(
     private val _ollamaMessage = MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = ApiType.OLLAMA))
     val ollamaMessage = _ollamaMessage.asStateFlow()
 
+    private val _geminiNanoMessage = MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = null))
+    val geminiNanoMessage = _geminiNanoMessage.asStateFlow()
+
     // Flows for assistant message streams
     private val openAIFlow = MutableSharedFlow<ApiState>()
     private val anthropicFlow = MutableSharedFlow<ApiState>()
     private val googleFlow = MutableSharedFlow<ApiState>()
     private val groqFlow = MutableSharedFlow<ApiState>()
     private val ollamaFlow = MutableSharedFlow<ApiState>()
+    private val geminiNanoFlow = MutableSharedFlow<ApiState>()
 
     init {
         Log.d("ViewModel", "$chatRoomId")
@@ -130,9 +138,13 @@ class ChatViewModel @Inject constructor(
 
     fun generateDefaultChatTitle(): String? = chatRepository.generateDefaultChatTitle(_messages.value)
 
-    suspend fun generateAIChatTitle(): String? {
-        // TODO
-        return ""
+    fun generateAIChatTitle() {
+        viewModelScope.launch {
+            _geminiNanoLoadingState.update { LoadingState.Loading }
+            _geminiNanoMessage.update { it.copy(content = "") }
+            val chatFlow = chatRepository.generateAIChatTitle(_messages.value)
+            chatFlow.collect { chunk -> geminiNanoFlow.emit(chunk) }
+        }
     }
 
     fun retryQuestion(message: Message) {
@@ -339,6 +351,13 @@ class ChatViewModel @Inject constructor(
             ollamaFlow.handleStates(
                 messageFlow = _ollamaMessage,
                 onLoadingComplete = { updateLoadingState(ApiType.OLLAMA, LoadingState.Idle) }
+            )
+        }
+
+        viewModelScope.launch {
+            geminiNanoFlow.handleStates(
+                messageFlow = _geminiNanoMessage,
+                onLoadingComplete = { _geminiNanoLoadingState.update { LoadingState.Idle } }
             )
         }
 

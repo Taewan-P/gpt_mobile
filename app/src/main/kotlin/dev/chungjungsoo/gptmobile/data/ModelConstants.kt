@@ -31,4 +31,10 @@ object ModelConstants {
             "You are to answer my questions precisely. "
 
     const val DEFAULT_PROMPT = "Your task is to answer my questions precisely."
+
+    const val CHAT_TITLE_GENERATE_PROMPT =
+        "Create a title that summarizes the chat. " +
+            "The output must match the language that the user and the opponent is using, and should be less than 50 letters. " +
+            "The output should only include the sentence in plain text without bullets or double asterisks. Do not use markdown syntax.\n" +
+            "[Chat Content]\n"
 }
