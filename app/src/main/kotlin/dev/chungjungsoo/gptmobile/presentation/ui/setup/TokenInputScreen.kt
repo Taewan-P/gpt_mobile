@@ -104,6 +104,11 @@ fun TokenInputText(modifier: Modifier = Modifier) {
             text = stringResource(R.string.token_input_description),
             style = MaterialTheme.typography.bodyLarge
         )
+        Text(
+            modifier = Modifier.padding(4.dp),
+            text = stringResource(R.string.token_input_warning),
+            style = MaterialTheme.typography.bodyLarge
+        )
     }
 }
 
