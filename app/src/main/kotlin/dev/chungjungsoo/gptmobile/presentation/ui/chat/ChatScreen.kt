@@ -1,5 +1,7 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
 import android.util.Log
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
@@ -70,6 +72,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
@@ -99,10 +102,22 @@ fun ChatScreen(
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
     val focusManager = LocalFocusManager.current
     val clipboardManager = LocalClipboardManager.current
+    val packageManager = LocalContext.current.packageManager
     val systemChatMargin = 32.dp
     val maximumChatBubbleWidth = screenWidth - 48.dp - systemChatMargin
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+
+    val aiCorePackageInfo = try {
+        packageManager.getPackageInfo("com.google.android.aicore", 0)
+    } catch (_: PackageManager.NameNotFoundException) {
+        null
+    }
+    val privateComputePackageInfo = try {
+        packageManager.getPackageInfo("com.google.android.as.oss", 0)
+    } catch (_: PackageManager.NameNotFoundException) {
+        null
+    }
 
     val chatRoom by chatViewModel.chatRoom.collectAsStateWithLifecycle()
     val isChatTitleDialogOpen by chatViewModel.isChatTitleDialogOpen.collectAsStateWithLifecycle()
@@ -133,6 +148,7 @@ fun ChatScreen(
     val groupedMessages = remember(messages) { groupMessages(messages) }
     val latestMessageIndex = groupedMessages.keys.maxOrNull() ?: 0
     val chatBubbleScrollStates = rememberSaveable(saver = multiScrollStateSaver) { DefaultHashMap<Int, ScrollState>({ ScrollState(0) }) }
+    val canEnableAICoreMode = rememberSaveable { checkAICoreAvailability(aiCorePackageInfo, privateComputePackageInfo) }
 
     val scope = rememberCoroutineScope()
 
@@ -144,6 +160,8 @@ fun ChatScreen(
         delay(300)
         listState.animateScrollToItem(groupedMessages.keys.size)
     }
+
+    Log.d("AIPackage", "AICore: ${aiCorePackageInfo?.versionName ?: "Not installed"}, Private Compute Services: ${privateComputePackageInfo?.versionName ?: "Not installed"}")
 
     Scaffold(
         modifier = Modifier
@@ -289,7 +307,7 @@ fun ChatScreen(
         if (isChatTitleDialogOpen) {
             ChatTitleDialog(
                 initialTitle = chatRoom.title,
-                aiCoreModeEnabled = true,
+                aiCoreModeEnabled = canEnableAICoreMode,
                 aiGeneratedResult = geminiNano.content,
                 isAICoreLoading = geminiNanoLoadingState == ChatViewModel.LoadingState.Loading,
                 onDefaultTitleMode = chatViewModel::generateDefaultChatTitle,
@@ -300,6 +318,17 @@ fun ChatScreen(
             )
         }
     }
+}
+
+private fun checkAICoreAvailability(aiCore: PackageInfo?, privateComputeServices: PackageInfo?): Boolean {
+    aiCore ?: return false
+    privateComputeServices ?: return false
+    val privateComputeMinVersion = "1.0.release.658389993"
+
+    val aiCoreCondition = aiCore.versionName?.contains("thirdpartyeap") == true
+    val privateComputeCondition = (privateComputeServices.versionName ?: "").padEnd(privateComputeMinVersion.length, '0') > privateComputeMinVersion
+
+    return aiCoreCondition && privateComputeCondition
 }
 
 private fun groupMessages(messages: List<Message>): HashMap<Int, MutableList<Message>> {

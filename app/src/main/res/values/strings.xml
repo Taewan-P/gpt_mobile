@@ -180,7 +180,7 @@
     <string name="chat_title">Chat Title</string>
     <string name="chat_title_dialog_description">AI generated title is only available with AICore supported devices.</string>
     <string name="default_mode">Default</string>
-    <string name="ai_generated">AI Generated</string>
+    <string name="ai_generated">AI Generated (Beta)</string>
     <string name="update">Update</string>
     <string name="untitled_chat">Untitled Chat</string>
     <string name="title_length_limit">Title length limit: %1$s/50</string>
