@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.ai.edge.aicore.content
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoom
 import dev.chungjungsoo.gptmobile.data.database.entity.Message
@@ -35,9 +36,14 @@ class ChatViewModel @Inject constructor(
     private val chatRoomId: Int = checkNotNull(savedStateHandle["chatRoomId"])
     private val enabledPlatformString: String = checkNotNull(savedStateHandle["enabledPlatforms"])
     val enabledPlatformsInChat = enabledPlatformString.split(',').map { s -> ApiType.valueOf(s) }
-    private lateinit var chatRoom: ChatRoom
     private val currentTimeStamp: Long
         get() = System.currentTimeMillis() / 1000
+
+    private val _chatRoom = MutableStateFlow<ChatRoom>(ChatRoom(id = -1, title = "", enabledPlatform = enabledPlatformsInChat))
+    val chatRoom = _chatRoom.asStateFlow()
+
+    private val _isChatTitleDialogOpen = MutableStateFlow(false)
+    val isChatTitleDialogOpen = _isChatTitleDialogOpen.asStateFlow()
 
     // Enabled platforms list
     private val _enabledPlatformsInApp = MutableStateFlow(listOf<ApiType>())
@@ -66,6 +72,9 @@ class ChatViewModel @Inject constructor(
 
     private val _ollamaLoadingState = MutableStateFlow<LoadingState>(LoadingState.Idle)
     val ollamaLoadingState = _ollamaLoadingState.asStateFlow()
+
+    private val _geminiNanoLoadingState = MutableStateFlow<LoadingState>(LoadingState.Idle)
+    val geminiNanoLoadingState = _geminiNanoLoadingState.asStateFlow()
 
     // Total loading state. It should be updated if one of the loading state has changed.
     // If all loading states are idle, this value should have `true`.
@@ -96,12 +105,16 @@ class ChatViewModel @Inject constructor(
     private val _ollamaMessage = MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = ApiType.OLLAMA))
     val ollamaMessage = _ollamaMessage.asStateFlow()
 
+    private val _geminiNanoMessage = MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = null))
+    val geminiNanoMessage = _geminiNanoMessage.asStateFlow()
+
     // Flows for assistant message streams
     private val openAIFlow = MutableSharedFlow<ApiState>()
     private val anthropicFlow = MutableSharedFlow<ApiState>()
     private val googleFlow = MutableSharedFlow<ApiState>()
     private val groqFlow = MutableSharedFlow<ApiState>()
     private val ollamaFlow = MutableSharedFlow<ApiState>()
+    private val geminiNanoFlow = MutableSharedFlow<ApiState>()
 
     init {
         Log.d("ViewModel", "$chatRoomId")
@@ -117,6 +130,21 @@ class ChatViewModel @Inject constructor(
         _userMessage.update { it.copy(content = _question.value, createdAt = currentTimeStamp) }
         _question.update { "" }
         completeChat()
+    }
+
+    fun closeChatTitleDialog() = _isChatTitleDialogOpen.update { false }
+
+    fun openChatTitleDialog() = _isChatTitleDialogOpen.update { true }
+
+    fun generateDefaultChatTitle(): String? = chatRepository.generateDefaultChatTitle(_messages.value)
+
+    fun generateAIChatTitle() {
+        viewModelScope.launch {
+            _geminiNanoLoadingState.update { LoadingState.Loading }
+            _geminiNanoMessage.update { it.copy(content = "") }
+            val chatFlow = chatRepository.generateAIChatTitle(_messages.value)
+            chatFlow.collect { chunk -> geminiNanoFlow.emit(chunk) }
+        }
     }
 
     fun retryQuestion(message: Message) {
@@ -169,6 +197,16 @@ class ChatViewModel @Inject constructor(
             }
 
             else -> {}
+        }
+    }
+
+    fun updateChatTitle(title: String) {
+        // Should be only used for changing chat title after the chatroom is created.
+        if (_chatRoom.value.id > 0) {
+            _chatRoom.update { it.copy(title = title) }
+            viewModelScope.launch {
+                chatRepository.updateChatTitle(_chatRoom.value, title)
+            }
         }
     }
 
@@ -254,18 +292,20 @@ class ChatViewModel @Inject constructor(
         }
 
         // When message id should sync after saving chats
-        if (chatRoom.id != 0) {
-            _messages.update { chatRepository.fetchMessages(chatRoom.id) }
+        if (_chatRoom.value.id != 0) {
+            _messages.update { chatRepository.fetchMessages(_chatRoom.value.id) }
             return
         }
     }
 
     private fun fetchChatRoom() {
         viewModelScope.launch {
-            chatRoom = if (chatRoomId == 0) {
-                ChatRoom(title = "Untitled Chat", enabledPlatform = enabledPlatformsInChat)
-            } else {
-                chatRepository.fetchChatList().first { it.id == chatRoomId }
+            _chatRoom.update {
+                if (chatRoomId == 0) {
+                    ChatRoom(id = 0, title = "Untitled Chat", enabledPlatform = enabledPlatformsInChat)
+                } else {
+                    chatRepository.fetchChatList().first { it.id == chatRoomId }
+                }
             }
             Log.d("ViewModel", "chatroom: $chatRoom")
         }
@@ -315,13 +355,20 @@ class ChatViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
+            geminiNanoFlow.handleStates(
+                messageFlow = _geminiNanoMessage,
+                onLoadingComplete = { _geminiNanoLoadingState.update { LoadingState.Idle } }
+            )
+        }
+
+        viewModelScope.launch {
             _isIdle.collect { status ->
                 if (status) {
                     Log.d("status", "val: ${_userMessage.value}")
-                    if (::chatRoom.isInitialized && _userMessage.value.content.isNotBlank()) {
+                    if (_chatRoom.value.id != -1 && _userMessage.value.content.isNotBlank()) {
                         syncQuestionAndAnswers()
                         Log.d("message", "${_messages.value}")
-                        chatRoom = chatRepository.saveChat(chatRoom, _messages.value)
+                        _chatRoom.update { chatRepository.saveChat(_chatRoom.value, _messages.value) }
                         fetchMessages() // For syncing message ids
                     }
                     clearQuestionAndAnswers()

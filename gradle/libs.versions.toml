@@ -1,4 +1,5 @@
 [versions]
+aicore = "0.0.1-exp01"
 agp = "8.7.2"
 autoLicense = "11.2.2"
 kotlin = "2.0.20"
@@ -8,14 +9,14 @@ junitVersion = "1.2.1"
 espressoCore = "3.6.1"
 lifecycleRuntime = "2.8.7"
 activityCompose = "1.9.3"
-composeBom = "2024.10.01"
+composeBom = "2024.11.00"
 datastore = "1.1.1"
 gemini = "0.9.0"
 hilt = "2.52"
 ksp = "2.0.20-1.0.25" # Also change with Kotlin version
 ktor = "2.3.12"
 androidxHilt = "1.2.0"
-navigation = "2.8.3"
+navigation = "2.8.4"
 markdown = "0.5.4"
 openai = "3.8.2"
 serialization = "1.7.3" # Should not update due to kotlin version
@@ -40,6 +41,7 @@ androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-toolin
 androidx-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
+ai-core = { group = "com.google.ai.edge.aicore", name = "aicore", version.ref = "aicore"}
 auto-license-core = { group = "com.mikepenz", name = "aboutlibraries-core", version.ref = "autoLicense" }
 auto-license-ui = { group = "com.mikepenz", name = "aboutlibraries-compose-m3", version.ref = "autoLicense" }
 compose-markdown = { group = "com.github.jeziellago", name = "compose-markdown", version.ref = "markdown" }

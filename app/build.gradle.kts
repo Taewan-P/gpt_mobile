@@ -15,7 +15,7 @@ android {
 
     defaultConfig {
         applicationId = "dev.chungjungsoo.gptmobile"
-        minSdk = 28
+        minSdk = 31
         targetSdk = 35
         versionCode = 11
         versionName = "0.5.3"
@@ -70,6 +70,9 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+
+    // AI Edge SDK
+    implementation(libs.ai.core)
 
     // SplashScreen
     implementation(libs.splashscreen)

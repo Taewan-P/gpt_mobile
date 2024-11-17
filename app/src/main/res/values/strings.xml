@@ -175,4 +175,15 @@
     <string name="groq_description">Fast AI inference for openly-available models.</string>
     <string name="groq_api_key">Groq API Key</string>
     <string name="groq_api_help" translatable="false">https://console.groq.com/keys</string>
+    <string name="options">Options</string>
+    <string name="update_chat_title">Update chat title</string>
+    <string name="chat_title">Chat Title</string>
+    <string name="chat_title_dialog_description">AI generated title is only available with AICore supported devices.</string>
+    <string name="default_mode">Default</string>
+    <string name="ai_generated">AI Generated (Beta)</string>
+    <string name="update">Update</string>
+    <string name="untitled_chat">Untitled Chat</string>
+    <string name="title_length_limit">Title length limit: %1$s/50</string>
+    <string name="apply_generated_title">Apply generated title</string>
+    <string name="retry_ai_title">Retry AI generated title</string>
 </resources>

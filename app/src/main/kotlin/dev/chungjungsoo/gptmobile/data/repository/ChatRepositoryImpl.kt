@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.repository
 
+import android.content.Context
 import com.aallam.openai.api.chat.ChatCompletionChunk
 import com.aallam.openai.api.chat.ChatCompletionRequest
 import com.aallam.openai.api.chat.ChatMessage
@@ -33,11 +34,13 @@ import dev.chungjungsoo.gptmobile.data.network.AnthropicAPI
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onStart
 
 class ChatRepositoryImpl @Inject constructor(
+    private val appContext: Context,
     private val chatRoomDao: ChatRoomDao,
     private val messageDao: MessageDao,
     private val settingRepository: SettingRepository,
@@ -175,6 +178,35 @@ class ChatRepositoryImpl @Inject constructor(
 
     override suspend fun fetchMessages(chatId: Int): List<Message> = messageDao.loadMessages(chatId)
 
+    override fun generateDefaultChatTitle(messages: List<Message>): String? = messages.sortedBy { it.createdAt }.firstOrNull { it.platformType == null }?.content?.replace('\n', ' ')?.take(50)
+
+    override fun generateAIChatTitle(messages: List<Message>): Flow<ApiState> {
+        if (messages.isEmpty()) {
+            return flow { "Untitled Chat" }
+        }
+
+        val generationConfig = com.google.ai.edge.aicore.generationConfig {
+            context = appContext // required
+            temperature = 1f
+            maxOutputTokens = 25
+        }
+        val model = com.google.ai.edge.aicore.GenerativeModel(generationConfig = generationConfig)
+
+        var request = ModelConstants.CHAT_TITLE_GENERATE_PROMPT
+        messages.sortedBy { it.createdAt }.forEach { message ->
+            request += when (message.platformType) {
+                null -> "User: ${message.content}\n\n"
+                else -> "Assistant: ${message.content}\n\n"
+            }
+        }
+
+        return model.generateContentStream(request)
+            .map<com.google.ai.edge.aicore.GenerateContentResponse, ApiState> { response -> ApiState.Success(response.text ?: "") }
+            .catch { throwable -> emit(ApiState.Error(throwable.message ?: "Unknown error")) }
+            .onStart { emit(ApiState.Loading) }
+            .onCompletion { emit(ApiState.Done) }
+    }
+
     override suspend fun updateChatTitle(chatRoom: ChatRoom, title: String) {
         chatRoomDao.editChatRoom(chatRoom.copy(title = title.replace('\n', ' ').take(50)))
     }
@@ -205,6 +237,7 @@ class ChatRepositoryImpl @Inject constructor(
             savedMessages.firstOrNull { it.id == m.id } == null
         }
 
+        chatRoomDao.editChatRoom(chatRoom)
         messageDao.deleteMessages(*shouldBeDeleted.toTypedArray())
         messageDao.editMessages(*shouldBeUpdated.toTypedArray())
         messageDao.addMessages(*shouldBeAdded.toTypedArray())
