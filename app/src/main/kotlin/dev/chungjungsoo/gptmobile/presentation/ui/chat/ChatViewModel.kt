@@ -4,7 +4,6 @@ import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.ai.edge.aicore.content
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoom
 import dev.chungjungsoo.gptmobile.data.database.entity.Message
@@ -45,6 +44,9 @@ class ChatViewModel @Inject constructor(
     private val _isChatTitleDialogOpen = MutableStateFlow(false)
     val isChatTitleDialogOpen = _isChatTitleDialogOpen.asStateFlow()
 
+    private val _isEditQuestionDialogOpen = MutableStateFlow(false)
+    val isEditQuestionDialogOpen = _isEditQuestionDialogOpen.asStateFlow()
+
     // Enabled platforms list
     private val _enabledPlatformsInApp = MutableStateFlow(listOf<ApiType>())
     val enabledPlatformsInApp = _enabledPlatformsInApp.asStateFlow()
@@ -56,6 +58,10 @@ class ChatViewModel @Inject constructor(
     // User input used for TextField
     private val _question = MutableStateFlow("")
     val question: StateFlow<String> = _question.asStateFlow()
+
+    // Used for passing user question to Edit User Message Dialog
+    private val _editedQuestion = MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = null))
+    val editedQuestion = _editedQuestion.asStateFlow()
 
     // Loading state for each platforms
     private val _openaiLoadingState = MutableStateFlow<LoadingState>(LoadingState.Idle)
@@ -134,7 +140,23 @@ class ChatViewModel @Inject constructor(
 
     fun closeChatTitleDialog() = _isChatTitleDialogOpen.update { false }
 
+    fun closeEditQuestionDialog() {
+        _editedQuestion.update { Message(chatId = chatRoomId, content = "", platformType = null) }
+        _isEditQuestionDialogOpen.update { false }
+    }
+
+    fun editQuestion(q: Message) {
+        _messages.update { it.filter { message -> message.id < q.id && message.createdAt < q.createdAt } }
+        _userMessage.update { it.copy(content = q.content, createdAt = currentTimeStamp) }
+        completeChat()
+    }
+
     fun openChatTitleDialog() = _isChatTitleDialogOpen.update { true }
+
+    fun openEditQuestionDialog(question: Message) {
+        _editedQuestion.update { question }
+        _isEditQuestionDialogOpen.update { true }
+    }
 
     fun generateDefaultChatTitle(): String? = chatRepository.generateDefaultChatTitle(_messages.value)
 
