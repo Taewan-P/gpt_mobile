@@ -57,7 +57,6 @@
 
 ## To be supported
 
-- Manual Languages Setting for Android 12 and below
 - More platforms
 - Image, file support for multimodal models
 
