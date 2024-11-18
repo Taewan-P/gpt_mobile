@@ -4,6 +4,7 @@ Supported Platforms
 - OpenAI GPT (GPT-4o, turbo, etc)
 - Anthropic Claude (3.5 Sonnet, 3 Opus, etc)
 - Google Gemini (1.5 Pro, Flash, etc)
+- Groq (Fast inference server for various models)
 - Ollama (Your own server)
 
 Local chat history
