@@ -202,7 +202,7 @@ class ChatRepositoryImpl @Inject constructor(
 
         return model.generateContentStream(request)
             .map<com.google.ai.edge.aicore.GenerateContentResponse, ApiState> { response -> ApiState.Success(response.text ?: "") }
-            .catch { throwable -> emit(ApiState.Error(throwable.message ?: "Unknown error")) }
+            .catch { throwable -> emit(ApiState.Error("Cannot process this request at the moment.")) }
             .onStart { emit(ApiState.Loading) }
             .onCompletion { emit(ApiState.Done) }
     }
