@@ -137,4 +137,19 @@
     <string name="groq_setting">Groq 설정</string>
     <string name="groq_description">공개 언어 모델을 위한 고속 AI 추론 서비스.</string>
     <string name="groq_api_key">Groq API 키</string>
+    <string name="update_chat_title">채팅 제목 변경</string>
+    <string name="chat_title">채팅 제목</string>
+    <string name="default_mode">기본값</string>
+    <string name="ai_generated">AI로 생성 (베타)</string>
+    <string name="update">업데이트</string>
+    <string name="untitled_chat">제목 없음</string>
+    <string name="title_length_limit">제목 길이 제한: %1$s/50</string>
+    <string name="apply_generated_title">생성된 제목 적용</string>
+    <string name="retry_ai_title">AI 제목 생성 재시도</string>
+    <string name="token_input_warning">참고: OpenAI랑 Anthropic은 선불 요금을 사용하고 있으니, 사용전에 반드시 각 계정에서 크레딧 충전을 해야 사용가능합니다. 충전하지 않으면, 오류가 발생합니다.</string>
+    <string name="edit">편집</string>
+    <string name="options">옵션</string>
+    <string name="chat_title_dialog_description">AI 제목 생성은 AICore가 지원되는 디바이스에서만 사용가능합니다.</string>
+    <string name="edit_question">사용자 메시지 편집</string>
+    <string name="user_message">사용자 메시지</string>
 </resources>
