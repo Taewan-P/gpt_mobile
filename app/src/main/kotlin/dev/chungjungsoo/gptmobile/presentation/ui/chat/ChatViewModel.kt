@@ -164,8 +164,6 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             _geminiNanoLoadingState.update { LoadingState.Loading }
             _geminiNanoMessage.update { it.copy(content = "") }
-            val chatFlow = chatRepository.generateAIChatTitle(_messages.value)
-            chatFlow.collect { chunk -> geminiNanoFlow.emit(chunk) }
         }
     }
 

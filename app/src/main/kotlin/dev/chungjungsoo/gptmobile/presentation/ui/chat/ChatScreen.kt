@@ -300,7 +300,7 @@ fun ChatScreen(
         if (isChatTitleDialogOpen) {
             ChatTitleDialog(
                 initialTitle = chatRoom.title,
-                aiCoreModeEnabled = canEnableAICoreMode,
+                aiCoreModeEnabled = false,
                 aiGeneratedResult = geminiNano.content,
                 isAICoreLoading = geminiNanoLoadingState == ChatViewModel.LoadingState.Loading,
                 onDefaultTitleMode = chatViewModel::generateDefaultChatTitle,

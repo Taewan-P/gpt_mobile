@@ -17,8 +17,8 @@ android {
         applicationId = "dev.chungjungsoo.gptmobile"
         minSdk = 31
         targetSdk = 35
-        versionCode = 12
-        versionName = "0.6.0"
+        versionCode = 13
+        versionName = "0.6.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -70,9 +70,6 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
-
-    // AI Edge SDK
-    implementation(libs.ai.core)
 
     // SplashScreen
     implementation(libs.splashscreen)
