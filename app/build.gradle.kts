@@ -11,14 +11,14 @@ plugins {
 
 android {
     namespace = "dev.chungjungsoo.gptmobile"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "dev.chungjungsoo.gptmobile"
-        minSdk = 28
-        targetSdk = 34
-        versionCode = 9
-        versionName = "0.5.1"
+        minSdk = 31
+        targetSdk = 35
+        versionCode = 13
+        versionName = "0.6.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

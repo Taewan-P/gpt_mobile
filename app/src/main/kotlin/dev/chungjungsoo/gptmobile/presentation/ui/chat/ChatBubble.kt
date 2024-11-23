@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -37,6 +39,8 @@ import dev.jeziellago.compose.markdowntext.MarkdownText
 fun UserChatBubble(
     modifier: Modifier = Modifier,
     text: String,
+    isLoading: Boolean,
+    onEditClick: () -> Unit,
     onCopyClick: () -> Unit
 ) {
     val cardColor = CardColors(
@@ -59,7 +63,13 @@ fun UserChatBubble(
                 linkifyMask = Linkify.WEB_URLS
             )
         }
-        CopyTextChip(onCopyClick)
+        Row {
+            if (!isLoading) {
+                EditTextChip(onEditClick)
+                Spacer(modifier = Modifier.width(8.dp))
+            }
+            CopyTextChip(onCopyClick)
+        }
     }
 }
 
@@ -111,6 +121,21 @@ fun OpponentChatBubble(
             }
         }
     }
+}
+
+@Composable
+private fun EditTextChip(onEditClick: () -> Unit) {
+    AssistChip(
+        onClick = onEditClick,
+        label = { Text(stringResource(R.string.edit)) },
+        leadingIcon = {
+            Icon(
+                Icons.Outlined.Edit,
+                contentDescription = stringResource(R.string.edit),
+                modifier = Modifier.size(AssistChipDefaults.IconSize)
+            )
+        }
+    )
 }
 
 @Composable
@@ -167,7 +192,7 @@ fun UserChatBubblePreview() {
         in Python?
     """.trimIndent()
     GPTMobileTheme {
-        UserChatBubble(text = sampleText, onCopyClick = {})
+        UserChatBubble(text = sampleText, isLoading = false, onCopyClick = {}, onEditClick = {})
     }
 }
 

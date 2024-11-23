@@ -26,13 +26,13 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.presentation.common.PrimaryLongButton
 import dev.chungjungsoo.gptmobile.presentation.common.Route
 import dev.chungjungsoo.gptmobile.presentation.common.TokenInputField
-import dev.chungjungsoo.gptmobile.util.collectManagedState
 import dev.chungjungsoo.gptmobile.util.getPlatformAPILabelResources
 import dev.chungjungsoo.gptmobile.util.getPlatformHelpLinkResources
 
@@ -46,7 +46,7 @@ fun TokenInputScreen(
 ) {
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
-    val platformState by setupViewModel.platformState.collectManagedState()
+    val platformState by setupViewModel.platformState.collectAsStateWithLifecycle()
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -102,6 +102,11 @@ fun TokenInputText(modifier: Modifier = Modifier) {
         Text(
             modifier = Modifier.padding(4.dp),
             text = stringResource(R.string.token_input_description),
+            style = MaterialTheme.typography.bodyLarge
+        )
+        Text(
+            modifier = Modifier.padding(4.dp),
+            text = stringResource(R.string.token_input_warning),
             style = MaterialTheme.typography.bodyLarge
         )
     }

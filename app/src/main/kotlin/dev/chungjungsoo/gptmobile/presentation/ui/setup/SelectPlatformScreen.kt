@@ -19,12 +19,12 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.presentation.common.PlatformCheckBoxItem
 import dev.chungjungsoo.gptmobile.presentation.common.PrimaryLongButton
 import dev.chungjungsoo.gptmobile.presentation.common.Route
-import dev.chungjungsoo.gptmobile.util.collectManagedState
 import dev.chungjungsoo.gptmobile.util.getPlatformDescriptionResources
 import dev.chungjungsoo.gptmobile.util.getPlatformTitleResources
 
@@ -36,7 +36,7 @@ fun SelectPlatformScreen(
     onNavigate: (route: String) -> Unit = {},
     onBackAction: () -> Unit
 ) {
-    val platformState by setupViewModel.platformState.collectManagedState()
+    val platformState by setupViewModel.platformState.collectAsStateWithLifecycle()
 
     Scaffold(
         modifier = modifier.fillMaxSize(),

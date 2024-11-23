@@ -1,5 +1,7 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
 import android.util.Log
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
@@ -18,14 +20,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material3.BottomAppBarDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FabPosition
 import androidx.compose.material3.Icon
@@ -42,9 +48,11 @@ import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -53,19 +61,21 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.Message
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.util.DefaultHashMap
-import dev.chungjungsoo.gptmobile.util.collectManagedState
 import dev.chungjungsoo.gptmobile.util.multiScrollStateSaver
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -79,33 +89,55 @@ fun ChatScreen(
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
     val focusManager = LocalFocusManager.current
     val clipboardManager = LocalClipboardManager.current
+    val packageManager = LocalContext.current.packageManager
     val systemChatMargin = 32.dp
     val maximumChatBubbleWidth = screenWidth - 48.dp - systemChatMargin
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
-    val isIdle by chatViewModel.isIdle.collectManagedState()
-    val isLoaded by chatViewModel.isLoaded.collectManagedState()
-    val messages by chatViewModel.messages.collectManagedState()
-    val question by chatViewModel.question.collectManagedState()
-    val appEnabledPlatforms by chatViewModel.enabledPlatformsInApp.collectManagedState()
+    val aiCorePackageInfo = try {
+        packageManager.getPackageInfo("com.google.android.aicore", 0)
+    } catch (_: PackageManager.NameNotFoundException) {
+        null
+    }
+    val privateComputePackageInfo = try {
+        packageManager.getPackageInfo("com.google.android.as.oss", 0)
+    } catch (_: PackageManager.NameNotFoundException) {
+        null
+    }
 
-    val openaiLoadingState by chatViewModel.openaiLoadingState.collectManagedState()
-    val anthropicLoadingState by chatViewModel.anthropicLoadingState.collectManagedState()
-    val googleLoadingState by chatViewModel.googleLoadingState.collectManagedState()
-    val ollamaLoadingState by chatViewModel.ollamaLoadingState.collectManagedState()
+    val chatRoom by chatViewModel.chatRoom.collectAsStateWithLifecycle()
+    val isChatTitleDialogOpen by chatViewModel.isChatTitleDialogOpen.collectAsStateWithLifecycle()
+    val isEditQuestionDialogOpen by chatViewModel.isEditQuestionDialogOpen.collectAsStateWithLifecycle()
+    val isIdle by chatViewModel.isIdle.collectAsStateWithLifecycle()
+    val isLoaded by chatViewModel.isLoaded.collectAsStateWithLifecycle()
+    val messages by chatViewModel.messages.collectAsStateWithLifecycle()
+    val question by chatViewModel.question.collectAsStateWithLifecycle()
+    val appEnabledPlatforms by chatViewModel.enabledPlatformsInApp.collectAsStateWithLifecycle()
+    val editedQuestion by chatViewModel.editedQuestion.collectAsStateWithLifecycle()
 
-    val userMessage by chatViewModel.userMessage.collectManagedState()
+    val openaiLoadingState by chatViewModel.openaiLoadingState.collectAsStateWithLifecycle()
+    val anthropicLoadingState by chatViewModel.anthropicLoadingState.collectAsStateWithLifecycle()
+    val googleLoadingState by chatViewModel.googleLoadingState.collectAsStateWithLifecycle()
+    val groqLoadingState by chatViewModel.groqLoadingState.collectAsStateWithLifecycle()
+    val ollamaLoadingState by chatViewModel.ollamaLoadingState.collectAsStateWithLifecycle()
+    val geminiNanoLoadingState by chatViewModel.geminiNanoLoadingState.collectAsStateWithLifecycle()
 
-    val openAIMessage by chatViewModel.openAIMessage.collectManagedState()
-    val anthropicMessage by chatViewModel.anthropicMessage.collectManagedState()
-    val googleMessage by chatViewModel.googleMessage.collectManagedState()
-    val ollamaMessage by chatViewModel.ollamaMessage.collectManagedState()
+    val userMessage by chatViewModel.userMessage.collectAsStateWithLifecycle()
+
+    val openAIMessage by chatViewModel.openAIMessage.collectAsStateWithLifecycle()
+    val anthropicMessage by chatViewModel.anthropicMessage.collectAsStateWithLifecycle()
+    val googleMessage by chatViewModel.googleMessage.collectAsStateWithLifecycle()
+    val groqMessage by chatViewModel.groqMessage.collectAsStateWithLifecycle()
+    val ollamaMessage by chatViewModel.ollamaMessage.collectAsStateWithLifecycle()
+
+    val geminiNano by chatViewModel.geminiNanoMessage.collectAsStateWithLifecycle()
 
     val canUseChat = (chatViewModel.enabledPlatformsInChat.toSet() - appEnabledPlatforms.toSet()).isEmpty()
     val groupedMessages = remember(messages) { groupMessages(messages) }
     val latestMessageIndex = groupedMessages.keys.maxOrNull() ?: 0
-    val chatBubbleScrollStates = rememberSaveable(saver = multiScrollStateSaver) { DefaultHashMap<Int, ScrollState>({ ScrollState(0) }) }
+    val chatBubbleScrollStates = rememberSaveable(saver = multiScrollStateSaver) { DefaultHashMap<Int, ScrollState> { ScrollState(0) } }
+    val canEnableAICoreMode = rememberSaveable { checkAICoreAvailability(aiCorePackageInfo, privateComputePackageInfo) }
 
     val scope = rememberCoroutineScope()
 
@@ -118,6 +150,8 @@ fun ChatScreen(
         listState.animateScrollToItem(groupedMessages.keys.size)
     }
 
+    Log.d("AIPackage", "AICore: ${aiCorePackageInfo?.versionName ?: "Not installed"}, Private Compute Services: ${privateComputePackageInfo?.versionName ?: "Not installed"}")
+
     Scaffold(
         modifier = Modifier
             .fillMaxSize()
@@ -126,7 +160,7 @@ fun ChatScreen(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() }
             ) { focusManager.clearFocus() },
-        topBar = { ChatTopBar(onBackAction, scrollBehavior) },
+        topBar = { ChatTopBar(chatRoom.title, chatRoom.id > 0, onBackAction, scrollBehavior, chatViewModel::openChatTitleDialog) },
         bottomBar = {
             ChatInputBox(
                 value = question,
@@ -167,7 +201,9 @@ fun ChatScreen(
                             UserChatBubble(
                                 modifier = Modifier.widthIn(max = maximumChatBubbleWidth),
                                 text = groupedMessages[key]!![0].content,
-                                onCopyClick = { clipboardManager.setText(AnnotatedString(groupedMessages[key]!![0].content.trim())) }
+                                isLoading = !isIdle,
+                                onCopyClick = { clipboardManager.setText(AnnotatedString(groupedMessages[key]!![0].content.trim())) },
+                                onEditClick = { chatViewModel.openEditQuestionDialog(groupedMessages[key]!![0]) }
                             )
                         }
                     }
@@ -212,7 +248,9 @@ fun ChatScreen(
                         UserChatBubble(
                             modifier = Modifier.widthIn(max = maximumChatBubbleWidth),
                             text = userMessage.content,
-                            onCopyClick = { clipboardManager.setText(AnnotatedString(userMessage.content.trim())) }
+                            isLoading = true,
+                            onCopyClick = { clipboardManager.setText(AnnotatedString(userMessage.content.trim())) },
+                            onEditClick = { chatViewModel.openEditQuestionDialog(userMessage) }
                         )
                     }
                 }
@@ -229,6 +267,7 @@ fun ChatScreen(
                                 ApiType.OPENAI -> openAIMessage
                                 ApiType.ANTHROPIC -> anthropicMessage
                                 ApiType.GOOGLE -> googleMessage
+                                ApiType.GROQ -> groqMessage
                                 ApiType.OLLAMA -> ollamaMessage
                             }
 
@@ -236,6 +275,7 @@ fun ChatScreen(
                                 ApiType.OPENAI -> openaiLoadingState
                                 ApiType.ANTHROPIC -> anthropicLoadingState
                                 ApiType.GOOGLE -> googleLoadingState
+                                ApiType.GROQ -> groqLoadingState
                                 ApiType.OLLAMA -> ollamaLoadingState
                             }
 
@@ -256,7 +296,43 @@ fun ChatScreen(
                 }
             }
         }
+
+        if (isChatTitleDialogOpen) {
+            ChatTitleDialog(
+                initialTitle = chatRoom.title,
+                aiCoreModeEnabled = false,
+                aiGeneratedResult = geminiNano.content,
+                isAICoreLoading = geminiNanoLoadingState == ChatViewModel.LoadingState.Loading,
+                onDefaultTitleMode = chatViewModel::generateDefaultChatTitle,
+                onAICoreTitleMode = chatViewModel::generateAIChatTitle,
+                onRetryRequest = chatViewModel::generateAIChatTitle,
+                onConfirmRequest = { title -> chatViewModel.updateChatTitle(title) },
+                onDismissRequest = chatViewModel::closeChatTitleDialog
+            )
+        }
+
+        if (isEditQuestionDialogOpen) {
+            ChatQuestionEditDialog(
+                initialQuestion = editedQuestion,
+                onDismissRequest = chatViewModel::closeEditQuestionDialog,
+                onConfirmRequest = { question ->
+                    chatViewModel.editQuestion(question)
+                    chatViewModel.closeEditQuestionDialog()
+                }
+            )
+        }
     }
+}
+
+private fun checkAICoreAvailability(aiCore: PackageInfo?, privateComputeServices: PackageInfo?): Boolean {
+    aiCore ?: return false
+    privateComputeServices ?: return false
+    val privateComputeMinVersion = "1.0.release.658389993"
+
+    val aiCoreCondition = aiCore.versionName?.contains("thirdpartyeap") == true
+    val privateComputeCondition = (privateComputeServices.versionName ?: "").padEnd(privateComputeMinVersion.length, '0') > privateComputeMinVersion
+
+    return aiCoreCondition && privateComputeCondition
 }
 
 private fun groupMessages(messages: List<Message>): HashMap<Int, MutableList<Message>> {
@@ -289,11 +365,16 @@ private fun groupMessages(messages: List<Message>): HashMap<Int, MutableList<Mes
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 private fun ChatTopBar(
+    title: String,
+    isChatTitleUpdateEnabled: Boolean,
     onBackAction: () -> Unit,
-    scrollBehavior: TopAppBarScrollBehavior
+    scrollBehavior: TopAppBarScrollBehavior,
+    onChatTitleItemClick: () -> Unit
 ) {
+    var isDropDownMenuExpanded by remember { mutableStateOf(false) }
+
     TopAppBar(
-        title = { /*TODO*/ },
+        title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         navigationIcon = {
             IconButton(
                 onClick = onBackAction
@@ -301,8 +382,45 @@ private fun ChatTopBar(
                 Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.go_back))
             }
         },
+        actions = {
+            IconButton(
+                onClick = { isDropDownMenuExpanded = isDropDownMenuExpanded.not() }
+            ) {
+                Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.options))
+            }
+
+            ChatDropdownMenu(
+                isDropDownMenuExpanded = isDropDownMenuExpanded,
+                isChatTitleUpdateEnabled = isChatTitleUpdateEnabled,
+                onDismissRequest = { isDropDownMenuExpanded = false },
+                onChatTitleItemClick = {
+                    onChatTitleItemClick.invoke()
+                    isDropDownMenuExpanded = false
+                }
+            )
+        },
         scrollBehavior = scrollBehavior
     )
+}
+
+@Composable
+fun ChatDropdownMenu(
+    isDropDownMenuExpanded: Boolean,
+    isChatTitleUpdateEnabled: Boolean,
+    onDismissRequest: () -> Unit,
+    onChatTitleItemClick: () -> Unit
+) {
+    DropdownMenu(
+        modifier = Modifier.wrapContentSize(),
+        expanded = isDropDownMenuExpanded,
+        onDismissRequest = onDismissRequest
+    ) {
+        DropdownMenuItem(
+            enabled = isChatTitleUpdateEnabled,
+            text = { Text(text = stringResource(R.string.update_chat_title)) },
+            onClick = onChatTitleItemClick
+        )
+    }
 }
 
 @Preview

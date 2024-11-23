@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.repository
 
+import android.content.Context
 import com.aallam.openai.api.chat.ChatCompletionChunk
 import com.aallam.openai.api.chat.ChatCompletionRequest
 import com.aallam.openai.api.chat.ChatMessage
@@ -38,6 +39,7 @@ import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onStart
 
 class ChatRepositoryImpl @Inject constructor(
+    private val appContext: Context,
     private val chatRoomDao: ChatRoomDao,
     private val messageDao: MessageDao,
     private val settingRepository: SettingRepository,
@@ -47,12 +49,13 @@ class ChatRepositoryImpl @Inject constructor(
     private lateinit var openAI: OpenAI
     private lateinit var google: GenerativeModel
     private lateinit var ollama: OpenAI
+    private lateinit var groq: OpenAI
 
     override suspend fun completeOpenAIChat(question: Message, history: List<Message>): Flow<ApiState> {
         val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.OPENAI })
         openAI = OpenAI(platform.token ?: "", host = OpenAIHost(baseUrl = platform.apiUrl))
 
-        val generatedMessages = messageToOpenAIMessage(history + listOf(question))
+        val generatedMessages = messageToOpenAICompatibleMessage(ApiType.OPENAI, history + listOf(question))
         val generatedMessageWithPrompt = listOf(
             ChatMessage(role = ChatRole.System, content = platform.systemPrompt ?: ModelConstants.OPENAI_PROMPT)
         ) + generatedMessages
@@ -64,7 +67,7 @@ class ChatRepositoryImpl @Inject constructor(
         )
 
         return openAI.chatCompletions(chatCompletionRequest)
-            .map<ChatCompletionChunk, ApiState> { chunk -> ApiState.Success(chunk.choices[0].delta?.content ?: "") }
+            .map<ChatCompletionChunk, ApiState> { chunk -> ApiState.Success(chunk.choices.getOrNull(0)?.delta?.content ?: "") }
             .catch { throwable -> emit(ApiState.Error(throwable.message ?: "Unknown error")) }
             .onStart { emit(ApiState.Loading) }
             .onCompletion { emit(ApiState.Done) }
@@ -126,11 +129,33 @@ class ChatRepositoryImpl @Inject constructor(
             .onCompletion { emit(ApiState.Done) }
     }
 
+    override suspend fun completeGroqChat(question: Message, history: List<Message>): Flow<ApiState> {
+        val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.GROQ })
+        groq = OpenAI(platform.token ?: "", host = OpenAIHost(baseUrl = platform.apiUrl))
+
+        val generatedMessages = messageToOpenAICompatibleMessage(ApiType.GROQ, history + listOf(question))
+        val generatedMessageWithPrompt = listOf(
+            ChatMessage(role = ChatRole.System, content = platform.systemPrompt ?: ModelConstants.DEFAULT_PROMPT)
+        ) + generatedMessages
+        val chatCompletionRequest = ChatCompletionRequest(
+            model = ModelId(platform.model ?: ""),
+            messages = generatedMessageWithPrompt,
+            temperature = platform.temperature?.toDouble(),
+            topP = platform.topP?.toDouble()
+        )
+
+        return groq.chatCompletions(chatCompletionRequest)
+            .map<ChatCompletionChunk, ApiState> { chunk -> ApiState.Success(chunk.choices.getOrNull(0)?.delta?.content ?: "") }
+            .catch { throwable -> emit(ApiState.Error(throwable.message ?: "Unknown error")) }
+            .onStart { emit(ApiState.Loading) }
+            .onCompletion { emit(ApiState.Done) }
+    }
+
     override suspend fun completeOllamaChat(question: Message, history: List<Message>): Flow<ApiState> {
         val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.OLLAMA })
         ollama = OpenAI(platform.token ?: "", host = OpenAIHost(baseUrl = "${platform.apiUrl}v1/"))
 
-        val generatedMessages = messageToOpenAIMessage(history + listOf(question))
+        val generatedMessages = messageToOpenAICompatibleMessage(ApiType.OLLAMA, history + listOf(question))
         val generatedMessageWithPrompt = listOf(
             ChatMessage(role = ChatRole.System, content = platform.systemPrompt ?: ModelConstants.DEFAULT_PROMPT)
         ) + generatedMessages
@@ -142,7 +167,7 @@ class ChatRepositoryImpl @Inject constructor(
         )
 
         return ollama.chatCompletions(chatCompletionRequest)
-            .map<ChatCompletionChunk, ApiState> { chunk -> ApiState.Success(chunk.choices[0].delta?.content ?: "") }
+            .map<ChatCompletionChunk, ApiState> { chunk -> ApiState.Success(chunk.choices.getOrNull(0)?.delta?.content ?: "") }
             .catch { throwable -> emit(ApiState.Error(throwable.message ?: "Unknown error")) }
             .onStart { emit(ApiState.Loading) }
             .onCompletion { emit(ApiState.Done) }
@@ -151,6 +176,8 @@ class ChatRepositoryImpl @Inject constructor(
     override suspend fun fetchChatList(): List<ChatRoom> = chatRoomDao.getChatRooms()
 
     override suspend fun fetchMessages(chatId: Int): List<Message> = messageDao.loadMessages(chatId)
+
+    override fun generateDefaultChatTitle(messages: List<Message>): String? = messages.sortedBy { it.createdAt }.firstOrNull { it.platformType == null }?.content?.replace('\n', ' ')?.take(50)
 
     override suspend fun updateChatTitle(chatRoom: ChatRoom, title: String) {
         chatRoomDao.editChatRoom(chatRoom.copy(title = title.replace('\n', ' ').take(50)))
@@ -182,6 +209,7 @@ class ChatRepositoryImpl @Inject constructor(
             savedMessages.firstOrNull { it.id == m.id } == null
         }
 
+        chatRoomDao.editChatRoom(chatRoom)
         messageDao.deleteMessages(*shouldBeDeleted.toTypedArray())
         messageDao.editMessages(*shouldBeUpdated.toTypedArray())
         messageDao.addMessages(*shouldBeAdded.toTypedArray())
@@ -193,7 +221,7 @@ class ChatRepositoryImpl @Inject constructor(
         chatRoomDao.deleteChatRooms(*chatRooms.toTypedArray())
     }
 
-    private fun messageToOpenAIMessage(messages: List<Message>): List<ChatMessage> {
+    private fun messageToOpenAICompatibleMessage(apiType: ApiType, messages: List<Message>): List<ChatMessage> {
         val result = mutableListOf<ChatMessage>()
 
         messages.forEach { message ->
@@ -207,7 +235,7 @@ class ChatRepositoryImpl @Inject constructor(
                     )
                 }
 
-                ApiType.OPENAI -> {
+                apiType -> {
                     result.add(
                         ChatMessage(
                             role = ChatRole.Assistant,

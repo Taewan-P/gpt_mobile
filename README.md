@@ -6,8 +6,15 @@
 
 ### Chat Assistant for Android that supports chatting with multiple models at once.
 
-[![GitHub all releases](https://img.shields.io/github/downloads/Taewan-P/gpt_mobile/total?label=Downloads&logo=github)](https://github.com/Taewan-P/gpt_mobile/releases/)
-[![GitHub release (latest by date)](https://img.shields.io/github/v/release/Taewan-P/gpt_mobile?color=black&label=Stable&logo=github)](https://github.com/Taewan-P/gpt_mobile/releases/latest/)
+<p>
+  <a href="https://mailchi.mp/kotlinweekly/kotlin-weekly-431"><img alt="Kotlin Weekly" src="https://img.shields.io/badge/Kotlin%20Weekly-%23431-blue"/></a>
+  <img alt="Android" src="https://img.shields.io/badge/Platform-Android-green.svg"/>
+  <img alt="GitHub Actions Workflow Status" src="https://img.shields.io/github/actions/workflow/status/Taewan-P/gpt_mobile/release-build.yml">
+  <a href="https://hosted.weblate.org/engage/gptmobile/"><img src="https://hosted.weblate.org/widget/gptmobile/gptmobile/svg-badge.svg" alt="Translation status" /></a>
+  <a href="https://github.com/Taewan-P/gpt_mobile/releases/"><img alt="GitHub Releases Total Downloads" src="https://img.shields.io/github/downloads/Taewan-P/gpt_mobile/total?label=Downloads&logo=github"/></a>
+  <a href="https://github.com/Taewan-P/gpt_mobile/releases/latest/"><img alt="GitHub Releases (latest by date)" src="https://img.shields.io/github/v/release/Taewan-P/gpt_mobile?color=black&label=Stable&logo=github"/></a>
+</p>
+
 
 </div>
 
@@ -16,7 +23,7 @@
 
 <div align="center">
 
-<img style="display: block;" src="./images/screenshots.png">
+<img style="display: block;" src="./images/screenshots.webp">
 
 </div>
 
@@ -35,6 +42,7 @@
     - OpenAI GPT
     - Anthropic Claude
     - Google Gemini
+    - Groq
     - Ollama
   - Can customize temperature, top p (Nucleus sampling), and system prompt
   - Custom API URLs, Custom Models are also supported
@@ -49,7 +57,6 @@
 
 ## To be supported
 
-- Manual Languages Setting for Android 12 and below
 - More platforms
 - Image, file support for multimodal models
 
@@ -67,15 +74,21 @@ You can download the app from the following sites:
 Cross platform updates are supported. However, GitHub Releases will be the fastest track among the platforms since there is no verification/auditing process. (Probably 1 week difference?)
 
 
-## Build
 
-1. Clone repo
-2. Open in Android Studio
-3. Click `Run` or do Gradle build
+## Contributions
+
+Contributions are welcome! The contribution guideline is not yet available, but I will be happy to review it! 💯
+
+For translations, we are using [Hosted Weblate](https://hosted.weblate.org/engage/gptmobile/). If you want your language supported, help us translate the app!
+
+<a href="https://hosted.weblate.org/engage/gptmobile/">
+  <img src="https://hosted.weblate.org/widget/gptmobile/gptmobile/multi-auto.svg" alt="Translation status" />
+</a>
 
 
-## Stargazers over time 🌟
-[![Stargazers over time](https://starchart.cc/Taewan-P/gpt_mobile.svg?variant=adaptive)](https://starchart.cc/Taewan-P/gpt_mobile)
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=Taewan-P/gpt_mobile&type=Timeline)](https://star-history.com/#Taewan-P/gpt_mobile&Timeline)
 
 
 ## License
@@ -83,4 +96,3 @@ Cross platform updates are supported. However, GitHub Releases will be the faste
 See [LICENSE](./LICENSE) for details.
 
 [F-Droid Icon License](https://gitlab.com/fdroid/artwork/-/blob/master/fdroid-logo-2015/README.md)
-

@@ -3,6 +3,7 @@ package dev.chungjungsoo.gptmobile.presentation.ui.setting
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -30,6 +31,7 @@ import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.ModelConstants.anthropicModels
 import dev.chungjungsoo.gptmobile.data.ModelConstants.getDefaultAPIUrl
 import dev.chungjungsoo.gptmobile.data.ModelConstants.googleModels
+import dev.chungjungsoo.gptmobile.data.ModelConstants.groqModels
 import dev.chungjungsoo.gptmobile.data.ModelConstants.ollamaModels
 import dev.chungjungsoo.gptmobile.data.ModelConstants.openaiModels
 import dev.chungjungsoo.gptmobile.data.model.ApiType
@@ -37,6 +39,7 @@ import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
 import dev.chungjungsoo.gptmobile.presentation.common.TokenInputField
 import dev.chungjungsoo.gptmobile.util.generateAnthropicModelList
 import dev.chungjungsoo.gptmobile.util.generateGoogleModelList
+import dev.chungjungsoo.gptmobile.util.generateGroqModelList
 import dev.chungjungsoo.gptmobile.util.generateOpenAIModelList
 import dev.chungjungsoo.gptmobile.util.getPlatformAPILabelResources
 import dev.chungjungsoo.gptmobile.util.getPlatformHelpLinkResources
@@ -178,7 +181,9 @@ private fun APIUrlDialog(
 
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
-        modifier = Modifier.widthIn(max = configuration.screenWidthDp.dp - 40.dp),
+        modifier = Modifier
+            .widthIn(max = configuration.screenWidthDp.dp - 40.dp)
+            .heightIn(max = configuration.screenHeightDp.dp - 80.dp),
         title = { Text(text = stringResource(R.string.api_url)) },
         text = {
             Column {
@@ -240,7 +245,9 @@ private fun APIKeyDialog(
 
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
-        modifier = Modifier.widthIn(max = configuration.screenWidthDp.dp - 40.dp),
+        modifier = Modifier
+            .widthIn(max = configuration.screenWidthDp.dp - 40.dp)
+            .heightIn(max = configuration.screenHeightDp.dp - 80.dp),
         title = { Text(text = getPlatformAPILabelResources()[apiType]!!) },
         text = {
             TokenInputField(
@@ -282,12 +289,14 @@ private fun ModelDialog(
         ApiType.OPENAI -> openaiModels
         ApiType.ANTHROPIC -> anthropicModels
         ApiType.GOOGLE -> googleModels
+        ApiType.GROQ -> groqModels
         ApiType.OLLAMA -> ollamaModels
     }
     val availableModels = when (apiType) {
         ApiType.OPENAI -> generateOpenAIModelList(models = modelList)
         ApiType.ANTHROPIC -> generateAnthropicModelList(models = modelList)
         ApiType.GOOGLE -> generateGoogleModelList(models = modelList)
+        ApiType.GROQ -> generateGroqModelList(models = modelList)
         ApiType.OLLAMA -> listOf()
     }
     val configuration = LocalConfiguration.current
@@ -297,7 +306,9 @@ private fun ModelDialog(
 
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
-        modifier = Modifier.widthIn(max = configuration.screenWidthDp.dp - 40.dp),
+        modifier = Modifier
+            .widthIn(max = configuration.screenWidthDp.dp - 40.dp)
+            .heightIn(max = configuration.screenHeightDp.dp - 80.dp),
         title = { Text(text = stringResource(R.string.api_model)) },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
@@ -383,7 +394,9 @@ private fun TemperatureDialog(
 
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
-        modifier = Modifier.widthIn(max = configuration.screenWidthDp.dp - 40.dp),
+        modifier = Modifier
+            .widthIn(max = configuration.screenWidthDp.dp - 40.dp)
+            .heightIn(max = configuration.screenHeightDp.dp - 80.dp),
         title = { Text(text = stringResource(R.string.temperature_setting)) },
         text = {
             Column(
@@ -460,7 +473,9 @@ private fun TopPDialog(
 
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
-        modifier = Modifier.widthIn(max = configuration.screenWidthDp.dp - 40.dp),
+        modifier = Modifier
+            .widthIn(max = configuration.screenWidthDp.dp - 40.dp)
+            .heightIn(max = configuration.screenHeightDp.dp - 80.dp),
         title = { Text(text = stringResource(R.string.top_p_setting)) },
         text = {
             Column(
@@ -528,7 +543,9 @@ private fun SystemPromptDialog(
 
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
-        modifier = Modifier.widthIn(max = configuration.screenWidthDp.dp - 40.dp),
+        modifier = Modifier
+            .widthIn(max = configuration.screenWidthDp.dp - 40.dp)
+            .heightIn(max = configuration.screenHeightDp.dp - 80.dp),
         title = { Text(text = stringResource(R.string.system_prompt_setting)) },
         text = {
             Column(

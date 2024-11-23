@@ -30,13 +30,13 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.presentation.common.HelpText
 import dev.chungjungsoo.gptmobile.presentation.common.PrimaryLongButton
 import dev.chungjungsoo.gptmobile.presentation.common.Route
-import dev.chungjungsoo.gptmobile.util.collectManagedState
 import dev.chungjungsoo.gptmobile.util.getPlatformHelpLinkResources
 import dev.chungjungsoo.gptmobile.util.isValidUrl
 
@@ -50,7 +50,7 @@ fun SetupAPIUrlScreen(
 ) {
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
-    val platformState by setupViewModel.platformState.collectManagedState()
+    val platformState by setupViewModel.platformState.collectAsStateWithLifecycle()
     val ollamaPlatform = platformState.first { it.name == ApiType.OLLAMA }
 
     Scaffold(
