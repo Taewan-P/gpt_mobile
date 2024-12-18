@@ -71,12 +71,14 @@ class AnthropicAPIImpl @Inject constructor(
 
     private suspend inline fun <reified T> FlowCollector<T>.streamEventsFrom(response: HttpResponse) {
         val channel: ByteReadChannel = response.body()
+        val jsonInstance = Json { ignoreUnknownKeys = true }
+
         try {
             while (currentCoroutineContext().isActive && !channel.isClosedForRead) {
                 val line = channel.readUTF8Line() ?: continue
                 val value: T = when {
                     line.startsWith(STREAM_END_TOKEN) -> break
-                    line.startsWith(STREAM_PREFIX) -> Json.decodeFromString(line.removePrefix(STREAM_PREFIX))
+                    line.startsWith(STREAM_PREFIX) -> jsonInstance.decodeFromString(line.removePrefix(STREAM_PREFIX))
                     else -> continue
                 }
                 emit(value)
