@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">GPTMobile</string>
     <string name="gpt_mobile_introduction_logo">Логотип приветствия GPT Mobile</string>
@@ -129,4 +130,10 @@
     <string name="bug_report_description">Что-то не работает?</string>
     <string name="bug_report_icon">Иконка отчета об ошибке</string>
     <string name="scroll_to_bottom_icon">Иконка прокрутки до конца</string>
+    <string name="llama_3_2_description">Новейшая легковесная модель с открытым исходным кодом от Meta.</string>
+    <string name="llama_3_1_description">Современная многоязычная большая языковая модель с открытым исходным кодом от Meta.</string>
+    <string name="gemma2_description">Небольшая языковая модель, выпущенная Google.</string>
+    <string name="select_groq_model">Выберите модель чата Groq</string>
+    <string name="select_groq_model_description">Пожалуйста, выберите модель чата Groq. Если вам нужны модели, которых нет в списке, посетите веб-сайт документации Groq API и посмотрите, что доступно.</string>
+    <string name="groq_setting">Настройки Groq</string>
 </resources>
