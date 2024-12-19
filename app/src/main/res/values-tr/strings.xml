@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">GPTMobil</string>
     <string name="gpt_mobile_introduction_logo">GPT Mobil Tanıtım Logosu</string>
@@ -109,4 +110,5 @@
     <string name="url_icon">URL Simgesi</string>
     <string name="invalid_api_url">Lütfen geçerli bir URL girin.</string>
     <string name="reset">Sıfırla</string>
+    <string name="gemma2_description">Google tarafından yayınlanan Küçük Dil Modeli.</string>
 </resources>
