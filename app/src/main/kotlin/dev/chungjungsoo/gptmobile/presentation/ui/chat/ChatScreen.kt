@@ -160,7 +160,7 @@ fun ChatScreen(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() }
             ) { focusManager.clearFocus() },
-        topBar = { ChatTopBar(chatRoom.title, chatRoom.id > 0, onBackAction, scrollBehavior, chatViewModel::openChatTitleDialog) },
+        topBar = { ChatTopBar(chatRoom.title, chatRoom.id > 0, onBackAction, scrollBehavior, chatViewModel::openChatTitleDialog, onExportChatItemClick = chatViewModel::exportChat) },
         bottomBar = {
             ChatInputBox(
                 value = question,
@@ -369,7 +369,8 @@ private fun ChatTopBar(
     isChatTitleUpdateEnabled: Boolean,
     onBackAction: () -> Unit,
     scrollBehavior: TopAppBarScrollBehavior,
-    onChatTitleItemClick: () -> Unit
+    onChatTitleItemClick: () -> Unit,
+    onExportChatItemClick: () -> Unit
 ) {
     var isDropDownMenuExpanded by remember { mutableStateOf(false) }
 
@@ -396,7 +397,8 @@ private fun ChatTopBar(
                 onChatTitleItemClick = {
                     onChatTitleItemClick.invoke()
                     isDropDownMenuExpanded = false
-                }
+                },
+                onExportChatItemClick = onExportChatItemClick
             )
         },
         scrollBehavior = scrollBehavior
@@ -408,7 +410,8 @@ fun ChatDropdownMenu(
     isDropDownMenuExpanded: Boolean,
     isChatTitleUpdateEnabled: Boolean,
     onDismissRequest: () -> Unit,
-    onChatTitleItemClick: () -> Unit
+    onChatTitleItemClick: () -> Unit,
+    onExportChatItemClick: () -> Unit
 ) {
     DropdownMenu(
         modifier = Modifier.wrapContentSize(),
@@ -419,6 +422,14 @@ fun ChatDropdownMenu(
             enabled = isChatTitleUpdateEnabled,
             text = { Text(text = stringResource(R.string.update_chat_title)) },
             onClick = onChatTitleItemClick
+        )
+        /* Export Chat */
+        DropdownMenuItem(
+            text = { Text(text = stringResource(R.string.export_chat)) },
+            onClick = {
+                onExportChatItemClick()
+                onDismissRequest()
+            }
         )
     }
 }

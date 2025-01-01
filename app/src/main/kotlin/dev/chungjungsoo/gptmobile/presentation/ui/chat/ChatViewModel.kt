@@ -1,6 +1,9 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
+import android.content.Intent
 import android.util.Log
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -22,10 +25,12 @@ import kotlinx.coroutines.launch
 
 @HiltViewModel
 class ChatViewModel @Inject constructor(
+    application: Application,
     savedStateHandle: SavedStateHandle,
     private val chatRepository: ChatRepository,
     private val settingRepository: SettingRepository
-) : ViewModel() {
+/* ) : ViewModel() { */
+) : AndroidViewModel(application) {
 
     sealed class LoadingState {
         data object Idle : LoadingState()
@@ -228,6 +233,50 @@ class ChatViewModel @Inject constructor(
                 chatRepository.updateChatTitle(_chatRoom.value, title)
             }
         }
+    }
+
+    fun exportChat() {
+        val context = getApplication<Application>().applicationContext
+
+        // Build the chat history in Markdown format
+        val chatHistoryMarkdown = buildString {
+            appendLine("# Chat Export: \"${chatRoom.value.title}\"")
+            appendLine()
+            appendLine("**Exported on:** ${formatCurrentDateTime()}")
+            appendLine()
+            appendLine("---")
+            appendLine()
+            appendLine("## Chat History")
+            appendLine()
+            messages.value.forEach { message ->
+                val sender = if (message.platformType == null) "User" else "Assistant"
+                appendLine("**$sender:**")
+                appendLine(message.content)
+                appendLine()
+            }
+        }
+
+        // Save the Markdown file
+        val fileName = "export_${chatRoom.value.title}_${System.currentTimeMillis()}.md"
+        val file = java.io.File(context.getExternalFilesDir(null), fileName)
+        file.writeText(chatHistoryMarkdown)
+
+        // Share the file
+        val uri = androidx.core.content.FileProvider.getUriForFile(context, "dev.chungjungsoo.gptmobile", file)
+        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/markdown"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(shareIntent, "Share Chat Export").apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        })
+    }
+
+    private fun formatCurrentDateTime(): String {
+        val currentDate = java.util.Date()
+        val format = java.text.SimpleDateFormat("yyyy-MM-dd hh:mm a", java.util.Locale.getDefault())
+        return format.format(currentDate)
     }
 
     fun updateQuestion(q: String) = _question.update { q }
