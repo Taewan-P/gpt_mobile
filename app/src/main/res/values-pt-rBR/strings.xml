@@ -137,4 +137,19 @@
     <string name="ollama_api_key">Chave API Ollama</string>
     <string name="bug_report">Relatório de erro</string>
     <string name="feedback">Opinião</string>
+    <string name="untitled_chat">Chat sem Título</string>
+    <string name="update_chat_title">Atualizar titulo do chat</string>
+    <string name="apply_generated_title">Aplicar título gerado</string>
+    <string name="chat_title">Titulo do Chat</string>
+    <string name="update">Atualizar</string>
+    <string name="options">Opções</string>
+    <string name="chat_title_dialog_description">Títulos gerados por IA estão disponíveis apenas em dispositivos compatíveis com AICore.</string>
+    <string name="default_mode">Padrão</string>
+    <string name="retry_ai_title">Tentar novamente o título gerado por IA</string>
+    <string name="token_input_warning">OBSERVAÇÃO: OpenAI e Anthropic utilizam faturamento pré-pago, então você DEVE CARREGAR CRÉDITOS em cada conta antes de usá-las. Caso contrário, a resposta retornará um erro.</string>
+    <string name="edit">Editar</string>
+    <string name="edit_question">Editar Mensagem do Usuário</string>
+    <string name="user_message">Mensagem do Usuário</string>
+    <string name="title_length_limit">Limite de comprimento do título: %1$s/50</string>
+    <string name="ai_generated">Gerado por IA (Beta)</string>
 </resources>
