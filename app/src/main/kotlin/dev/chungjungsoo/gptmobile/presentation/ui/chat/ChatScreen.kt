@@ -115,24 +115,19 @@ fun ChatScreen(
     val question by chatViewModel.question.collectAsStateWithLifecycle()
     val appEnabledPlatforms by chatViewModel.enabledPlatformsInApp.collectAsStateWithLifecycle()
     val editedQuestion by chatViewModel.editedQuestion.collectAsStateWithLifecycle()
-
     val openaiLoadingState by chatViewModel.openaiLoadingState.collectAsStateWithLifecycle()
     val anthropicLoadingState by chatViewModel.anthropicLoadingState.collectAsStateWithLifecycle()
     val googleLoadingState by chatViewModel.googleLoadingState.collectAsStateWithLifecycle()
     val groqLoadingState by chatViewModel.groqLoadingState.collectAsStateWithLifecycle()
     val ollamaLoadingState by chatViewModel.ollamaLoadingState.collectAsStateWithLifecycle()
     val geminiNanoLoadingState by chatViewModel.geminiNanoLoadingState.collectAsStateWithLifecycle()
-
     val userMessage by chatViewModel.userMessage.collectAsStateWithLifecycle()
-
     val openAIMessage by chatViewModel.openAIMessage.collectAsStateWithLifecycle()
     val anthropicMessage by chatViewModel.anthropicMessage.collectAsStateWithLifecycle()
     val googleMessage by chatViewModel.googleMessage.collectAsStateWithLifecycle()
     val groqMessage by chatViewModel.groqMessage.collectAsStateWithLifecycle()
     val ollamaMessage by chatViewModel.ollamaMessage.collectAsStateWithLifecycle()
-
     val geminiNano by chatViewModel.geminiNanoMessage.collectAsStateWithLifecycle()
-
     val canUseChat = (chatViewModel.enabledPlatformsInChat.toSet() - appEnabledPlatforms.toSet()).isEmpty()
     val groupedMessages = remember(messages) { groupMessages(messages) }
     val latestMessageIndex = groupedMessages.keys.maxOrNull() ?: 0
@@ -160,7 +155,7 @@ fun ChatScreen(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() }
             ) { focusManager.clearFocus() },
-        topBar = { ChatTopBar(chatRoom.title, chatRoom.id > 0, onBackAction, scrollBehavior, chatViewModel::openChatTitleDialog) },
+        topBar = { ChatTopBar(chatRoom.title, chatRoom.id > 0, onBackAction, scrollBehavior, chatViewModel::openChatTitleDialog, onExportChatItemClick = chatViewModel::exportChat) },
         bottomBar = {
             ChatInputBox(
                 value = question,
@@ -366,10 +361,11 @@ private fun groupMessages(messages: List<Message>): HashMap<Int, MutableList<Mes
 @OptIn(ExperimentalMaterial3Api::class)
 private fun ChatTopBar(
     title: String,
-    isChatTitleUpdateEnabled: Boolean,
+    isMenuItemEnabled: Boolean,
     onBackAction: () -> Unit,
     scrollBehavior: TopAppBarScrollBehavior,
-    onChatTitleItemClick: () -> Unit
+    onChatTitleItemClick: () -> Unit,
+    onExportChatItemClick: () -> Unit
 ) {
     var isDropDownMenuExpanded by remember { mutableStateOf(false) }
 
@@ -391,12 +387,13 @@ private fun ChatTopBar(
 
             ChatDropdownMenu(
                 isDropDownMenuExpanded = isDropDownMenuExpanded,
-                isChatTitleUpdateEnabled = isChatTitleUpdateEnabled,
+                isMenuItemEnabled = isMenuItemEnabled,
                 onDismissRequest = { isDropDownMenuExpanded = false },
                 onChatTitleItemClick = {
                     onChatTitleItemClick.invoke()
                     isDropDownMenuExpanded = false
-                }
+                },
+                onExportChatItemClick = onExportChatItemClick
             )
         },
         scrollBehavior = scrollBehavior
@@ -406,9 +403,10 @@ private fun ChatTopBar(
 @Composable
 fun ChatDropdownMenu(
     isDropDownMenuExpanded: Boolean,
-    isChatTitleUpdateEnabled: Boolean,
+    isMenuItemEnabled: Boolean,
     onDismissRequest: () -> Unit,
-    onChatTitleItemClick: () -> Unit
+    onChatTitleItemClick: () -> Unit,
+    onExportChatItemClick: () -> Unit
 ) {
     DropdownMenu(
         modifier = Modifier.wrapContentSize(),
@@ -416,9 +414,18 @@ fun ChatDropdownMenu(
         onDismissRequest = onDismissRequest
     ) {
         DropdownMenuItem(
-            enabled = isChatTitleUpdateEnabled,
+            enabled = isMenuItemEnabled,
             text = { Text(text = stringResource(R.string.update_chat_title)) },
             onClick = onChatTitleItemClick
+        )
+        /* Export Chat */
+        DropdownMenuItem(
+            enabled = isMenuItemEnabled,
+            text = { Text(text = stringResource(R.string.export_chat)) },
+            onClick = {
+                onExportChatItemClick()
+                onDismissRequest()
+            }
         )
     }
 }

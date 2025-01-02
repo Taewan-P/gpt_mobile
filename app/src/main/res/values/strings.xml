@@ -190,4 +190,5 @@
     <string name="edit">Edit</string>
     <string name="edit_question">Edit User Message</string>
     <string name="user_message">User Message</string>
+    <string name="export_chat">Export Chat</string>
 </resources>
