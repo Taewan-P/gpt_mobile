@@ -3,7 +3,6 @@ package dev.chungjungsoo.gptmobile.presentation.ui.chat
 import android.content.Intent
 import android.util.Log
 import android.app.Application
-import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -25,13 +24,11 @@ import kotlinx.coroutines.launch
 
 @HiltViewModel
 class ChatViewModel @Inject constructor(
-    application: Application,
+    private val application: Application,
     savedStateHandle: SavedStateHandle,
     private val chatRepository: ChatRepository,
     private val settingRepository: SettingRepository
-/* ) : ViewModel() { */
-) : AndroidViewModel(application) {
-
+) : ViewModel() {
     sealed class LoadingState {
         data object Idle : LoadingState()
         data object Loading : LoadingState()
@@ -236,8 +233,7 @@ class ChatViewModel @Inject constructor(
     }
 
     fun exportChat() {
-        val context = getApplication<Application>().applicationContext
-
+        val context = application.applicationContext
         // Build the chat history in Markdown format
         val chatHistoryMarkdown = buildString {
             appendLine("# Chat Export: \"${chatRoom.value.title}\"")
@@ -262,7 +258,8 @@ class ChatViewModel @Inject constructor(
         file.writeText(chatHistoryMarkdown)
 
         // Share the file
-        val uri = androidx.core.content.FileProvider.getUriForFile(context, "dev.chungjungsoo.gptmobile", file)
+        // https://stackoverflow.com/questions/56598480/couldnt-find-meta-data-for-provider-with-authority
+        val uri = androidx.core.content.FileProvider.getUriForFile(context, "dev.chungjungsoo.gptmobile" + ".fileprovider", file)
         val shareIntent = Intent(Intent.ACTION_SEND).apply {
             type = "text/markdown"
             putExtra(Intent.EXTRA_STREAM, uri)
