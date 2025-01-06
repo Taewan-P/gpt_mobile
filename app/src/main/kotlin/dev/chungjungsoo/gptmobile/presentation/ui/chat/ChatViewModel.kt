@@ -229,7 +229,7 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    fun exportChat(): Pair<String, String>  {
+    fun exportChat(): Pair<String, String> {
         // Build the chat history in Markdown format
         val chatHistoryMarkdown = buildString {
             appendLine("# Chat Export: \"${chatRoom.value.title}\"")

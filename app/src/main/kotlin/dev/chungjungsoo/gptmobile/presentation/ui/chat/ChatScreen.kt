@@ -161,7 +161,15 @@ fun ChatScreen(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() }
             ) { focusManager.clearFocus() },
-        topBar = { ChatTopBar(chatRoom.title, chatRoom.id > 0, onBackAction, scrollBehavior, chatViewModel::openChatTitleDialog, onExportChatItemClick = { exportChat(context, chatViewModel) })
+        topBar = {
+            ChatTopBar(
+                chatRoom.title,
+                chatRoom.id > 0,
+                onBackAction,
+                scrollBehavior,
+                chatViewModel::openChatTitleDialog,
+                onExportChatItemClick = { exportChat(context, chatViewModel) }
+            )
         },
         bottomBar = {
             ChatInputBox(
@@ -448,8 +456,6 @@ private fun exportChat(context: Context, chatViewModel: ChatViewModel) {
             putExtra(Intent.EXTRA_STREAM, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-
-
         context.startActivity(
             Intent.createChooser(shareIntent, "Share Chat Export").apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
