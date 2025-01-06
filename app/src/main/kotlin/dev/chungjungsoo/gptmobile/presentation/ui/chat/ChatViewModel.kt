@@ -1,8 +1,6 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
-import android.content.Intent
 import android.util.Log
-import android.app.Application
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -24,7 +22,6 @@ import kotlinx.coroutines.launch
 
 @HiltViewModel
 class ChatViewModel @Inject constructor(
-    private val application: Application,
     savedStateHandle: SavedStateHandle,
     private val chatRepository: ChatRepository,
     private val settingRepository: SettingRepository
@@ -232,8 +229,7 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    fun exportChat() {
-        val context = application.applicationContext
+    fun exportChat(): Pair<String, String>  {
         // Build the chat history in Markdown format
         val chatHistoryMarkdown = buildString {
             appendLine("# Chat Export: \"${chatRoom.value.title}\"")
@@ -254,20 +250,7 @@ class ChatViewModel @Inject constructor(
 
         // Save the Markdown file
         val fileName = "export_${chatRoom.value.title}_${System.currentTimeMillis()}.md"
-        val file = java.io.File(context.getExternalFilesDir(null), fileName)
-        file.writeText(chatHistoryMarkdown)
-
-        // Share the file
-        // https://stackoverflow.com/questions/56598480/couldnt-find-meta-data-for-provider-with-authority
-        val uri = androidx.core.content.FileProvider.getUriForFile(context, "dev.chungjungsoo.gptmobile" + ".fileprovider", file)
-        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/markdown"
-            putExtra(Intent.EXTRA_STREAM, uri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        context.startActivity(Intent.createChooser(shareIntent, "Share Chat Export").apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        })
+        return Pair(fileName, chatHistoryMarkdown)
     }
 
     private fun formatCurrentDateTime(): String {

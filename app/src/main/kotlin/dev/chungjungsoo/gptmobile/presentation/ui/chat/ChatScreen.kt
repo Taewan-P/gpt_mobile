@@ -1,8 +1,11 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -133,6 +136,7 @@ fun ChatScreen(
     val latestMessageIndex = groupedMessages.keys.maxOrNull() ?: 0
     val chatBubbleScrollStates = rememberSaveable(saver = multiScrollStateSaver) { DefaultHashMap<Int, ScrollState> { ScrollState(0) } }
     val canEnableAICoreMode = rememberSaveable { checkAICoreAvailability(aiCorePackageInfo, privateComputePackageInfo) }
+    val context = LocalContext.current
 
     val scope = rememberCoroutineScope()
 
@@ -155,7 +159,8 @@ fun ChatScreen(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() }
             ) { focusManager.clearFocus() },
-        topBar = { ChatTopBar(chatRoom.title, chatRoom.id > 0, onBackAction, scrollBehavior, chatViewModel::openChatTitleDialog, onExportChatItemClick = chatViewModel::exportChat) },
+        topBar = { ChatTopBar(chatRoom.title, chatRoom.id > 0, onBackAction, scrollBehavior, chatViewModel::openChatTitleDialog, onExportChatItemClick = { exportChat(context, chatViewModel) })
+        },
         bottomBar = {
             ChatInputBox(
                 value = question,
@@ -427,6 +432,35 @@ fun ChatDropdownMenu(
                 onDismissRequest()
             }
         )
+    }
+}
+
+fun exportChat(context: Context, viewModel: ChatViewModel) {
+    val (fileName, chatHistoryMarkdown) = viewModel.exportChat()
+
+    try {
+        val file = java.io.File(context.getExternalFilesDir(null), fileName)
+        file.writeText(chatHistoryMarkdown)
+
+        val uri = androidx.core.content.FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            file
+        )
+
+        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/markdown"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+
+        context.startActivity(Intent.createChooser(shareIntent, "Share Chat Export").apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        })
+
+    } catch (e: Exception) {
+        Log.e("ChatExport", "Failed to export chat", e)
+        Toast.makeText(context, "Failed to export chat", Toast.LENGTH_SHORT).show()
     }
 }
 
