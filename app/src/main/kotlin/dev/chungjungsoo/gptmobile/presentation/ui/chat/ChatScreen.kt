@@ -456,11 +456,14 @@ private fun exportChat(context: Context, chatViewModel: ChatViewModel) {
             putExtra(Intent.EXTRA_STREAM, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        context.startActivity(
-            Intent.createChooser(shareIntent, "Share Chat Export").apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-        )
+        val chooser = Intent.createChooser(shareIntent, "Share Chat Export").apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        val resInfo = context.packageManager.queryIntentActivities(chooser, PackageManager.MATCH_DEFAULT_ONLY)
+        resInfo.forEach { res ->
+            context.grantUriPermission(res.activityInfo.packageName, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(chooser)
     } catch (e: Exception) {
         Log.e("ChatExport", "Failed to export chat", e)
         Toast.makeText(context, "Failed to export chat", Toast.LENGTH_SHORT).show()
