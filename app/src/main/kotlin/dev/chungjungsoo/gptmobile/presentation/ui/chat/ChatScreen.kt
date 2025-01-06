@@ -73,6 +73,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider.getUriForFile
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
@@ -80,6 +81,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.Message
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.util.DefaultHashMap
 import dev.chungjungsoo.gptmobile.util.multiScrollStateSaver
+import java.io.File
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -435,29 +437,24 @@ fun ChatDropdownMenu(
     }
 }
 
-fun exportChat(context: Context, viewModel: ChatViewModel) {
-    val (fileName, chatHistoryMarkdown) = viewModel.exportChat()
-
+private fun exportChat(context: Context, chatViewModel: ChatViewModel) {
     try {
-        val file = java.io.File(context.getExternalFilesDir(null), fileName)
-        file.writeText(chatHistoryMarkdown)
-
-        val uri = androidx.core.content.FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.fileprovider",
-            file
-        )
-
+        val (fileName, fileContent) = chatViewModel.exportChat()
+        val file = File(context.getExternalFilesDir(null), fileName)
+        file.writeText(fileContent)
+        val uri = getUriForFile(context, "${context.packageName}.fileprovider", file)
         val shareIntent = Intent(Intent.ACTION_SEND).apply {
             type = "text/markdown"
             putExtra(Intent.EXTRA_STREAM, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
 
-        context.startActivity(Intent.createChooser(shareIntent, "Share Chat Export").apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        })
 
+        context.startActivity(
+            Intent.createChooser(shareIntent, "Share Chat Export").apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        )
     } catch (e: Exception) {
         Log.e("ChatExport", "Failed to export chat", e)
         Toast.makeText(context, "Failed to export chat", Toast.LENGTH_SHORT).show()
