@@ -26,7 +26,6 @@ class ChatViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     private val settingRepository: SettingRepository
 ) : ViewModel() {
-
     sealed class LoadingState {
         data object Idle : LoadingState()
         data object Loading : LoadingState()
@@ -228,6 +227,36 @@ class ChatViewModel @Inject constructor(
                 chatRepository.updateChatTitle(_chatRoom.value, title)
             }
         }
+    }
+
+    fun exportChat(): Pair<String, String> {
+        // Build the chat history in Markdown format
+        val chatHistoryMarkdown = buildString {
+            appendLine("# Chat Export: \"${chatRoom.value.title}\"")
+            appendLine()
+            appendLine("**Exported on:** ${formatCurrentDateTime()}")
+            appendLine()
+            appendLine("---")
+            appendLine()
+            appendLine("## Chat History")
+            appendLine()
+            messages.value.forEach { message ->
+                val sender = if (message.platformType == null) "User" else "Assistant"
+                appendLine("**$sender:**")
+                appendLine(message.content)
+                appendLine()
+            }
+        }
+
+        // Save the Markdown file
+        val fileName = "export_${chatRoom.value.title}_${System.currentTimeMillis()}.md"
+        return Pair(fileName, chatHistoryMarkdown)
+    }
+
+    private fun formatCurrentDateTime(): String {
+        val currentDate = java.util.Date()
+        val format = java.text.SimpleDateFormat("yyyy-MM-dd hh:mm a", java.util.Locale.getDefault())
+        return format.format(currentDate)
     }
 
     fun updateQuestion(q: String) = _question.update { q }
