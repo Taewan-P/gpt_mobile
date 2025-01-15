@@ -152,4 +152,5 @@
     <string name="retry_ai_title">Повторить попытку сгенерировать заголовок ИИ</string>
     <string name="edit">Изменить</string>
     <string name="user_message">Сообщение пользователя</string>
+    <string name="export_chat">Экспортировать чат</string>
 </resources>
