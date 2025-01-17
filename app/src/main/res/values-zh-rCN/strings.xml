@@ -2,13 +2,13 @@
 <resources>
     <string name="app_name">GPTMobile</string>
     <string name="gpt_mobile_introduction_logo">GPT Mobile的介绍图标</string>
-    <string name="welcome_title">最好的AI助理，你可以在你的手机上用它</string>
+    <string name="welcome_title">最好的AI助理，\n你可以在你的手机上用它。</string>
     <string name="welcome_description">选择一个最适合你的模型，问一切你想问的!</string>
     <string name="get_started">开始使用</string>
-    <string name="platform_select_description">选择您要使用的平台，也可以稍后在设置中更改</string>
+    <string name="platform_select_description">选择您要使用的平台，也可以稍后在设置中更改。更多平台将要被支持。</string>
     <string name="sample_item_title">项目 1</string>
     <string name="sample_item_description">项目描述</string>
-    <string name="openai_description">ChatGPT的创建者</string>
+    <string name="openai_description">ChatGPT的创建者。</string>
     <string name="anthropic_description">Claude在这里</string>
     <string name="google_description">Gemini在这条路上</string>
     <string name="next">继续</string>
@@ -20,11 +20,11 @@
     <string name="anthropic_api_key">Anthropic的API密钥</string>
     <string name="google_api_key">Google的API密钥</string>
     <string name="select_openai_model">选择OpenAI会话的模型</string>
-    <string name="select_openai_model_description">请选择OpenAI会话的模型，尽管部分模型是多功能的，但我们目前只支持纯文本输入，在未来可能会支持更多功能!</string>
-    <string name="gpt_4o_description">最快最实惠的旗舰模型</string>
+    <string name="select_openai_model_description">请选择OpenAI会话的模型，尽管部分模型是多模态的，但我们目前只支持纯文本输入，在未来可能会支持更多功能。</string>
+    <string name="gpt_4o_description">最快最实惠的旗舰模型。</string>
     <string name="gpt_4o_mini_description">经济且快速的小模型，但只适合处理简单任务</string>
-    <string name="gpt_4_turbo_description">高可靠性的模型，而且比GPT-4便宜3倍</string>
-    <string name="gpt_4_description">适合解决抽象问题</string>
+    <string name="gpt_4_turbo_description">高可靠性的模型，而且比GPT-4便宜3倍。</string>
+    <string name="gpt_4_description">适合解决抽象问题。</string>
     <string name="select_anthropic_model">选择Anthropic会话的模型</string>
     <string name="select_anthropic_model_description">请选择Anthropic会话的模型，目前仅支持纯文本输入的Claude 3系列模型</string>
     <string name="claude_3_5_sonnet_description">Anthropic的最智能的模型</string>
