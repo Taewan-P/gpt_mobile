@@ -116,7 +116,7 @@ fun PlatformSettingScreen(
             SettingItem(
                 modifier = Modifier.height(64.dp),
                 title = stringResource(R.string.api_key),
-                description = token?.let { stringResource(R.string.token_set, it[0]) } ?: stringResource(R.string.token_not_set),
+                description = if token.isNullOrEmpty() stringResource(R.string.token_not_set) else stringResource(R.string.token_set, token[0]),
                 enabled = enabled,
                 onItemClick = settingViewModel::openApiTokenDialog,
                 showTrailingIcon = false,
