@@ -358,7 +358,7 @@ private fun ModelDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = {
             TextButton(
-                enabled = !customSelected && model.isNotBlank(),
+                enabled = customSelected || model.isNotBlank(),
                 onClick = {
                     if (customSelected) {
                         onConfirmRequest(customModel)
