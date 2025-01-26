@@ -61,7 +61,7 @@ class ChatRepositoryImpl @Inject constructor(
         ) + generatedMessages
         val chatCompletionRequest = ChatCompletionRequest(
             model = ModelId(platform.model ?: ""),
-            messages = generatedMessageWithPrompt,
+            messages = if (platform.systemPrompt.isEmpty()) generatedMessages else generatedMessageWithPrompt, //disable system prompt only if user set it to empty explicitly
             temperature = platform.temperature?.toDouble(),
             topP = platform.topP?.toDouble()
         )
@@ -139,7 +139,7 @@ class ChatRepositoryImpl @Inject constructor(
         ) + generatedMessages
         val chatCompletionRequest = ChatCompletionRequest(
             model = ModelId(platform.model ?: ""),
-            messages = generatedMessageWithPrompt,
+            messages = if (platform.systemPrompt.isEmpty()) generatedMessages else generatedMessageWithPrompt,
             temperature = platform.temperature?.toDouble(),
             topP = platform.topP?.toDouble()
         )
@@ -161,7 +161,7 @@ class ChatRepositoryImpl @Inject constructor(
         ) + generatedMessages
         val chatCompletionRequest = ChatCompletionRequest(
             model = ModelId(platform.model ?: ""),
-            messages = generatedMessageWithPrompt,
+            messages = if (platform.systemPrompt.isEmpty()) generatedMessages else generatedMessageWithPrompt,
             temperature = platform.temperature?.toDouble(),
             topP = platform.topP?.toDouble()
         )
