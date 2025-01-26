@@ -262,7 +262,6 @@ private fun APIKeyDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = {
             TextButton(
-                enabled = token.isNotBlank(),
                 onClick = { onConfirmRequest(token) }
             ) {
                 Text(stringResource(R.string.confirm))
@@ -359,7 +358,7 @@ private fun ModelDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = {
             TextButton(
-                enabled = if (customSelected) customModel.isNotBlank() else model.isNotBlank(),
+                enabled = !customSelected && model.isNotBlank(),
                 onClick = {
                     if (customSelected) {
                         onConfirmRequest(customModel)
@@ -567,7 +566,6 @@ private fun SystemPromptDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = {
             TextButton(
-                enabled = textFieldPrompt.isNotBlank(),
                 onClick = { onConfirmRequest(textFieldPrompt) }
             ) {
                 Text(stringResource(R.string.confirm))
