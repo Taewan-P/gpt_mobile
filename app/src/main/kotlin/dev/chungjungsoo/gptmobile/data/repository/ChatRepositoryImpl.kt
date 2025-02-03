@@ -56,12 +56,13 @@ class ChatRepositoryImpl @Inject constructor(
         openAI = OpenAI(platform.token ?: "", host = OpenAIHost(baseUrl = platform.apiUrl))
 
         val generatedMessages = messageToOpenAICompatibleMessage(ApiType.OPENAI, history + listOf(question))
+        val prompt = platform.systemPrompt ?: ModelConstants.OPENAI_PROMPT
         val generatedMessageWithPrompt = listOf(
-            ChatMessage(role = ChatRole.System, content = platform.systemPrompt ?: ModelConstants.OPENAI_PROMPT)
+            ChatMessage(role = ChatRole.System, content = prompt)
         ) + generatedMessages
         val chatCompletionRequest = ChatCompletionRequest(
             model = ModelId(platform.model ?: ""),
-            messages = generatedMessageWithPrompt,
+            messages = if (prompt.isEmpty()) generatedMessages else generatedMessageWithPrompt, //disable system prompt only if user set it to empty explicitly
             temperature = platform.temperature?.toDouble(),
             topP = platform.topP?.toDouble()
         )
@@ -79,11 +80,12 @@ class ChatRepositoryImpl @Inject constructor(
         anthropic.setAPIUrl(platform.apiUrl)
 
         val generatedMessages = messageToAnthropicMessage(history + listOf(question))
+        val prompt = platform.systemPrompt ?: ModelConstants.DEFAULT_PROMPT
         val messageRequest = MessageRequest(
             model = platform.model ?: "",
             messages = generatedMessages,
             maxTokens = ModelConstants.ANTHROPIC_MAXIMUM_TOKEN,
-            systemPrompt = platform.systemPrompt ?: ModelConstants.DEFAULT_PROMPT,
+            systemPrompt = if (prompt.isEmpty()) null else prompt,
             stream = true,
             temperature = platform.temperature,
             topP = platform.topP
@@ -108,10 +110,11 @@ class ChatRepositoryImpl @Inject constructor(
             temperature = platform.temperature
             topP = platform.topP
         }
+        val prompt = platform.systemPrompt ?: ModelConstants.DEFAULT_PROMPT
         google = GenerativeModel(
             modelName = platform.model ?: "",
             apiKey = platform.token ?: "",
-            systemInstruction = content { text(platform.systemPrompt ?: ModelConstants.DEFAULT_PROMPT) },
+            systemInstruction = if (prompt.isEmpty()) null else content { text(prompt) },
             generationConfig = config,
             safetySettings = listOf(
                 SafetySetting(HarmCategory.DANGEROUS_CONTENT, BlockThreshold.ONLY_HIGH),
@@ -134,12 +137,13 @@ class ChatRepositoryImpl @Inject constructor(
         groq = OpenAI(platform.token ?: "", host = OpenAIHost(baseUrl = platform.apiUrl))
 
         val generatedMessages = messageToOpenAICompatibleMessage(ApiType.GROQ, history + listOf(question))
+        val prompt = platform.systemPrompt ?: ModelConstants.DEFAULT_PROMPT
         val generatedMessageWithPrompt = listOf(
-            ChatMessage(role = ChatRole.System, content = platform.systemPrompt ?: ModelConstants.DEFAULT_PROMPT)
+            ChatMessage(role = ChatRole.System, content = prompt)
         ) + generatedMessages
         val chatCompletionRequest = ChatCompletionRequest(
             model = ModelId(platform.model ?: ""),
-            messages = generatedMessageWithPrompt,
+            messages = if (prompt.isEmpty()) generatedMessages else generatedMessageWithPrompt,
             temperature = platform.temperature?.toDouble(),
             topP = platform.topP?.toDouble()
         )
@@ -156,12 +160,13 @@ class ChatRepositoryImpl @Inject constructor(
         ollama = OpenAI(platform.token ?: "", host = OpenAIHost(baseUrl = "${platform.apiUrl}v1/"))
 
         val generatedMessages = messageToOpenAICompatibleMessage(ApiType.OLLAMA, history + listOf(question))
+        val prompt = platform.systemPrompt ?: ModelConstants.DEFAULT_PROMPT
         val generatedMessageWithPrompt = listOf(
-            ChatMessage(role = ChatRole.System, content = platform.systemPrompt ?: ModelConstants.DEFAULT_PROMPT)
+            ChatMessage(role = ChatRole.System, content = prompt)
         ) + generatedMessages
         val chatCompletionRequest = ChatCompletionRequest(
             model = ModelId(platform.model ?: ""),
-            messages = generatedMessageWithPrompt,
+            messages = if (prompt.isEmpty()) generatedMessages else generatedMessageWithPrompt,
             temperature = platform.temperature?.toDouble(),
             topP = platform.topP?.toDouble()
         )

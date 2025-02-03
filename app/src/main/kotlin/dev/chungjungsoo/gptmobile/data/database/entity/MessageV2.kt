@@ -5,13 +5,12 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
-import dev.chungjungsoo.gptmobile.data.model.ApiType
 
 @Entity(
-    tableName = "messages",
+    tableName = "messages_v2",
     foreignKeys = [
         ForeignKey(
-            entity = ChatRoom::class,
+            entity = ChatRoomV2::class,
             parentColumns = ["chat_id"],
             childColumns = ["chat_id"],
             onDelete = ForeignKey.CASCADE
@@ -19,7 +18,7 @@ import dev.chungjungsoo.gptmobile.data.model.ApiType
     ],
     indices = [Index(value = ["chat_id"])]
 )
-data class Message(
+data class MessageV2(
     @PrimaryKey(autoGenerate = true)
     @ColumnInfo("message_id")
     val id: Int = 0,
@@ -30,14 +29,14 @@ data class Message(
     @ColumnInfo(name = "content")
     val content: String,
 
-    @ColumnInfo(name = "image_data")
-    val imageData: String? = null,
+    @ColumnInfo(name = "files")
+    val files: List<String> = listOf(),
 
     @ColumnInfo(name = "linked_message_id")
     val linkedMessageId: Int = 0,
 
     @ColumnInfo(name = "platform_type")
-    val platformType: ApiType?,
+    val platformType: String?,
 
     @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis() / 1000

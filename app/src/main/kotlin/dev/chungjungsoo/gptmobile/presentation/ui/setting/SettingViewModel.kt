@@ -75,7 +75,7 @@ class SettingViewModel @Inject constructor(
         if (index >= 0) {
             _platformState.update {
                 it.mapIndexed { i, p ->
-                    if (index == i && token.isNotBlank()) {
+                    if (index == i) {
                         p.copy(token = token)
                     } else {
                         p
@@ -144,7 +144,7 @@ class SettingViewModel @Inject constructor(
         if (index >= 0) {
             _platformState.update {
                 it.mapIndexed { i, p ->
-                    if (index == i && prompt.isNotBlank()) {
+                    if (index == i) {
                         p.copy(systemPrompt = prompt)
                     } else {
                         p
