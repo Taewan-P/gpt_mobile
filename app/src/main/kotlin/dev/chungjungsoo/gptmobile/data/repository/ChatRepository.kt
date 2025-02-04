@@ -14,6 +14,7 @@ interface ChatRepository {
     suspend fun completeOllamaChat(question: Message, history: List<Message>): Flow<ApiState>
     suspend fun fetchChatList(): List<ChatRoom>
     suspend fun fetchMessages(chatId: Int): List<Message>
+    suspend fun migrateToChatRoomV2MessageV2()
     fun generateDefaultChatTitle(messages: List<Message>): String?
     suspend fun updateChatTitle(chatRoom: ChatRoom, title: String)
     suspend fun saveChat(chatRoom: ChatRoom, messages: List<Message>): ChatRoom

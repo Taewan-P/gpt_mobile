@@ -1,6 +1,5 @@
 package dev.chungjungsoo.gptmobile.data.repository
 
-import android.content.Context
 import com.aallam.openai.api.chat.ChatCompletionChunk
 import com.aallam.openai.api.chat.ChatCompletionRequest
 import com.aallam.openai.api.chat.ChatMessage
@@ -18,9 +17,13 @@ import com.google.ai.client.generativeai.type.content
 import com.google.ai.client.generativeai.type.generationConfig
 import dev.chungjungsoo.gptmobile.data.ModelConstants
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomDao
+import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageDao
+import dev.chungjungsoo.gptmobile.data.database.dao.MessageV2Dao
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoom
+import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
 import dev.chungjungsoo.gptmobile.data.database.entity.Message
+import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.MessageRole
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.TextContent
@@ -39,9 +42,10 @@ import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onStart
 
 class ChatRepositoryImpl @Inject constructor(
-    private val appContext: Context,
     private val chatRoomDao: ChatRoomDao,
     private val messageDao: MessageDao,
+    private val chatRoomV2Dao: ChatRoomV2Dao,
+    private val messageV2Dao: MessageV2Dao,
     private val settingRepository: SettingRepository,
     private val anthropic: AnthropicAPI
 ) : ChatRepository {
@@ -62,7 +66,7 @@ class ChatRepositoryImpl @Inject constructor(
         ) + generatedMessages
         val chatCompletionRequest = ChatCompletionRequest(
             model = ModelId(platform.model ?: ""),
-            messages = if (prompt.isEmpty()) generatedMessages else generatedMessageWithPrompt, //disable system prompt only if user set it to empty explicitly
+            messages = if (prompt.isEmpty()) generatedMessages else generatedMessageWithPrompt, // disable system prompt only if user set it to empty explicitly
             temperature = platform.temperature?.toDouble(),
             topP = platform.topP?.toDouble()
         )
@@ -181,6 +185,48 @@ class ChatRepositoryImpl @Inject constructor(
     override suspend fun fetchChatList(): List<ChatRoom> = chatRoomDao.getChatRooms()
 
     override suspend fun fetchMessages(chatId: Int): List<Message> = messageDao.loadMessages(chatId)
+
+    override suspend fun migrateToChatRoomV2MessageV2() {
+        val chatList = fetchChatList()
+        val platforms = settingRepository.fetchPlatformV2s()
+        val apiTypeMap = mutableMapOf<ApiType, String>()
+
+        platforms.forEach { platform ->
+            when (platform.name) {
+                "OpenAI" -> apiTypeMap[ApiType.OPENAI] = platform.uid
+                "Anthropic" -> apiTypeMap[ApiType.ANTHROPIC] = platform.uid
+                "Google" -> apiTypeMap[ApiType.GOOGLE] = platform.uid
+                "Groq" -> apiTypeMap[ApiType.GROQ] = platform.uid
+                "Ollama" -> apiTypeMap[ApiType.OLLAMA] = platform.uid
+            }
+        }
+
+        chatList.forEach { chatRoom ->
+            val messages = messageDao.loadMessages(chatRoom.id).map { m ->
+                MessageV2(
+                    id = m.id,
+                    chatId = m.chatId,
+                    content = m.content,
+                    files = listOf(),
+                    linkedMessageId = m.linkedMessageId,
+                    platformType = m.platformType?.let { apiTypeMap[it] },
+                    createdAt = m.createdAt
+                )
+            }
+
+            chatRoomV2Dao.addChatRoom(
+                ChatRoomV2(
+                    id = chatRoom.id,
+                    title = chatRoom.title,
+                    enabledPlatform = chatRoom.enabledPlatform.map { apiTypeMap[it] ?: "" },
+                    createdAt = chatRoom.createdAt,
+                    updatedAt = chatRoom.createdAt
+                )
+            )
+
+            messageV2Dao.addMessages(*messages.toTypedArray())
+        }
+    }
 
     override fun generateDefaultChatTitle(messages: List<Message>): String? = messages.sortedBy { it.createdAt }.firstOrNull { it.platformType == null }?.content?.replace('\n', ' ')?.take(50)
 
