@@ -1,24 +1,24 @@
 [versions]
-agp = "8.5.2"
+agp = "8.7.3"
 autoLicense = "11.2.2"
-kotlin = "1.9.23"
-coreKtx = "1.13.1"
+kotlin = "2.0.20"
+coreKtx = "1.15.0"
 junit = "4.13.2"
 junitVersion = "1.2.1"
 espressoCore = "3.6.1"
-lifecycleRuntime = "2.8.3"
-activityCompose = "1.9.0"
-composeBom = "2024.06.00"
+lifecycleRuntime = "2.8.7"
+activityCompose = "1.9.3"
+composeBom = "2024.11.00"
 datastore = "1.1.1"
 gemini = "0.9.0"
-hilt = "2.51.1"
-ksp = "1.9.23-1.0.20"
-ktor = "2.3.11"
+hilt = "2.52"
+ksp = "2.0.20-1.0.25" # Also change with Kotlin version
+ktor = "2.3.12"
 androidxHilt = "1.2.0"
-navigation = "2.7.7"
-markdown = "1.0.0-alpha01"
-openai = "3.7.2"
-serialization = "1.6.3" # Should not update due to kotlin version
+navigation = "2.8.4"
+markdown = "0.5.4"
+openai = "3.8.2"
+serialization = "1.7.3" # Should not update due to kotlin version
 splashscreen = "1.0.1"
 room = "2.6.1"
 
@@ -42,7 +42,7 @@ androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit
 androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
 auto-license-core = { group = "com.mikepenz", name = "aboutlibraries-core", version.ref = "autoLicense" }
 auto-license-ui = { group = "com.mikepenz", name = "aboutlibraries-compose-m3", version.ref = "autoLicense" }
-compose-markdown = { group = "com.halilibo.compose-richtext", name = "richtext-commonmark", version.ref = "markdown" }
+compose-markdown = { group = "com.github.jeziellago", name = "compose-markdown", version.ref = "markdown" }
 gemini = { group = "com.google.ai.client.generativeai", name = "generativeai", version.ref = "gemini"}
 hilt = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hilt" }
@@ -55,7 +55,6 @@ ktor-logging = { group = "io.ktor", name = "ktor-client-logging-jvm", version.re
 ktor-serialization = { group = "io.ktor", name = "ktor-serialization-kotlinx-json", version.ref = "ktor" }
 openai = { group = "com.aallam.openai", name = "openai-client", version.ref = "openai" }
 splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splashscreen" }
-richtext = { group = "com.halilibo.compose-richtext", name = "richtext-ui-material3", version.ref = "markdown"}
 room = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
@@ -66,7 +65,7 @@ android-application = { id = "com.android.application", version.ref = "agp" }
 android-hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 auto-license = { id = "com.mikepenz.aboutlibraries.plugin", version.ref = "autoLicense" }
 jetbrains-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
-kotlin-kapt = { id = "org.jetbrains.kotlin.kapt", version.ref = "kotlin" }
+compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 kotlin-parcelize = { id = "org.jetbrains.kotlin.plugin.parcelize", version.ref = "kotlin" }
 kotlin-serialization = { id = "plugin.serialization", version.ref = "kotlin" }

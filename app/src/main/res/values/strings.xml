@@ -27,13 +27,13 @@
     <string name="select_openai_model">Select OpenAI Chat Model</string>
     <string name="select_openai_model_description">Please select the OpenAI chat model. Even if the selected model is multimodal, the app currently supports text inputs only. May be supported later in the future.</string>
     <string name="gpt_4o" translatable="false">GPT-4o</string>
+    <string name="gpt_4o_mini" translatable="false">GPT-4o mini</string>
     <string name="gpt_4_turbo" translatable="false">GPT-4 Turbo</string>
     <string name="gpt_4" translatable="false">GPT-4</string>
-    <string name="gpt_3_5_turbo" translatable="false">GPT-3.5 Turbo</string>
     <string name="gpt_4o_description">The fastest and most affordable flagship model.</string>
+    <string name="gpt_4o_mini_description">Affordable and intelligent small model for fast, lightweight tasks</string>
     <string name="gpt_4_turbo_description">Decent reliability, 3x cheaper than GPT-4.</string>
     <string name="gpt_4_description">Performs the best at solving abstract problems.</string>
-    <string name="gpt_3_5_description">A fast, inexpensive model for simple tasks.</string>
     <string name="select_anthropic_model">Select Anthropic Chat Model</string>
     <string name="select_anthropic_model_description">Please select the Anthropic chat model. We currently support the Claude 3 family of models with only text inputs.</string>
     <string name="claude_3_5_sonnet" translatable="false">Claude 3.5 Sonnet</string>
@@ -132,9 +132,63 @@
     <string name="github_link" translatable="false">https://github.com/Taewan-P/gpt_mobile</string>
     <string name="f_droid_link" translatable="false">https://f-droid.org/packages/dev.chungjungsoo.gptmobile/</string>
     <string name="play_store_link" translatable="false">https://play.google.com/store/apps/details?id=dev.chungjungsoo.gptmobile</string>
-    <string name="feedback_link" translatable="false">https://github.com/Taewan-P/gpt_mobile/issues/new</string>
+    <string name="bug_report_link" translatable="false">https://github.com/Taewan-P/gpt_mobile/issues/new/choose</string>
+    <string name="feedback_link" translatable="false">https://github.com/Taewan-P/gpt_mobile/discussions/new/choose</string>
     <string name="api_url">API URL</string>
     <string name="url_icon">URL Icon</string>
     <string name="invalid_api_url">Please enter a valid URL.</string>
+    <string name="ollama" translatable="false">Ollama</string>
+    <string name="ollama_description">Use your own model.</string>
+    <string name="select_ollama_model">Select Ollama Chat Model</string>
+    <string name="ollama_setting">Ollama Settings</string>
+    <string name="ollama_brand_text" translatable="false">Powered by Ollama</string>
+    <string name="select_ollama_model_description">Please select the Ollama model. Since there is so many models and tags that are supported, you can customize the model value. Make sure that the endpoint actually supports the model and get it running. Otherwise, it will not generate a response.</string>
+    <string name="custom">Custom</string>
+    <string name="custom_description">Use model that is not on the list.</string>
+    <string name="model_name">Model Name</string>
+    <string name="model_custom_example">e.g. llama3.2, llava, llama3:latest, …</string>
+    <string name="custom_model_warning">Note that the model name should be supported by the api.</string>
+    <string name="enter_api_address">Enter API Address</string>
+    <string name="api_address_description">Please enter the address of your Ollama API including the port number. The app will be using v1/chat/completions endpoint, so please enter only the front part of the full address. The address must end with a \'/\'. e.g) http://192.168.1.100:11434/</string>
+    <string name="ollama_api_address">Ollama API Address</string>
+    <string name="ollama_api_help" translatable="false">https://ollama.com/blog/openai-compatibility</string>
     <string name="reset">Reset</string>
+    <string name="ollama_api_key">Ollama API Key</string>
+    <string name="api_url_cautions">The url must end with a \'/\'.</string>
+    <string name="bug_report">Bug Report</string>
+    <string name="bug_report_description">Something isn\'t working correctly?</string>
+    <string name="bug_report_icon">Bug Report Icon</string>
+    <string name="scroll_to_bottom_icon">Scroll to bottom icon</string>
+    <string name="llama_3_2_3b" translatable="false">Llama 3.2 3B (Preview) 8k</string>
+    <string name="llama_3_2_1b" translatable="false">Llama 3.2 1B (Preview) 8k</string>
+    <string name="llama_3_1_70b_versatile" translatable="false">Llama 3.1 70B Versatile 128k</string>
+    <string name="llama_3_1_8b_instant" translatable="false">Llama 3.1 8B Instant 128k</string>
+    <string name="gemma_2_9b" translatable="false">Gemma 2 9B 8k</string>
+    <string name="llama_3_2_description">Latest Lightweight Open Source language model from Meta.</string>
+    <string name="llama_3_1_description">State-of-the-art multilingual open source large language model from Meta.</string>
+    <string name="gemma2_description">Small Language Model released by Google.</string>
+    <string name="select_groq_model">Select Groq Chat Model</string>
+    <string name="select_groq_model_description">Please select the Groq chat model. If you want models that are not on the list, check out Groq API documentation website and see what\'s available.</string>
+    <string name="groq_setting">Groq Settings</string>
+    <string name="groq_brand_text" translatable="false">Powered by Groq</string>
+    <string name="groq" translatable="false">Groq</string>
+    <string name="groq_description">Fast AI inference for openly-available models.</string>
+    <string name="groq_api_key">Groq API Key</string>
+    <string name="groq_api_help" translatable="false">https://console.groq.com/keys</string>
+    <string name="options">Options</string>
+    <string name="update_chat_title">Update chat title</string>
+    <string name="chat_title">Chat Title</string>
+    <string name="chat_title_dialog_description">AI generated title is only available with AICore supported devices.</string>
+    <string name="default_mode">Default</string>
+    <string name="ai_generated">AI Generated (Beta)</string>
+    <string name="update">Update</string>
+    <string name="untitled_chat">Untitled Chat</string>
+    <string name="title_length_limit">Title length limit: %1$s/50</string>
+    <string name="apply_generated_title">Apply generated title</string>
+    <string name="retry_ai_title">Retry AI generated title</string>
+    <string name="token_input_warning">NOTE: OpenAI and Anthropic uses prepaid billing, so you MUST CHARGE CREDITS in each accounts before you use them. Otherwise, the response will return an error.</string>
+    <string name="edit">Edit</string>
+    <string name="edit_question">Edit User Message</string>
+    <string name="user_message">User Message</string>
+    <string name="export_chat">Export Chat</string>
 </resources>

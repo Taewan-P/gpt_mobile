@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.jetbrains.kotlin.android)
     alias(libs.plugins.android.hilt)
+    alias(libs.plugins.compose.compiler)
     alias(libs.plugins.kotlin.ksp)
     alias(libs.plugins.kotlin.parcelize)
     alias(libs.plugins.auto.license)
@@ -10,14 +11,14 @@ plugins {
 
 android {
     namespace = "dev.chungjungsoo.gptmobile"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "dev.chungjungsoo.gptmobile"
-        minSdk = 28
-        targetSdk = 34
-        versionCode = 7
-        versionName = "0.4.1"
+        minSdk = 31
+        targetSdk = 35
+        versionCode = 15
+        versionName = "0.6.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -50,9 +51,6 @@ android {
     }
     buildFeatures {
         compose = true
-    }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.13" // Make sure to update this when Kotlin version is updated
     }
     packaging {
         resources {
@@ -100,7 +98,6 @@ dependencies {
 
     // Markdown
     implementation(libs.compose.markdown)
-    implementation(libs.richtext)
 
     // Navigation
     implementation(libs.hilt.navigation)

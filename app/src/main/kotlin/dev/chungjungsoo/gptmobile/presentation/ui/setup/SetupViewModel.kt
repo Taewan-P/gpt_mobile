@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.chungjungsoo.gptmobile.data.ModelConstants.anthropicModels
 import dev.chungjungsoo.gptmobile.data.ModelConstants.googleModels
+import dev.chungjungsoo.gptmobile.data.ModelConstants.groqModels
+import dev.chungjungsoo.gptmobile.data.ModelConstants.ollamaModels
 import dev.chungjungsoo.gptmobile.data.ModelConstants.openaiModels
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.data.model.ApiType
@@ -24,10 +26,28 @@ class SetupViewModel @Inject constructor(private val settingRepository: SettingR
         listOf(
             Platform(ApiType.OPENAI),
             Platform(ApiType.ANTHROPIC),
-            Platform(ApiType.GOOGLE)
+            Platform(ApiType.GOOGLE),
+            Platform(ApiType.GROQ),
+            Platform(ApiType.OLLAMA)
         )
     )
     val platformState: StateFlow<List<Platform>> = _platformState.asStateFlow()
+
+    fun updateAPIAddress(platform: Platform, address: String) {
+        val index = _platformState.value.indexOf(platform)
+
+        if (index >= 0) {
+            _platformState.update {
+                it.mapIndexed { i, p ->
+                    if (index == i) {
+                        p.copy(apiUrl = address.trim())
+                    } else {
+                        p
+                    }
+                }
+            }
+        }
+    }
 
     fun updateCheckedState(platform: Platform) {
         val index = _platformState.value.indexOf(platform)
@@ -63,17 +83,12 @@ class SetupViewModel @Inject constructor(private val settingRepository: SettingR
 
     fun updateModel(apiType: ApiType, model: String) {
         val index = _platformState.value.indexOfFirst { it.name == apiType }
-        val models = when (apiType) {
-            ApiType.OPENAI -> openaiModels
-            ApiType.ANTHROPIC -> anthropicModels
-            ApiType.GOOGLE -> googleModels
-        }
 
         if (index >= 0) {
             _platformState.update {
                 it.mapIndexed { i, p ->
                     if (index == i) {
-                        p.copy(model = if (model in models) model else null)
+                        p.copy(model = model)
                     } else {
                         p
                     }
@@ -101,17 +116,29 @@ class SetupViewModel @Inject constructor(private val settingRepository: SettingR
             Route.OPENAI_MODEL_SELECT,
             Route.ANTHROPIC_MODEL_SELECT,
             Route.GOOGLE_MODEL_SELECT,
+            Route.GROQ_MODEL_SELECT,
+            Route.OLLAMA_MODEL_SELECT,
+            Route.OLLAMA_API_ADDRESS,
             Route.SETUP_COMPLETE
         )
-        val commonSteps = setOf(Route.SELECT_PLATFORM, Route.TOKEN_INPUT, Route.SETUP_COMPLETE)
+        val commonSteps = mutableSetOf(Route.SELECT_PLATFORM, Route.TOKEN_INPUT, Route.SETUP_COMPLETE)
         val platformStep = mapOf(
             Route.OPENAI_MODEL_SELECT to ApiType.OPENAI,
             Route.ANTHROPIC_MODEL_SELECT to ApiType.ANTHROPIC,
-            Route.GOOGLE_MODEL_SELECT to ApiType.GOOGLE
+            Route.GOOGLE_MODEL_SELECT to ApiType.GOOGLE,
+            Route.GROQ_MODEL_SELECT to ApiType.GROQ,
+            Route.OLLAMA_MODEL_SELECT to ApiType.OLLAMA,
+            Route.OLLAMA_API_ADDRESS to ApiType.OLLAMA
         )
 
         val currentIndex = steps.indexOfFirst { it == currentRoute }
         val enabledPlatform = platformState.value.filter { it.selected }.map { it.name }.toSet()
+
+        if (enabledPlatform.size == 1 && ApiType.OLLAMA in enabledPlatform) {
+            // Skip API Token input page
+            commonSteps.remove(Route.TOKEN_INPUT)
+        }
+
         val remainingSteps = steps.filterIndexed { index, setupStep ->
             index > currentIndex &&
                 (setupStep in commonSteps || platformStep[setupStep] in enabledPlatform)
@@ -130,7 +157,13 @@ class SetupViewModel @Inject constructor(private val settingRepository: SettingR
             ApiType.OPENAI -> openaiModels
             ApiType.ANTHROPIC -> anthropicModels
             ApiType.GOOGLE -> googleModels
+            ApiType.GROQ -> groqModels
+            ApiType.OLLAMA -> ollamaModels
         }.toList()
+
+        if (modelList.size <= defaultModelIndex) {
+            return ""
+        }
 
         val model = modelList[defaultModelIndex]
         updateModel(apiType, model)

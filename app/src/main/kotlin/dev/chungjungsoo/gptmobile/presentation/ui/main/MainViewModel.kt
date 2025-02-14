@@ -32,7 +32,7 @@ class MainViewModel @Inject constructor(private val settingRepository: SettingRe
         viewModelScope.launch {
             val platforms = settingRepository.fetchPlatforms()
 
-            if (platforms.all { it.token == null || it.model == null }) {
+            if (platforms.all { it.enabled.not() }) {
                 // Initialize
                 sendSplashEvent(SplashEvent.OpenIntro)
             } else {

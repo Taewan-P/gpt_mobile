@@ -8,6 +8,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
@@ -62,12 +63,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoom
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.presentation.common.PlatformCheckBoxItem
-import dev.chungjungsoo.gptmobile.util.collectManagedState
 import dev.chungjungsoo.gptmobile.util.getPlatformTitleResources
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -81,12 +82,12 @@ fun HomeScreen(
     val platformTitles = getPlatformTitleResources()
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
-    val chatListState by homeViewModel.chatListState.collectManagedState()
-    val showSelectModelDialog by homeViewModel.showSelectModelDialog.collectManagedState()
-    val showDeleteWarningDialog by homeViewModel.showDeleteWarningDialog.collectManagedState()
-    val platformState by homeViewModel.platformState.collectManagedState()
-    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
-    val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectManagedState()
+    val chatListState by homeViewModel.chatListState.collectAsStateWithLifecycle()
+    val showSelectModelDialog by homeViewModel.showSelectModelDialog.collectAsStateWithLifecycle()
+    val showDeleteWarningDialog by homeViewModel.showDeleteWarningDialog.collectAsStateWithLifecycle()
+    val platformState by homeViewModel.platformState.collectAsStateWithLifecycle()
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     LaunchedEffect(lifecycleState) {
@@ -120,7 +121,17 @@ fun HomeScreen(
                 }
             )
         },
-        floatingActionButton = { NewChatButton(expanded = listState.isScrollingUp(), onClick = homeViewModel::openSelectModelDialog) }
+        floatingActionButton = {
+            NewChatButton(expanded = listState.isScrollingUp(), onClick = {
+                val enabledApiTypes = platformState.filter { it.enabled }.map { it.name }
+                if (enabledApiTypes.size == 1) {
+                    // Navigate to new chat directly if only one platform is enabled
+                    navigateToNewChat(enabledApiTypes)
+                } else {
+                    homeViewModel.openSelectModelDialog()
+                }
+            })
+        }
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier.padding(innerPadding),
@@ -146,7 +157,7 @@ fun HomeScreen(
                             }
                         )
                         .padding(start = 8.dp, end = 8.dp)
-                        .animateItemPlacement(),
+                        .animateItem(),
                     headlineContent = { Text(text = chatRoom.title) },
                     leadingContent = {
                         if (chatListState.isSelectionMode) {
@@ -330,7 +341,9 @@ fun SelectPlatformDialog(
 
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
-        modifier = Modifier.widthIn(max = configuration.screenWidthDp.dp - 40.dp),
+        modifier = Modifier
+            .widthIn(max = configuration.screenWidthDp.dp - 40.dp)
+            .heightIn(max = configuration.screenHeightDp.dp - 80.dp),
         onDismissRequest = onDismissRequest,
         title = {
             Column {
@@ -403,7 +416,9 @@ private fun SelectPlatformDialogPreview() {
     val platforms = listOf(
         Platform(ApiType.OPENAI, enabled = true),
         Platform(ApiType.ANTHROPIC, enabled = false),
-        Platform(ApiType.GOOGLE, enabled = false)
+        Platform(ApiType.GOOGLE, enabled = false),
+        Platform(ApiType.GROQ, enabled = true),
+        Platform(ApiType.OLLAMA, enabled = true)
     )
     SelectPlatformDialog(
         platforms = platforms,
@@ -421,7 +436,9 @@ fun DeleteWarningDialog(
     val configuration = LocalConfiguration.current
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
-        modifier = Modifier.width(configuration.screenWidthDp.dp - 40.dp),
+        modifier = Modifier
+            .width(configuration.screenWidthDp.dp - 40.dp)
+            .heightIn(max = configuration.screenHeightDp.dp - 80.dp),
         title = {
             Text(
                 text = stringResource(R.string.delete_selected_chats),

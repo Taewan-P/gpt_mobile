@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
+import android.text.util.Linkify
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,6 +11,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -19,7 +22,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -27,23 +29,20 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.halilibo.richtext.commonmark.CommonmarkAstNodeParser
-import com.halilibo.richtext.commonmark.MarkdownParseOptions
-import com.halilibo.richtext.markdown.BasicMarkdown
-import com.halilibo.richtext.ui.material3.RichText
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 import dev.chungjungsoo.gptmobile.util.getPlatformAPIBrandText
+import dev.jeziellago.compose.markdowntext.MarkdownText
 
 @Composable
 fun UserChatBubble(
     modifier: Modifier = Modifier,
-    text: String
+    text: String,
+    isLoading: Boolean,
+    onEditClick: () -> Unit,
+    onCopyClick: () -> Unit
 ) {
-    val markdownParseOptions = remember { MarkdownParseOptions(autolink = false) }
-    val parser = remember(markdownParseOptions) { CommonmarkAstNodeParser(markdownParseOptions) }
-    val astNode = remember(text) { parser.parse(text.trimIndent()) }
     val cardColor = CardColors(
         containerColor = MaterialTheme.colorScheme.primaryContainer,
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -51,13 +50,25 @@ fun UserChatBubble(
         disabledContainerColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.38f)
     )
 
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(32.dp),
-        colors = cardColor
-    ) {
-        RichText(modifier = Modifier.padding(16.dp)) {
-            BasicMarkdown(astNode = astNode)
+    Column(horizontalAlignment = Alignment.End) {
+        Card(
+            modifier = modifier,
+            shape = RoundedCornerShape(32.dp),
+            colors = cardColor
+        ) {
+            MarkdownText(
+                modifier = Modifier.padding(16.dp),
+                markdown = text,
+                isTextSelectable = true,
+                linkifyMask = Linkify.WEB_URLS
+            )
+        }
+        Row {
+            if (!isLoading) {
+                EditTextChip(onEditClick)
+                Spacer(modifier = Modifier.width(8.dp))
+            }
+            CopyTextChip(onCopyClick)
         }
     }
 }
@@ -73,9 +84,6 @@ fun OpponentChatBubble(
     onCopyClick: () -> Unit = {},
     onRetryClick: () -> Unit = {}
 ) {
-    val markdownParseOptions = remember { MarkdownParseOptions(autolink = false) }
-    val parser = remember(markdownParseOptions) { CommonmarkAstNodeParser(markdownParseOptions) }
-    val astNode = remember(text) { parser.parse(text.trimIndent() + if (isLoading) "▊" else "") }
     val cardColor = CardColors(
         containerColor = MaterialTheme.colorScheme.secondaryContainer,
         contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -89,9 +97,12 @@ fun OpponentChatBubble(
                 shape = RoundedCornerShape(32.dp),
                 colors = cardColor
             ) {
-                RichText(modifier = Modifier.padding(24.dp)) {
-                    BasicMarkdown(astNode = astNode)
-                }
+                MarkdownText(
+                    modifier = Modifier.padding(24.dp),
+                    markdown = text.trimIndent() + if (isLoading) "▊" else "",
+                    isTextSelectable = true,
+                    linkifyMask = Linkify.WEB_URLS
+                )
                 if (!isLoading) {
                     BrandText(apiType)
                 }
@@ -100,36 +111,61 @@ fun OpponentChatBubble(
             if (!isLoading) {
                 Row {
                     if (!isError) {
-                        AssistChip(
-                            onClick = onCopyClick,
-                            label = { Text(stringResource(R.string.copy_text)) },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = ImageVector.vectorResource(id = R.drawable.ic_copy),
-                                    contentDescription = stringResource(R.string.copy_text),
-                                    modifier = Modifier.size(AssistChipDefaults.IconSize)
-                                )
-                            }
-                        )
+                        CopyTextChip(onCopyClick)
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
                     if (canRetry) {
-                        AssistChip(
-                            onClick = onRetryClick,
-                            label = { Text(stringResource(R.string.retry)) },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Rounded.Refresh,
-                                    contentDescription = stringResource(R.string.retry),
-                                    modifier = Modifier.size(AssistChipDefaults.IconSize)
-                                )
-                            }
-                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        RetryChip(onRetryClick)
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun EditTextChip(onEditClick: () -> Unit) {
+    AssistChip(
+        onClick = onEditClick,
+        label = { Text(stringResource(R.string.edit)) },
+        leadingIcon = {
+            Icon(
+                Icons.Outlined.Edit,
+                contentDescription = stringResource(R.string.edit),
+                modifier = Modifier.size(AssistChipDefaults.IconSize)
+            )
+        }
+    )
+}
+
+@Composable
+private fun CopyTextChip(onCopyClick: () -> Unit) {
+    AssistChip(
+        onClick = onCopyClick,
+        label = { Text(stringResource(R.string.copy_text)) },
+        leadingIcon = {
+            Icon(
+                imageVector = ImageVector.vectorResource(id = R.drawable.ic_copy),
+                contentDescription = stringResource(R.string.copy_text),
+                modifier = Modifier.size(AssistChipDefaults.IconSize)
+            )
+        }
+    )
+}
+
+@Composable
+private fun RetryChip(onRetryClick: () -> Unit) {
+    AssistChip(
+        onClick = onRetryClick,
+        label = { Text(stringResource(R.string.retry)) },
+        leadingIcon = {
+            Icon(
+                Icons.Rounded.Refresh,
+                contentDescription = stringResource(R.string.retry),
+                modifier = Modifier.size(AssistChipDefaults.IconSize)
+            )
+        }
+    )
 }
 
 @Composable
@@ -156,7 +192,7 @@ fun UserChatBubblePreview() {
         in Python?
     """.trimIndent()
     GPTMobileTheme {
-        UserChatBubble(text = sampleText)
+        UserChatBubble(text = sampleText, isLoading = false, onCopyClick = {}, onEditClick = {})
     }
 }
 
