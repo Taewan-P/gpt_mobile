@@ -1,15 +1,22 @@
-This is an Material3 style chat app that supports answers from multiple LLMs at once.
+This is a Material3-style chat app that supports answers from multiple LLMs simultaneously.
 
 Supported Platforms
+
 - OpenAI GPT (GPT-4o, turbo, etc)
+
 - Anthropic Claude (3.5 Sonnet, 3 Opus, etc)
+
 - Google Gemini (1.5 Pro, Flash, etc)
-- Groq (Fast inference server for various models)
-- Ollama (Your own server)
 
-Local chat history
-Chat history is only saved locally. The app only sends to official API servers while chatting. NOT SHARED anywhere else.
+- Groq (fast inference server for various models)
 
-Custom API address and custom model name supported. Also, adjust system prompt, top p, temperature, and more!
+- Ollama (your server)
 
-Note that some platforms may not be supported in some countries.
+Local Chat History
+Chat history is only saved locally. The app only sends to official API servers while chatting; this data is not shared elsewhere.
+
+ChatGPTMobile supports custom API addresses and custom model names.
+
+Further adjustments can be made to the system prompt, top p, temperature, and more!
+
+Note that some platforms may not be supported in certain countries.
