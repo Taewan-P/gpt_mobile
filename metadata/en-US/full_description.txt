@@ -1,15 +1,10 @@
 This is a Material3-style chat app that supports answers from multiple LLMs simultaneously.
 
 Supported Platforms
-
 - OpenAI GPT (GPT-4o, turbo, etc)
-
 - Anthropic Claude (3.5 Sonnet, 3 Opus, etc)
-
 - Google Gemini (1.5 Pro, Flash, etc)
-
 - Groq (fast inference server for various models)
-
 - Ollama (your server)
 
 Local Chat History
