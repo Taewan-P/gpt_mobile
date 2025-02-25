@@ -10,9 +10,9 @@ import kotlinx.parcelize.Parcelize
 @Parcelize
 @Entity(tableName = "chats_v2")
 data class ChatRoomV2(
-    /*
-    Now, enabled platforms are stored as list of strings.
-    The strings are UUID V4 strings from PlatformV2.uid
+    /**
+     Now, enabled platforms are stored as list of strings.
+     The strings are UUID V4 strings from PlatformV2.uid
      */
     @PrimaryKey(autoGenerate = true)
     @ColumnInfo(name = "chat_id")

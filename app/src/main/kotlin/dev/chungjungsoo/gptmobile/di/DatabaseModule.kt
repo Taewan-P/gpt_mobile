@@ -20,6 +20,7 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
     private const val DB_NAME = "chat"
+    private const val DB_NAME_V2 = "chat_v2"
 
     @Provides
     fun providePlatformV2Dao(chatDatabaseV2: ChatDatabaseV2): PlatformV2Dao = chatDatabaseV2.platformDao()
@@ -49,6 +50,6 @@ object DatabaseModule {
     fun provideChatDatabaseV2(@ApplicationContext appContext: Context): ChatDatabaseV2 = Room.databaseBuilder(
         appContext,
         ChatDatabaseV2::class.java,
-        DB_NAME
+        DB_NAME_V2
     ).build()
 }
