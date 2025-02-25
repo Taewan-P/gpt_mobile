@@ -51,7 +51,11 @@ fun SetupNavGraph(navController: NavHostController) {
 
 fun NavGraphBuilder.migrationScreenNavigation(navController: NavHostController) {
     composable(Route.MIGRATE_V2) {
-        MigrateScreen { navController.navigate(Route.CHAT_LIST) }
+        MigrateScreen {
+            navController.navigate(Route.CHAT_LIST) {
+                popUpTo(Route.MIGRATE_V2) { inclusive = true }
+            }
+        }
     }
 }
 
