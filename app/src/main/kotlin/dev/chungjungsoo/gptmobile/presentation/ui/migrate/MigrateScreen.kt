@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -105,7 +104,6 @@ fun PlatformMigrationCard(
         ),
         modifier = Modifier
             .fillMaxWidth()
-            .height(160.dp)
             .padding(horizontal = 20.dp, vertical = 8.dp)
     ) {
         Row(
@@ -161,7 +159,6 @@ fun ChatRoomMessageMigrationCard(
         ),
         modifier = Modifier
             .fillMaxWidth()
-            .height(160.dp)
             .padding(horizontal = 20.dp, vertical = 8.dp)
     ) {
         Row(
