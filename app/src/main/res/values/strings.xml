@@ -195,4 +195,7 @@
     <string name="migration_description">The migration assistant will guide you to smoothly migrate to the upgraded database and data structures for the renewed version. Please follow the steps below.</string>
     <string name="migrate_platform">Migrate Platform</string>
     <string name="migrate">Migrate</string>
+    <string name="migrate_chat">Migrate Chats</string>
+    <string name="enabled_platform_numbers">Enabled platforms: %1s</string>
+    <string name="existing_chats">Existing chats: %1s</string>
 </resources>
