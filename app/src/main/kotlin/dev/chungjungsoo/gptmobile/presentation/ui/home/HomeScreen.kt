@@ -65,7 +65,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
-import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoom
+import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.presentation.common.PlatformCheckBoxItem
@@ -76,7 +76,7 @@ import dev.chungjungsoo.gptmobile.util.getPlatformTitleResources
 fun HomeScreen(
     homeViewModel: HomeViewModel = hiltViewModel(),
     settingOnClick: () -> Unit,
-    onExistingChatClick: (ChatRoom) -> Unit,
+    onExistingChatClick: (ChatRoomV2) -> Unit,
     navigateToNewChat: (enabledPlatforms: List<ApiType>) -> Unit
 ) {
     val platformTitles = getPlatformTitleResources()
@@ -139,7 +139,7 @@ fun HomeScreen(
         ) {
             item { ChatsTitle(scrollBehavior) }
             itemsIndexed(chatListState.chats, key = { _, it -> it.id }) { idx, chatRoom ->
-                val usingPlatform = chatRoom.enabledPlatform.joinToString(", ") { platformTitles[it] ?: "" }
+                val usingPlatform = chatRoom.enabledPlatform.joinToString(", ")
                 ListItem(
                     modifier = Modifier
                         .fillMaxWidth()

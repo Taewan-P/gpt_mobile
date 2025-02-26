@@ -4,7 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoom
+import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
@@ -22,7 +22,7 @@ class HomeViewModel @Inject constructor(
 ) : ViewModel() {
 
     data class ChatListState(
-        val chats: List<ChatRoom> = listOf(),
+        val chats: List<ChatRoomV2> = listOf(),
         val isSelectionMode: Boolean = false,
         val selected: List<Boolean> = listOf()
     )
@@ -31,7 +31,7 @@ class HomeViewModel @Inject constructor(
     val chatListState: StateFlow<ChatListState> = _chatListState.asStateFlow()
 
     private val _platformState = MutableStateFlow(listOf<Platform>())
-    val platformState: StateFlow<List<Platform>> = _platformState.asStateFlow()
+    val platformState = _platformState.asStateFlow()
 
     private val _showSelectModelDialog = MutableStateFlow(false)
     val showSelectModelDialog: StateFlow<Boolean> = _showSelectModelDialog.asStateFlow()
@@ -79,8 +79,8 @@ class HomeViewModel @Inject constructor(
                 _chatListState.value.selected[index]
             }
 
-            chatRepository.deleteChats(selectedChats)
-            _chatListState.update { it.copy(chats = chatRepository.fetchChatList()) }
+            chatRepository.deleteChatsV2(selectedChats)
+            _chatListState.update { it.copy(chats = chatRepository.fetchChatListV2()) }
             disableSelectionMode()
         }
     }
@@ -100,7 +100,7 @@ class HomeViewModel @Inject constructor(
 
     fun fetchChats() {
         viewModelScope.launch {
-            val chats = chatRepository.fetchChatList()
+            val chats = chatRepository.fetchChatListV2()
 
             _chatListState.update {
                 it.copy(

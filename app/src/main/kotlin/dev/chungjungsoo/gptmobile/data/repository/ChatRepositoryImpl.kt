@@ -184,7 +184,11 @@ class ChatRepositoryImpl @Inject constructor(
 
     override suspend fun fetchChatList(): List<ChatRoom> = chatRoomDao.getChatRooms()
 
+    override suspend fun fetchChatListV2(): List<ChatRoomV2> = chatRoomV2Dao.getChatRooms()
+
     override suspend fun fetchMessages(chatId: Int): List<Message> = messageDao.loadMessages(chatId)
+
+    override suspend fun fetchMessagesV2(chatId: Int): List<MessageV2> = messageV2Dao.loadMessages(chatId)
 
     override suspend fun migrateToChatRoomV2MessageV2() {
         val leftOverChatRoomV2s = chatRoomV2Dao.getChatRooms()
@@ -237,6 +241,10 @@ class ChatRepositoryImpl @Inject constructor(
         chatRoomDao.editChatRoom(chatRoom.copy(title = title.replace('\n', ' ').take(50)))
     }
 
+    override suspend fun updateChatTitleV2(chatRoom: ChatRoomV2, title: String) {
+        chatRoomV2Dao.editChatRoom(chatRoom.copy(title = title.replace('\n', ' ').take(50)))
+    }
+
     override suspend fun saveChat(chatRoom: ChatRoom, messages: List<Message>): ChatRoom {
         if (chatRoom.id == 0) {
             // New Chat
@@ -271,8 +279,46 @@ class ChatRepositoryImpl @Inject constructor(
         return chatRoom
     }
 
+    override suspend fun saveChatV2(chatRoom: ChatRoomV2, messages: List<MessageV2>): ChatRoomV2 {
+        if (chatRoom.id == 0) {
+            // New Chat
+            val chatId = chatRoomV2Dao.addChatRoom(chatRoom)
+            val updatedMessages = messages.map { it.copy(chatId = chatId.toInt()) }
+            messageV2Dao.addMessages(*updatedMessages.toTypedArray())
+
+            val savedChatRoom = chatRoom.copy(id = chatId.toInt())
+            updateChatTitleV2(savedChatRoom, updatedMessages[0].content)
+
+            return savedChatRoom.copy(title = updatedMessages[0].content.replace('\n', ' ').take(50))
+        }
+
+        val savedMessages = fetchMessagesV2(chatRoom.id)
+        val updatedMessages = messages.map { it.copy(chatId = chatRoom.id) }
+
+        val shouldBeDeleted = savedMessages.filter { m ->
+            updatedMessages.firstOrNull { it.id == m.id } == null
+        }
+        val shouldBeUpdated = updatedMessages.filter { m ->
+            savedMessages.firstOrNull { it.id == m.id && it != m } != null
+        }
+        val shouldBeAdded = updatedMessages.filter { m ->
+            savedMessages.firstOrNull { it.id == m.id } == null
+        }
+
+        chatRoomV2Dao.editChatRoom(chatRoom)
+        messageV2Dao.deleteMessages(*shouldBeDeleted.toTypedArray())
+        messageV2Dao.editMessages(*shouldBeUpdated.toTypedArray())
+        messageV2Dao.addMessages(*shouldBeAdded.toTypedArray())
+
+        return chatRoom
+    }
+
     override suspend fun deleteChats(chatRooms: List<ChatRoom>) {
         chatRoomDao.deleteChatRooms(*chatRooms.toTypedArray())
+    }
+
+    override suspend fun deleteChatsV2(chatRooms: List<ChatRoomV2>) {
+        chatRoomV2Dao.deleteChatRooms(*chatRooms.toTypedArray())
     }
 
     private fun messageToOpenAICompatibleMessage(apiType: ApiType, messages: List<Message>): List<ChatMessage> {
