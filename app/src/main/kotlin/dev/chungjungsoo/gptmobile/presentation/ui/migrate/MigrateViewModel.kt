@@ -44,7 +44,12 @@ class MigrateViewModel @Inject constructor(
             try {
                 _uiState.update { it.copy(platformState = MigrationState.MIGRATING) }
                 settingRepository.migrateToPlatformV2()
-                _uiState.update { it.copy(platformState = MigrationState.MIGRATED) }
+                _uiState.update {
+                    it.copy(
+                        platformState = MigrationState.MIGRATED,
+                        chatState = MigrationState.READY
+                    )
+                }
             } catch (e: Exception) {
                 _uiState.update { it.copy(platformState = MigrationState.ERROR) }
                 Log.e("Migration", "Error migrating platform", e)
