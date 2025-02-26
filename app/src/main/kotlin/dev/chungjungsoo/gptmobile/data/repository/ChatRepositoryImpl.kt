@@ -187,6 +187,9 @@ class ChatRepositoryImpl @Inject constructor(
     override suspend fun fetchMessages(chatId: Int): List<Message> = messageDao.loadMessages(chatId)
 
     override suspend fun migrateToChatRoomV2MessageV2() {
+        val leftOverChatRoomV2s = chatRoomV2Dao.getChatRooms()
+        chatRoomV2Dao.deleteChatRooms(*leftOverChatRoomV2s.toTypedArray())
+
         val chatList = fetchChatList()
         val platforms = settingRepository.fetchPlatformV2s()
         val apiTypeMap = mutableMapOf<ApiType, String>()

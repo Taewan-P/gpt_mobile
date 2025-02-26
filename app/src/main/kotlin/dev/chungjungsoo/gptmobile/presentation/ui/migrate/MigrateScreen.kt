@@ -151,7 +151,7 @@ fun MigrationCard(
             Spacer(modifier = Modifier.weight(1f))
             TextButton(
                 onClick = onMigrationClick,
-                enabled = status == MigrateViewModel.MigrationState.READY
+                enabled = status == MigrateViewModel.MigrationState.READY || status == MigrateViewModel.MigrationState.ERROR
             ) {
                 when (status) {
                     MigrateViewModel.MigrationState.READY, MigrateViewModel.MigrationState.BLOCKED -> Text(stringResource(R.string.migrate))

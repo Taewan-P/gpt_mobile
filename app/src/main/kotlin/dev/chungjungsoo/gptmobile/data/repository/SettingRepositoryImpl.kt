@@ -57,6 +57,9 @@ class SettingRepositoryImpl @Inject constructor(
     )
 
     override suspend fun migrateToPlatformV2() {
+        val leftOverPlatformV2s = fetchPlatformV2s()
+        leftOverPlatformV2s.forEach { platformV2Dao.deletePlatform(it) }
+
         val platforms = fetchPlatforms()
 
         platforms.forEach { platform ->
