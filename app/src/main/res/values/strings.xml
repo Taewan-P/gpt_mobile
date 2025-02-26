@@ -198,4 +198,7 @@
     <string name="migrate_chat">Migrate Chats</string>
     <string name="enabled_platform_numbers">Enabled platforms: %1s</string>
     <string name="existing_chats">Existing chats: %1s</string>
+    <string name="migrating">Migrating</string>
+    <string name="migrated">Migrated</string>
+    <string name="error">Error</string>
 </resources>
