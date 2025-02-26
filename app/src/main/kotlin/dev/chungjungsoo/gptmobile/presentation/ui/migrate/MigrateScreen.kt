@@ -30,8 +30,9 @@ import androidx.compose.ui.unit.dp
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.presentation.common.PrimaryLongButton
 import dev.chungjungsoo.gptmobile.presentation.icons.Block
-import dev.chungjungsoo.gptmobile.presentation.icons.Done
+import dev.chungjungsoo.gptmobile.presentation.icons.Complete
 import dev.chungjungsoo.gptmobile.presentation.icons.Error
+import dev.chungjungsoo.gptmobile.presentation.icons.Ready
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -114,8 +115,8 @@ fun PlatformMigrationCard(
         ) {
             Icon(
                 imageVector = when (status) {
-                    MigrateViewModel.MigrationState.READY -> Done // TODO()
-                    MigrateViewModel.MigrationState.MIGRATED -> Done
+                    MigrateViewModel.MigrationState.READY -> Ready
+                    MigrateViewModel.MigrationState.MIGRATED -> Complete
                     MigrateViewModel.MigrationState.ERROR -> Error
                     MigrateViewModel.MigrationState.BLOCKED -> Block
                 },
@@ -169,8 +170,8 @@ fun ChatRoomMessageMigrationCard(
         ) {
             Icon(
                 imageVector = when (status) {
-                    MigrateViewModel.MigrationState.READY -> Done // TODO()
-                    MigrateViewModel.MigrationState.MIGRATED -> Done
+                    MigrateViewModel.MigrationState.READY -> Ready
+                    MigrateViewModel.MigrationState.MIGRATED -> Complete
                     MigrateViewModel.MigrationState.ERROR -> Error
                     MigrateViewModel.MigrationState.BLOCKED -> Block
                 },
