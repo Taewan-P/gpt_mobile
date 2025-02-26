@@ -12,7 +12,7 @@ import androidx.compose.ui.unit.dp
 
 val Complete: ImageVector
     get() = Builder(
-        name = "IcComplete",
+        name = "Complete Icon",
         defaultWidth = 24.0.dp,
         defaultHeight = 24.0.dp,
         viewportWidth = 960.0f,

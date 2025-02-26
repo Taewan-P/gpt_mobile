@@ -12,7 +12,7 @@ import androidx.compose.ui.unit.dp
 
 val Ready: ImageVector
     get() = Builder(
-        name = "IcReady",
+        name = "Ready Icon",
         defaultWidth = 24.0.dp,
         defaultHeight = 24.0.dp,
         viewportWidth = 960.0f,

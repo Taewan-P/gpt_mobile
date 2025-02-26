@@ -14,7 +14,7 @@ import androidx.compose.ui.unit.dp
 val Block: ImageVector
     @Composable
     get() = Builder(
-        name = "Block",
+        name = "Blocked Icon",
         defaultWidth = 24.0.dp,
         defaultHeight = 24.0.dp,
         viewportWidth = 960.0f,

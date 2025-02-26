@@ -14,7 +14,7 @@ import androidx.compose.ui.unit.dp
 val Error: ImageVector
     @Composable
     get() = Builder(
-        name = "IcError",
+        name = "Error Icon",
         defaultWidth = 24.0.dp,
         defaultHeight = 24.0.dp,
         viewportWidth = 960.0f,
