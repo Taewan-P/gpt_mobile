@@ -5,7 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
-import dev.chungjungsoo.gptmobile.data.dto.Platform
+import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import javax.inject.Inject
@@ -24,13 +24,14 @@ class HomeViewModel @Inject constructor(
     data class ChatListState(
         val chats: List<ChatRoomV2> = listOf(),
         val isSelectionMode: Boolean = false,
-        val selected: List<Boolean> = listOf()
+        val selectedPlatforms: List<Boolean> = listOf(),
+        val selectedChats: List<Boolean> = listOf()
     )
 
     private val _chatListState = MutableStateFlow(ChatListState())
     val chatListState: StateFlow<ChatListState> = _chatListState.asStateFlow()
 
-    private val _platformState = MutableStateFlow(listOf<Platform>())
+    private val _platformState = MutableStateFlow(listOf<PlatformV2>())
     val platformState = _platformState.asStateFlow()
 
     private val _showSelectModelDialog = MutableStateFlow(false)
@@ -39,19 +40,19 @@ class HomeViewModel @Inject constructor(
     private val _showDeleteWarningDialog = MutableStateFlow(false)
     val showDeleteWarningDialog: StateFlow<Boolean> = _showDeleteWarningDialog.asStateFlow()
 
-    fun updateCheckedState(platform: Platform) {
-        val index = _platformState.value.indexOf(platform)
+    fun updatePlatformCheckedState(idx: Int) {
+        if (idx < 0 || idx >= _chatListState.value.selectedPlatforms.size) return
 
-        if (index >= 0) {
-            _platformState.update {
-                it.mapIndexed { i, p ->
-                    if (index == i) {
-                        p.copy(selected = p.selected.not())
+        _chatListState.update {
+            it.copy(
+                selectedPlatforms = it.selectedPlatforms.mapIndexed { index, b ->
+                    if (index == idx) {
+                        !b
                     } else {
-                        p
+                        b
                     }
                 }
-            }
+            )
         }
     }
 
@@ -71,12 +72,13 @@ class HomeViewModel @Inject constructor(
 
     fun closeSelectModelDialog() {
         _showSelectModelDialog.update { false }
+        _chatListState.update { it.copy(selectedPlatforms = List(it.selectedPlatforms.size) { false }) }
     }
 
     fun deleteSelectedChats() {
         viewModelScope.launch {
             val selectedChats = _chatListState.value.chats.filterIndexed { index, _ ->
-                _chatListState.value.selected[index]
+                _chatListState.value.selectedChats[index]
             }
 
             chatRepository.deleteChatsV2(selectedChats)
@@ -88,7 +90,7 @@ class HomeViewModel @Inject constructor(
     fun disableSelectionMode() {
         _chatListState.update {
             it.copy(
-                selected = List(it.chats.size) { false },
+                selectedChats = List(it.chats.size) { false },
                 isSelectionMode = false
             )
         }
@@ -105,7 +107,7 @@ class HomeViewModel @Inject constructor(
             _chatListState.update {
                 it.copy(
                     chats = chats,
-                    selected = List(chats.size) { false },
+                    selectedChats = List(chats.size) { false },
                     isSelectionMode = false
                 )
             }
@@ -116,8 +118,12 @@ class HomeViewModel @Inject constructor(
 
     fun fetchPlatformStatus() {
         viewModelScope.launch {
-            val platforms = settingRepository.fetchPlatforms()
+            val platforms = settingRepository.fetchPlatformV2s()
             _platformState.update { platforms }
+
+            if (_chatListState.value.selectedPlatforms.size != platforms.size) {
+                _chatListState.update { it.copy(selectedPlatforms = List(platforms.size) { false }) }
+            }
         }
     }
 
@@ -126,7 +132,7 @@ class HomeViewModel @Inject constructor(
 
         _chatListState.update {
             it.copy(
-                selected = it.selected.mapIndexed { index, b ->
+                selectedChats = it.selectedChats.mapIndexed { index, b ->
                     if (index == chatRoomIdx) {
                         !b
                     } else {
@@ -136,7 +142,7 @@ class HomeViewModel @Inject constructor(
             )
         }
 
-        if (_chatListState.value.selected.count { it } == 0) {
+        if (_chatListState.value.selectedChats.count { it } == 0) {
             disableSelectionMode()
         }
     }

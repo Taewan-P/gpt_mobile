@@ -22,7 +22,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.dto.Platform
-import dev.chungjungsoo.gptmobile.presentation.common.PlatformCheckBoxItem
 import dev.chungjungsoo.gptmobile.presentation.common.PrimaryLongButton
 import dev.chungjungsoo.gptmobile.presentation.common.Route
 import dev.chungjungsoo.gptmobile.util.getPlatformDescriptionResources
@@ -100,12 +99,13 @@ fun SelectPlatform(
 
     Column(modifier = modifier) {
         platforms.forEach { platform ->
-            PlatformCheckBoxItem(
-                platform = platform,
-                title = titles[platform.name]!!,
-                description = descriptions[platform.name]!!,
-                onClickEvent = onClickEvent
-            )
+//            TODO(): Handle platform setup
+//            PlatformCheckBoxItem(
+//                platform = platform,
+//                title = titles[platform.name]!!,
+//                description = descriptions[platform.name]!!,
+//                onClickEvent = onClickEvent
+//            )
         }
     }
 }

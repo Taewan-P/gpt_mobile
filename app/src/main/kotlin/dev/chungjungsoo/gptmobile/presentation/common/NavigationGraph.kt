@@ -199,7 +199,7 @@ fun NavGraphBuilder.homeScreenNavigation(navController: NavHostController) {
                 )
             },
             navigateToNewChat = {
-                val enabledPlatformString = it.joinToString(",") { v -> v.name }
+                val enabledPlatformString = it.joinToString(",")
                 navController.navigate(
                     Route.CHAT_ROOM
                         .replace(oldValue = "{chatRoomId}", newValue = "0")

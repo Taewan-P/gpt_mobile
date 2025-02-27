@@ -66,10 +66,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
-import dev.chungjungsoo.gptmobile.data.dto.Platform
-import dev.chungjungsoo.gptmobile.data.model.ApiType
+import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.presentation.common.PlatformCheckBoxItem
-import dev.chungjungsoo.gptmobile.util.getPlatformTitleResources
+import dev.chungjungsoo.gptmobile.util.getPlatformName
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -77,9 +76,8 @@ fun HomeScreen(
     homeViewModel: HomeViewModel = hiltViewModel(),
     settingOnClick: () -> Unit,
     onExistingChatClick: (ChatRoomV2) -> Unit,
-    navigateToNewChat: (enabledPlatforms: List<ApiType>) -> Unit
+    navigateToNewChat: (enabledPlatforms: List<String>) -> Unit
 ) {
-    val platformTitles = getPlatformTitleResources()
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val chatListState by homeViewModel.chatListState.collectAsStateWithLifecycle()
@@ -107,7 +105,7 @@ fun HomeScreen(
         topBar = {
             HomeTopAppBar(
                 chatListState.isSelectionMode,
-                selectedChats = chatListState.selected.count { it },
+                selectedChats = chatListState.selectedChats.count { it },
                 scrollBehavior,
                 actionOnClick = {
                     if (chatListState.isSelectionMode) {
@@ -139,7 +137,7 @@ fun HomeScreen(
         ) {
             item { ChatsTitle(scrollBehavior) }
             itemsIndexed(chatListState.chats, key = { _, it -> it.id }) { idx, chatRoom ->
-                val usingPlatform = chatRoom.enabledPlatform.joinToString(", ")
+                val usingPlatform = chatRoom.enabledPlatform.map { uid -> platformState.getPlatformName(uid) }.joinToString(", ")
                 ListItem(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -162,7 +160,7 @@ fun HomeScreen(
                     leadingContent = {
                         if (chatListState.isSelectionMode) {
                             Checkbox(
-                                checked = chatListState.selected[idx],
+                                checked = chatListState.selectedChats[idx],
                                 onCheckedChange = { homeViewModel.selectChat(idx) }
                             )
                         } else {
@@ -180,12 +178,13 @@ fun HomeScreen(
         if (showSelectModelDialog) {
             SelectPlatformDialog(
                 platformState,
+                selectedPlatforms = chatListState.selectedPlatforms,
                 onDismissRequest = { homeViewModel.closeSelectModelDialog() },
                 onConfirmation = {
-                    homeViewModel.closeSelectModelDialog()
                     navigateToNewChat(it)
+                    homeViewModel.closeSelectModelDialog()
                 },
-                onPlatformSelect = { homeViewModel.updateCheckedState(it) }
+                onPlatformSelect = { homeViewModel.updatePlatformCheckedState(it) }
             )
         }
 
@@ -193,7 +192,7 @@ fun HomeScreen(
             DeleteWarningDialog(
                 onDismissRequest = homeViewModel::closeDeleteWarningDialog,
                 onConfirm = {
-                    val deletedChatRoomCount = chatListState.selected.count { it }
+                    val deletedChatRoomCount = chatListState.selectedChats.count { it }
                     homeViewModel.deleteSelectedChats()
                     Toast.makeText(context, context.getString(R.string.deleted_chats, deletedChatRoomCount), Toast.LENGTH_SHORT).show()
                     homeViewModel.closeDeleteWarningDialog()
@@ -331,12 +330,12 @@ fun NewChatButton(
 
 @Composable
 fun SelectPlatformDialog(
-    platforms: List<Platform>,
+    platforms: List<PlatformV2>,
+    selectedPlatforms: List<Boolean>,
     onDismissRequest: () -> Unit,
-    onConfirmation: (enabledPlatforms: List<ApiType>) -> Unit,
-    onPlatformSelect: (Platform) -> Unit
+    onConfirmation: (enabledPlatforms: List<String>) -> Unit,
+    onPlatformSelect: (idx: Int) -> Unit
 ) {
-    val titles = getPlatformTitleResources()
     val configuration = LocalConfiguration.current
 
     AlertDialog(
@@ -363,13 +362,13 @@ fun SelectPlatformDialog(
             HorizontalDivider()
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 if (platforms.any { it.enabled }) {
-                    platforms.forEach { platform ->
+                    platforms.forEachIndexed { i, platform ->
                         PlatformCheckBoxItem(
-                            platform = platform,
-                            title = titles[platform.name]!!,
+                            title = platform.name,
                             enabled = platform.enabled,
+                            selected = selectedPlatforms[i],
                             description = null,
-                            onClickEvent = { onPlatformSelect(platform) }
+                            onClickEvent = { onPlatformSelect(i) }
                         )
                     }
                 } else {
@@ -380,8 +379,8 @@ fun SelectPlatformDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = platforms.any { it.selected },
-                onClick = { onConfirmation(platforms.filter { it.selected }.map { it.name }) }
+                enabled = selectedPlatforms.any { it },
+                onClick = { onConfirmation(platforms.filterIndexed { i, _ -> selectedPlatforms[i] }.map { it.uid }) }
             ) {
                 Text(stringResource(R.string.confirm))
             }
@@ -407,24 +406,6 @@ fun EnablePlatformWarningText() {
             .padding(16.dp),
         textAlign = TextAlign.Center,
         text = stringResource(R.string.enable_at_leat_one_platform)
-    )
-}
-
-@Preview
-@Composable
-private fun SelectPlatformDialogPreview() {
-    val platforms = listOf(
-        Platform(ApiType.OPENAI, enabled = true),
-        Platform(ApiType.ANTHROPIC, enabled = false),
-        Platform(ApiType.GOOGLE, enabled = false),
-        Platform(ApiType.GROQ, enabled = true),
-        Platform(ApiType.OLLAMA, enabled = true)
-    )
-    SelectPlatformDialog(
-        platforms = platforms,
-        onDismissRequest = {},
-        onConfirmation = {},
-        onPlatformSelect = {}
     )
 }
 
