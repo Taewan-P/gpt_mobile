@@ -26,6 +26,6 @@ jobs:
       - name: Run ktlint
         uses: ScaCap/action-ktlint@master
         with:
-          filter_mode: file
+          filter_mode: nofilter
           github_token: ${{ secrets.github_token }}
           reporter: github-check
