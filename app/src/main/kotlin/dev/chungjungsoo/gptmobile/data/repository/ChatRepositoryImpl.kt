@@ -7,14 +7,6 @@ import com.aallam.openai.api.chat.ChatRole
 import com.aallam.openai.api.model.ModelId
 import com.aallam.openai.client.OpenAI
 import com.aallam.openai.client.OpenAIHost
-import com.google.ai.client.generativeai.GenerativeModel
-import com.google.ai.client.generativeai.type.BlockThreshold
-import com.google.ai.client.generativeai.type.Content
-import com.google.ai.client.generativeai.type.GenerateContentResponse
-import com.google.ai.client.generativeai.type.HarmCategory
-import com.google.ai.client.generativeai.type.SafetySetting
-import com.google.ai.client.generativeai.type.content
-import com.google.ai.client.generativeai.type.generationConfig
 import dev.chungjungsoo.gptmobile.data.ModelConstants
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomDao
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomV2Dao
@@ -51,7 +43,6 @@ class ChatRepositoryImpl @Inject constructor(
 ) : ChatRepository {
 
     private lateinit var openAI: OpenAI
-    private lateinit var google: GenerativeModel
     private lateinit var ollama: OpenAI
     private lateinit var groq: OpenAI
 
@@ -103,34 +94,6 @@ class ChatRepositoryImpl @Inject constructor(
                     else -> ApiState.Success("")
                 }
             }
-            .catch { throwable -> emit(ApiState.Error(throwable.message ?: "Unknown error")) }
-            .onStart { emit(ApiState.Loading) }
-            .onCompletion { emit(ApiState.Done) }
-    }
-
-    override suspend fun completeGoogleChat(question: Message, history: List<Message>): Flow<ApiState> {
-        val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.GOOGLE })
-        val config = generationConfig {
-            temperature = platform.temperature
-            topP = platform.topP
-        }
-        val prompt = platform.systemPrompt ?: ModelConstants.DEFAULT_PROMPT
-        google = GenerativeModel(
-            modelName = platform.model ?: "",
-            apiKey = platform.token ?: "",
-            systemInstruction = if (prompt.isEmpty()) null else content { text(prompt) },
-            generationConfig = config,
-            safetySettings = listOf(
-                SafetySetting(HarmCategory.DANGEROUS_CONTENT, BlockThreshold.ONLY_HIGH),
-                SafetySetting(HarmCategory.SEXUALLY_EXPLICIT, BlockThreshold.NONE)
-            )
-        )
-
-        val inputContent = messageToGoogleMessage(history)
-        val chat = google.startChat(history = inputContent)
-
-        return chat.sendMessageStream(question.content)
-            .map<GenerateContentResponse, ApiState> { response -> ApiState.Success(response.text ?: "") }
             .catch { throwable -> emit(ApiState.Error(throwable.message ?: "Unknown error")) }
             .onStart { emit(ApiState.Loading) }
             .onCompletion { emit(ApiState.Done) }
@@ -325,22 +288,6 @@ class ChatRepositoryImpl @Inject constructor(
                 ApiType.ANTHROPIC -> result.add(
                     InputMessage(role = MessageRole.ASSISTANT, content = listOf(TextContent(text = message.content)))
                 )
-
-                else -> {}
-            }
-        }
-
-        return result
-    }
-
-    private fun messageToGoogleMessage(messages: List<Message>): List<Content> {
-        val result = mutableListOf<Content>()
-
-        messages.forEach { message ->
-            when (message.platformType) {
-                null -> result.add(content(role = "user") { text(message.content) })
-
-                ApiType.GOOGLE -> result.add(content(role = "model") { text(message.content) })
 
                 else -> {}
             }
