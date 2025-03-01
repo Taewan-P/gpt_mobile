@@ -79,7 +79,6 @@ fun OpponentChatBubble(
     canRetry: Boolean,
     isLoading: Boolean,
     isError: Boolean = false,
-    apiType: ApiType,
     text: String,
     onCopyClick: () -> Unit = {},
     onRetryClick: () -> Unit = {}
@@ -103,9 +102,6 @@ fun OpponentChatBubble(
                     isTextSelectable = true,
                     linkifyMask = Linkify.WEB_URLS
                 )
-                if (!isLoading) {
-                    BrandText(apiType)
-                }
             }
 
             if (!isLoading) {
@@ -219,7 +215,6 @@ fun OpponentChatBubblePreview() {
             text = sampleText,
             canRetry = true,
             isLoading = false,
-            apiType = ApiType.OPENAI,
             onCopyClick = {},
             onRetryClick = {}
         )
