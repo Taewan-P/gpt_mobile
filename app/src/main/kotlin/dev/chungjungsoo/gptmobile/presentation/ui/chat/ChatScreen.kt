@@ -2,7 +2,6 @@ package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.util.Log
 import android.widget.Toast
@@ -94,22 +93,10 @@ fun ChatScreen(
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
     val focusManager = LocalFocusManager.current
     val clipboardManager = LocalClipboardManager.current
-    val packageManager = LocalContext.current.packageManager
     val systemChatMargin = 32.dp
     val maximumChatBubbleWidth = screenWidth - 48.dp - systemChatMargin
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
-
-    val aiCorePackageInfo = try {
-        packageManager.getPackageInfo("com.google.android.aicore", 0)
-    } catch (_: PackageManager.NameNotFoundException) {
-        null
-    }
-    val privateComputePackageInfo = try {
-        packageManager.getPackageInfo("com.google.android.as.oss", 0)
-    } catch (_: PackageManager.NameNotFoundException) {
-        null
-    }
 
     val chatRoom by chatViewModel.chatRoom.collectAsStateWithLifecycle()
     val isChatTitleDialogOpen by chatViewModel.isChatTitleDialogOpen.collectAsStateWithLifecycle()
@@ -125,19 +112,16 @@ fun ChatScreen(
     val googleLoadingState by chatViewModel.googleLoadingState.collectAsStateWithLifecycle()
     val groqLoadingState by chatViewModel.groqLoadingState.collectAsStateWithLifecycle()
     val ollamaLoadingState by chatViewModel.ollamaLoadingState.collectAsStateWithLifecycle()
-    val geminiNanoLoadingState by chatViewModel.geminiNanoLoadingState.collectAsStateWithLifecycle()
     val userMessage by chatViewModel.userMessage.collectAsStateWithLifecycle()
     val openAIMessage by chatViewModel.openAIMessage.collectAsStateWithLifecycle()
     val anthropicMessage by chatViewModel.anthropicMessage.collectAsStateWithLifecycle()
     val googleMessage by chatViewModel.googleMessage.collectAsStateWithLifecycle()
     val groqMessage by chatViewModel.groqMessage.collectAsStateWithLifecycle()
     val ollamaMessage by chatViewModel.ollamaMessage.collectAsStateWithLifecycle()
-    val geminiNano by chatViewModel.geminiNanoMessage.collectAsStateWithLifecycle()
     val canUseChat = (chatViewModel.enabledPlatformsInChat.toSet() - appEnabledPlatforms.toSet()).isEmpty()
     val groupedMessages = remember(messages) { groupMessages(messages) }
     val latestMessageIndex = groupedMessages.keys.maxOrNull() ?: 0
     val chatBubbleScrollStates = rememberSaveable(saver = multiScrollStateSaver) { DefaultHashMap<Int, ScrollState> { ScrollState(0) } }
-    val canEnableAICoreMode = rememberSaveable { checkAICoreAvailability(aiCorePackageInfo, privateComputePackageInfo) }
     val context = LocalContext.current
 
     val scope = rememberCoroutineScope()
@@ -150,8 +134,6 @@ fun ChatScreen(
         delay(300)
         listState.animateScrollToItem(groupedMessages.keys.size)
     }
-
-    Log.d("AIPackage", "AICore: ${aiCorePackageInfo?.versionName ?: "Not installed"}, Private Compute Services: ${privateComputePackageInfo?.versionName ?: "Not installed"}")
 
     Scaffold(
         modifier = Modifier
@@ -310,12 +292,7 @@ fun ChatScreen(
         if (isChatTitleDialogOpen) {
             ChatTitleDialog(
                 initialTitle = chatRoom.title,
-                aiCoreModeEnabled = false,
-                aiGeneratedResult = geminiNano.content,
-                isAICoreLoading = geminiNanoLoadingState == ChatViewModel.LoadingState.Loading,
                 onDefaultTitleMode = chatViewModel::generateDefaultChatTitle,
-                onAICoreTitleMode = chatViewModel::generateAIChatTitle,
-                onRetryRequest = chatViewModel::generateAIChatTitle,
                 onConfirmRequest = { title -> chatViewModel.updateChatTitle(title) },
                 onDismissRequest = chatViewModel::closeChatTitleDialog
             )
@@ -332,44 +309,6 @@ fun ChatScreen(
             )
         }
     }
-}
-
-private fun checkAICoreAvailability(aiCore: PackageInfo?, privateComputeServices: PackageInfo?): Boolean {
-    aiCore ?: return false
-    privateComputeServices ?: return false
-    val privateComputeMinVersion = "1.0.release.658389993"
-
-    val aiCoreCondition = aiCore.versionName?.contains("thirdpartyeap") == true
-    val privateComputeCondition = (privateComputeServices.versionName ?: "").padEnd(privateComputeMinVersion.length, '0') > privateComputeMinVersion
-
-    return aiCoreCondition && privateComputeCondition
-}
-
-private fun groupMessages(messages: List<Message>): HashMap<Int, MutableList<Message>> {
-    val classifiedMessages = hashMapOf<Int, MutableList<Message>>()
-    var counter = 0
-
-    messages.sortedBy { it.createdAt }.forEach { message ->
-        if (message.platformType == null) {
-            if (classifiedMessages.containsKey(counter) || counter % 2 == 1) {
-                counter++
-            }
-
-            classifiedMessages[counter] = mutableListOf(message)
-            counter++
-        } else {
-            if (counter % 2 == 0) {
-                counter++
-            }
-
-            if (classifiedMessages.containsKey(counter)) {
-                classifiedMessages[counter]?.add(message)
-            } else {
-                classifiedMessages[counter] = mutableListOf(message)
-            }
-        }
-    }
-    return classifiedMessages
 }
 
 @Composable
