@@ -80,7 +80,6 @@ import dev.chungjungsoo.gptmobile.util.DefaultHashMap
 import dev.chungjungsoo.gptmobile.util.multiScrollStateSaver
 import java.io.File
 import kotlin.math.max
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -117,7 +116,6 @@ fun ChatScreen(
     }
 
     LaunchedEffect(isLoaded) {
-        delay(300)
         listState.animateScrollToItem(max(groupedMessages.userMessages.size * 2, 0))
     }
 
