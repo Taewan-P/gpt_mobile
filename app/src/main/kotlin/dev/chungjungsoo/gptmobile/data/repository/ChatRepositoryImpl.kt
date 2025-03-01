@@ -235,51 +235,13 @@ class ChatRepositoryImpl @Inject constructor(
         }
     }
 
-    override fun generateDefaultChatTitle(messages: List<Message>): String? = messages.sortedBy { it.createdAt }.firstOrNull { it.platformType == null }?.content?.replace('\n', ' ')?.take(50)
+    override fun generateDefaultChatTitle(messages: List<MessageV2>): String? = messages.sortedBy { it.createdAt }.firstOrNull { it.platformType == null }?.content?.replace('\n', ' ')?.take(50)
 
-    override suspend fun updateChatTitle(chatRoom: ChatRoom, title: String) {
-        chatRoomDao.editChatRoom(chatRoom.copy(title = title.replace('\n', ' ').take(50)))
-    }
-
-    override suspend fun updateChatTitleV2(chatRoom: ChatRoomV2, title: String) {
+    override suspend fun updateChatTitle(chatRoom: ChatRoomV2, title: String) {
         chatRoomV2Dao.editChatRoom(chatRoom.copy(title = title.replace('\n', ' ').take(50)))
     }
 
-    override suspend fun saveChat(chatRoom: ChatRoom, messages: List<Message>): ChatRoom {
-        if (chatRoom.id == 0) {
-            // New Chat
-            val chatId = chatRoomDao.addChatRoom(chatRoom)
-            val updatedMessages = messages.map { it.copy(chatId = chatId.toInt()) }
-            messageDao.addMessages(*updatedMessages.toTypedArray())
-
-            val savedChatRoom = chatRoom.copy(id = chatId.toInt())
-            updateChatTitle(savedChatRoom, updatedMessages[0].content)
-
-            return savedChatRoom.copy(title = updatedMessages[0].content.replace('\n', ' ').take(50))
-        }
-
-        val savedMessages = fetchMessages(chatRoom.id)
-        val updatedMessages = messages.map { it.copy(chatId = chatRoom.id) }
-
-        val shouldBeDeleted = savedMessages.filter { m ->
-            updatedMessages.firstOrNull { it.id == m.id } == null
-        }
-        val shouldBeUpdated = updatedMessages.filter { m ->
-            savedMessages.firstOrNull { it.id == m.id && it != m } != null
-        }
-        val shouldBeAdded = updatedMessages.filter { m ->
-            savedMessages.firstOrNull { it.id == m.id } == null
-        }
-
-        chatRoomDao.editChatRoom(chatRoom)
-        messageDao.deleteMessages(*shouldBeDeleted.toTypedArray())
-        messageDao.editMessages(*shouldBeUpdated.toTypedArray())
-        messageDao.addMessages(*shouldBeAdded.toTypedArray())
-
-        return chatRoom
-    }
-
-    override suspend fun saveChatV2(chatRoom: ChatRoomV2, messages: List<MessageV2>): ChatRoomV2 {
+    override suspend fun saveChat(chatRoom: ChatRoomV2, messages: List<MessageV2>): ChatRoomV2 {
         if (chatRoom.id == 0) {
             // New Chat
             val chatId = chatRoomV2Dao.addChatRoom(chatRoom)
@@ -287,7 +249,7 @@ class ChatRepositoryImpl @Inject constructor(
             messageV2Dao.addMessages(*updatedMessages.toTypedArray())
 
             val savedChatRoom = chatRoom.copy(id = chatId.toInt())
-            updateChatTitleV2(savedChatRoom, updatedMessages[0].content)
+            updateChatTitle(savedChatRoom, updatedMessages[0].content)
 
             return savedChatRoom.copy(title = updatedMessages[0].content.replace('\n', ' ').take(50))
         }
