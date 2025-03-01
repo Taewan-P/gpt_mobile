@@ -14,8 +14,26 @@ name: "CodeQL Advanced"
 on:
   push:
     branches: [ "main" ]
+    paths-ignore:
+      - ".gitignore"
+      - "**.md"
+      - "LICENSE"
+      - ".idea/**"
+      - ".github/**"
+      - ".editorconfig"
+      - "images/**"
+      - "metadata/**"
   pull_request:
     branches: [ "main" ]
+    paths-ignore:
+      - ".gitignore"
+      - "**.md"
+      - "LICENSE"
+      - ".idea/**"
+      - ".github/**"
+      - ".editorconfig"
+      - "images/**"
+      - "metadata/**"
   schedule:
     - cron: '0 0 * * 1'
 
