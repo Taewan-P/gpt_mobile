@@ -41,6 +41,9 @@ data class PlatformV2(
     @ColumnInfo(name = "stream")
     val stream: Boolean = true,
 
+    @ColumnInfo(name = "reasoning")
+    val reasoning: Boolean = false,
+
     @ColumnInfo(name = "timeout")
     val timeout: Int = 30
 )
