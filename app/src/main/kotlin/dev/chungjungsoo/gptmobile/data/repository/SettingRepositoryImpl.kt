@@ -79,7 +79,8 @@ class SettingRepositoryImpl @Inject constructor(
                     temperature = platform.temperature,
                     topP = platform.topP,
                     systemPrompt = platform.systemPrompt,
-                    stream = true
+                    stream = true,
+                    reasoning = false
                 )
             )
         }
