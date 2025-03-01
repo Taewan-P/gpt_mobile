@@ -79,21 +79,21 @@ fun OpponentChatBubble(
     onRetryClick: () -> Unit = {}
 ) {
     val cardColor = CardColors(
-        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-        disabledContentColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.38f),
-        disabledContainerColor = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.38f)
+        containerColor = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onBackground,
+        disabledContentColor = MaterialTheme.colorScheme.background.copy(alpha = 0.38f),
+        disabledContainerColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.38f)
     )
 
     Column(modifier = modifier) {
         Column(horizontalAlignment = Alignment.End) {
             Card(
-                shape = RoundedCornerShape(32.dp),
+                shape = RoundedCornerShape(0.dp),
                 colors = cardColor
             ) {
                 MarkdownText(
                     modifier = Modifier.padding(24.dp),
-                    markdown = text.trimIndent() + if (isLoading) "▊" else "",
+                    markdown = text.trimIndent() + if (isLoading) "●" else "",
                     isTextSelectable = true,
                     linkifyMask = Linkify.WEB_URLS
                 )

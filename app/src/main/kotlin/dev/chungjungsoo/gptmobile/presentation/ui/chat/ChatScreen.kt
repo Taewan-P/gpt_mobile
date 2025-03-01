@@ -92,7 +92,7 @@ fun ChatScreen(
     val focusManager = LocalFocusManager.current
     val clipboardManager = LocalClipboardManager.current
     val systemChatMargin = 32.dp
-    val maximumChatBubbleWidth = screenWidth - 48.dp - systemChatMargin
+    val maximumChatBubbleWidth = screenWidth - systemChatMargin
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
