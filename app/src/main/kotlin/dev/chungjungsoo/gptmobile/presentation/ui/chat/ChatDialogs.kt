@@ -100,9 +100,9 @@ fun ChatTitleDialog(
 
 @Composable
 fun ChatQuestionEditDialog(
-    initialQuestion: Message,
+    initialQuestion: MessageV2,
     onDismissRequest: () -> Unit,
-    onConfirmRequest: (q: Message) -> Unit
+    onConfirmRequest: (MessageV2) -> Unit
 ) {
     val configuration = LocalConfiguration.current
     var question by remember { mutableStateOf(initialQuestion.content) }

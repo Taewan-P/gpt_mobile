@@ -76,11 +76,10 @@ import androidx.core.content.FileProvider.getUriForFile
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
-import dev.chungjungsoo.gptmobile.data.database.entity.Message
-import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.util.DefaultHashMap
 import dev.chungjungsoo.gptmobile.util.multiScrollStateSaver
 import java.io.File
+import kotlin.math.max
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -99,40 +98,27 @@ fun ChatScreen(
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
     val chatRoom by chatViewModel.chatRoom.collectAsStateWithLifecycle()
+    val groupedMessages by chatViewModel.groupedMessages.collectAsStateWithLifecycle()
     val isChatTitleDialogOpen by chatViewModel.isChatTitleDialogOpen.collectAsStateWithLifecycle()
     val isEditQuestionDialogOpen by chatViewModel.isEditQuestionDialogOpen.collectAsStateWithLifecycle()
     val isIdle by chatViewModel.isIdle.collectAsStateWithLifecycle()
     val isLoaded by chatViewModel.isLoaded.collectAsStateWithLifecycle()
-    val messages by chatViewModel.messages.collectAsStateWithLifecycle()
     val question by chatViewModel.question.collectAsStateWithLifecycle()
     val appEnabledPlatforms by chatViewModel.enabledPlatformsInApp.collectAsStateWithLifecycle()
     val editedQuestion by chatViewModel.editedQuestion.collectAsStateWithLifecycle()
-    val openaiLoadingState by chatViewModel.openaiLoadingState.collectAsStateWithLifecycle()
-    val anthropicLoadingState by chatViewModel.anthropicLoadingState.collectAsStateWithLifecycle()
-    val googleLoadingState by chatViewModel.googleLoadingState.collectAsStateWithLifecycle()
-    val groqLoadingState by chatViewModel.groqLoadingState.collectAsStateWithLifecycle()
-    val ollamaLoadingState by chatViewModel.ollamaLoadingState.collectAsStateWithLifecycle()
-    val userMessage by chatViewModel.userMessage.collectAsStateWithLifecycle()
-    val openAIMessage by chatViewModel.openAIMessage.collectAsStateWithLifecycle()
-    val anthropicMessage by chatViewModel.anthropicMessage.collectAsStateWithLifecycle()
-    val googleMessage by chatViewModel.googleMessage.collectAsStateWithLifecycle()
-    val groqMessage by chatViewModel.groqMessage.collectAsStateWithLifecycle()
-    val ollamaMessage by chatViewModel.ollamaMessage.collectAsStateWithLifecycle()
-    val canUseChat = (chatViewModel.enabledPlatformsInChat.toSet() - appEnabledPlatforms.toSet()).isEmpty()
-    val groupedMessages = remember(messages) { groupMessages(messages) }
-    val latestMessageIndex = groupedMessages.keys.maxOrNull() ?: 0
+    val canUseChat = (chatViewModel.enabledPlatformsInChat.toSet() - appEnabledPlatforms.map { it.uid }.toSet()).isEmpty()
     val chatBubbleScrollStates = rememberSaveable(saver = multiScrollStateSaver) { DefaultHashMap<Int, ScrollState> { ScrollState(0) } }
     val context = LocalContext.current
 
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(isIdle) {
-        listState.animateScrollToItem(groupedMessages.keys.size)
+        listState.animateScrollToItem(max(groupedMessages.userMessages.size * 2, 0))
     }
 
     LaunchedEffect(isLoaded) {
         delay(300)
-        listState.animateScrollToItem(groupedMessages.keys.size)
+        listState.animateScrollToItem(max(groupedMessages.userMessages.size * 2, 0))
     }
 
     Scaffold(
@@ -168,68 +154,18 @@ fun ChatScreen(
             if (listState.canScrollForward) {
                 ScrollToBottomButton {
                     scope.launch {
-                        listState.animateScrollToItem(groupedMessages.keys.size)
+                        listState.animateScrollToItem(max(groupedMessages.userMessages.size * 2, 0))
                     }
                 }
             }
         },
         floatingActionButtonPosition = FabPosition.Center
     ) { innerPadding ->
-        groupedMessages.forEach { (i, k) -> Log.d("grouped", "idx: $i, data: $k") }
         LazyColumn(
             modifier = Modifier.padding(innerPadding),
             state = listState
         ) {
-            groupedMessages.keys.sorted().forEach { key ->
-                if (key % 2 == 0) {
-                    // User
-                    item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 12.dp)
-                        ) {
-                            Spacer(modifier = Modifier.weight(1f))
-                            UserChatBubble(
-                                modifier = Modifier.widthIn(max = maximumChatBubbleWidth),
-                                text = groupedMessages[key]!![0].content,
-                                isLoading = !isIdle,
-                                onCopyClick = { clipboardManager.setText(AnnotatedString(groupedMessages[key]!![0].content.trim())) },
-                                onEditClick = { chatViewModel.openEditQuestionDialog(groupedMessages[key]!![0]) }
-                            )
-                        }
-                    }
-                } else {
-                    // Assistant
-                    item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(chatBubbleScrollStates[(key - 1) / 2])
-                        ) {
-                            Spacer(modifier = Modifier.width(8.dp))
-                            groupedMessages[key]!!.sortedBy { it.platformType }.forEach { m ->
-                                m.platformType?.let { apiType ->
-                                    OpponentChatBubble(
-                                        modifier = Modifier
-                                            .padding(horizontal = 8.dp, vertical = 12.dp)
-                                            .widthIn(max = maximumChatBubbleWidth),
-                                        canRetry = canUseChat && isIdle && key >= latestMessageIndex,
-                                        isLoading = false,
-                                        apiType = apiType,
-                                        text = m.content,
-                                        onCopyClick = { clipboardManager.setText(AnnotatedString(m.content.trim())) },
-                                        onRetryClick = { chatViewModel.retryQuestion(m) }
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(systemChatMargin))
-                        }
-                    }
-                }
-            }
-
-            if (!isIdle) {
+            groupedMessages.userMessages.forEachIndexed { i, message ->
                 item {
                     Row(
                         modifier = Modifier
@@ -239,48 +175,32 @@ fun ChatScreen(
                         Spacer(modifier = Modifier.weight(1f))
                         UserChatBubble(
                             modifier = Modifier.widthIn(max = maximumChatBubbleWidth),
-                            text = userMessage.content,
-                            isLoading = true,
-                            onCopyClick = { clipboardManager.setText(AnnotatedString(userMessage.content.trim())) },
-                            onEditClick = { chatViewModel.openEditQuestionDialog(userMessage) }
+                            text = message.content,
+                            isLoading = !isIdle,
+                            onCopyClick = { clipboardManager.setText(AnnotatedString(message.content)) },
+                            onEditClick = { chatViewModel.openEditQuestionDialog(message) }
                         )
                     }
                 }
-
                 item {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .horizontalScroll(chatBubbleScrollStates[(latestMessageIndex + 1) / 2])
+                            .horizontalScroll(chatBubbleScrollStates[i])
                     ) {
                         Spacer(modifier = Modifier.width(8.dp))
-                        chatViewModel.enabledPlatformsInChat.sorted().forEach { apiType ->
-                            val message = when (apiType) {
-                                ApiType.OPENAI -> openAIMessage
-                                ApiType.ANTHROPIC -> anthropicMessage
-                                ApiType.GOOGLE -> googleMessage
-                                ApiType.GROQ -> groqMessage
-                                ApiType.OLLAMA -> ollamaMessage
-                            }
-
-                            val loadingState = when (apiType) {
-                                ApiType.OPENAI -> openaiLoadingState
-                                ApiType.ANTHROPIC -> anthropicLoadingState
-                                ApiType.GOOGLE -> googleLoadingState
-                                ApiType.GROQ -> groqLoadingState
-                                ApiType.OLLAMA -> ollamaLoadingState
-                            }
-
+                        groupedMessages.assistantMessages[i].forEach { m ->
                             OpponentChatBubble(
                                 modifier = Modifier
                                     .padding(horizontal = 8.dp, vertical = 12.dp)
                                     .widthIn(max = maximumChatBubbleWidth),
-                                canRetry = canUseChat,
-                                isLoading = loadingState == ChatViewModel.LoadingState.Loading,
-                                apiType = apiType,
-                                text = message.content,
-                                onCopyClick = { clipboardManager.setText(AnnotatedString(message.content.trim())) },
-                                onRetryClick = { chatViewModel.retryQuestion(message) }
+                                canRetry = canUseChat && isIdle,
+                                isLoading = false,
+                                text = m.content,
+                                onCopyClick = { clipboardManager.setText(AnnotatedString(m.content)) },
+                                onRetryClick = {
+                                    // TODO()
+                                }
                             )
                         }
                         Spacer(modifier = Modifier.width(systemChatMargin))
@@ -303,7 +223,8 @@ fun ChatScreen(
                 initialQuestion = editedQuestion,
                 onDismissRequest = chatViewModel::closeEditQuestionDialog,
                 onConfirmRequest = { question ->
-                    chatViewModel.editQuestion(question)
+                    // TODO()
+                    // chatViewModel.editQuestion(question)
                     chatViewModel.closeEditQuestionDialog()
                 }
             )
