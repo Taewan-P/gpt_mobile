@@ -67,4 +67,8 @@
     <string name="google_api_key">Kunci API Google</string>
     <string name="token_input_description">Masukkan kunci API platform yang Anda pilih. Aplikasi ini tidak pernah mengumpulkan data ini. Kunci dan data obrolan ini hanya akan disimpan di perangkat Anda, dan tidak akan dikirim ke server lain selain titik akhir API.</string>
     <string name="select_openai_model_description">Pilih model obrolan openAI. Bahkan jika model yang dipilih bersifat multimodal, aplikasi saat ini hanya mendukung input teks saja. Dapat didukung di masa depan.</string>
+    <string name="groq_setting">Pengaturan Groq</string>
+    <string name="groq_description">Inferensi AI cepat untuk model yang tersedia secara terbuka.</string>
+    <string name="groq_api_key">Kunci API GROQ</string>
+    <string name="options">Opsi</string>
 </resources>
