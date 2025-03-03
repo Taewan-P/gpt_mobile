@@ -13,14 +13,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardColors
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,9 +31,10 @@ import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.halilibo.richtext.commonmark.CommonmarkAstNodeParser
+import com.halilibo.richtext.markdown.BasicMarkdown
+import com.halilibo.richtext.ui.material3.RichText
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
-import dev.jeziellago.compose.markdowntext.MarkdownText
 
 @Composable
 fun UserChatBubble(
@@ -50,6 +50,8 @@ fun UserChatBubble(
         disabledContentColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.38f),
         disabledContainerColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.38f)
     )
+    val parser = remember { CommonmarkAstNodeParser() }
+    val astNode = remember(text) { parser.parse(text.trimIndent()) }
 
     Column(horizontalAlignment = Alignment.End) {
         Card(
@@ -57,15 +59,16 @@ fun UserChatBubble(
             shape = RoundedCornerShape(32.dp),
             colors = cardColor
         ) {
-                linkifyMask = Linkify.WEB_URLS
-            )
+            RichText(modifier = Modifier.padding(16.dp)) {
+                BasicMarkdown(astNode = astNode)
+            }
         }
         Row {
             if (!isLoading) {
-                EditTextChip(onEditClick)
+                EditIcon(onEditClick)
                 Spacer(modifier = Modifier.width(8.dp))
             }
-            CopyTextChip(onCopyClick)
+            CopyTextIcon(onCopyClick)
         }
     }
 }
@@ -78,6 +81,7 @@ fun OpponentChatBubble(
     isError: Boolean = false,
     text: String,
     onCopyClick: () -> Unit = {},
+    onSelectClick: () -> Unit = {},
     onRetryClick: () -> Unit = {}
 ) {
     val cardColor = CardColors(
@@ -86,27 +90,33 @@ fun OpponentChatBubble(
         disabledContentColor = MaterialTheme.colorScheme.background.copy(alpha = 0.38f),
         disabledContainerColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.38f)
     )
+    val parser = remember { CommonmarkAstNodeParser() }
+    val astNode = remember(text) { parser.parse(text.trimIndent() + if (isLoading) "●" else "") }
 
     Column(modifier = modifier) {
         GPTMobileIcon()
-        Column(horizontalAlignment = Alignment.End) {
         Column {
             Card(
                 shape = RoundedCornerShape(0.dp),
                 colors = cardColor
             ) {
-                    linkifyMask = Linkify.WEB_URLS
-                )
+                RichText(modifier = Modifier.padding(16.dp)) {
+                    BasicMarkdown(astNode = astNode)
+                }
             }
 
             if (!isLoading) {
-                Row {
+                Row(
+                    modifier = Modifier.padding(start = 16.dp)
+                ) {
                     if (!isError) {
-                        CopyTextChip(onCopyClick)
+                        CopyTextIcon(onCopyClick)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        SelectTextIcon(onSelectClick)
                     }
                     if (canRetry) {
                         Spacer(modifier = Modifier.width(8.dp))
-                        RetryChip(onRetryClick)
+                        RetryIcon(onRetryClick)
                     }
                 }
             }
@@ -133,48 +143,43 @@ private fun GPTMobileIcon() {
 }
 
 @Composable
-private fun EditTextChip(onEditClick: () -> Unit) {
-    AssistChip(
-        onClick = onEditClick,
-        label = { Text(stringResource(R.string.edit)) },
-        leadingIcon = {
-            Icon(
-                Icons.Outlined.Edit,
-                contentDescription = stringResource(R.string.edit),
-                modifier = Modifier.size(AssistChipDefaults.IconSize)
-            )
-        }
-    )
+private fun EditIcon(onEditClick: () -> Unit) {
+    IconButton(onClick = onEditClick) {
+        Icon(
+            Icons.Outlined.Edit,
+            contentDescription = stringResource(R.string.edit)
+        )
+    }
 }
 
 @Composable
-private fun CopyTextChip(onCopyClick: () -> Unit) {
-    AssistChip(
-        onClick = onCopyClick,
-        label = { Text(stringResource(R.string.copy_text)) },
-        leadingIcon = {
-            Icon(
-                imageVector = ImageVector.vectorResource(id = R.drawable.ic_copy),
-                contentDescription = stringResource(R.string.copy_text),
-                modifier = Modifier.size(AssistChipDefaults.IconSize)
-            )
-        }
-    )
+private fun CopyTextIcon(onCopyClick: () -> Unit) {
+    IconButton(onClick = onCopyClick) {
+        Icon(
+            imageVector = ImageVector.vectorResource(id = R.drawable.ic_copy),
+            contentDescription = stringResource(R.string.copy_text)
+        )
+    }
 }
 
 @Composable
-private fun RetryChip(onRetryClick: () -> Unit) {
-    AssistChip(
-        onClick = onRetryClick,
-        label = { Text(stringResource(R.string.retry)) },
-        leadingIcon = {
-            Icon(
-                Icons.Rounded.Refresh,
-                contentDescription = stringResource(R.string.retry),
-                modifier = Modifier.size(AssistChipDefaults.IconSize)
-            )
-        }
-    )
+fun SelectTextIcon(onSelectClick: () -> Unit) {
+    IconButton(onClick = onSelectClick) {
+        Icon(
+            imageVector = ImageVector.vectorResource(id = R.drawable.ic_select),
+            contentDescription = stringResource(R.string.select_text)
+        )
+    }
+}
+
+@Composable
+private fun RetryIcon(onRetryClick: () -> Unit) {
+    IconButton(onClick = onRetryClick) {
+        Icon(
+            Icons.Rounded.Refresh,
+            contentDescription = stringResource(R.string.retry)
+        )
+    }
 }
 
 @Preview

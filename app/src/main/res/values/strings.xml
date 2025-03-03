@@ -201,4 +201,5 @@
     <string name="migrating">Migrating</string>
     <string name="migrated">Migrated</string>
     <string name="error">Error</string>
+    <string name="select_text">Select Text</string>
 </resources>
