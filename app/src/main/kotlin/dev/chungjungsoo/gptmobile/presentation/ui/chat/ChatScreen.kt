@@ -92,7 +92,8 @@ fun ChatScreen(
     val focusManager = LocalFocusManager.current
     val clipboardManager = LocalClipboardManager.current
     val systemChatMargin = 32.dp
-    val maximumChatBubbleWidth = screenWidth - systemChatMargin
+    val maximumUserChatBubbleWidth = (screenWidth - systemChatMargin) * 0.8F
+    val maximumOpponentChatBubbleWidth = screenWidth - systemChatMargin
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
@@ -172,7 +173,7 @@ fun ChatScreen(
                     ) {
                         Spacer(modifier = Modifier.weight(1f))
                         UserChatBubble(
-                            modifier = Modifier.widthIn(max = maximumChatBubbleWidth),
+                            modifier = Modifier.widthIn(max = maximumUserChatBubbleWidth),
                             text = message.content,
                             isLoading = !isIdle,
                             onCopyClick = { clipboardManager.setText(AnnotatedString(message.content)) },
@@ -191,11 +192,14 @@ fun ChatScreen(
                             OpponentChatBubble(
                                 modifier = Modifier
                                     .padding(horizontal = 8.dp, vertical = 12.dp)
-                                    .widthIn(max = maximumChatBubbleWidth),
+                                    .widthIn(max = maximumOpponentChatBubbleWidth),
                                 canRetry = canUseChat && isIdle,
                                 isLoading = false,
                                 text = m.content,
                                 onCopyClick = { clipboardManager.setText(AnnotatedString(m.content)) },
+                                onSelectClick = {
+                                    // TODO()
+                                },
                                 onRetryClick = {
                                     // TODO()
                                 }
