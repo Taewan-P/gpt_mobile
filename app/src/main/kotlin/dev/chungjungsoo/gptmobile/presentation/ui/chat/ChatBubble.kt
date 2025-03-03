@@ -1,6 +1,5 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
-import android.text.util.Linkify
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -32,6 +31,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.halilibo.richtext.commonmark.CommonmarkAstNodeParser
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 import dev.jeziellago.compose.markdowntext.MarkdownText
@@ -57,10 +57,6 @@ fun UserChatBubble(
             shape = RoundedCornerShape(32.dp),
             colors = cardColor
         ) {
-            MarkdownText(
-                modifier = Modifier.padding(16.dp),
-                markdown = text,
-                isTextSelectable = true,
                 linkifyMask = Linkify.WEB_URLS
             )
         }
@@ -94,14 +90,11 @@ fun OpponentChatBubble(
     Column(modifier = modifier) {
         GPTMobileIcon()
         Column(horizontalAlignment = Alignment.End) {
+        Column {
             Card(
                 shape = RoundedCornerShape(0.dp),
                 colors = cardColor
             ) {
-                MarkdownText(
-                    modifier = Modifier.padding(24.dp),
-                    markdown = text.trimIndent() + if (isLoading) "●" else "",
-                    isTextSelectable = true,
                     linkifyMask = Linkify.WEB_URLS
                 )
             }

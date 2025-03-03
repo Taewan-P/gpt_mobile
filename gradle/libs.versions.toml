@@ -15,7 +15,7 @@ ksp = "2.0.21-1.0.28" # Also change with Kotlin version
 ktor = "3.0.3"
 androidxHilt = "1.2.0"
 navigation = "2.8.8"
-markdown = "0.5.4"
+markdown = "1.0.0-alpha02"
 openai = "4.0.1"
 serialization = "1.7.3" # Should not update due to kotlin version
 splashscreen = "1.0.1"
@@ -41,7 +41,7 @@ androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit
 androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
 auto-license-core = { group = "com.mikepenz", name = "aboutlibraries-core", version.ref = "autoLicense" }
 auto-license-ui = { group = "com.mikepenz", name = "aboutlibraries-compose-m3", version.ref = "autoLicense" }
-compose-markdown = { group = "com.github.jeziellago", name = "compose-markdown", version.ref = "markdown" }
+compose-markdown = { group = "com.halilibo.compose-richtext", name = "richtext-commonmark", version.ref = "markdown" }
 hilt = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hilt" }
 hilt-navigation = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "androidxHilt" }
@@ -53,6 +53,7 @@ ktor-logging = { group = "io.ktor", name = "ktor-client-logging-jvm", version.re
 ktor-serialization = { group = "io.ktor", name = "ktor-serialization-kotlinx-json", version.ref = "ktor" }
 openai = { group = "com.aallam.openai", name = "openai-client", version.ref = "openai" }
 splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splashscreen" }
+richtext = { group = "com.halilibo.compose-richtext", name = "richtext-ui-material3", version.ref = "markdown"}
 room = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
