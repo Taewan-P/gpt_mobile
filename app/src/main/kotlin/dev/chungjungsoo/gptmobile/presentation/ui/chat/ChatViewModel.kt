@@ -34,6 +34,11 @@ class ChatViewModel @Inject constructor(
         val assistantMessages: List<List<MessageV2>> = listOf()
     )
 
+    data class ChatStates(
+        val indexStates: List<Int> = listOf(),
+        val loadingStates: List<LoadingState> = listOf()
+    )
+
     private val chatRoomId: Int = checkNotNull(savedStateHandle["chatRoomId"])
     private val enabledPlatformString: String = checkNotNull(savedStateHandle["enabledPlatforms"])
     val enabledPlatformsInChat = enabledPlatformString.split(',')
@@ -62,6 +67,10 @@ class ChatViewModel @Inject constructor(
     private val _groupedMessages = MutableStateFlow(GroupedMessages())
     val groupedMessages = _groupedMessages.asStateFlow()
 
+    // Each chat states for assistant chat messages
+    private val _chatStates = MutableStateFlow(ChatStates())
+    val chatStates = _chatStates.asStateFlow()
+
     // Used for passing user question to Edit User Message Dialog
     private val _editedQuestion = MutableStateFlow(MessageV2(chatId = chatRoomId, content = "", platformType = null))
     val editedQuestion = _editedQuestion.asStateFlow()
@@ -87,9 +96,12 @@ class ChatViewModel @Inject constructor(
         _groupedMessages.update {
             it.copy(
                 userMessages = it.userMessages + listOf(userMessage),
-                assistantMessages = it.assistantMessages + listOf(listOf())
+                assistantMessages = it.assistantMessages + listOf(
+                    enabledPlatformsInChat.map { MessageV2(chatId = chatRoomId, content = "", platformType = it) }
+                )
             )
         }
+        _chatStates.update { it.copy(indexStates = it.indexStates + listOf(0)) }
     }
 
     fun askQuestion() {
@@ -171,6 +183,12 @@ class ChatViewModel @Inject constructor(
         // If the room isn't new
         if (chatRoomId != 0) {
             _groupedMessages.update { fetchGroupedMessages(chatRoomId) }
+            _chatStates.update {
+                it.copy(
+                    indexStates = List(_groupedMessages.value.assistantMessages.size) { 0 },
+                    loadingStates = List(enabledPlatformsInChat.size) { LoadingState.Idle }
+                )
+            }
             _isLoaded.update { true } // Finish fetching
             return
         }
@@ -219,7 +237,7 @@ class ChatViewModel @Inject constructor(
                     chatRepository.fetchChatListV2().first { it.id == chatRoomId }
                 }
             }
-            Log.d("ViewModel", "chatroom: $chatRoom")
+            Log.d("ViewModel", "chatroom: ${chatRoom.value}")
         }
     }
 

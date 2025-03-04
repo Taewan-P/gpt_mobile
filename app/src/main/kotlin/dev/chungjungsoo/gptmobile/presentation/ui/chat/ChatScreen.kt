@@ -5,12 +5,11 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.util.Log
 import android.widget.Toast
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,7 +18,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.wrapContentSize
@@ -53,7 +51,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -76,8 +73,6 @@ import androidx.core.content.FileProvider.getUriForFile
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
-import dev.chungjungsoo.gptmobile.util.DefaultHashMap
-import dev.chungjungsoo.gptmobile.util.multiScrollStateSaver
 import java.io.File
 import kotlin.math.max
 import kotlinx.coroutines.launch
@@ -99,6 +94,7 @@ fun ChatScreen(
 
     val chatRoom by chatViewModel.chatRoom.collectAsStateWithLifecycle()
     val groupedMessages by chatViewModel.groupedMessages.collectAsStateWithLifecycle()
+    val chatStates by chatViewModel.chatStates.collectAsStateWithLifecycle()
     val isChatTitleDialogOpen by chatViewModel.isChatTitleDialogOpen.collectAsStateWithLifecycle()
     val isEditQuestionDialogOpen by chatViewModel.isEditQuestionDialogOpen.collectAsStateWithLifecycle()
     val isIdle by chatViewModel.isIdle.collectAsStateWithLifecycle()
@@ -107,7 +103,6 @@ fun ChatScreen(
     val appEnabledPlatforms by chatViewModel.enabledPlatformsInApp.collectAsStateWithLifecycle()
     val editedQuestion by chatViewModel.editedQuestion.collectAsStateWithLifecycle()
     val canUseChat = (chatViewModel.enabledPlatformsInChat.toSet() - appEnabledPlatforms.map { it.uid }.toSet()).isEmpty()
-    val chatBubbleScrollStates = rememberSaveable(saver = multiScrollStateSaver) { DefaultHashMap<Int, ScrollState> { ScrollState(0) } }
     val context = LocalContext.current
 
     val scope = rememberCoroutineScope()
@@ -175,6 +170,7 @@ fun ChatScreen(
                         UserChatBubble(
                             modifier = Modifier.widthIn(max = maximumUserChatBubbleWidth),
                             text = message.content,
+                            canEdit = canUseChat && isIdle,
                             isLoading = !isIdle,
                             onCopyClick = { clipboardManager.setText(AnnotatedString(message.content)) },
                             onEditClick = { chatViewModel.openEditQuestionDialog(message) }
@@ -182,30 +178,34 @@ fun ChatScreen(
                     }
                 }
                 item {
-                    Row(
+                    val platformIndexState = chatStates.indexStates[i]
+                    val assistantContent = groupedMessages.assistantMessages[i][platformIndexState].content
+                    val isLoading = chatStates.loadingStates[platformIndexState] == ChatViewModel.LoadingState.Loading
+
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .horizontalScroll(chatBubbleScrollStates[i])
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
                     ) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        groupedMessages.assistantMessages[i].forEach { m ->
-                            OpponentChatBubble(
-                                modifier = Modifier
-                                    .padding(horizontal = 8.dp, vertical = 12.dp)
-                                    .widthIn(max = maximumOpponentChatBubbleWidth),
-                                canRetry = canUseChat && isIdle,
-                                isLoading = false,
-                                text = m.content,
-                                onCopyClick = { clipboardManager.setText(AnnotatedString(m.content)) },
-                                onSelectClick = {
-                                    // TODO()
-                                },
-                                onRetryClick = {
-                                    // TODO()
-                                }
-                            )
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            GPTMobileIcon(if (i == groupedMessages.assistantMessages.size - 1) !isIdle else false)
                         }
-                        Spacer(modifier = Modifier.width(systemChatMargin))
+                        OpponentChatBubble(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 12.dp)
+                                .widthIn(max = maximumOpponentChatBubbleWidth),
+                            canRetry = canUseChat && isIdle,
+                            isLoading = if (i == groupedMessages.assistantMessages.size - 1) isLoading else false,
+                            text = assistantContent,
+                            onCopyClick = { clipboardManager.setText(AnnotatedString(assistantContent)) },
+                            onSelectClick = {
+                                // TODO()
+                            },
+                            onRetryClick = {
+                                // TODO()
+                            }
+                        )
                     }
                 }
             }

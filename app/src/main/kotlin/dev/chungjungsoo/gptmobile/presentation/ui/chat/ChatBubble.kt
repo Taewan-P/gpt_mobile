@@ -15,6 +15,7 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardColors
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -40,6 +41,7 @@ import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 fun UserChatBubble(
     modifier: Modifier = Modifier,
     text: String,
+    canEdit: Boolean,
     isLoading: Boolean,
     onEditClick: () -> Unit,
     onCopyClick: () -> Unit
@@ -64,7 +66,7 @@ fun UserChatBubble(
             }
         }
         Row {
-            if (!isLoading) {
+            if (!isLoading && canEdit) {
                 EditIcon(onEditClick)
                 Spacer(modifier = Modifier.width(8.dp))
             }
@@ -94,7 +96,6 @@ fun OpponentChatBubble(
     val astNode = remember(text) { parser.parse(text.trimIndent() + if (isLoading) "●" else "") }
 
     Column(modifier = modifier) {
-        GPTMobileIcon()
         Column {
             Card(
                 shape = RoundedCornerShape(0.dp),
@@ -125,19 +126,24 @@ fun OpponentChatBubble(
 }
 
 @Composable
-private fun GPTMobileIcon() {
+fun GPTMobileIcon(loading: Boolean) {
     Box(
         modifier = Modifier
             .padding(start = 8.dp)
-            .size(48.dp)
-            .clip(RoundedCornerShape(48.dp))
+            .size(40.dp)
+            .clip(RoundedCornerShape(40.dp))
             .background(color = Color(0xFF00A67D)),
         contentAlignment = Alignment.Center
     ) {
+        if (loading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(40.dp)
+            )
+        }
         Image(
             painter = painterResource(R.drawable.ic_gpt_mobile_no_padding),
             contentDescription = null,
-            modifier = Modifier.size(32.dp)
+            modifier = Modifier.size(24.dp)
         )
     }
 }
@@ -163,7 +169,7 @@ private fun CopyTextIcon(onCopyClick: () -> Unit) {
 }
 
 @Composable
-fun SelectTextIcon(onSelectClick: () -> Unit) {
+private fun SelectTextIcon(onSelectClick: () -> Unit) {
     IconButton(onClick = onSelectClick) {
         Icon(
             imageVector = ImageVector.vectorResource(id = R.drawable.ic_select),
@@ -190,7 +196,7 @@ fun UserChatBubblePreview() {
         in Python?
     """.trimIndent()
     GPTMobileTheme {
-        UserChatBubble(text = sampleText, isLoading = false, onCopyClick = {}, onEditClick = {})
+        UserChatBubble(text = sampleText, canEdit = true, isLoading = false, onCopyClick = {}, onEditClick = {})
     }
 }
 
