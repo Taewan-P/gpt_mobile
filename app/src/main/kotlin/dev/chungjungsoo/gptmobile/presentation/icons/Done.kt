@@ -16,7 +16,7 @@ val Done: ImageVector
     @Composable
     get() {
         return Builder(
-            name = "IcDone",
+            name = "Done Icon",
             defaultWidth = 48.0.dp,
             defaultHeight = 48.0.dp,
             viewportWidth = 960.0f,
