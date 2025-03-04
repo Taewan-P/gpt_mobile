@@ -31,7 +31,7 @@ data class ChatRoomV2(
     val updatedAt: Long = System.currentTimeMillis() / 1000
 ) : Parcelable
 
-class EnabledPlatformConverter {
+class StringListConverter {
     @TypeConverter
     fun fromString(value: String): List<String> = value.split(',')
 

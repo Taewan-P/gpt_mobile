@@ -7,12 +7,12 @@ import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.PlatformV2Dao
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
-import dev.chungjungsoo.gptmobile.data.database.entity.EnabledPlatformConverter
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
+import dev.chungjungsoo.gptmobile.data.database.entity.StringListConverter
 
 @Database(entities = [ChatRoomV2::class, MessageV2::class, PlatformV2::class], version = 1, exportSchema = false)
-@TypeConverters(EnabledPlatformConverter::class)
+@TypeConverters(StringListConverter::class)
 abstract class ChatDatabaseV2 : RoomDatabase() {
 
     abstract fun platformDao(): PlatformV2Dao

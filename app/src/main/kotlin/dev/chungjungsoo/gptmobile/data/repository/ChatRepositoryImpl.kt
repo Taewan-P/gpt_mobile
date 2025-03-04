@@ -178,6 +178,7 @@ class ChatRepositoryImpl @Inject constructor(
                     chatId = m.chatId,
                     content = m.content,
                     files = listOf(),
+                    revisions = listOf(),
                     linkedMessageId = m.linkedMessageId,
                     platformType = m.platformType?.let { apiTypeMap[it] },
                     createdAt = m.createdAt

@@ -32,6 +32,9 @@ data class MessageV2(
     @ColumnInfo(name = "files")
     val files: List<String> = listOf(),
 
+    @ColumnInfo(name = "revisions")
+    val revisions: List<String> = listOf(),
+
     @ColumnInfo(name = "linked_message_id")
     val linkedMessageId: Int = 0,
 
