@@ -195,21 +195,23 @@ fun ChatScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             GPTMobileIcon(if (i == groupedMessages.assistantMessages.size - 1) !isIdle else false)
-                            Row(
-                                modifier = Modifier
-                                    .padding(horizontal = 16.dp)
-                                    .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState())
-                            ) {
-                                chatViewModel.enabledPlatformsInChat.forEachIndexed { j, uid ->
-                                    val platform = appEnabledPlatforms.find { it.uid == uid }
-                                    PlatformButton(
-                                        isLoading = if (i == groupedMessages.assistantMessages.size - 1) isLoading else false,
-                                        name = platform?.name ?: stringResource(R.string.unknown),
-                                        selected = platformIndexState == j,
-                                        onPlatformClick = { chatViewModel.updateChatPlatformIndex(i, j) }
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
+                            if (chatViewModel.enabledPlatformsInChat.size > 1) {
+                                Row(
+                                    modifier = Modifier
+                                        .padding(horizontal = 16.dp)
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState())
+                                ) {
+                                    chatViewModel.enabledPlatformsInChat.forEachIndexed { j, uid ->
+                                        val platform = appEnabledPlatforms.find { it.uid == uid }
+                                        PlatformButton(
+                                            isLoading = if (i == groupedMessages.assistantMessages.size - 1) isLoading else false,
+                                            name = platform?.name ?: stringResource(R.string.unknown),
+                                            selected = platformIndexState == j,
+                                            onPlatformClick = { chatViewModel.updateChatPlatformIndex(i, j) }
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                    }
                                 }
                             }
                         }
