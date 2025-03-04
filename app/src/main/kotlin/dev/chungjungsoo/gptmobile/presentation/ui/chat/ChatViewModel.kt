@@ -142,6 +142,17 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun updateChatPlatformIndex(assistantIndex: Int, platformIndex: Int) {
+        if (assistantIndex >= _chatStates.value.indexStates.size || assistantIndex < 0) return
+        if (platformIndex >= enabledPlatformsInChat.size || platformIndex < 0) return
+
+        _chatStates.update {
+            val updatedIndex = it.indexStates.toMutableList()
+            updatedIndex[assistantIndex] = platformIndex
+            it.copy(indexStates = updatedIndex)
+        }
+    }
+
     fun updateQuestion(q: String) = _question.update { q }
 
     fun exportChat(): Pair<String, String> {

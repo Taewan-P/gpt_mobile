@@ -7,6 +7,7 @@ import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,11 +19,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
@@ -187,15 +190,35 @@ fun ChatScreen(
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 12.dp)
                     ) {
-                        Row(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             GPTMobileIcon(if (i == groupedMessages.assistantMessages.size - 1) !isIdle else false)
+                            Row(
+                                modifier = Modifier
+                                    .padding(horizontal = 16.dp)
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState())
+                            ) {
+                                chatViewModel.enabledPlatformsInChat.forEachIndexed { j, uid ->
+                                    val platform = appEnabledPlatforms.find { it.uid == uid }
+                                    PlatformButton(
+                                        isLoading = if (i == groupedMessages.assistantMessages.size - 1) isLoading else false,
+                                        name = platform?.name ?: stringResource(R.string.unknown),
+                                        selected = platformIndexState == j,
+                                        onPlatformClick = { chatViewModel.updateChatPlatformIndex(i, j) }
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
+                            }
                         }
                         OpponentChatBubble(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 8.dp, vertical = 12.dp)
                                 .widthIn(max = maximumOpponentChatBubbleWidth),
-                            canRetry = canUseChat && isIdle,
+                            canRetry = canUseChat && isIdle && i == groupedMessages.assistantMessages.size - 1,
                             isLoading = if (i == groupedMessages.assistantMessages.size - 1) isLoading else false,
                             text = assistantContent,
                             onCopyClick = { clipboardManager.setText(AnnotatedString(assistantContent)) },
