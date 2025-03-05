@@ -1,16 +1,13 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -63,17 +60,6 @@ fun ChatTitleDialog(
                     onValueChange = { title = it },
                     label = { Text(stringResource(R.string.chat_title)) }
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    FilledTonalButton(
-                        modifier = Modifier
-                            .padding(horizontal = 8.dp)
-                            .height(48.dp)
-                            .weight(1F),
-                        onClick = { title = onDefaultTitleMode.invoke() ?: untitledChat }
-                    ) { Text(text = stringResource(R.string.default_mode)) }
-                }
             }
         },
         onDismissRequest = onDismissRequest,
@@ -89,6 +75,11 @@ fun ChatTitleDialog(
             }
         },
         dismissButton = {
+            TextButton(
+                onClick = { title = onDefaultTitleMode.invoke() ?: untitledChat }
+            ) {
+                Text(text = stringResource(R.string.default_mode))
+            }
             TextButton(
                 onClick = onDismissRequest
             ) {
