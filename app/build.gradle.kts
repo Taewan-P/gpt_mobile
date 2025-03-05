@@ -24,6 +24,10 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        ksp {
+            arg("room.schemaLocation", "$projectDir/schemas")
+        }
     }
 
     androidResources {
@@ -82,9 +86,6 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose.android)
     ksp(libs.hilt.compiler)
 
-    // Gemini SDK
-    implementation(libs.gemini)
-
     // Ktor
     implementation(libs.ktor.content.negotiation)
     implementation(libs.ktor.core)
@@ -98,6 +99,7 @@ dependencies {
 
     // Markdown
     implementation(libs.compose.markdown)
+    implementation(libs.richtext)
 
     // Navigation
     implementation(libs.hilt.navigation)

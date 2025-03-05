@@ -18,16 +18,15 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.chungjungsoo.gptmobile.R
-import dev.chungjungsoo.gptmobile.data.dto.Platform
 
 @Composable
 fun PlatformCheckBoxItem(
     modifier: Modifier = Modifier,
-    platform: Platform,
+    selected: Boolean,
     enabled: Boolean = true,
     title: String = stringResource(R.string.sample_item_title),
     description: String? = stringResource(R.string.sample_item_description),
-    onClickEvent: (Platform) -> Unit
+    onClickEvent: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val rowModifier = if (enabled) {
@@ -36,7 +35,7 @@ fun PlatformCheckBoxItem(
             .clickable(
                 interactionSource = interactionSource,
                 indication = LocalIndication.current
-            ) { onClickEvent.invoke(platform) }
+            ) { onClickEvent.invoke() }
             .padding(top = 12.dp, bottom = 12.dp, start = 16.dp, end = 16.dp)
     } else {
         modifier
@@ -51,9 +50,9 @@ fun PlatformCheckBoxItem(
     ) {
         Checkbox(
             enabled = enabled,
-            checked = platform.selected,
+            checked = selected,
             interactionSource = interactionSource,
-            onCheckedChange = { onClickEvent.invoke(platform) }
+            onCheckedChange = { onClickEvent.invoke() }
         )
         Column(horizontalAlignment = Alignment.Start) {
             Text(

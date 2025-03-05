@@ -4,6 +4,7 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import dev.chungjungsoo.gptmobile.data.database.dao.PlatformV2Dao
 import dev.chungjungsoo.gptmobile.data.datastore.SettingDataSource
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepositoryImpl
@@ -16,6 +17,7 @@ object SettingRepositoryModule {
     @Provides
     @Singleton
     fun provideSettingRepository(
-        settingDataSource: SettingDataSource
-    ): SettingRepository = SettingRepositoryImpl(settingDataSource)
+        settingDataSource: SettingDataSource,
+        platformV2Dao: PlatformV2Dao
+    ): SettingRepository = SettingRepositoryImpl(settingDataSource, platformV2Dao)
 }
