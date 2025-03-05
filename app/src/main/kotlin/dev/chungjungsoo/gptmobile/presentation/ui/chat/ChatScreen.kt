@@ -114,11 +114,11 @@ fun ChatScreen(
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(isIdle) {
-        listState.animateScrollToItem(max(groupedMessages.userMessages.size * 2, 0))
+        listState.animateScrollToItem(groupedMessages.userMessages.size * 2)
     }
 
     LaunchedEffect(isLoaded) {
-        listState.animateScrollToItem(max(groupedMessages.userMessages.size * 2, 0))
+        listState.animateScrollToItem(groupedMessages.userMessages.size * 2)
     }
 
     Scaffold(
@@ -154,7 +154,7 @@ fun ChatScreen(
             if (listState.canScrollForward) {
                 ScrollToBottomButton {
                     scope.launch {
-                        listState.animateScrollToItem(max(groupedMessages.userMessages.size * 2, 0))
+                        listState.animateScrollToItem(groupedMessages.userMessages.size * 2)
                     }
                 }
             }
