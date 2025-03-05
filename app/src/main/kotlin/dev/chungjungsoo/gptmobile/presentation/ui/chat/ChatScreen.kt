@@ -201,7 +201,9 @@ fun ChatScreen(
                             .padding(horizontal = 16.dp, vertical = 12.dp)
                     ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             GPTMobileIcon(if (i == groupedMessages.assistantMessages.size - 1) !isIdle else false)
@@ -228,7 +230,7 @@ fun ChatScreen(
                         OpponentChatBubble(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 12.dp)
+                                .padding(horizontal = 8.dp)
                                 .widthIn(max = maximumOpponentChatBubbleWidth),
                             canRetry = canUseChat && isIdle && i == groupedMessages.assistantMessages.size - 1,
                             isLoading = if (i == groupedMessages.assistantMessages.size - 1) isLoading else false,
