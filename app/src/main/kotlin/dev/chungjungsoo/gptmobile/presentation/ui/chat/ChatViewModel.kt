@@ -55,6 +55,9 @@ class ChatViewModel @Inject constructor(
     private val _isEditQuestionDialogOpen = MutableStateFlow(false)
     val isEditQuestionDialogOpen = _isEditQuestionDialogOpen.asStateFlow()
 
+    private val _isSelectTextSheetOpen = MutableStateFlow(false)
+    val isSelectTextSheetOpen = _isSelectTextSheetOpen.asStateFlow()
+
     // Enabled platforms list in app
     private val _enabledPlatformsInApp = MutableStateFlow(listOf<PlatformV2>())
     val enabledPlatformsInApp = _enabledPlatformsInApp.asStateFlow()
@@ -74,6 +77,10 @@ class ChatViewModel @Inject constructor(
     // Used for passing user question to Edit User Message Dialog
     private val _editedQuestion = MutableStateFlow(MessageV2(chatId = chatRoomId, content = "", platformType = null))
     val editedQuestion = _editedQuestion.asStateFlow()
+
+    // Used for text data to show in SelectText Bottom Sheet
+    private val _selectedText = MutableStateFlow("")
+    val selectedText = _selectedText.asStateFlow()
 
     // Total loading state. It should be updated if one of the loading state has changed.
     // If all loading states are idle, this value should have `true`.
@@ -123,11 +130,21 @@ class ChatViewModel @Inject constructor(
         _isEditQuestionDialogOpen.update { false }
     }
 
+    fun closeSelectTextSheet() {
+        _isSelectTextSheetOpen.update { false }
+        _selectedText.update { "" }
+    }
+
     fun openChatTitleDialog() = _isChatTitleDialogOpen.update { true }
 
     fun openEditQuestionDialog(question: MessageV2) {
         _editedQuestion.update { question }
         _isEditQuestionDialogOpen.update { true }
+    }
+
+    fun openSelectTextSheet(content: String) {
+        _selectedText.update { content }
+        _isSelectTextSheetOpen.update { true }
     }
 
     fun generateDefaultChatTitle(): String? = chatRepository.generateDefaultChatTitle(_groupedMessages.value.userMessages)

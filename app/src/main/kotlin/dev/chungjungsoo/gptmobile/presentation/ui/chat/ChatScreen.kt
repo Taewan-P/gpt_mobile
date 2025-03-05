@@ -28,6 +28,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
@@ -42,6 +44,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
@@ -100,11 +103,11 @@ fun ChatScreen(
     val chatStates by chatViewModel.chatStates.collectAsStateWithLifecycle()
     val isChatTitleDialogOpen by chatViewModel.isChatTitleDialogOpen.collectAsStateWithLifecycle()
     val isEditQuestionDialogOpen by chatViewModel.isEditQuestionDialogOpen.collectAsStateWithLifecycle()
+    val isSelectTextSheetOpen by chatViewModel.isSelectTextSheetOpen.collectAsStateWithLifecycle()
     val isIdle by chatViewModel.isIdle.collectAsStateWithLifecycle()
     val isLoaded by chatViewModel.isLoaded.collectAsStateWithLifecycle()
     val question by chatViewModel.question.collectAsStateWithLifecycle()
     val appEnabledPlatforms by chatViewModel.enabledPlatformsInApp.collectAsStateWithLifecycle()
-    val editedQuestion by chatViewModel.editedQuestion.collectAsStateWithLifecycle()
     val canUseChat = (chatViewModel.enabledPlatformsInChat.toSet() - appEnabledPlatforms.map { it.uid }.toSet()).isEmpty()
     val context = LocalContext.current
 
@@ -224,9 +227,7 @@ fun ChatScreen(
                             isLoading = if (i == groupedMessages.assistantMessages.size - 1) isLoading else false,
                             text = assistantContent,
                             onCopyClick = { clipboardManager.setText(AnnotatedString(assistantContent)) },
-                            onSelectClick = {
-                                // TODO()
-                            },
+                            onSelectClick = { chatViewModel.openSelectTextSheet(assistantContent) },
                             onRetryClick = {
                                 // TODO()
                             }
@@ -246,6 +247,7 @@ fun ChatScreen(
         }
 
         if (isEditQuestionDialogOpen) {
+            val editedQuestion by chatViewModel.editedQuestion.collectAsStateWithLifecycle()
             ChatQuestionEditDialog(
                 initialQuestion = editedQuestion,
                 onDismissRequest = chatViewModel::closeEditQuestionDialog,
@@ -255,6 +257,20 @@ fun ChatScreen(
                     chatViewModel.closeEditQuestionDialog()
                 }
             )
+        }
+
+        if (isSelectTextSheetOpen) {
+            val selectedText by chatViewModel.selectedText.collectAsStateWithLifecycle()
+            ModalBottomSheet(onDismissRequest = chatViewModel::closeSelectTextSheet) {
+                SelectionContainer(
+                    modifier = Modifier
+                        .padding(24.dp)
+                        .heightIn(min = 200.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Text(selectedText)
+                }
+            }
         }
     }
 }
