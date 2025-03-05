@@ -2,6 +2,7 @@ package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,7 +14,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
@@ -47,10 +48,7 @@ import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 fun UserChatBubble(
     modifier: Modifier = Modifier,
     text: String,
-    canEdit: Boolean,
-    isLoading: Boolean,
-    onEditClick: () -> Unit,
-    onCopyClick: () -> Unit
+    onLongPress: () -> Unit
 ) {
     val cardColor = CardColors(
         containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -63,20 +61,16 @@ fun UserChatBubble(
 
     Column(horizontalAlignment = Alignment.End) {
         Card(
-            modifier = modifier,
+            modifier = modifier
+                .pointerInput(Unit) {
+                    detectTapGestures(onLongPress = { onLongPress.invoke() })
+                },
             shape = RoundedCornerShape(32.dp),
             colors = cardColor
         ) {
             RichText(modifier = Modifier.padding(16.dp)) {
                 BasicMarkdown(astNode = astNode)
             }
-        }
-        Row {
-            if (!isLoading && canEdit) {
-                EditIcon(onEditClick)
-                Spacer(modifier = Modifier.width(8.dp))
-            }
-            CopyTextIcon(onCopyClick)
         }
     }
 }
@@ -188,16 +182,6 @@ fun PlatformButton(
 }
 
 @Composable
-private fun EditIcon(onEditClick: () -> Unit) {
-    IconButton(onClick = onEditClick) {
-        Icon(
-            Icons.Outlined.Edit,
-            contentDescription = stringResource(R.string.edit)
-        )
-    }
-}
-
-@Composable
 private fun CopyTextIcon(onCopyClick: () -> Unit) {
     IconButton(onClick = onCopyClick) {
         Icon(
@@ -235,7 +219,7 @@ fun UserChatBubblePreview() {
         in Python?
     """.trimIndent()
     GPTMobileTheme {
-        UserChatBubble(text = sampleText, canEdit = true, isLoading = false, onCopyClick = {}, onEditClick = {})
+        UserChatBubble(text = sampleText, onLongPress = {})
     }
 }
 

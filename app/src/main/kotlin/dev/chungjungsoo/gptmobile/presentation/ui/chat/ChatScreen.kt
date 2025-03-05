@@ -33,6 +33,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material3.BottomAppBarDefaults
 import androidx.compose.material3.DropdownMenu
@@ -80,7 +81,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
 import java.io.File
-import kotlin.math.max
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -167,20 +167,27 @@ fun ChatScreen(
         ) {
             groupedMessages.userMessages.forEachIndexed { i, message ->
                 item {
-                    Row(
+                    var isDropDownMenuExpanded by remember { mutableStateOf(false) }
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalAlignment = Alignment.End
                     ) {
-                        Spacer(modifier = Modifier.weight(1f))
-                        UserChatBubble(
-                            modifier = Modifier.widthIn(max = maximumUserChatBubbleWidth),
-                            text = message.content,
-                            canEdit = canUseChat && isIdle,
-                            isLoading = !isIdle,
-                            onCopyClick = { clipboardManager.setText(AnnotatedString(message.content)) },
-                            onEditClick = { chatViewModel.openEditQuestionDialog(message) }
-                        )
+                        Box {
+                            UserChatBubble(
+                                modifier = Modifier.widthIn(max = maximumUserChatBubbleWidth),
+                                text = message.content,
+                                onLongPress = { isDropDownMenuExpanded = true }
+                            )
+                            ChatBubbleDropdownMenu(
+                                isChatBubbleDropdownMenuExpanded = isDropDownMenuExpanded,
+                                canEdit = canUseChat && isIdle,
+                                onDismissRequest = { isDropDownMenuExpanded = false },
+                                onEditItemClick = { chatViewModel.openEditQuestionDialog(message) },
+                                onCopyItemClick = { clipboardManager.setText(AnnotatedString(message.content)) }
+                            )
+                        }
                     }
                 }
                 item {
@@ -304,7 +311,7 @@ private fun ChatTopBar(
             }
 
             ChatDropdownMenu(
-                isDropDownMenuExpanded = isDropDownMenuExpanded,
+                isDropdownMenuExpanded = isDropDownMenuExpanded,
                 isMenuItemEnabled = isMenuItemEnabled,
                 onDismissRequest = { isDropDownMenuExpanded = false },
                 onChatTitleItemClick = {
@@ -320,7 +327,7 @@ private fun ChatTopBar(
 
 @Composable
 fun ChatDropdownMenu(
-    isDropDownMenuExpanded: Boolean,
+    isDropdownMenuExpanded: Boolean,
     isMenuItemEnabled: Boolean,
     onDismissRequest: () -> Unit,
     onChatTitleItemClick: () -> Unit,
@@ -328,7 +335,7 @@ fun ChatDropdownMenu(
 ) {
     DropdownMenu(
         modifier = Modifier.wrapContentSize(),
-        expanded = isDropDownMenuExpanded,
+        expanded = isDropdownMenuExpanded,
         onDismissRequest = onDismissRequest
     ) {
         DropdownMenuItem(
@@ -343,6 +350,49 @@ fun ChatDropdownMenu(
             onClick = {
                 onExportChatItemClick()
                 onDismissRequest()
+            }
+        )
+    }
+}
+
+@Composable
+fun ChatBubbleDropdownMenu(
+    isChatBubbleDropdownMenuExpanded: Boolean,
+    canEdit: Boolean,
+    onDismissRequest: () -> Unit,
+    onEditItemClick: () -> Unit,
+    onCopyItemClick: () -> Unit
+) {
+    DropdownMenu(
+        modifier = Modifier.wrapContentSize(),
+        expanded = isChatBubbleDropdownMenuExpanded,
+        onDismissRequest = onDismissRequest
+    ) {
+        DropdownMenuItem(
+            enabled = canEdit,
+            leadingIcon = {
+                Icon(
+                    Icons.Outlined.Edit,
+                    contentDescription = stringResource(R.string.edit)
+                )
+            },
+            text = { Text(text = stringResource(R.string.edit)) },
+            onClick = {
+                onEditItemClick.invoke()
+                onDismissRequest.invoke()
+            }
+        )
+        DropdownMenuItem(
+            leadingIcon = {
+                Icon(
+                    imageVector = ImageVector.vectorResource(id = R.drawable.ic_copy),
+                    contentDescription = stringResource(R.string.copy_text)
+                )
+            },
+            text = { Text(text = stringResource(R.string.copy_text)) },
+            onClick = {
+                onCopyItemClick.invoke()
+                onDismissRequest.invoke()
             }
         )
     }
