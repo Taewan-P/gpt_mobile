@@ -13,6 +13,13 @@ interface MessageV2Dao {
     @Query("SELECT * FROM messages_v2 WHERE chat_id=:chatInt")
     suspend fun loadMessages(chatInt: Int): List<MessageV2>
 
+    @Query(
+        "SELECT DISTINCT chat_id FROM messages_v2 " +
+            "WHERE content LIKE '%' || :query || '%' OR " +
+            "revisions LIKE '%' || :query || '%'"
+    )
+    suspend fun searchMessagesByContent(query: String): List<Int>
+
     @Insert
     suspend fun addMessages(vararg messages: MessageV2)
 
