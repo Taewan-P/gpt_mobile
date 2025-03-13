@@ -36,6 +36,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SearchBar
+import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -64,6 +66,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
@@ -85,7 +88,8 @@ fun HomeScreen(
     val showSelectModelDialog by homeViewModel.showSelectModelDialog.collectAsStateWithLifecycle()
     val showDeleteWarningDialog by homeViewModel.showDeleteWarningDialog.collectAsStateWithLifecycle()
     val platformState by homeViewModel.platformState.collectAsStateWithLifecycle()
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    val searchQuery by homeViewModel.searchQuery.collectAsStateWithLifecycle()
+    val lifecycleOwner = LocalLifecycleOwner.current
     val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
@@ -127,7 +131,9 @@ fun HomeScreen(
                     } else {
                         homeViewModel.enableSearchMode()
                     }
-                }
+                },
+                onSearchQueryChanged = homeViewModel::updateSearchQuery,
+                searchQuery = searchQuery
             )
         },
         floatingActionButton = {
@@ -221,7 +227,9 @@ fun HomeTopAppBar(
     selectedChats: Int,
     scrollBehavior: TopAppBarScrollBehavior,
     actionOnClick: () -> Unit,
-    navigationOnClick: () -> Unit
+    navigationOnClick: () -> Unit,
+    onSearchQueryChanged: (String) -> Unit,
+    searchQuery: String
 ) {
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
@@ -230,7 +238,38 @@ fun HomeTopAppBar(
             titleContentColor = if (isSelectionMode) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onBackground
         ),
         title = {
-            if (isSelectionMode) {
+            if (isSearchMode) {
+                SearchBar(
+                    inputField = {
+                        SearchBarDefaults.InputField(
+                            query = searchQuery,
+                            onQueryChange = onSearchQueryChanged,
+                            onSearch = { /* Handle search submission if needed */ },
+                            expanded = searchQuery.isNotBlank(),
+                            onExpandedChange = {},
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text(stringResource(R.string.search_chats)) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.Search,
+                                    contentDescription = stringResource(R.string.search_chats)
+                                )
+                            },
+                            trailingIcon = {
+                                IconButton(onClick = { onSearchQueryChanged("") }) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Close,
+                                        contentDescription = stringResource(R.string.clear)
+                                    )
+                                }
+                            }
+                        )
+                    },
+                    expanded = searchQuery.isNotBlank(),
+                    onExpandedChange = { /* Handle search expansion if needed */ }
+                ) {
+                }
+            } else if (isSelectionMode) {
                 Text(
                     modifier = Modifier.padding(4.dp),
                     text = stringResource(R.string.chats_selected, selectedChats),
@@ -284,7 +323,6 @@ fun HomeTopAppBar(
                         contentDescription = stringResource(R.string.delete)
                     )
                 }
-
                 return@TopAppBar
             }
 

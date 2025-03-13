@@ -60,6 +60,8 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    fun updateSearchQuery(query: String) = _searchQuery.update { query }
+
     fun openDeleteWarningDialog() {
         closeSelectModelDialog()
         _showDeleteWarningDialog.update { true }

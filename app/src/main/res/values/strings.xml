@@ -204,4 +204,5 @@
     <string name="select_text">Select Text</string>
     <string name="unknown">Unknown</string>
     <string name="search_chats">Search chats</string>
+    <string name="clear">Clear</string>
 </resources>
