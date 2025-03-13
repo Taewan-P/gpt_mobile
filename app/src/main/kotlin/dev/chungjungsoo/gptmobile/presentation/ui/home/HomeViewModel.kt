@@ -24,6 +24,7 @@ class HomeViewModel @Inject constructor(
     data class ChatListState(
         val chats: List<ChatRoomV2> = listOf(),
         val isSelectionMode: Boolean = false,
+        val isSearchMode: Boolean = false,
         val selectedPlatforms: List<Boolean> = listOf(),
         val selectedChats: List<Boolean> = listOf()
     )
@@ -33,6 +34,9 @@ class HomeViewModel @Inject constructor(
 
     private val _platformState = MutableStateFlow(listOf<PlatformV2>())
     val platformState = _platformState.asStateFlow()
+
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery = _searchQuery.asStateFlow()
 
     private val _showSelectModelDialog = MutableStateFlow(false)
     val showSelectModelDialog: StateFlow<Boolean> = _showSelectModelDialog.asStateFlow()
@@ -96,8 +100,19 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    fun disableSearchMode() {
+        _chatListState.update { it.copy(isSearchMode = false) }
+        _searchQuery.update { "" }
+    }
+
     fun enableSelectionMode() {
+        disableSearchMode()
         _chatListState.update { it.copy(isSelectionMode = true) }
+    }
+
+    fun enableSearchMode() {
+        disableSelectionMode()
+        _chatListState.update { it.copy(isSearchMode = true) }
     }
 
     fun fetchChats() {

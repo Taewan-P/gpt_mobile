@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -104,9 +105,10 @@ fun HomeScreen(
             .nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             HomeTopAppBar(
-                chatListState.isSelectionMode,
+                isSelectionMode = chatListState.isSelectionMode,
+                isSearchMode = chatListState.isSearchMode,
                 selectedChats = chatListState.selectedChats.count { it },
-                scrollBehavior,
+                scrollBehavior = scrollBehavior,
                 actionOnClick = {
                     if (chatListState.isSelectionMode) {
                         homeViewModel.openDeleteWarningDialog()
@@ -115,7 +117,16 @@ fun HomeScreen(
                     }
                 },
                 navigationOnClick = {
-                    homeViewModel.disableSelectionMode()
+                    if (chatListState.isSelectionMode) {
+                        homeViewModel.disableSelectionMode()
+                        return@HomeTopAppBar
+                    }
+
+                    if (chatListState.isSearchMode) {
+                        homeViewModel.disableSearchMode()
+                    } else {
+                        homeViewModel.enableSearchMode()
+                    }
                 }
             )
         },
@@ -206,6 +217,7 @@ fun HomeScreen(
 @Composable
 fun HomeTopAppBar(
     isSelectionMode: Boolean,
+    isSearchMode: Boolean,
     selectedChats: Int,
     scrollBehavior: TopAppBarScrollBehavior,
     actionOnClick: () -> Unit,
@@ -237,15 +249,25 @@ fun HomeTopAppBar(
             }
         },
         navigationIcon = {
-            if (isSelectionMode) {
+            if (isSelectionMode xor isSearchMode) {
                 IconButton(
                     modifier = Modifier.padding(4.dp),
                     onClick = navigationOnClick
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Close,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        tint = if (!isSearchMode) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onBackground,
                         contentDescription = stringResource(R.string.close)
+                    )
+                }
+            } else {
+                IconButton(
+                    modifier = Modifier.padding(4.dp),
+                    onClick = navigationOnClick
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Search,
+                        contentDescription = stringResource(R.string.search_chats)
                     )
                 }
             }
@@ -262,7 +284,11 @@ fun HomeTopAppBar(
                         contentDescription = stringResource(R.string.delete)
                     )
                 }
-            } else {
+
+                return@TopAppBar
+            }
+
+            if (!isSearchMode) {
                 IconButton(
                     modifier = Modifier.padding(4.dp),
                     onClick = actionOnClick
