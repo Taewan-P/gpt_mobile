@@ -1,52 +1,69 @@
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">GPTMobil</string>
-    <string name="gpt_mobile_introduction_logo">GPT Mobil Tanıtım Logosu</string>
-    <string name="welcome_title">Akıllı telefonunuzdaki\nen iyi yapay zeka\nasistanı.</string>
+    <string name="app_name">GPTMobile</string>
+    <string name="gpt_mobile_introduction_logo">GPT Mobile Tanıtım Logosu</string>
+    <string name="welcome_title">Akıllı telefonunuzda\nalabileceğiniz en iyi\nyapay zeka asistanı.</string>
     <string name="welcome_description">Size en uygun modeli\nkullanın. İstediğiniz her şeyi sorun!</string>
-    <string name="get_started">Başlayın</string>
-    <string name="platform_select_description">Kullanmak istediğiniz platformu seçin. Bu ayarı daha sonra değiştirebilirsiniz. Daha fazla platform desteklenecek.</string>
+    <string name="get_started">Başla</string>
+    <string name="platform_select_description">Kullanmak istediğiniz platformu seçin. Bunu daha sonra ayarlardan değiştirebilirsiniz. Daha fazla platform desteklenecek.</string>
     <string name="sample_item_title">Öğe 1</string>
     <string name="sample_item_description">Öğe açıklaması</string>
-    <string name="openai_description">ChatGPT\'nin yaratıcısı.</string>
+    <string name="openai" translatable="false">OpenAI</string>
+    <string name="anthropic" translatable="false">Anthropic</string>
+    <string name="google" translatable="false">Google</string>
+    <string name="openai_description">ChatGPT’nin yaratıcısı.</string>
     <string name="anthropic_description">Claude burada doğdu.</string>
     <string name="google_description">Gemini yolda.</string>
     <string name="next">İleri</string>
     <string name="enter_api_key">API Anahtarını Girin</string>
-    <string name="token_input_description">Seçtiğiniz platformun API Anahtarını girin. Bu uygulama bu verileri toplamaz. Bu anahtarlar ve sohbet verileri yalnızca cihazınızda saklanır ve API uç noktaları dışında diğer sunuculara gönderilmez.</string>
-    <string name="clear_token">Anahtarı temizle</string>
-    <string name="need_help">Yardıma mı ihtiyacınız var?</string>
+    <string name="token_input_description">Seçtiğiniz platformun API anahtarını girin. Bu uygulama asla bu verileri toplamaz. Bu anahtarlar ve sohbet verileri yalnızca cihazınızda saklanır ve API uç noktaları dışında başka sunuculara gönderilmez.</string>
+    <string name="clear_token">Anahtarı Temizle</string>
+    <string name="need_help">Yardım mı lazım?</string>
     <string name="openai_api_key">OpenAI API Anahtarı</string>
     <string name="anthropic_api_key">Anthropic API Anahtarı</string>
     <string name="google_api_key">Google API Anahtarı</string>
+    <string name="openai_api_help" translatable="false">https://platform.openai.com/account/api-keys</string>
+    <string name="anthropic_api_help" translatable="false">https://console.anthropic.com/settings/keys</string>
+    <string name="google_api_help" translatable="false">https://aistudio.google.com/app/apikey</string>
     <string name="select_openai_model">OpenAI Sohbet Modelini Seçin</string>
-    <string name="select_openai_model_description">Lütfen OpenAI sohbet modelini seçin. Seçilen model çok modlu olsa bile, uygulama şu anda yalnızca metin girişlerini desteklemektedir. Gelecekte desteklenebilir.</string>
-    <string name="gpt_4o_description">En hızlı ve en uygun fiyatlı amiral gemisi modeli.</string>
-    <string name="gpt_4_turbo_description">Güvenilirlik, GPT-4\'ten 3 kat daha ucuz.</string>
-    <string name="gpt_4_description">Soyut problemleri çözmede en iyi performansı gösterir.</string>
+    <string name="select_openai_model_description">Lütfen OpenAI sohbet modelini seçin. Seçilen model çok modlu olsa bile, uygulama şu anda yalnızca metin girişlerini destekliyor. İleride desteklenebilir.</string>
+    <string name="gpt_4o" translatable="false">GPT-4o</string>
+    <string name="gpt_4o_mini" translatable="false">GPT-4o mini</string>
+    <string name="gpt_4_turbo" translatable="false">GPT-4 Turbo</string>
+    <string name="gpt_4" translatable="false">GPT-4</string>
+    <string name="gpt_4o_description">En hızlı ve en uygun fiyatlı amiral gemisi model.</string>
+    <string name="gpt_4o_mini_description">Hızlı, hafif görevler için uygun fiyatlı ve akıllı küçük model.</string>
+    <string name="gpt_4_turbo_description">Makum güvenilirlik, GPT-4’ten 3 kat daha ucuz.</string>
+    <string name="gpt_4_description">Soyut problemleri çözmede en iyi performansı sergiler.</string>
     <string name="select_anthropic_model">Anthropic Sohbet Modelini Seçin</string>
-    <string name="select_anthropic_model_description">Lütfen Anthropic sohbet modelini seçin. Şu anda yalnızca Claude 3 ailesi metin girişlerini destekliyor.</string>
-    <string name="claude_3_5_sonnet_description">Anthropic\'in en zeki modeli.</string>
-    <string name="claude_3_opus_description">Yazım ve karmaşık görevlerde mükemmel.</string>
-    <string name="claude_3_sonnet_description">Zeka ve hız arasında dengeli bir model.</string>
-    <string name="claude_3_haiku_description">Anthropic\'in en hızlı ve en kompakt modeli.</string>
+    <string name="select_anthropic_model_description">Lütfen Anthropic sohbet modelini seçin. Şu anda yalnızca Claude 3 ailesi modellerini ve yalnızca metin girişlerini destekliyoruz.</string>
+    <string name="claude_3_5_sonnet" translatable="false">Claude 3.5 Sonnet</string>
+    <string name="claude_3_opus" translatable="false">Claude 3 Opus</string>
+    <string name="claude_3_sonnet" translatable="false">Claude 3 Sonnet</string>
+    <string name="claude_3_haiku" translatable="false">Claude 3 Haiku</string>
+    <string name="claude_3_5_sonnet_description">Anthropic’in en zeki modeli.</string>
+    <string name="claude_3_opus_description">Yazma ve karmaşık görevlerde üstün.</string>
+    <string name="claude_3_sonnet_description">Zeka ve hız arasında dengeli model.</string>
+    <string name="claude_3_haiku_description">Anthropic’in en hızlı ve en kompakt modeli.</string>
     <string name="select_google_model">Google Sohbet Modelini Seçin</string>
-    <string name="select_google_model_description">Gemini, Google tarafından oluşturulmuş jeneratif AI model ailesidir. Yalnızca metin girişleri desteklenir.</string>
-    <string name="gemini_1_5_pro_description">Kod ve metin üretimi de dahil olmak üzere muhakeme görevleri için optimize edilmiştir.</string>
+    <string name="select_google_model_description">Gemini, Google tarafından geliştirilen bir yapay zeka model ailesidir. Yalnızca metin girişleri desteklenir.</string>
+    <string name="gemini_1_5_pro" translatable="false">Gemini 1.5 Pro</string>
+    <string name="gemini_1_5_flash" translatable="false">Gemini 1.5 Flash</string>
+    <string name="gemini_1_0_pro" translatable="false">Gemini 1.0 Pro</string>
+    <string name="gemini_1_5_pro_description">Kod ve metin oluşturma dahil akıl yürütme görevleri için optimize edilmiştir.</string>
     <string name="gemini_1_5_flash_description">Çeşitli görevlerde hızlı ve çok yönlü performans.</string>
-    <string name="gemini_1_0_pro_description">Doğal dil görevleri, çoklu metin ve kod sohbetleri ve kod üretimi.</string>
+    <string name="gemini_1_0_pro_description">Doğal dil görevleri, çok turlu metin ve kod sohbeti ve kod oluşturma.</string>
     <string name="setup_complete">Her şey hazır!</string>
-    <string name="setup_complete_description">Haydi GPT Mobil\'i kullanmaya başlayalım!</string>
-    <string name="done">Tamamlandı</string>
+    <string name="setup_complete_description">GPT Mobile’ı kullanmaya başlayalım!</string>
+    <string name="done">Tamam</string>
     <string name="setup_complete_logo">Kurulum Tamamlandı Logosu</string>
     <string name="chats">Sohbetler</string>
     <string name="settings">Ayarlar</string>
     <string name="new_chat">Yeni Sohbet</string>
     <string name="select_platform">Platform Seçin</string>
-    <string name="select_platform_description">Bu sohbette kullanmak istediğiniz platformları seçin. Sohbet oluşturulduktan sonra bu ayarı değiştiremezsiniz. Bunu değiştirmek isterseniz, lütfen yeni bir sohbet oluşturun.</string>
+    <string name="select_platform_description">Bu sohbette kullanmak istediğiniz platformları seçin. Sohbet oluşturulduktan sonra bu ayar değiştirilemez. Değiştirmek isterseniz lütfen yeni bir sohbet oluşturun.</string>
     <string name="enable_at_leat_one_platform">Sohbet oluşturmak için lütfen en az bir platformu etkinleştirin.</string>
     <string name="chat_icon">Sohbet Simgesi</string>
-    <string name="using_certain_platform">%s kullanılıyor</string>
+    <string name="using_certain_platform">%s kullanıyor</string>
     <string name="confirm">Onayla</string>
     <string name="cancel">İptal</string>
     <string name="go_back">Geri dön</string>
@@ -60,8 +77,8 @@
     <string name="openai_setting">OpenAI Ayarları</string>
     <string name="anthropic_setting">Anthropic Ayarları</string>
     <string name="google_setting">Google Ayarları</string>
-    <string name="platform_setting_description">API Anahtarı, Model, Sistem İsteği</string>
-    <string name="enable_api">API\'yi Etkinleştir</string>
+    <string name="platform_setting_description">API Anahtarı, Model, Sistem Komutu</string>
+    <string name="enable_api">API’yi Etkinleştir</string>
     <string name="api_key">API Anahtarı</string>
     <string name="api_model">API Modeli</string>
     <string name="dynamic_theme">Dinamik Tema</string>
@@ -70,33 +87,39 @@
     <string name="model_icon">Model Simgesi</string>
     <string name="send">Gönder</string>
     <string name="copy_text">Metni Kopyala</string>
-    <string name="retry">Yeniden Dene</string>
-    <string name="ask_a_question">Bir soru sorun…</string>
-    <string name="some_platforms_disabled">Bazı API\'ler devre dışı</string>
-    <string name="token_not_set">Token ayarlanmadı</string>
-    <string name="token_set">Token şu şekilde ayarlandı: %s*****</string>
+    <string name="retry">Tekrar Dene</string>
+    <string name="ask_a_question">Bir soru sor…</string>
+    <string name="some_platforms_disabled">Bazı API’ler devre dışı</string>
+    <string name="openai_brand_text" translatable="false">Powered by OpenAI</string>
+    <string name="anthropic_brand_text" translatable="false">Powered by Claude</string>
+    <string name="google_brand_text" translatable="false">Powered by Gemini</string>
+    <string name="token_not_set">Anahtar ayarlanmadı</string>
+    <string name="token_set">Anahtar %s***** olarak ayarlandı</string>
     <string name="close">Kapat</string>
     <string name="delete">Sil</string>
     <string name="chats_selected">%d seçildi</string>
     <string name="deleted_chats">%d sohbet silindi.</string>
-    <string name="delete_selected_chats">Seçilen sohbetleri silmek istiyor musunuz?</string>
+    <string name="delete_selected_chats">Seçilen sohbetleri sil?</string>
     <string name="this_operation_can_t_be_undone">Bu işlem geri alınamaz.</string>
-    <string name="system_prompt">Sistem İsteği</string>
+    <string name="system_prompt">Sistem Komutu</string>
     <string name="temperature">Sıcaklık</string>
-    <string name="top_p">Nükleus örnekleme (Top p)</string>
-    <string name="system_prompt_setting">Sistem İsteği Ayarı</string>
-    <string name="system_prompt_description">Bir sistem isteği, yapay zeka modellerine kullanıcı sorgularıyla etkileşime geçmeden önce verilen talimatlar, yönergeler ve bağlamsal bilgilerdir.</string>
+    <string name="top_p">Çekirdek örnekleme (Top p)</string>
+    <string name="system_prompt_setting">Sistem Komut Ayarı</string>
+    <string name="system_prompt_description">Sistem komutu, yapay zeka modellerine kullanıcı sorgularıyla etkileşime girmeden önce verilen bir dizi talimat, yönerge ve bağlamsal bilgidir.</string>
     <string name="temperature_icon">Sıcaklık Simgesi</string>
-    <string name="top_p_icon">Nükleus örnekleme simgesi</string>
-    <string name="system_prompt_icon">Sistem İsteği Simgesi</string>
+    <string name="top_p_icon">Çekirdek örnekleme simgesi</string>
+    <string name="system_prompt_icon">Sistem Komut Simgesi</string>
     <string name="temperature_setting">Sıcaklık Ayarı</string>
-    <string name="temperature_setting_description">Sıcaklık, yanıta rastgelelik ekleyen bir değişkendir. Genellikle varsayılan olarak 1.0\'dır.\nDaha odaklı ve belirleyici cevaplar için düşük sıcaklık, rastgele cevaplar için yüksek sıcaklık ayarlayın.</string>
-    <string name="top_p_setting">Nükleus Örnekleme Ayarı</string>
-    <string name="top_p_setting_description">Nükleus örnekleme sırasında, azalan olasılık sırasına göre her bir sonraki token için tüm seçenekler üzerinde kümülatif dağılım hesaplanır ve bu değere göre belirli bir olasılığa ulaştığında kesilir.\nÇoğu model genellikle bu ayar ile sıcaklık arasında bir değişiklik önerir ancak ikisini birden değil.</string>
+    <string name="temperature_setting_description">Sıcaklık, yanıta enjekte edilen rastgelelik miktarıdır. Genellikle varsayılan olarak 1.0’dır.\nDaha odaklı ve belirleyici cevaplar için düşük sıcaklık, rastgele cevaplar için yüksek sıcaklık ayarlayın.</string>
+    <string name="top_p_setting">Çekirdek Örnekleme Ayarı</string>
+    <string name="top_p_setting_description">Çekirdek örneklemede, her bir sonraki token için tüm seçenekler üzerinde azalan olasılık sırasına göre kümülatif dağılım hesaplanır ve bu değerle belirtilen belirli bir olasılığa ulaşıldığında kesilir.\nÇoğu model genellikle bunu veya sıcaklığı değiştirmeyi önerir, ancak ikisini birden değil.</string>
     <string name="about">Hakkında</string>
     <string name="about_description">Sürüm, Lisans, Geri Bildirim</string>
     <string name="version">Sürüm</string>
     <string name="license">Lisans</string>
+    <string name="github" translatable="false">GitHub</string>
+    <string name="f_droid" translatable="false">F-Droid</string>
+    <string name="play_store" translatable="false">Play Store</string>
     <string name="feedback">Geri Bildirim</string>
     <string name="license_description">Açık Kaynak Lisansları</string>
     <string name="feedback_description">Her türlü geri bildirime açığız!</string>
@@ -106,9 +129,66 @@
     <string name="github_icon">GitHub Simgesi</string>
     <string name="f_droid_icon">F-Droid Simgesi</string>
     <string name="play_store_icon">Play Store Simgesi</string>
-    <string name="api_url">API URL\'si</string>
+    <string name="github_link" translatable="false">https://github.com/Taewan-P/gpt_mobile</string>
+    <string name="f_droid_link" translatable="false">https://f-droid.org/packages/dev.chungjungsoo.gptmobile/</string>
+    <string name="play_store_link" translatable="false">https://play.google.com/store/apps/details?id=dev.chungjungsoo.gptmobile</string>
+    <string name="bug_report_link" translatable="false">https://github.com/Taewan-P/gpt_mobile/issues/new/choose</string>
+    <string name="feedback_link" translatable="false">https://github.com/Taewan-P/gpt_mobile/discussions/new/choose</string>
+    <string name="api_url">API URL’si</string>
     <string name="url_icon">URL Simgesi</string>
     <string name="invalid_api_url">Lütfen geçerli bir URL girin.</string>
+    <string name="ollama" translatable="false">Ollama</string>
+    <string name="ollama_description">Kendi modelinizi kullanın.</string>
+    <string name="select_ollama_model">Ollama Sohbet Modelini Seçin</string>
+    <string name="ollama_setting">Ollama Ayarları</string>
+    <string name="ollama_brand_text" translatable="false">Powered by Ollama</string>
+    <string name="select_ollama_model_description">Lütfen Ollama modelini seçin. Desteklenen çok sayıda model ve etiket olduğundan, model değerini özelleştirebilirsiniz. Uç noktanın modeli gerçekten desteklediğinden ve çalışır durumda olduğundan emin olun. Aksi takdirde yanıt oluşturulmaz.</string>
+    <string name="custom">Özel</string>
+    <string name="custom_description">Listede olmayan modeli kullanın.</string>
+    <string name="model_name">Model Adı</string>
+    <string name="model_custom_example">ör. llama3.2, llava, llama3:latest, …</string>
+    <string name="custom_model_warning">Model adının API tarafından desteklenmesi gerektiğini unutmayın.</string>
+    <string name="enter_api_address">API Adresini Girin</string>
+    <string name="api_address_description">Lütfen Ollama API’nizin adresini, port numarası dahil olmak üzere girin. Uygulama v1/chat/completions uç noktasını kullanacağından, yalnızca adresin ön kısmını girin. Adres bir ‘/’ ile bitmelidir. ör.) http://192.168.1.100:11434/</string>
+    <string name="ollama_api_address">Ollama API Adresi</string>
+    <string name="ollama_api_help" translatable="false">https://ollama.com/blog/openai-compatibility</string>
     <string name="reset">Sıfırla</string>
-    <string name="gemma2_description">Google tarafından yayınlanan Küçük Dil Modeli.</string>
+    <string name="ollama_api_key">Ollama API Anahtarı</string>
+    <string name="api_url_cautions">URL bir ‘/’ ile bitmelidir.</string>
+    <string name="bug_report">Hata Raporu</string>
+    <string name="bug_report_description">Bir şey doğru çalışmıyor mu?</string>
+    <string name="bug_report_icon">Hata Raporu Simgesi</string>
+    <string name="scroll_to_bottom_icon">Aşağı kaydır simgesi</string>
+    <string name="llama_3_2_3b" translatable="false">Llama 3.2 3B (Preview) 8k</string>
+    <string name="llama_3_2_1b" translatable="false">Llama 3.2 1B (Preview) 8k</string>
+    <string name="llama_3_1_70b_versatile" translatable="false">Llama 3.1 70B Versatile 128k</string>
+    <string name="llama_3_1_8b_instant" translatable="false">Llama 3.1 8B Instant 128k</string>
+    <string name="gemma_2_9b" translatable="false">Gemma 2 9B 8k</string>
+    <string name="llama_3_2_description">Meta’dan en son hafif açık kaynak dil modeli.</string>
+    <string name="llama_3_1_description">Meta’dan son teknoloji çok dilli açık kaynak büyük dil modeli.</string>
+    <string name="gemma2_description">Google tarafından piyasaya sürülen Küçük Dil Modeli.</string>
+    <string name="select_groq_model">Groq Sohbet Modelini Seçin</string>
+    <string name="select_groq_model_description">Lütfen Groq sohbet modelini seçin. Listede olmayan modelleri istiyorsanız, Groq API dokümantasyon web sitesine göz atın ve neler mevcut olduğunu görün.</string>
+    <string name="groq_setting">Groq Ayarları</string>
+    <string name="groq_brand_text" translatable="false">Powered by Groq</string>
+    <string name="groq" translatable="false">Groq</string>
+    <string name="groq_description">Açıkça mevcut modeller için hızlı yapay zeka çıkarımı.</string>
+    <string name="groq_api_key">Groq API Anahtarı</string>
+    <string name="groq_api_help" translatable="false">https://console.groq.com/keys</string>
+    <string name="options">Seçenekler</string>
+    <string name="update_chat_title">Sohbet başlığını güncelle</string>
+    <string name="chat_title">Sohbet Başlığı</string>
+    <string name="chat_title_dialog_description">Yapay zeka tarafından oluşturulan başlık yalnızca AICore destekli cihazlarda kullanılabilir.</string>
+    <string name="default_mode">Varsayılan</string>
+    <string name="ai_generated">Yapay Zeka ile Oluşturulmuş (Beta)</string>
+    <string name="update">Güncelle</string>
+    <string name="untitled_chat">Başlıksız Sohbet</string>
+    <string name="title_length_limit">Başlık uzunluk sınırı: %1$s/50</string>
+    <string name="apply_generated_title">Oluşturulan başlığı uygula</string>
+    <string name="retry_ai_title">Yapay zeka ile oluşturulan başlığı tekrar dene</string>
+    <string name="token_input_warning">NOT: OpenAI ve Anthropic ön ödemeli faturalandırma kullanır, bu nedenle bunları kullanmadan önce her bir hesaba KREDİ YÜKLEMENİZ gerekir. Aksi takdirde yanıt bir hata döndürür.</string>
+    <string name="edit">Düzenle</string>
+    <string name="edit_question">Kullanıcı Mesajını Düzenle</string>
+    <string name="user_message">Kullanıcı Mesajı</string>
+    <string name="export_chat">Sohbeti Dışa Aktar</string>
 </resources>
