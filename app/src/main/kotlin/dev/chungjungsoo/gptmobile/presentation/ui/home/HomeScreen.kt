@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -35,6 +36,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SearchBar
+import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -63,30 +66,30 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
-import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoom
-import dev.chungjungsoo.gptmobile.data.dto.Platform
-import dev.chungjungsoo.gptmobile.data.model.ApiType
+import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
+import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.presentation.common.PlatformCheckBoxItem
-import dev.chungjungsoo.gptmobile.util.getPlatformTitleResources
+import dev.chungjungsoo.gptmobile.util.getPlatformName
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
     homeViewModel: HomeViewModel = hiltViewModel(),
     settingOnClick: () -> Unit,
-    onExistingChatClick: (ChatRoom) -> Unit,
-    navigateToNewChat: (enabledPlatforms: List<ApiType>) -> Unit
+    onExistingChatClick: (ChatRoomV2) -> Unit,
+    navigateToNewChat: (enabledPlatforms: List<String>) -> Unit
 ) {
-    val platformTitles = getPlatformTitleResources()
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val chatListState by homeViewModel.chatListState.collectAsStateWithLifecycle()
     val showSelectModelDialog by homeViewModel.showSelectModelDialog.collectAsStateWithLifecycle()
     val showDeleteWarningDialog by homeViewModel.showDeleteWarningDialog.collectAsStateWithLifecycle()
     val platformState by homeViewModel.platformState.collectAsStateWithLifecycle()
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    val searchQuery by homeViewModel.searchQuery.collectAsStateWithLifecycle()
+    val lifecycleOwner = LocalLifecycleOwner.current
     val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
@@ -106,9 +109,10 @@ fun HomeScreen(
             .nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             HomeTopAppBar(
-                chatListState.isSelectionMode,
-                selectedChats = chatListState.selected.count { it },
-                scrollBehavior,
+                isSelectionMode = chatListState.isSelectionMode,
+                isSearchMode = chatListState.isSearchMode,
+                selectedChats = chatListState.selectedChats.count { it },
+                scrollBehavior = scrollBehavior,
                 actionOnClick = {
                     if (chatListState.isSelectionMode) {
                         homeViewModel.openDeleteWarningDialog()
@@ -117,8 +121,19 @@ fun HomeScreen(
                     }
                 },
                 navigationOnClick = {
-                    homeViewModel.disableSelectionMode()
-                }
+                    if (chatListState.isSelectionMode) {
+                        homeViewModel.disableSelectionMode()
+                        return@HomeTopAppBar
+                    }
+
+                    if (chatListState.isSearchMode) {
+                        homeViewModel.disableSearchMode()
+                    } else {
+                        homeViewModel.enableSearchMode()
+                    }
+                },
+                onSearchQueryChanged = homeViewModel::updateSearchQuery,
+                searchQuery = searchQuery
             )
         },
         floatingActionButton = {
@@ -139,7 +154,7 @@ fun HomeScreen(
         ) {
             item { ChatsTitle(scrollBehavior) }
             itemsIndexed(chatListState.chats, key = { _, it -> it.id }) { idx, chatRoom ->
-                val usingPlatform = chatRoom.enabledPlatform.joinToString(", ") { platformTitles[it] ?: "" }
+                val usingPlatform = chatRoom.enabledPlatform.map { uid -> platformState.getPlatformName(uid) }.joinToString(", ")
                 ListItem(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -162,7 +177,7 @@ fun HomeScreen(
                     leadingContent = {
                         if (chatListState.isSelectionMode) {
                             Checkbox(
-                                checked = chatListState.selected[idx],
+                                checked = chatListState.selectedChats[idx],
                                 onCheckedChange = { homeViewModel.selectChat(idx) }
                             )
                         } else {
@@ -180,12 +195,13 @@ fun HomeScreen(
         if (showSelectModelDialog) {
             SelectPlatformDialog(
                 platformState,
+                selectedPlatforms = chatListState.selectedPlatforms,
                 onDismissRequest = { homeViewModel.closeSelectModelDialog() },
                 onConfirmation = {
-                    homeViewModel.closeSelectModelDialog()
                     navigateToNewChat(it)
+                    homeViewModel.closeSelectModelDialog()
                 },
-                onPlatformSelect = { homeViewModel.updateCheckedState(it) }
+                onPlatformSelect = { homeViewModel.updatePlatformCheckedState(it) }
             )
         }
 
@@ -193,7 +209,7 @@ fun HomeScreen(
             DeleteWarningDialog(
                 onDismissRequest = homeViewModel::closeDeleteWarningDialog,
                 onConfirm = {
-                    val deletedChatRoomCount = chatListState.selected.count { it }
+                    val deletedChatRoomCount = chatListState.selectedChats.count { it }
                     homeViewModel.deleteSelectedChats()
                     Toast.makeText(context, context.getString(R.string.deleted_chats, deletedChatRoomCount), Toast.LENGTH_SHORT).show()
                     homeViewModel.closeDeleteWarningDialog()
@@ -207,10 +223,13 @@ fun HomeScreen(
 @Composable
 fun HomeTopAppBar(
     isSelectionMode: Boolean,
+    isSearchMode: Boolean,
     selectedChats: Int,
     scrollBehavior: TopAppBarScrollBehavior,
     actionOnClick: () -> Unit,
-    navigationOnClick: () -> Unit
+    navigationOnClick: () -> Unit,
+    onSearchQueryChanged: (String) -> Unit,
+    searchQuery: String
 ) {
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
@@ -219,7 +238,38 @@ fun HomeTopAppBar(
             titleContentColor = if (isSelectionMode) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onBackground
         ),
         title = {
-            if (isSelectionMode) {
+            if (isSearchMode) {
+                SearchBar(
+                    inputField = {
+                        SearchBarDefaults.InputField(
+                            query = searchQuery,
+                            onQueryChange = onSearchQueryChanged,
+                            onSearch = { /* Handle search submission if needed */ },
+                            expanded = searchQuery.isNotBlank(),
+                            onExpandedChange = {},
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text(stringResource(R.string.search_chats)) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.Search,
+                                    contentDescription = stringResource(R.string.search_chats)
+                                )
+                            },
+                            trailingIcon = {
+                                IconButton(onClick = { onSearchQueryChanged("") }) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Close,
+                                        contentDescription = stringResource(R.string.clear)
+                                    )
+                                }
+                            }
+                        )
+                    },
+                    expanded = searchQuery.isNotBlank(),
+                    onExpandedChange = { /* Handle search expansion if needed */ }
+                ) {
+                }
+            } else if (isSelectionMode) {
                 Text(
                     modifier = Modifier.padding(4.dp),
                     text = stringResource(R.string.chats_selected, selectedChats),
@@ -238,15 +288,25 @@ fun HomeTopAppBar(
             }
         },
         navigationIcon = {
-            if (isSelectionMode) {
+            if (isSelectionMode xor isSearchMode) {
                 IconButton(
                     modifier = Modifier.padding(4.dp),
                     onClick = navigationOnClick
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Close,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        tint = if (!isSearchMode) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onBackground,
                         contentDescription = stringResource(R.string.close)
+                    )
+                }
+            } else {
+                IconButton(
+                    modifier = Modifier.padding(4.dp),
+                    onClick = navigationOnClick
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Search,
+                        contentDescription = stringResource(R.string.search_chats)
                     )
                 }
             }
@@ -263,7 +323,10 @@ fun HomeTopAppBar(
                         contentDescription = stringResource(R.string.delete)
                     )
                 }
-            } else {
+                return@TopAppBar
+            }
+
+            if (!isSearchMode) {
                 IconButton(
                     modifier = Modifier.padding(4.dp),
                     onClick = actionOnClick
@@ -331,12 +394,12 @@ fun NewChatButton(
 
 @Composable
 fun SelectPlatformDialog(
-    platforms: List<Platform>,
+    platforms: List<PlatformV2>,
+    selectedPlatforms: List<Boolean>,
     onDismissRequest: () -> Unit,
-    onConfirmation: (enabledPlatforms: List<ApiType>) -> Unit,
-    onPlatformSelect: (Platform) -> Unit
+    onConfirmation: (enabledPlatforms: List<String>) -> Unit,
+    onPlatformSelect: (idx: Int) -> Unit
 ) {
-    val titles = getPlatformTitleResources()
     val configuration = LocalConfiguration.current
 
     AlertDialog(
@@ -363,13 +426,13 @@ fun SelectPlatformDialog(
             HorizontalDivider()
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 if (platforms.any { it.enabled }) {
-                    platforms.forEach { platform ->
+                    platforms.forEachIndexed { i, platform ->
                         PlatformCheckBoxItem(
-                            platform = platform,
-                            title = titles[platform.name]!!,
+                            title = platform.name,
                             enabled = platform.enabled,
+                            selected = selectedPlatforms[i],
                             description = null,
-                            onClickEvent = { onPlatformSelect(platform) }
+                            onClickEvent = { onPlatformSelect(i) }
                         )
                     }
                 } else {
@@ -380,8 +443,8 @@ fun SelectPlatformDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = platforms.any { it.selected },
-                onClick = { onConfirmation(platforms.filter { it.selected }.map { it.name }) }
+                enabled = selectedPlatforms.any { it },
+                onClick = { onConfirmation(platforms.filterIndexed { i, _ -> selectedPlatforms[i] }.map { it.uid }) }
             ) {
                 Text(stringResource(R.string.confirm))
             }
@@ -407,24 +470,6 @@ fun EnablePlatformWarningText() {
             .padding(16.dp),
         textAlign = TextAlign.Center,
         text = stringResource(R.string.enable_at_leat_one_platform)
-    )
-}
-
-@Preview
-@Composable
-private fun SelectPlatformDialogPreview() {
-    val platforms = listOf(
-        Platform(ApiType.OPENAI, enabled = true),
-        Platform(ApiType.ANTHROPIC, enabled = false),
-        Platform(ApiType.GOOGLE, enabled = false),
-        Platform(ApiType.GROQ, enabled = true),
-        Platform(ApiType.OLLAMA, enabled = true)
-    )
-    SelectPlatformDialog(
-        platforms = platforms,
-        onDismissRequest = {},
-        onConfirmation = {},
-        onPlatformSelect = {}
     )
 }
 

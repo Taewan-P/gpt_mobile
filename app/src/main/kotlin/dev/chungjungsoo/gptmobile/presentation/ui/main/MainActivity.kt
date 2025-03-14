@@ -53,10 +53,20 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.CREATED) {
                 mainViewModel.event.collect { event ->
-                    if (event == MainViewModel.SplashEvent.OpenIntro) {
-                        navigate(Route.GET_STARTED) {
-                            popUpTo(Route.CHAT_LIST) { inclusive = true }
+                    when (event) {
+                        MainViewModel.SplashEvent.OpenIntro -> {
+                            navigate(Route.GET_STARTED) {
+                                popUpTo(Route.CHAT_LIST) { inclusive = true }
+                            }
                         }
+
+                        MainViewModel.SplashEvent.OpenMigrate -> {
+                            navigate(Route.MIGRATE_V2) {
+                                popUpTo(Route.CHAT_LIST) { inclusive = true }
+                            }
+                        }
+
+                        else -> {}
                     }
                 }
             }
