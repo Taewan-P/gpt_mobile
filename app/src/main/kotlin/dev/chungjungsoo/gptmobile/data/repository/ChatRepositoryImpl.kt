@@ -56,9 +56,13 @@ class ChatRepositoryImpl @Inject constructor(
         openAI = OpenAI(platform.token ?: "", host = OpenAIHost(baseUrl = platform.apiUrl))
 
         val generatedMessages = messageToOpenAICompatibleMessage(ApiType.OPENAI, history + listOf(question))
-        val generatedMessageWithPrompt = listOf(
-            ChatMessage(role = ChatRole.System, content = platform.systemPrompt ?: ModelConstants.OPENAI_PROMPT)
-        ) + generatedMessages
+        val generatedMessageWithPrompt = if (platform.systemPrompt.isNullOrEmpty()) {
+            generatedMessages
+        } else {
+            listOf(
+                ChatMessage(role = ChatRole.System, content = platform.systemPrompt)
+            ) + generatedMessages
+        }
         val chatCompletionRequest = ChatCompletionRequest(
             model = ModelId(platform.model ?: ""),
             messages = generatedMessageWithPrompt,
@@ -83,7 +87,7 @@ class ChatRepositoryImpl @Inject constructor(
             model = platform.model ?: "",
             messages = generatedMessages,
             maxTokens = ModelConstants.ANTHROPIC_MAXIMUM_TOKEN,
-            systemPrompt = platform.systemPrompt ?: ModelConstants.DEFAULT_PROMPT,
+            systemPrompt = platform.systemPrompt.takeIf { !it.isNullOrEmpty() },
             stream = true,
             temperature = platform.temperature,
             topP = platform.topP
@@ -111,7 +115,7 @@ class ChatRepositoryImpl @Inject constructor(
         google = GenerativeModel(
             modelName = platform.model ?: "",
             apiKey = platform.token ?: "",
-            systemInstruction = content { text(platform.systemPrompt ?: ModelConstants.DEFAULT_PROMPT) },
+            systemInstruction = platform.systemPrompt.takeIf { !it.isNullOrEmpty() }?.let { content { text(it) } },
             generationConfig = config,
             safetySettings = listOf(
                 SafetySetting(HarmCategory.DANGEROUS_CONTENT, BlockThreshold.ONLY_HIGH),
@@ -134,9 +138,13 @@ class ChatRepositoryImpl @Inject constructor(
         groq = OpenAI(platform.token ?: "", host = OpenAIHost(baseUrl = platform.apiUrl))
 
         val generatedMessages = messageToOpenAICompatibleMessage(ApiType.GROQ, history + listOf(question))
-        val generatedMessageWithPrompt = listOf(
-            ChatMessage(role = ChatRole.System, content = platform.systemPrompt ?: ModelConstants.DEFAULT_PROMPT)
-        ) + generatedMessages
+        val generatedMessageWithPrompt = if (platform.systemPrompt.isNullOrEmpty()) {
+            generatedMessages
+        } else {
+            listOf(
+                ChatMessage(role = ChatRole.System, content = platform.systemPrompt)
+            ) + generatedMessages
+        }
         val chatCompletionRequest = ChatCompletionRequest(
             model = ModelId(platform.model ?: ""),
             messages = generatedMessageWithPrompt,
@@ -156,9 +164,13 @@ class ChatRepositoryImpl @Inject constructor(
         ollama = OpenAI(platform.token ?: "", host = OpenAIHost(baseUrl = "${platform.apiUrl}v1/"))
 
         val generatedMessages = messageToOpenAICompatibleMessage(ApiType.OLLAMA, history + listOf(question))
-        val generatedMessageWithPrompt = listOf(
-            ChatMessage(role = ChatRole.System, content = platform.systemPrompt ?: ModelConstants.DEFAULT_PROMPT)
-        ) + generatedMessages
+        val generatedMessageWithPrompt = if (platform.systemPrompt.isNullOrEmpty()) {
+            generatedMessages
+        } else {
+            listOf(
+                ChatMessage(role = ChatRole.System, content = platform.systemPrompt)
+            ) + generatedMessages
+        }
         val chatCompletionRequest = ChatCompletionRequest(
             model = ModelId(platform.model ?: ""),
             messages = generatedMessageWithPrompt,

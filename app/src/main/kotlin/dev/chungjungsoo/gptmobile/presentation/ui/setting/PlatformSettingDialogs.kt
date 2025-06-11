@@ -28,6 +28,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import dev.chungjungsoo.gptmobile.R
+import dev.chungjungsoo.gptmobile.data.ModelConstants
 import dev.chungjungsoo.gptmobile.data.ModelConstants.anthropicModels
 import dev.chungjungsoo.gptmobile.data.ModelConstants.getDefaultAPIUrl
 import dev.chungjungsoo.gptmobile.data.ModelConstants.googleModels
@@ -560,6 +561,9 @@ private fun SystemPromptDialog(
                     onValueChange = { textFieldPrompt = it },
                     label = {
                         Text(stringResource(R.string.system_prompt))
+                    },
+                    placeholder = {
+                        Text(ModelConstants.PLACEHOLDER_PROMPT)
                     }
                 )
             }

@@ -25,12 +25,7 @@ object ModelConstants {
 
     const val ANTHROPIC_MAXIMUM_TOKEN = 4096
 
-    const val OPENAI_PROMPT =
-        "You are a helpful, clever, and very friendly assistant. " +
-            "You are familiar with various languages in the world. " +
-            "You are to answer my questions precisely. "
-
-    const val DEFAULT_PROMPT = "Your task is to answer my questions precisely."
+    const val PLACEHOLDER_PROMPT = "You are a helpful assistant."
 
     const val CHAT_TITLE_GENERATE_PROMPT =
         "Create a title that summarizes the chat. " +
