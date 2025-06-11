@@ -535,11 +535,13 @@ private fun TopPDialog(
 
 @Composable
 private fun SystemPromptDialog(
-    prompt: String,
+    prompt: String, // This should be the actual current system prompt, or "" if not set
     onDismissRequest: () -> Unit,
     onConfirmRequest: (text: String) -> Unit
 ) {
     val configuration = LocalConfiguration.current
+    // textFieldPrompt is initialized with the current prompt value.
+    // If 'prompt' is an empty string, textFieldPrompt will be empty, allowing the placeholder to show.
     var textFieldPrompt by remember { mutableStateOf(prompt) }
 
     AlertDialog(
@@ -557,21 +559,17 @@ private fun SystemPromptDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp, vertical = 16.dp),
-                    value = textFieldPrompt,
+                    value = textFieldPrompt, // Value is the mutable state
                     onValueChange = { textFieldPrompt = it },
-                    label = {
-                        Text(stringResource(R.string.system_prompt))
-                    },
-                    placeholder = {
-                        Text(ModelConstants.PLACEHOLDER_PROMPT)
-                    }
+                    label = { Text(stringResource(R.string.system_prompt)) }, // Standard label
+                    placeholder = { Text(ModelConstants.PLACEHOLDER_PROMPT) } // Placeholder text
                 )
             }
         },
         onDismissRequest = onDismissRequest,
         confirmButton = {
             TextButton(
-                enabled = textFieldPrompt.isNotBlank(),
+                // Changed from textFieldPrompt.isNotBlank() to allow saving an empty prompt
                 onClick = { onConfirmRequest(textFieldPrompt) }
             ) {
                 Text(stringResource(R.string.confirm))
