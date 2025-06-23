@@ -198,10 +198,11 @@ fun ChatScreen(
             modifier = Modifier.padding(innerPadding),
             state = listState
         ) {
-            groupedMessages.keys.sorted().forEach { key ->
-                if (key % 2 == 0) {
+            groupedMessages.keys.sorted().forEach { groupKey ->
+                val currentGroup = groupedMessages[groupKey]!!
+                if (groupKey % 2 == 0) {
                     // User
-                    item {
+                    item(key = "user-${currentGroup[0].id}") {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -219,20 +220,22 @@ fun ChatScreen(
                     }
                 } else {
                     // Assistant
-                    item {
+                    // Use a stable key for the group of assistant messages.
+                    // Combining chatId and createdAt of the first message in the group for uniqueness.
+                    item(key = "assistant-group-${currentGroup[0].chatId}-${currentGroup[0].createdAt}") {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .horizontalScroll(chatBubbleScrollStates[(key - 1) / 2])
+                                .horizontalScroll(chatBubbleScrollStates[(groupKey - 1) / 2])
                         ) {
                             Spacer(modifier = Modifier.width(8.dp))
-                            groupedMessages[key]!!.sortedBy { it.platformType }.forEach { m ->
+                            currentGroup.sortedBy { it.platformType }.forEach { m ->
                                 m.platformType?.let { apiType ->
                                     OpponentChatBubble(
                                         modifier = Modifier
                                             .padding(horizontal = 8.dp, vertical = 12.dp)
                                             .widthIn(max = maximumChatBubbleWidth),
-                                        canRetry = canUseChat && isIdle && key >= latestMessageIndex,
+                                        canRetry = canUseChat && isIdle && groupKey >= latestMessageIndex,
                                         isLoading = false,
                                         apiType = apiType,
                                         text = m.content,
@@ -248,7 +251,7 @@ fun ChatScreen(
             }
 
             if (!isIdle) {
-                item {
+                item(key = "live-user-${userMessage.createdAt}") {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -265,13 +268,15 @@ fun ChatScreen(
                     }
                 }
 
-                item {
+                item(key = "live-assistant-group-${userMessage.createdAt}") {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .horizontalScroll(chatBubbleScrollStates[(latestMessageIndex + 1) / 2])
                     ) {
                         Spacer(modifier = Modifier.width(8.dp))
+                        // Individual live assistant bubbles are part of this single item's content.
+                        // Keys for them are not LazyColumn keys but could be useful if this Row became a LazyRow.
                         chatViewModel.enabledPlatformsInChat.sorted().forEach { apiType ->
                             val message = when (apiType) {
                                 ApiType.OPENAI -> openAIMessage

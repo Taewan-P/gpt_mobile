@@ -10,7 +10,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.Message
 @Dao
 interface MessageDao {
 
-    @Query("SELECT * FROM messages WHERE chat_id=:chatInt")
+    @Query("SELECT * FROM messages WHERE chat_id=:chatInt ORDER BY created_at ASC")
     suspend fun loadMessages(chatInt: Int): List<Message>
 
     @Insert

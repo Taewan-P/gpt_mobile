@@ -46,14 +46,49 @@ class ChatRepositoryImpl @Inject constructor(
     private val anthropic: AnthropicAPI
 ) : ChatRepository {
 
-    private lateinit var openAI: OpenAI
-    private lateinit var google: GenerativeModel
-    private lateinit var ollama: OpenAI
-    private lateinit var groq: OpenAI
+    // Configuration keys for caching clients
+    internal data class OpenAIClientConfig(val token: String, val baseUrl: String)
+    internal data class GoogleClientConfig(val token: String, val modelName: String) // Google client is tied to model name
+
+    // Caches for API clients
+    private val openAIClients = mutableMapOf<OpenAIClientConfig, OpenAI>()
+    private val googleClients = mutableMapOf<GoogleClientConfig, GenerativeModel>()
+    // Ollama and Groq use the OpenAI client, so they will share the openAIClients cache
+    // but need distinct keys if their configs differ beyond token/baseUrl (e.g. specific model quirks if any)
+    // For now, assuming they are distinguished by their baseUrl primarily.
+
+    private fun getOpenAIClient(token: String?, baseUrl: String): OpenAI {
+        val config = OpenAIClientConfig(token ?: "", baseUrl)
+        return openAIClients.getOrPut(config) {
+            OpenAI(config.token, host = OpenAIHost(baseUrl = config.baseUrl))
+        }
+    }
+
+    private fun getGoogleClient(token: String?, modelName: String?, systemPrompt: String?, temperature: Float?, topP: Float?): GenerativeModel {
+        val configKey = GoogleClientConfig(token ?: "", modelName ?: "") // Simplified key for lookup
+        // Actual config for creation uses all params
+        return googleClients.getOrPut(configKey) {
+            val genConfig = generationConfig {
+                this.temperature = temperature
+                this.topP = topP
+            }
+            GenerativeModel(
+                modelName = modelName ?: "",
+                apiKey = token ?: "",
+                systemInstruction = content { text(systemPrompt ?: ModelConstants.DEFAULT_PROMPT) },
+                generationConfig = genConfig,
+                safetySettings = listOf(
+                    SafetySetting(HarmCategory.DANGEROUS_CONTENT, BlockThreshold.ONLY_HIGH),
+                    SafetySetting(HarmCategory.SEXUALLY_EXPLICIT, BlockThreshold.NONE)
+                )
+            )
+        }
+    }
+
 
     override suspend fun completeOpenAIChat(question: Message, history: List<Message>): Flow<ApiState> {
         val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.OPENAI })
-        openAI = OpenAI(platform.token ?: "", host = OpenAIHost(baseUrl = platform.apiUrl))
+        val currentOpenAIClient = getOpenAIClient(platform.token, platform.apiUrl)
 
         val generatedMessages = messageToOpenAICompatibleMessage(ApiType.OPENAI, history + listOf(question))
         val generatedMessageWithPrompt = listOf(
@@ -66,7 +101,7 @@ class ChatRepositoryImpl @Inject constructor(
             topP = platform.topP?.toDouble()
         )
 
-        return openAI.chatCompletions(chatCompletionRequest)
+        return currentOpenAIClient.chatCompletions(chatCompletionRequest)
             .map<ChatCompletionChunk, ApiState> { chunk -> ApiState.Success(chunk.choices.getOrNull(0)?.delta?.content ?: "") }
             .catch { throwable -> emit(ApiState.Error(throwable.message ?: "Unknown error")) }
             .onStart { emit(ApiState.Loading) }
@@ -104,23 +139,18 @@ class ChatRepositoryImpl @Inject constructor(
 
     override suspend fun completeGoogleChat(question: Message, history: List<Message>): Flow<ApiState> {
         val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.GOOGLE })
-        val config = generationConfig {
-            temperature = platform.temperature
+        val currentGoogleClient = getGoogleClient(
+            token = platform.token,
+            modelName = platform.model,
+            systemPrompt = platform.systemPrompt,
+            temperature = platform.temperature,
             topP = platform.topP
-        }
-        google = GenerativeModel(
-            modelName = platform.model ?: "",
-            apiKey = platform.token ?: "",
-            systemInstruction = content { text(platform.systemPrompt ?: ModelConstants.DEFAULT_PROMPT) },
-            generationConfig = config,
-            safetySettings = listOf(
-                SafetySetting(HarmCategory.DANGEROUS_CONTENT, BlockThreshold.ONLY_HIGH),
-                SafetySetting(HarmCategory.SEXUALLY_EXPLICIT, BlockThreshold.NONE)
-            )
         )
 
         val inputContent = messageToGoogleMessage(history)
-        val chat = google.startChat(history = inputContent)
+        // For Google's SDK, startChat is on the client instance and returns a Chat object.
+        // The client itself is cached, but startChat would be called per logical session.
+        val chat = currentGoogleClient.startChat(history = inputContent)
 
         return chat.sendMessageStream(question.content)
             .map<GenerateContentResponse, ApiState> { response -> ApiState.Success(response.text ?: "") }
@@ -131,7 +161,7 @@ class ChatRepositoryImpl @Inject constructor(
 
     override suspend fun completeGroqChat(question: Message, history: List<Message>): Flow<ApiState> {
         val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.GROQ })
-        groq = OpenAI(platform.token ?: "", host = OpenAIHost(baseUrl = platform.apiUrl))
+        val currentGroqClient = getOpenAIClient(platform.token, platform.apiUrl)
 
         val generatedMessages = messageToOpenAICompatibleMessage(ApiType.GROQ, history + listOf(question))
         val generatedMessageWithPrompt = listOf(
@@ -144,7 +174,7 @@ class ChatRepositoryImpl @Inject constructor(
             topP = platform.topP?.toDouble()
         )
 
-        return groq.chatCompletions(chatCompletionRequest)
+        return currentGroqClient.chatCompletions(chatCompletionRequest)
             .map<ChatCompletionChunk, ApiState> { chunk -> ApiState.Success(chunk.choices.getOrNull(0)?.delta?.content ?: "") }
             .catch { throwable -> emit(ApiState.Error(throwable.message ?: "Unknown error")) }
             .onStart { emit(ApiState.Loading) }
@@ -153,7 +183,9 @@ class ChatRepositoryImpl @Inject constructor(
 
     override suspend fun completeOllamaChat(question: Message, history: List<Message>): Flow<ApiState> {
         val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.OLLAMA })
-        ollama = OpenAI(platform.token ?: "", host = OpenAIHost(baseUrl = "${platform.apiUrl}v1/"))
+        // Ensure Ollama's specific path suffix is handled if needed, or make baseUrl more specific in settings
+        val baseUrl = if (platform.apiUrl.endsWith("/v1/")) platform.apiUrl else "${platform.apiUrl}v1/"
+        val currentOllamaClient = getOpenAIClient(platform.token, baseUrl)
 
         val generatedMessages = messageToOpenAICompatibleMessage(ApiType.OLLAMA, history + listOf(question))
         val generatedMessageWithPrompt = listOf(
@@ -166,7 +198,7 @@ class ChatRepositoryImpl @Inject constructor(
             topP = platform.topP?.toDouble()
         )
 
-        return ollama.chatCompletions(chatCompletionRequest)
+        return currentOllamaClient.chatCompletions(chatCompletionRequest)
             .map<ChatCompletionChunk, ApiState> { chunk -> ApiState.Success(chunk.choices.getOrNull(0)?.delta?.content ?: "") }
             .catch { throwable -> emit(ApiState.Error(throwable.message ?: "Unknown error")) }
             .onStart { emit(ApiState.Loading) }
