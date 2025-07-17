@@ -1,26 +1,26 @@
 [versions]
-agp = "8.8.2"
-autoLicense = "11.2.2"
-kotlin = "2.0.21"
-coreKtx = "1.15.0"
+agp = "8.11.1"
+autoLicense = "12.2.4"
+kotlin = "2.2.0"
+coreKtx = "1.16.0"
 junit = "4.13.2"
 junitVersion = "1.2.1"
 espressoCore = "3.6.1"
-lifecycleRuntime = "2.8.7"
+lifecycleRuntime = "2.9.2"
 activityCompose = "1.10.1"
-composeBom = "2025.03.00"
-datastore = "1.1.3"
-hilt = "2.55"
-ksp = "2.0.21-1.0.28" # Also change with Kotlin version
-ktor = "3.0.3"
-material3 = "1.3.1"
+composeBom = "2025.07.00"
+datastore = "1.1.7"
+hilt = "2.56.2"
+ksp = "2.2.0-2.0.2" # Also change with Kotlin version
+ktor = "3.2.1"
+material3 = "1.3.2"
 androidxHilt = "1.2.0"
-navigation = "2.8.9"
+navigation = "2.9.2"
 markdown = "1.0.0-alpha02"
 openai = "4.0.1"
-serialization = "1.7.3" # Should not update due to kotlin version
+serialization = "1.9.0" # Should not update due to kotlin version
 splashscreen = "1.0.1"
-room = "2.6.1"
+room = "2.7.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }

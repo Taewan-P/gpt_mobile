@@ -1,3 +1,5 @@
+import org.gradle.kotlin.dsl.aboutLibraries
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.jetbrains.kotlin.android)
@@ -11,12 +13,12 @@ plugins {
 
 android {
     namespace = "dev.chungjungsoo.gptmobile"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "dev.chungjungsoo.gptmobile"
         minSdk = 31
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 15
         versionName = "0.6.3"
 
@@ -49,9 +51,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-    }
-    kotlinOptions {
-        jvmTarget = "17"
     }
     buildFeatures {
         compose = true
@@ -128,5 +127,7 @@ dependencies {
 
 aboutLibraries {
     // Remove the "generated" timestamp to allow for reproducible builds
-    excludeFields = arrayOf("generated")
+    export {
+        excludeFields.add("generated")
+    }
 }
