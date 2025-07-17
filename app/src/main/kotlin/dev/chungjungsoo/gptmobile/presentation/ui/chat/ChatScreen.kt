@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -65,13 +66,13 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -91,7 +92,7 @@ fun ChatScreen(
 ) {
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
     val focusManager = LocalFocusManager.current
-    val clipboardManager = LocalClipboardManager.current
+    val clipboardManager = LocalClipboard.current
     val systemChatMargin = 32.dp
     val maximumUserChatBubbleWidth = (screenWidth - systemChatMargin) * 0.8F
     val maximumOpponentChatBubbleWidth = screenWidth - systemChatMargin
@@ -185,7 +186,7 @@ fun ChatScreen(
                                 canEdit = canUseChat && isIdle,
                                 onDismissRequest = { isDropDownMenuExpanded = false },
                                 onEditItemClick = { chatViewModel.openEditQuestionDialog(message) },
-                                onCopyItemClick = { clipboardManager.setText(AnnotatedString(message.content)) }
+                                onCopyItemClick = { scope.launch { clipboardManager.setClipEntry(ClipEntry(ClipData.newPlainText(message.content, message.content))) } }
                             )
                         }
                     }
@@ -235,7 +236,7 @@ fun ChatScreen(
                             canRetry = canUseChat && isIdle && i == groupedMessages.assistantMessages.size - 1,
                             isLoading = if (i == groupedMessages.assistantMessages.size - 1) isLoading else false,
                             text = assistantContent,
-                            onCopyClick = { clipboardManager.setText(AnnotatedString(assistantContent)) },
+                            onCopyClick = { scope.launch { clipboardManager.setClipEntry(ClipEntry(ClipData.newPlainText(assistantContent, assistantContent))) } },
                             onSelectClick = { chatViewModel.openSelectTextSheet(assistantContent) },
                             onRetryClick = {
                                 // TODO()

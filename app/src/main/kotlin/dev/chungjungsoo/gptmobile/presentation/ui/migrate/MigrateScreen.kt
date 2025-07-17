@@ -104,8 +104,8 @@ fun MigrationTitle(modifier: Modifier = Modifier) {
 @Composable
 fun MigrationCard(
     status: MigrateViewModel.MigrationState,
-    title: @Composable String,
-    description: @Composable String,
+    title: String,
+    description: String,
     onMigrationClick: () -> Unit
 ) {
     Card(
