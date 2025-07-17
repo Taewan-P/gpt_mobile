@@ -57,6 +57,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.style.TextAlign
@@ -154,7 +155,7 @@ fun HomeScreen(
         ) {
             item { ChatsTitle(scrollBehavior) }
             itemsIndexed(chatListState.chats, key = { _, it -> it.id }) { idx, chatRoom ->
-                val usingPlatform = chatRoom.enabledPlatform.map { uid -> platformState.getPlatformName(uid) }.joinToString(", ")
+                val usingPlatform = chatRoom.enabledPlatform.joinToString(", ") { uid -> platformState.getPlatformName(uid) }
                 ListItem(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -400,13 +401,13 @@ fun SelectPlatformDialog(
     onConfirmation: (enabledPlatforms: List<String>) -> Unit,
     onPlatformSelect: (idx: Int) -> Unit
 ) {
-    val configuration = LocalConfiguration.current
+    val configuration = LocalWindowInfo.current
 
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
         modifier = Modifier
-            .widthIn(max = configuration.screenWidthDp.dp - 40.dp)
-            .heightIn(max = configuration.screenHeightDp.dp - 80.dp),
+            .widthIn(max = configuration.containerSize.width.dp - 40.dp)
+            .heightIn(max = configuration.containerSize.height.dp - 80.dp),
         onDismissRequest = onDismissRequest,
         title = {
             Column {
@@ -478,12 +479,12 @@ fun DeleteWarningDialog(
     onDismissRequest: () -> Unit,
     onConfirm: () -> Unit
 ) {
-    val configuration = LocalConfiguration.current
+    val configuration = LocalWindowInfo.current
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
         modifier = Modifier
-            .width(configuration.screenWidthDp.dp - 40.dp)
-            .heightIn(max = configuration.screenHeightDp.dp - 80.dp),
+            .width(configuration.containerSize.width.dp - 40.dp)
+            .heightIn(max = configuration.containerSize.height.dp - 80.dp),
         title = {
             Text(
                 text = stringResource(R.string.delete_selected_chats),

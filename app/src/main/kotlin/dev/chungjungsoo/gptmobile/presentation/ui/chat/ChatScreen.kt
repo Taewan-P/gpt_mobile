@@ -68,9 +68,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.TextStyle
@@ -90,7 +90,7 @@ fun ChatScreen(
     chatViewModel: ChatViewModel = hiltViewModel(),
     onBackAction: () -> Unit
 ) {
-    val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+    val screenWidth = LocalWindowInfo.current.containerSize.width.dp
     val focusManager = LocalFocusManager.current
     val clipboardManager = LocalClipboard.current
     val systemChatMargin = 32.dp

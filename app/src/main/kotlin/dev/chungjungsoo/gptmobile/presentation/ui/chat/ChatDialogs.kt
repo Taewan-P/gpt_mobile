@@ -18,7 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
@@ -32,7 +32,7 @@ fun ChatTitleDialog(
     onConfirmRequest: (title: String) -> Unit,
     onDismissRequest: () -> Unit
 ) {
-    val configuration = LocalConfiguration.current
+    val configuration = LocalWindowInfo.current
     var title by rememberSaveable { mutableStateOf(initialTitle) }
     var useAICore by rememberSaveable { mutableStateOf(false) }
     val untitledChat = stringResource(R.string.untitled_chat)
@@ -40,8 +40,8 @@ fun ChatTitleDialog(
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
         modifier = Modifier
-            .widthIn(max = configuration.screenWidthDp.dp - 40.dp)
-            .heightIn(max = configuration.screenHeightDp.dp - 80.dp),
+            .widthIn(max = configuration.containerSize.width.dp - 40.dp)
+            .heightIn(max = configuration.containerSize.height.dp - 80.dp),
         title = { Text(text = stringResource(R.string.chat_title)) },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
@@ -95,14 +95,14 @@ fun ChatQuestionEditDialog(
     onDismissRequest: () -> Unit,
     onConfirmRequest: (MessageV2) -> Unit
 ) {
-    val configuration = LocalConfiguration.current
+    val configuration = LocalWindowInfo.current
     var question by remember { mutableStateOf(initialQuestion.content) }
 
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
         modifier = Modifier
-            .widthIn(max = configuration.screenWidthDp.dp - 40.dp)
-            .heightIn(max = configuration.screenHeightDp.dp - 80.dp),
+            .widthIn(max = configuration.containerSize.width.dp - 40.dp)
+            .heightIn(max = configuration.containerSize.height.dp - 80.dp),
         title = { Text(text = stringResource(R.string.edit_question)) },
         text = {
             Column(
