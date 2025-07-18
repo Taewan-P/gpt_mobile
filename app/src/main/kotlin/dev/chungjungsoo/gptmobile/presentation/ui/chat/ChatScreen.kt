@@ -194,7 +194,7 @@ fun ChatScreen(
                 item {
                     val platformIndexState = chatStates.indexStates[i]
                     val assistantContent = groupedMessages.assistantMessages[i][platformIndexState].content
-                    val isLoading = chatStates.loadingStates[platformIndexState] == ChatViewModel.LoadingState.Loading
+                    val isCurrentPlatformLoading = chatStates.loadingStates[platformIndexState] == ChatViewModel.LoadingState.Loading
 
                     Column(
                         modifier = Modifier
@@ -217,6 +217,7 @@ fun ChatScreen(
                                 ) {
                                     chatViewModel.enabledPlatformsInChat.forEachIndexed { j, uid ->
                                         val platform = appEnabledPlatforms.find { it.uid == uid }
+                                        val isLoading = chatStates.loadingStates[j] == ChatViewModel.LoadingState.Loading
                                         PlatformButton(
                                             isLoading = if (i == groupedMessages.assistantMessages.size - 1) isLoading else false,
                                             name = platform?.name ?: stringResource(R.string.unknown),
@@ -234,7 +235,7 @@ fun ChatScreen(
                                 .padding(horizontal = 8.dp)
                                 .widthIn(max = maximumOpponentChatBubbleWidth),
                             canRetry = canUseChat && isIdle && i == groupedMessages.assistantMessages.size - 1,
-                            isLoading = if (i == groupedMessages.assistantMessages.size - 1) isLoading else false,
+                            isLoading = if (i == groupedMessages.assistantMessages.size - 1) isCurrentPlatformLoading else false,
                             text = assistantContent,
                             onCopyClick = { scope.launch { clipboardManager.setClipEntry(ClipEntry(ClipData.newPlainText(assistantContent, assistantContent))) } },
                             onSelectClick = { chatViewModel.openSelectTextSheet(assistantContent) },
