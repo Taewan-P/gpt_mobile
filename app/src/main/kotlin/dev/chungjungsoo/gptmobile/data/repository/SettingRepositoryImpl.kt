@@ -7,6 +7,7 @@ import dev.chungjungsoo.gptmobile.data.datastore.SettingDataSource
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.data.dto.ThemeSetting
 import dev.chungjungsoo.gptmobile.data.model.ApiType
+import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.model.DynamicTheme
 import dev.chungjungsoo.gptmobile.data.model.ThemeMode
 import javax.inject.Inject
@@ -71,6 +72,13 @@ class SettingRepositoryImpl @Inject constructor(
                         ApiType.GOOGLE -> "Google"
                         ApiType.GROQ -> "Groq"
                         ApiType.OLLAMA -> "Ollama"
+                    },
+                    compatibleType = when (platform.name) {
+                        ApiType.OPENAI -> ClientType.OPENAI
+                        ApiType.ANTHROPIC -> ClientType.ANTHROPIC
+                        ApiType.GOOGLE -> ClientType.GOOGLE
+                        ApiType.GROQ -> ClientType.OPENAI
+                        ApiType.OLLAMA -> ClientType.OLLAMA
                     },
                     enabled = platform.enabled,
                     apiUrl = platform.apiUrl,

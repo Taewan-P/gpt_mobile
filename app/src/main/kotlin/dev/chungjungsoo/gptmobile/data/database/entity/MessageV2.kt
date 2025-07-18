@@ -26,6 +26,9 @@ data class MessageV2(
     @ColumnInfo(name = "chat_id")
     val chatId: Int = 0,
 
+    @ColumnInfo(name = "thoughts")
+    val thoughts: String = "",
+
     @ColumnInfo(name = "content")
     val content: String,
 

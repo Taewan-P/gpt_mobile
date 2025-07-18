@@ -3,6 +3,7 @@ package dev.chungjungsoo.gptmobile.data.database.entity
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import dev.chungjungsoo.gptmobile.data.model.ClientType
 import java.util.UUID
 
 @Entity(tableName = "platform_v2")
@@ -16,6 +17,9 @@ data class PlatformV2(
 
     @ColumnInfo("name")
     val name: String,
+
+    @ColumnInfo("compatible_type")
+    val compatibleType: ClientType,
 
     @ColumnInfo(name = "enabled")
     val enabled: Boolean = false,
