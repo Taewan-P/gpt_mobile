@@ -11,6 +11,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import dev.chungjungsoo.gptmobile.util.getPlatformName
+import dev.chungjungsoo.gptmobile.util.handleStates
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -35,9 +36,11 @@ class ChatViewModel @Inject constructor(
     )
 
     data class ChatStates(
+        // Index of the currently shown message's platform - default is 0 (first platform)
         val indexStates: List<Int> = listOf(),
+        // Loading states for each platform
         val loadingStates: List<LoadingState> = listOf()
-    )
+    ) // TODO: Separate loading states in ChatRepository - The Chat Repository does not need to know about enabled platforms
 
     private val chatRoomId: Int = checkNotNull(savedStateHandle["chatRoomId"])
     private val enabledPlatformString: String = checkNotNull(savedStateHandle["enabledPlatforms"])
@@ -71,7 +74,7 @@ class ChatViewModel @Inject constructor(
     val groupedMessages = _groupedMessages.asStateFlow()
 
     // Each chat states for assistant chat messages
-    private val _chatStates = MutableStateFlow(ChatStates())
+    private val _chatStates = MutableStateFlow(ChatStates(loadingStates = List(enabledPlatformsInChat.size) { LoadingState.Idle }))
     val chatStates = _chatStates.asStateFlow()
 
     // Used for passing user question to Edit User Message Dialog
@@ -120,7 +123,7 @@ class ChatViewModel @Inject constructor(
             createdAt = currentTimeStamp
         ).let { addMessage(it) }
         _question.update { "" }
-        // completeChat() TODO() : Complete the function
+        completeChat()
     }
 
     fun closeChatTitleDialog() = _isChatTitleDialogOpen.update { false }
@@ -160,6 +163,7 @@ class ChatViewModel @Inject constructor(
     }
 
     fun updateChatPlatformIndex(assistantIndex: Int, platformIndex: Int) {
+        // Change the message shown in the screen to another platform
         if (assistantIndex >= _chatStates.value.indexStates.size || assistantIndex < 0) return
         if (platformIndex >= enabledPlatformsInChat.size || platformIndex < 0) return
 
@@ -199,6 +203,31 @@ class ChatViewModel @Inject constructor(
         // Save the Markdown file
         val fileName = "export_${chatRoom.value.title}_${System.currentTimeMillis()}.md"
         return Pair(fileName, chatHistoryMarkdown)
+    }
+
+    private fun completeChat() {
+        // Update all the platform loading states to Loading
+        _chatStates.update { it.copy(loadingStates = List(enabledPlatformsInChat.size) { LoadingState.Loading }) }
+
+        // Send chat completion requests
+        enabledPlatformsInChat.forEachIndexed { idx, platformUid ->
+            val platform = _enabledPlatformsInApp.value.firstOrNull { it.uid == platformUid } ?: return@forEachIndexed
+            viewModelScope.launch {
+                chatRepository.completeChat(
+                    _groupedMessages.value.userMessages,
+                    _groupedMessages.value.assistantMessages,
+                    platform
+                ).handleStates(
+                    messageFlow = _groupedMessages,
+                    platformIdx = idx,
+                    onLoadingComplete = {
+                        _chatStates.update {
+                            it.copy(loadingStates = it.loadingStates.toMutableList().apply { this[idx] = LoadingState.Idle })
+                        }
+                    }
+                )
+            }
+        }
     }
 
     private fun formatCurrentDateTime(): String {

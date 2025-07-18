@@ -14,7 +14,6 @@ import ai.koog.prompt.llm.LLMCapability
 import ai.koog.prompt.llm.LLMProvider
 import ai.koog.prompt.llm.LLModel
 import ai.koog.prompt.params.LLMParams
-import com.aallam.openai.client.OpenAI
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomDao
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageDao
@@ -27,7 +26,10 @@ import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.data.model.ClientType
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
 import javax.inject.Inject
+import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
@@ -42,85 +44,87 @@ class ChatRepositoryImpl @Inject constructor(
     private val settingRepository: SettingRepository
 ) : ChatRepository {
 
-    override suspend fun completeChat(question: MessageV2, history: List<MessageV2>, enabledPlatforms: List<PlatformV2>): List<Flow<ApiState>> {
-        // Prompts to put in Prompt API
-        val prompts = enabledPlatforms.map { platform ->
-            prompt(
-                id = "${question.content}_${platform.uid}_${question.createdAt}",
-                params = LLMParams(temperature = platform.temperature?.toDouble())
-            ) {
-                platform.systemPrompt?.let { system(it) }
-                history.forEach { msg ->
-                    if (msg.platformType == null) {
-                        user(msg.content) // TODO: Handle Attachments
-                    } else if (msg.platformType == platform.uid) {
-                        assistant(msg.content)
-                    }
-                }
-                user(question.content)
+    override suspend fun completeChat(userMessages: List<MessageV2>, assistantMessages: List<List<MessageV2>>, platform: PlatformV2): Flow<ApiState> {
+        val prompt = prompt(
+            id = "${userMessages.hashCode()}${assistantMessages.hashCode()}_${platform.uid}",
+            params = LLMParams(temperature = ((platform.temperature?.toDouble() ?: (1.0 * 10))).roundToInt() / 10.0)
+        ) {
+            platform.systemPrompt?.let { system(it) }
+            userMessages.forEachIndexed { idx, msg ->
+                user(msg.content) // TODO: Handle Attachments
+
+                // The last assistant message is ignored
+                assistantMessages.getOrNull(idx)
+                    ?.takeIf { idx < userMessages.lastIndex }
+                    ?.firstOrNull { it.platformType == platform.uid }
+                    ?.let { assistant(it.content) }
             }
         }
 
-        // Clients to use for each platform
-        val clients = enabledPlatforms.map { platform ->
-            when (platform.compatibleType) {
-                ClientType.OPENAI -> OpenAILLMClient(
-                    apiKey = platform.token ?: "",
-                    settings = OpenAIClientSettings(baseUrl = platform.apiUrl)
-                )
+        val model = LLModel(
+            id = platform.model,
+            provider = when (platform.compatibleType) {
+                ClientType.OPENAI -> LLMProvider.OpenAI
+                ClientType.ANTHROPIC -> LLMProvider.Anthropic
+                ClientType.GOOGLE -> LLMProvider.Google
+                ClientType.OPENROUTER -> LLMProvider.OpenRouter
+                ClientType.OLLAMA -> LLMProvider.Ollama
+                ClientType.CUSTOM -> LLMProvider.OpenAI
+            },
+            capabilities = listOf(
+                LLMCapability.Temperature,
+                LLMCapability.Vision.Image,
+                LLMCapability.Schema.JSON.Full,
+                LLMCapability.Document,
+                LLMCapability.Completion
+            )
+        )
 
-                ClientType.ANTHROPIC -> AnthropicLLMClient(
-                    apiKey = platform.token ?: "",
-                    settings = AnthropicClientSettings(baseUrl = platform.apiUrl)
-                )
+        val client = when (platform.compatibleType) {
+            ClientType.OPENAI -> OpenAILLMClient(
+                apiKey = platform.token ?: "",
+                baseClient = HttpClient(CIO),
+                settings = OpenAIClientSettings(baseUrl = platform.apiUrl)
+            )
 
-                ClientType.GOOGLE -> GoogleLLMClient(
-                    apiKey = platform.token ?: "",
-                    settings = GoogleClientSettings(baseUrl = platform.apiUrl)
-                )
-
-                ClientType.OPENROUTER -> OpenRouterLLMClient(
-                    apiKey = platform.token ?: "",
-                    settings = OpenRouterClientSettings(baseUrl = platform.apiUrl)
-                )
-
-                ClientType.OLLAMA -> OllamaClient(baseUrl = platform.apiUrl)
-                ClientType.CUSTOM -> OpenAILLMClient(
-                    apiKey = platform.token ?: "",
-                    settings = OpenAIClientSettings(baseUrl = platform.apiUrl)
-                )
-            }
-        }
-
-        val flows = clients.mapIndexed { i, client ->
-            val model = LLModel(
-                id = enabledPlatforms[i].model,
-                provider = when (enabledPlatforms[i].compatibleType) {
-                    ClientType.OPENAI -> LLMProvider.OpenAI
-                    ClientType.ANTHROPIC -> LLMProvider.Anthropic
-                    ClientType.GOOGLE -> LLMProvider.Google
-                    ClientType.OPENROUTER -> LLMProvider.OpenRouter
-                    ClientType.OLLAMA -> LLMProvider.Ollama
-                    ClientType.CUSTOM -> LLMProvider.OpenAI
-                },
-                capabilities = listOf(
-                    LLMCapability.Temperature,
-                    LLMCapability.Completion,
-                    LLMCapability.Vision.Image,
-                    LLMCapability.Document,
-                    LLMCapability.Schema.JSON.Full,
-                    LLMCapability.Tools
+            ClientType.ANTHROPIC -> AnthropicLLMClient(
+                apiKey = platform.token ?: "",
+                baseClient = HttpClient(CIO),
+                settings = AnthropicClientSettings(
+                    baseUrl = platform.apiUrl,
+                    modelVersionsMap = mapOf(Pair(model, platform.model))
                 )
             )
 
-            client.executeStreaming(prompts[i], model = model)
-                .map<String, ApiState> { chunk -> ApiState.Success(chunk) }
-                .catch { throwable -> emit(ApiState.Error(throwable.message ?: "Unknown Error")) }
-                .onStart { emit(ApiState.Loading) }
-                .onCompletion { emit(ApiState.Done) }
+            ClientType.GOOGLE -> GoogleLLMClient(
+                apiKey = platform.token ?: "",
+                baseClient = HttpClient(CIO),
+                settings = GoogleClientSettings(baseUrl = platform.apiUrl)
+            )
+
+            ClientType.OPENROUTER -> OpenRouterLLMClient(
+                apiKey = platform.token ?: "",
+                baseClient = HttpClient(CIO),
+                settings = OpenRouterClientSettings(baseUrl = platform.apiUrl)
+            )
+
+            ClientType.OLLAMA -> OllamaClient(
+                baseUrl = platform.apiUrl,
+                baseClient = HttpClient(CIO)
+            )
+
+            ClientType.CUSTOM -> OpenAILLMClient(
+                apiKey = platform.token ?: "",
+                baseClient = HttpClient(CIO),
+                settings = OpenAIClientSettings(baseUrl = platform.apiUrl)
+            )
         }
 
-        return flows
+        return client.executeStreaming(prompt, model = model)
+            .map<String, ApiState> { chunk -> ApiState.Success(chunk) }
+            .catch { throwable -> emit(ApiState.Error(throwable.message ?: "Unknown Error")) }
+            .onStart { emit(ApiState.Loading) }
+            .onCompletion { emit(ApiState.Done) }
     }
 
     override suspend fun fetchChatList(): List<ChatRoom> = chatRoomDao.getChatRooms()
