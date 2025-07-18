@@ -46,7 +46,7 @@ class ChatViewModel @Inject constructor(
     private val currentTimeStamp: Long
         get() = System.currentTimeMillis() / 1000
 
-    private val _chatRoom = MutableStateFlow<ChatRoomV2>(ChatRoomV2(id = -1, title = "", enabledPlatform = enabledPlatformsInChat))
+    private val _chatRoom = MutableStateFlow(ChatRoomV2(id = -1, title = "", enabledPlatform = enabledPlatformsInChat))
     val chatRoom = _chatRoom.asStateFlow()
 
     private val _isChatTitleDialogOpen = MutableStateFlow(false)
@@ -104,7 +104,7 @@ class ChatViewModel @Inject constructor(
             it.copy(
                 userMessages = it.userMessages + listOf(userMessage),
                 assistantMessages = it.assistantMessages + listOf(
-                    enabledPlatformsInChat.map { MessageV2(chatId = chatRoomId, content = "", platformType = it) }
+                    enabledPlatformsInChat.map { p -> MessageV2(chatId = chatRoomId, content = "", platformType = p) }
                 )
             )
         }
@@ -244,11 +244,11 @@ class ChatViewModel @Inject constructor(
             }
         }
 
-        val sortedAssistantMessages = assistantMessages.map {
-            it.sortedWith(
+        val sortedAssistantMessages = assistantMessages.map { assistantMessage ->
+            assistantMessage.sortedWith(
                 compareBy(
-                    { platformOrderMap[it.platformType] ?: Int.MAX_VALUE },
-                    { it.platformType }
+                    { it -> platformOrderMap[it.platformType] ?: Int.MAX_VALUE },
+                    { it -> it.platformType }
                 )
             )
         }
