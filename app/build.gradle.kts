@@ -94,6 +94,9 @@ dependencies {
     implementation(libs.ktor.logging)
     implementation(libs.ktor.serialization)
 
+    // Koog agent
+    implementation(libs.koog)
+
     // License page UI
     implementation(libs.auto.license.core)
     implementation(libs.auto.license.ui)

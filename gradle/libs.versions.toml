@@ -13,6 +13,7 @@ datastore = "1.1.7"
 hilt = "2.57"
 ksp = "2.2.0-2.0.2" # Also change with Kotlin version
 ktor = "3.2.2"
+koog = "0.3.0"
 material3 = "1.3.2"
 androidxHilt = "1.2.0"
 navigation = "2.9.2"
@@ -52,6 +53,7 @@ ktor-core = { group = "io.ktor", name = "ktor-client-core", version.ref = "ktor"
 ktor-engine = { group = "io.ktor", name = "ktor-client-okhttp", version.ref = "ktor" }
 ktor-logging = { group = "io.ktor", name = "ktor-client-logging-jvm", version.ref = "ktor" }
 ktor-serialization = { group = "io.ktor", name = "ktor-serialization-kotlinx-json", version.ref = "ktor" }
+koog = { group = "ai.koog", name = "koog-agents", version.ref = "koog" }
 openai = { group = "com.aallam.openai", name = "openai-client", version.ref = "openai" }
 splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splashscreen" }
 richtext = { group = "com.halilibo.compose-richtext", name = "richtext-ui-material3", version.ref = "markdown"}

@@ -8,7 +8,6 @@ import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomDao
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageV2Dao
-import dev.chungjungsoo.gptmobile.data.network.AnthropicAPI
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepositoryImpl
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
@@ -25,14 +24,12 @@ object ChatRepositoryModule {
         messageDao: MessageDao,
         chatRoomV2Dao: ChatRoomV2Dao,
         messageV2Dao: MessageV2Dao,
-        settingRepository: SettingRepository,
-        anthropicAPI: AnthropicAPI
+        settingRepository: SettingRepository
     ): ChatRepository = ChatRepositoryImpl(
         chatRoomDao,
         messageDao,
         chatRoomV2Dao,
         messageV2Dao,
-        settingRepository,
-        anthropicAPI
+        settingRepository
     )
 }

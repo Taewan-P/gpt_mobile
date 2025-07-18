@@ -1,13 +1,20 @@
 package dev.chungjungsoo.gptmobile.data.repository
 
-import com.aallam.openai.api.chat.ChatCompletionChunk
-import com.aallam.openai.api.chat.ChatCompletionRequest
-import com.aallam.openai.api.chat.ChatMessage
-import com.aallam.openai.api.chat.ChatRole
-import com.aallam.openai.api.model.ModelId
+import ai.koog.prompt.dsl.prompt
+import ai.koog.prompt.executor.clients.anthropic.AnthropicClientSettings
+import ai.koog.prompt.executor.clients.anthropic.AnthropicLLMClient
+import ai.koog.prompt.executor.clients.google.GoogleClientSettings
+import ai.koog.prompt.executor.clients.google.GoogleLLMClient
+import ai.koog.prompt.executor.clients.openai.OpenAIClientSettings
+import ai.koog.prompt.executor.clients.openai.OpenAILLMClient
+import ai.koog.prompt.executor.clients.openrouter.OpenRouterClientSettings
+import ai.koog.prompt.executor.clients.openrouter.OpenRouterLLMClient
+import ai.koog.prompt.executor.ollama.client.OllamaClient
+import ai.koog.prompt.llm.LLMCapability
+import ai.koog.prompt.llm.LLMProvider
+import ai.koog.prompt.llm.LLModel
+import ai.koog.prompt.params.LLMParams
 import com.aallam.openai.client.OpenAI
-import com.aallam.openai.client.OpenAIHost
-import dev.chungjungsoo.gptmobile.data.ModelConstants
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomDao
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageDao
@@ -16,16 +23,10 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoom
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
 import dev.chungjungsoo.gptmobile.data.database.entity.Message
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
+import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
-import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.MessageRole
-import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.TextContent
-import dev.chungjungsoo.gptmobile.data.dto.anthropic.request.InputMessage
-import dev.chungjungsoo.gptmobile.data.dto.anthropic.request.MessageRequest
-import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ContentDeltaResponseChunk
-import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ErrorResponseChunk
-import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.MessageResponseChunk
 import dev.chungjungsoo.gptmobile.data.model.ApiType
-import dev.chungjungsoo.gptmobile.data.network.AnthropicAPI
+import dev.chungjungsoo.gptmobile.data.model.ClientType
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -38,111 +39,88 @@ class ChatRepositoryImpl @Inject constructor(
     private val messageDao: MessageDao,
     private val chatRoomV2Dao: ChatRoomV2Dao,
     private val messageV2Dao: MessageV2Dao,
-    private val settingRepository: SettingRepository,
-    private val anthropic: AnthropicAPI
+    private val settingRepository: SettingRepository
 ) : ChatRepository {
 
-    private lateinit var openAI: OpenAI
-    private lateinit var ollama: OpenAI
-    private lateinit var groq: OpenAI
-
-    override suspend fun completeOpenAIChat(question: Message, history: List<Message>): Flow<ApiState> {
-        val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.OPENAI })
-        openAI = OpenAI(platform.token ?: "", host = OpenAIHost(baseUrl = platform.apiUrl))
-
-        val generatedMessages = messageToOpenAICompatibleMessage(ApiType.OPENAI, history + listOf(question))
-        val prompt = platform.systemPrompt ?: ModelConstants.OPENAI_PROMPT
-        val generatedMessageWithPrompt = listOf(
-            ChatMessage(role = ChatRole.System, content = prompt)
-        ) + generatedMessages
-        val chatCompletionRequest = ChatCompletionRequest(
-            model = ModelId(platform.model ?: ""),
-            messages = if (prompt.isEmpty()) generatedMessages else generatedMessageWithPrompt, // disable system prompt only if user set it to empty explicitly
-            temperature = platform.temperature?.toDouble(),
-            topP = platform.topP?.toDouble()
-        )
-
-        return openAI.chatCompletions(chatCompletionRequest)
-            .map<ChatCompletionChunk, ApiState> { chunk -> ApiState.Success(chunk.choices.getOrNull(0)?.delta?.content ?: "") }
-            .catch { throwable -> emit(ApiState.Error(throwable.message ?: "Unknown error")) }
-            .onStart { emit(ApiState.Loading) }
-            .onCompletion { emit(ApiState.Done) }
-    }
-
-    override suspend fun completeAnthropicChat(question: Message, history: List<Message>): Flow<ApiState> {
-        val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.ANTHROPIC })
-        anthropic.setToken(platform.token)
-        anthropic.setAPIUrl(platform.apiUrl)
-
-        val generatedMessages = messageToAnthropicMessage(history + listOf(question))
-        val prompt = platform.systemPrompt ?: ModelConstants.DEFAULT_PROMPT
-        val messageRequest = MessageRequest(
-            model = platform.model ?: "",
-            messages = generatedMessages,
-            maxTokens = ModelConstants.ANTHROPIC_MAXIMUM_TOKEN,
-            systemPrompt = if (prompt.isEmpty()) null else prompt,
-            stream = true,
-            temperature = platform.temperature,
-            topP = platform.topP
-        )
-
-        return anthropic.streamChatMessage(messageRequest)
-            .map<MessageResponseChunk, ApiState> { chunk ->
-                when (chunk) {
-                    is ContentDeltaResponseChunk -> ApiState.Success(chunk.delta.text)
-                    is ErrorResponseChunk -> throw Error(chunk.error.message)
-                    else -> ApiState.Success("")
+    override suspend fun completeChat(question: MessageV2, history: List<MessageV2>, enabledPlatforms: List<PlatformV2>): List<Flow<ApiState>> {
+        // Prompts to put in Prompt API
+        val prompts = enabledPlatforms.map { platform ->
+            prompt(
+                id = "${question.content}_${platform.uid}_${question.createdAt}",
+                params = LLMParams(temperature = platform.temperature?.toDouble())
+            ) {
+                platform.systemPrompt?.let { system(it) }
+                history.forEach { msg ->
+                    if (msg.platformType == null) {
+                        user(msg.content) // TODO: Handle Attachments
+                    } else if (msg.platformType == platform.uid) {
+                        assistant(msg.content)
+                    }
                 }
+                user(question.content)
             }
-            .catch { throwable -> emit(ApiState.Error(throwable.message ?: "Unknown error")) }
-            .onStart { emit(ApiState.Loading) }
-            .onCompletion { emit(ApiState.Done) }
-    }
+        }
 
-    override suspend fun completeGroqChat(question: Message, history: List<Message>): Flow<ApiState> {
-        val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.GROQ })
-        groq = OpenAI(platform.token ?: "", host = OpenAIHost(baseUrl = platform.apiUrl))
+        // Clients to use for each platform
+        val clients = enabledPlatforms.map { platform ->
+            when (platform.compatibleType) {
+                ClientType.OPENAI -> OpenAILLMClient(
+                    apiKey = platform.token ?: "",
+                    settings = OpenAIClientSettings(baseUrl = platform.apiUrl)
+                )
 
-        val generatedMessages = messageToOpenAICompatibleMessage(ApiType.GROQ, history + listOf(question))
-        val prompt = platform.systemPrompt ?: ModelConstants.DEFAULT_PROMPT
-        val generatedMessageWithPrompt = listOf(
-            ChatMessage(role = ChatRole.System, content = prompt)
-        ) + generatedMessages
-        val chatCompletionRequest = ChatCompletionRequest(
-            model = ModelId(platform.model ?: ""),
-            messages = if (prompt.isEmpty()) generatedMessages else generatedMessageWithPrompt,
-            temperature = platform.temperature?.toDouble(),
-            topP = platform.topP?.toDouble()
-        )
+                ClientType.ANTHROPIC -> AnthropicLLMClient(
+                    apiKey = platform.token ?: "",
+                    settings = AnthropicClientSettings(baseUrl = platform.apiUrl)
+                )
 
-        return groq.chatCompletions(chatCompletionRequest)
-            .map<ChatCompletionChunk, ApiState> { chunk -> ApiState.Success(chunk.choices.getOrNull(0)?.delta?.content ?: "") }
-            .catch { throwable -> emit(ApiState.Error(throwable.message ?: "Unknown error")) }
-            .onStart { emit(ApiState.Loading) }
-            .onCompletion { emit(ApiState.Done) }
-    }
+                ClientType.GOOGLE -> GoogleLLMClient(
+                    apiKey = platform.token ?: "",
+                    settings = GoogleClientSettings(baseUrl = platform.apiUrl)
+                )
 
-    override suspend fun completeOllamaChat(question: Message, history: List<Message>): Flow<ApiState> {
-        val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.OLLAMA })
-        ollama = OpenAI(platform.token ?: "", host = OpenAIHost(baseUrl = "${platform.apiUrl}v1/"))
+                ClientType.OPENROUTER -> OpenRouterLLMClient(
+                    apiKey = platform.token ?: "",
+                    settings = OpenRouterClientSettings(baseUrl = platform.apiUrl)
+                )
 
-        val generatedMessages = messageToOpenAICompatibleMessage(ApiType.OLLAMA, history + listOf(question))
-        val prompt = platform.systemPrompt ?: ModelConstants.DEFAULT_PROMPT
-        val generatedMessageWithPrompt = listOf(
-            ChatMessage(role = ChatRole.System, content = prompt)
-        ) + generatedMessages
-        val chatCompletionRequest = ChatCompletionRequest(
-            model = ModelId(platform.model ?: ""),
-            messages = if (prompt.isEmpty()) generatedMessages else generatedMessageWithPrompt,
-            temperature = platform.temperature?.toDouble(),
-            topP = platform.topP?.toDouble()
-        )
+                ClientType.OLLAMA -> OllamaClient(baseUrl = platform.apiUrl)
+                ClientType.CUSTOM -> OpenAILLMClient(
+                    apiKey = platform.token ?: "",
+                    settings = OpenAIClientSettings(baseUrl = platform.apiUrl)
+                )
+            }
+        }
 
-        return ollama.chatCompletions(chatCompletionRequest)
-            .map<ChatCompletionChunk, ApiState> { chunk -> ApiState.Success(chunk.choices.getOrNull(0)?.delta?.content ?: "") }
-            .catch { throwable -> emit(ApiState.Error(throwable.message ?: "Unknown error")) }
-            .onStart { emit(ApiState.Loading) }
-            .onCompletion { emit(ApiState.Done) }
+        val flows = clients.mapIndexed { i, client ->
+            val model = LLModel(
+                id = enabledPlatforms[i].model,
+                provider = when (enabledPlatforms[i].compatibleType) {
+                    ClientType.OPENAI -> LLMProvider.OpenAI
+                    ClientType.ANTHROPIC -> LLMProvider.Anthropic
+                    ClientType.GOOGLE -> LLMProvider.Google
+                    ClientType.OPENROUTER -> LLMProvider.OpenRouter
+                    ClientType.OLLAMA -> LLMProvider.Ollama
+                    ClientType.CUSTOM -> LLMProvider.OpenAI
+                },
+                capabilities = listOf(
+                    LLMCapability.Temperature,
+                    LLMCapability.Completion,
+                    LLMCapability.Vision.Image,
+                    LLMCapability.Document,
+                    LLMCapability.Schema.JSON.Full,
+                    LLMCapability.Tools
+                )
+            )
+
+            client.executeStreaming(prompts[i], model = model)
+                .map<String, ApiState> { chunk -> ApiState.Success(chunk) }
+                .catch { throwable -> emit(ApiState.Error(throwable.message ?: "Unknown Error")) }
+                .onStart { emit(ApiState.Loading) }
+                .onCompletion { emit(ApiState.Done) }
+        }
+
+        return flows
     }
 
     override suspend fun fetchChatList(): List<ChatRoom> = chatRoomDao.getChatRooms()
@@ -245,55 +223,5 @@ class ChatRepositoryImpl @Inject constructor(
 
     override suspend fun deleteChatsV2(chatRooms: List<ChatRoomV2>) {
         chatRoomV2Dao.deleteChatRooms(*chatRooms.toTypedArray())
-    }
-
-    private fun messageToOpenAICompatibleMessage(apiType: ApiType, messages: List<Message>): List<ChatMessage> {
-        val result = mutableListOf<ChatMessage>()
-
-        messages.forEach { message ->
-            when (message.platformType) {
-                null -> {
-                    result.add(
-                        ChatMessage(
-                            role = ChatRole.User,
-                            content = message.content
-                        )
-                    )
-                }
-
-                apiType -> {
-                    result.add(
-                        ChatMessage(
-                            role = ChatRole.Assistant,
-                            content = message.content
-                        )
-                    )
-                }
-
-                else -> {}
-            }
-        }
-
-        return result
-    }
-
-    private fun messageToAnthropicMessage(messages: List<Message>): List<InputMessage> {
-        val result = mutableListOf<InputMessage>()
-
-        messages.forEach { message ->
-            when (message.platformType) {
-                null -> result.add(
-                    InputMessage(role = MessageRole.USER, content = listOf(TextContent(text = message.content)))
-                )
-
-                ApiType.ANTHROPIC -> result.add(
-                    InputMessage(role = MessageRole.ASSISTANT, content = listOf(TextContent(text = message.content)))
-                )
-
-                else -> {}
-            }
-        }
-
-        return result
     }
 }

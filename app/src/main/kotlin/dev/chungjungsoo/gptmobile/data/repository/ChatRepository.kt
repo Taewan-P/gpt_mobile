@@ -4,15 +4,13 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoom
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
 import dev.chungjungsoo.gptmobile.data.database.entity.Message
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
+import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
 import kotlinx.coroutines.flow.Flow
 
 interface ChatRepository {
 
-    suspend fun completeOpenAIChat(question: Message, history: List<Message>): Flow<ApiState>
-    suspend fun completeAnthropicChat(question: Message, history: List<Message>): Flow<ApiState>
-    suspend fun completeGroqChat(question: Message, history: List<Message>): Flow<ApiState>
-    suspend fun completeOllamaChat(question: Message, history: List<Message>): Flow<ApiState>
+    suspend fun completeChat(question: MessageV2, history: List<MessageV2>, enabledPlatforms: List<PlatformV2>): List<Flow<ApiState>>
     suspend fun fetchChatList(): List<ChatRoom>
     suspend fun fetchChatListV2(): List<ChatRoomV2>
     suspend fun fetchMessages(chatId: Int): List<Message>
