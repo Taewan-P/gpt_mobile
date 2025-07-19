@@ -197,6 +197,51 @@ class ChatViewModel @Inject constructor(
 
     fun updateQuestion(q: String) = _question.update { q }
 
+    fun editQuestion(editedMessage: MessageV2) {
+        val userMessages = _groupedMessages.value.userMessages
+        val assistantMessages = _groupedMessages.value.assistantMessages
+
+        // Find the index of the message being edited
+        val messageIndex = userMessages.indexOfFirst { it.id == editedMessage.id }
+        if (messageIndex == -1) return
+
+        // Update the message content
+        val updatedUserMessages = userMessages.toMutableList()
+        updatedUserMessages[messageIndex] = editedMessage.copy(createdAt = currentTimeStamp)
+
+        // Remove all messages after the edited question (both user and assistant messages)
+        val remainingUserMessages = updatedUserMessages.take(messageIndex + 1)
+        val remainingAssistantMessages = assistantMessages.take(messageIndex)
+
+        // Update the grouped messages
+        _groupedMessages.update {
+            GroupedMessages(
+                userMessages = remainingUserMessages,
+                assistantMessages = remainingAssistantMessages
+            )
+        }
+
+        // Add empty assistant message slots for the edited question
+        _groupedMessages.update {
+            it.copy(
+                assistantMessages = it.assistantMessages + listOf(
+                    enabledPlatformsInChat.map { p -> MessageV2(chatId = chatRoomId, content = "", platformType = p) }
+                )
+            )
+        }
+
+        // Update index states to match the new message count - trim the end part
+        val removedMessagesCount = userMessages.size - remainingUserMessages.size
+        _indexStates.update {
+            val currentStates = it.toMutableList()
+            repeat(removedMessagesCount) { currentStates.removeLastOrNull() }
+            currentStates
+        }
+
+        // Start new conversation from the edited question
+        completeChat()
+    }
+
     fun exportChat(): Pair<String, String> {
         // Build the chat history in Markdown format
         val chatHistoryMarkdown = buildString {

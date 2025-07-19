@@ -262,8 +262,7 @@ fun ChatScreen(
                 initialQuestion = editedQuestion,
                 onDismissRequest = chatViewModel::closeEditQuestionDialog,
                 onConfirmRequest = { question ->
-                    // TODO()
-                    // chatViewModel.editQuestion(question)
+                    chatViewModel.editQuestion(question)
                     chatViewModel.closeEditQuestionDialog()
                 }
             )
