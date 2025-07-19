@@ -57,6 +57,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
@@ -402,12 +403,14 @@ fun SelectPlatformDialog(
     onPlatformSelect: (idx: Int) -> Unit
 ) {
     val configuration = LocalWindowInfo.current
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
+    val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
 
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
         modifier = Modifier
-            .widthIn(max = configuration.containerSize.width.dp - 40.dp)
-            .heightIn(max = configuration.containerSize.height.dp - 80.dp),
+            .widthIn(max = screenWidth - 40.dp)
+            .heightIn(max = screenHeight - 80.dp),
         onDismissRequest = onDismissRequest,
         title = {
             Column {
@@ -480,11 +483,13 @@ fun DeleteWarningDialog(
     onConfirm: () -> Unit
 ) {
     val configuration = LocalWindowInfo.current
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
+    val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
         modifier = Modifier
-            .width(configuration.containerSize.width.dp - 40.dp)
-            .heightIn(max = configuration.containerSize.height.dp - 80.dp),
+            .widthIn(max = screenWidth - 40.dp)
+            .heightIn(max = screenHeight - 80.dp),
         title = {
             Text(
                 text = stringResource(R.string.delete_selected_chats),

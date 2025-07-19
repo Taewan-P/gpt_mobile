@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -33,6 +34,8 @@ fun ChatTitleDialog(
     onDismissRequest: () -> Unit
 ) {
     val configuration = LocalWindowInfo.current
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
+    val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
     var title by rememberSaveable { mutableStateOf(initialTitle) }
     var useAICore by rememberSaveable { mutableStateOf(false) }
     val untitledChat = stringResource(R.string.untitled_chat)
@@ -40,8 +43,8 @@ fun ChatTitleDialog(
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
         modifier = Modifier
-            .widthIn(max = configuration.containerSize.width.dp - 40.dp)
-            .heightIn(max = configuration.containerSize.height.dp - 80.dp),
+            .widthIn(max = screenWidth - 40.dp)
+            .heightIn(max = screenHeight - 80.dp),
         title = { Text(text = stringResource(R.string.chat_title)) },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
@@ -96,13 +99,15 @@ fun ChatQuestionEditDialog(
     onConfirmRequest: (MessageV2) -> Unit
 ) {
     val configuration = LocalWindowInfo.current
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
+    val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
     var question by remember { mutableStateOf(initialQuestion.content) }
 
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
         modifier = Modifier
-            .widthIn(max = configuration.containerSize.width.dp - 40.dp)
-            .heightIn(max = configuration.containerSize.height.dp - 80.dp),
+            .widthIn(max = screenWidth - 40.dp)
+            .heightIn(max = screenHeight - 80.dp),
         title = { Text(text = stringResource(R.string.edit_question)) },
         text = {
             Column(

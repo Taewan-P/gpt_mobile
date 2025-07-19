@@ -15,6 +15,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
@@ -36,7 +37,7 @@ fun SetupCompleteScreen(
     onBackAction: () -> Unit
 ) {
     val configuration = LocalWindowInfo.current
-    val screenWidth = configuration.containerSize.width.dp
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),

@@ -21,6 +21,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -178,12 +179,14 @@ private fun APIUrlDialog(
 ) {
     var apiUrl by remember { mutableStateOf(initialValue) }
     val configuration = LocalWindowInfo.current
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
+    val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
 
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
         modifier = Modifier
-            .widthIn(max = configuration.containerSize.width.dp - 40.dp)
-            .heightIn(max = configuration.containerSize.height.dp - 80.dp),
+            .widthIn(max = screenWidth - 40.dp)
+            .heightIn(max = screenHeight - 80.dp),
         title = { Text(text = stringResource(R.string.api_url)) },
         text = {
             Column {
@@ -242,12 +245,14 @@ private fun APIKeyDialog(
 ) {
     var token by remember { mutableStateOf("") }
     val configuration = LocalWindowInfo.current
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
+    val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
 
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
         modifier = Modifier
-            .widthIn(max = configuration.containerSize.width.dp - 40.dp)
-            .heightIn(max = configuration.containerSize.height.dp - 80.dp),
+            .widthIn(max = screenWidth - 40.dp)
+            .heightIn(max = screenHeight - 80.dp),
         title = { Text(text = getPlatformAPILabelResources()[apiType]!!) },
         text = {
             TokenInputField(
@@ -299,6 +304,8 @@ private fun ModelDialog(
         ApiType.OLLAMA -> listOf()
     }
     val configuration = LocalWindowInfo.current
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
+    val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
     var model by remember { mutableStateOf(initModel) }
     var customSelected by remember { mutableStateOf(model !in availableModels.map { it.aliasValue }.toSet()) }
     var customModel by remember { mutableStateOf(if (customSelected) model else "") }
@@ -306,8 +313,8 @@ private fun ModelDialog(
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
         modifier = Modifier
-            .widthIn(max = configuration.containerSize.width.dp - 40.dp)
-            .heightIn(max = configuration.containerSize.height.dp - 80.dp),
+            .widthIn(max = screenWidth - 40.dp)
+            .heightIn(max = screenHeight - 80.dp),
         title = { Text(text = stringResource(R.string.api_model)) },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
@@ -388,14 +395,16 @@ private fun TemperatureDialog(
     onConfirmRequest: (temp: Float) -> Unit
 ) {
     val configuration = LocalWindowInfo.current
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
+    val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
     var textFieldTemperature by remember { mutableStateOf(temperature.toString()) }
     var sliderTemperature by remember { mutableFloatStateOf(temperature) }
 
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
         modifier = Modifier
-            .widthIn(max = configuration.containerSize.width.dp - 40.dp)
-            .heightIn(max = configuration.containerSize.height.dp - 80.dp),
+            .widthIn(max = screenWidth - 40.dp)
+            .heightIn(max = screenHeight - 80.dp),
         title = { Text(text = stringResource(R.string.temperature_setting)) },
         text = {
             Column(
@@ -467,14 +476,16 @@ private fun TopPDialog(
     onConfirmRequest: (topP: Float) -> Unit
 ) {
     val configuration = LocalWindowInfo.current
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
+    val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
     var textFieldTopP by remember { mutableStateOf((topP ?: 1F).toString()) }
     var sliderTopP by remember { mutableFloatStateOf(topP ?: 1F) }
 
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
         modifier = Modifier
-            .widthIn(max = configuration.containerSize.width.dp - 40.dp)
-            .heightIn(max = configuration.containerSize.height.dp - 80.dp),
+            .widthIn(max = screenWidth - 40.dp)
+            .heightIn(max = screenHeight - 80.dp),
         title = { Text(text = stringResource(R.string.top_p_setting)) },
         text = {
             Column(
@@ -538,13 +549,15 @@ private fun SystemPromptDialog(
     onConfirmRequest: (text: String) -> Unit
 ) {
     val configuration = LocalWindowInfo.current
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
+    val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
     var textFieldPrompt by remember { mutableStateOf(prompt) }
 
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
         modifier = Modifier
-            .widthIn(max = configuration.containerSize.width.dp - 40.dp)
-            .heightIn(max = configuration.containerSize.height.dp - 80.dp),
+            .widthIn(max = screenWidth - 40.dp)
+            .heightIn(max = screenHeight - 80.dp),
         title = { Text(text = stringResource(R.string.system_prompt_setting)) },
         text = {
             Column(
