@@ -90,7 +90,6 @@ dependencies {
     // Ktor
     implementation(libs.ktor.content.negotiation)
     implementation(libs.ktor.core)
-    implementation(libs.ktor.engine)
     implementation(libs.ktor.logging)
     implementation(libs.ktor.serialization)
 
@@ -108,9 +107,6 @@ dependencies {
     // Navigation
     implementation(libs.hilt.navigation)
     implementation(libs.androidx.navigation)
-
-    // OpenAI (Ktor required)
-    implementation(libs.openai)
 
     // Room
     implementation(libs.room)

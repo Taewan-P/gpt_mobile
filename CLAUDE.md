@@ -35,7 +35,7 @@ GPT Mobile is an Android chat application that supports chatting with multiple A
 - **MVVM Pattern**: ViewModels handle UI state, Repositories manage data
 - **Dependency Injection**: Hilt for all dependency management
 - **Database**: Room for local chat history storage
-- **Networking**: Ktor client with OkHttp engine for API calls
+- **Networking**: Ktor client with CIO engine for API calls
 - **UI**: Jetpack Compose with Material 3 design system
 
 ### Data Flow
