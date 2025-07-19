@@ -101,15 +101,16 @@ fun ChatScreen(
 
     val chatRoom by chatViewModel.chatRoom.collectAsStateWithLifecycle()
     val groupedMessages by chatViewModel.groupedMessages.collectAsStateWithLifecycle()
-    val chatStates by chatViewModel.chatStates.collectAsStateWithLifecycle()
+    val indexStates by chatViewModel.indexStates.collectAsStateWithLifecycle()
+    val loadingStates by chatViewModel.loadingStates.collectAsStateWithLifecycle()
     val isChatTitleDialogOpen by chatViewModel.isChatTitleDialogOpen.collectAsStateWithLifecycle()
     val isEditQuestionDialogOpen by chatViewModel.isEditQuestionDialogOpen.collectAsStateWithLifecycle()
     val isSelectTextSheetOpen by chatViewModel.isSelectTextSheetOpen.collectAsStateWithLifecycle()
-    val isIdle by chatViewModel.isIdle.collectAsStateWithLifecycle()
     val isLoaded by chatViewModel.isLoaded.collectAsStateWithLifecycle()
     val question by chatViewModel.question.collectAsStateWithLifecycle()
     val appEnabledPlatforms by chatViewModel.enabledPlatformsInApp.collectAsStateWithLifecycle()
     val canUseChat = (chatViewModel.enabledPlatformsInChat.toSet() - appEnabledPlatforms.map { it.uid }.toSet()).isEmpty()
+    val isIdle = loadingStates.all { it == ChatViewModel.LoadingState.Idle }
     val context = LocalContext.current
 
     val scope = rememberCoroutineScope()
@@ -167,6 +168,10 @@ fun ChatScreen(
             state = listState
         ) {
             groupedMessages.userMessages.forEachIndexed { i, message ->
+                // i: index of nth message
+                val platformIndexState = indexStates[i]
+                val assistantContent = groupedMessages.assistantMessages[i][platformIndexState].content
+                val isCurrentPlatformLoading = loadingStates[platformIndexState] == ChatViewModel.LoadingState.Loading
                 item {
                     var isDropDownMenuExpanded by remember { mutableStateOf(false) }
                     Column(
@@ -192,10 +197,6 @@ fun ChatScreen(
                     }
                 }
                 item {
-                    val platformIndexState = chatStates.indexStates[i]
-                    val assistantContent = groupedMessages.assistantMessages[i][platformIndexState].content
-                    val isCurrentPlatformLoading = chatStates.loadingStates[platformIndexState] == ChatViewModel.LoadingState.Loading
-
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -217,7 +218,7 @@ fun ChatScreen(
                                 ) {
                                     chatViewModel.enabledPlatformsInChat.forEachIndexed { j, uid ->
                                         val platform = appEnabledPlatforms.find { it.uid == uid }
-                                        val isLoading = chatStates.loadingStates[j] == ChatViewModel.LoadingState.Loading
+                                        val isLoading = loadingStates[j] == ChatViewModel.LoadingState.Loading
                                         PlatformButton(
                                             isLoading = if (i == groupedMessages.assistantMessages.size - 1) isLoading else false,
                                             name = platform?.name ?: stringResource(R.string.unknown),

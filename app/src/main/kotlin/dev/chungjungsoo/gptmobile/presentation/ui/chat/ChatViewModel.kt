@@ -35,13 +35,6 @@ class ChatViewModel @Inject constructor(
         val assistantMessages: List<List<MessageV2>> = listOf()
     )
 
-    data class ChatStates(
-        // Index of the currently shown message's platform - default is 0 (first platform)
-        val indexStates: List<Int> = listOf(),
-        // Loading states for each platform
-        val loadingStates: List<LoadingState> = listOf()
-    ) // TODO: Separate loading states in ChatRepository - The Chat Repository does not need to know about enabled platforms
-
     private val chatRoomId: Int = checkNotNull(savedStateHandle["chatRoomId"])
     private val enabledPlatformString: String = checkNotNull(savedStateHandle["enabledPlatforms"])
     val enabledPlatformsInChat = enabledPlatformString.split(',')
@@ -74,8 +67,13 @@ class ChatViewModel @Inject constructor(
     val groupedMessages = _groupedMessages.asStateFlow()
 
     // Each chat states for assistant chat messages
-    private val _chatStates = MutableStateFlow(ChatStates(loadingStates = List(enabledPlatformsInChat.size) { LoadingState.Idle }))
-    val chatStates = _chatStates.asStateFlow()
+    // Index of the currently shown message's platform - default is 0 (first platform)
+    private val _indexStates = MutableStateFlow(listOf<Int>())
+    val indexStates = _indexStates.asStateFlow()
+
+    // Loading states for each platform
+    private val _loadingStates = MutableStateFlow(List<LoadingState>(enabledPlatformsInChat.size) { LoadingState.Idle })
+    val loadingStates = _loadingStates.asStateFlow()
 
     // Used for passing user question to Edit User Message Dialog
     private val _editedQuestion = MutableStateFlow(MessageV2(chatId = chatRoomId, content = "", platformType = null))
@@ -84,11 +82,6 @@ class ChatViewModel @Inject constructor(
     // Used for text data to show in SelectText Bottom Sheet
     private val _selectedText = MutableStateFlow("")
     val selectedText = _selectedText.asStateFlow()
-
-    // Total loading state. It should be updated if one of the loading state has changed.
-    // If all loading states are idle, this value should have `true`.
-    private val _isIdle = MutableStateFlow(true)
-    val isIdle = _isIdle.asStateFlow()
 
     // State for the message loading state (From the database)
     private val _isLoaded = MutableStateFlow(false)
@@ -100,6 +93,7 @@ class ChatViewModel @Inject constructor(
         fetchChatRoom()
         viewModelScope.launch { fetchMessages() }
         fetchEnabledPlatformsInApp()
+        observeStateChanges()
     }
 
     fun addMessage(userMessage: MessageV2) {
@@ -111,7 +105,7 @@ class ChatViewModel @Inject constructor(
                 )
             )
         }
-        _chatStates.update { it.copy(indexStates = it.indexStates + listOf(0)) }
+        _indexStates.update { it + listOf(0) }
     }
 
     fun askQuestion() {
@@ -164,13 +158,13 @@ class ChatViewModel @Inject constructor(
 
     fun updateChatPlatformIndex(assistantIndex: Int, platformIndex: Int) {
         // Change the message shown in the screen to another platform
-        if (assistantIndex >= _chatStates.value.indexStates.size || assistantIndex < 0) return
+        if (assistantIndex >= _indexStates.value.size || assistantIndex < 0) return
         if (platformIndex >= enabledPlatformsInChat.size || platformIndex < 0) return
 
-        _chatStates.update {
-            val updatedIndex = it.indexStates.toMutableList()
+        _indexStates.update {
+            val updatedIndex = it.toMutableList()
             updatedIndex[assistantIndex] = platformIndex
-            it.copy(indexStates = updatedIndex)
+            updatedIndex
         }
     }
 
@@ -207,7 +201,7 @@ class ChatViewModel @Inject constructor(
 
     private fun completeChat() {
         // Update all the platform loading states to Loading
-        _chatStates.update { it.copy(loadingStates = List(enabledPlatformsInChat.size) { LoadingState.Loading }) }
+        _loadingStates.update { List(enabledPlatformsInChat.size) { LoadingState.Loading } }
 
         // Send chat completion requests
         enabledPlatformsInChat.forEachIndexed { idx, platformUid ->
@@ -221,9 +215,7 @@ class ChatViewModel @Inject constructor(
                     messageFlow = _groupedMessages,
                     platformIdx = idx,
                     onLoadingComplete = {
-                        _chatStates.update {
-                            it.copy(loadingStates = it.loadingStates.toMutableList().apply { this[idx] = LoadingState.Idle })
-                        }
+                        _loadingStates.update { it.toMutableList().apply { this[idx] = LoadingState.Idle } }
                     }
                 )
             }
@@ -240,12 +232,10 @@ class ChatViewModel @Inject constructor(
         // If the room isn't new
         if (chatRoomId != 0) {
             _groupedMessages.update { fetchGroupedMessages(chatRoomId) }
-            _chatStates.update {
-                it.copy(
-                    indexStates = List(_groupedMessages.value.assistantMessages.size) { 0 },
-                    loadingStates = List(enabledPlatformsInChat.size) { LoadingState.Idle }
-                )
+            if (_groupedMessages.value.assistantMessages.size != _indexStates.value.size) {
+                _indexStates.update { List(_groupedMessages.value.assistantMessages.size) { 0 } }
             }
+            _loadingStates.update { List(enabledPlatformsInChat.size) { LoadingState.Idle } }
             _isLoaded.update { true } // Finish fetching
             return
         }
@@ -303,5 +293,28 @@ class ChatViewModel @Inject constructor(
             val filtered = settingRepository.fetchPlatformV2s().filter { it.enabled }
             _enabledPlatformsInApp.update { filtered }
         }
+    }
+
+    private fun observeStateChanges() {
+        viewModelScope.launch {
+            _loadingStates.collect { states ->
+                if (_chatRoom.value.id != -1 &&
+                    states.all { it == LoadingState.Idle } &&
+                    (_groupedMessages.value.userMessages.isNotEmpty() && _groupedMessages.value.assistantMessages.isNotEmpty())
+                ) {
+                    // Save the chat & chat room
+                    _chatRoom.update { chatRepository.saveChat(_chatRoom.value, ungroupedMessages()) }
+
+                    // Sync message ids
+                    fetchMessages()
+                }
+            }
+        }
+    }
+
+    private fun ungroupedMessages(): List<MessageV2> {
+        // Flatten the grouped messages into a single list
+        val merged = _groupedMessages.value.userMessages + _groupedMessages.value.assistantMessages.flatten()
+        return merged.filter { it.content.isNotBlank() }.sortedBy { it.createdAt }
     }
 }
