@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -92,8 +93,6 @@ fun OpponentChatBubble(
         disabledContentColor = MaterialTheme.colorScheme.background.copy(alpha = 0.38f),
         disabledContainerColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.38f)
     )
-    val parser = remember { CommonmarkAstNodeParser() }
-    val astNode = remember(text) { parser.parse(text.trimIndent() + if (isLoading) "●" else "") }
 
     Column(modifier = modifier) {
         Column {
@@ -101,7 +100,15 @@ fun OpponentChatBubble(
                 shape = RoundedCornerShape(0.dp),
                 colors = cardColor
             ) {
-                RichText(modifier = Modifier.padding(16.dp)) {
+                val parser = remember { CommonmarkAstNodeParser() }
+                val displayText = if (isLoading) text.trimIndent() + "●" else text.trimIndent()
+                val astNode = remember(displayText) { parser.parse(displayText) }
+
+                RichText(
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .then(if (isLoading) Modifier.animateContentSize() else Modifier)
+                ) {
                     BasicMarkdown(astNode = astNode)
                 }
             }
