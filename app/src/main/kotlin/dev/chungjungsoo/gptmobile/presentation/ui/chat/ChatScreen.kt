@@ -235,14 +235,12 @@ fun ChatScreen(
                                 .fillMaxWidth()
                                 .padding(horizontal = 8.dp)
                                 .widthIn(max = maximumOpponentChatBubbleWidth),
-                            canRetry = canUseChat && isIdle && i == groupedMessages.assistantMessages.size - 1,
+                            canRetry = canUseChat && i == groupedMessages.assistantMessages.size - 1 && !isCurrentPlatformLoading,
                             isLoading = if (i == groupedMessages.assistantMessages.size - 1) isCurrentPlatformLoading else false,
                             text = assistantContent,
                             onCopyClick = { scope.launch { clipboardManager.setClipEntry(ClipEntry(ClipData.newPlainText(assistantContent, assistantContent))) } },
                             onSelectClick = { chatViewModel.openSelectTextSheet(assistantContent) },
-                            onRetryClick = {
-                                // TODO()
-                            }
+                            onRetryClick = { chatViewModel.retryChat(platformIndexState) }
                         )
                     }
                 }

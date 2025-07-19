@@ -146,6 +146,33 @@ class ChatViewModel @Inject constructor(
 
     fun generateDefaultChatTitle(): String? = chatRepository.generateDefaultChatTitle(_groupedMessages.value.userMessages)
 
+    fun retryChat(platformIndex: Int) {
+        if (platformIndex >= enabledPlatformsInChat.size || platformIndex < 0) return
+        val platform = _enabledPlatformsInApp.value.firstOrNull { it.uid == enabledPlatformsInChat[platformIndex] } ?: return
+        _loadingStates.update { it.toMutableList().apply { this[platformIndex] = LoadingState.Loading } }
+        _groupedMessages.update {
+            val updatedAssistantMessages = it.assistantMessages.toMutableList()
+            updatedAssistantMessages[it.assistantMessages.lastIndex] = updatedAssistantMessages[it.assistantMessages.lastIndex].toMutableList().apply {
+                this[platformIndex] = MessageV2(chatId = chatRoomId, content = "", platformType = platform.uid)
+            }
+            it.copy(assistantMessages = updatedAssistantMessages)
+        }
+
+        viewModelScope.launch {
+            chatRepository.completeChat(
+                _groupedMessages.value.userMessages,
+                _groupedMessages.value.assistantMessages,
+                platform
+            ).handleStates(
+                messageFlow = _groupedMessages,
+                platformIdx = platformIndex,
+                onLoadingComplete = {
+                    _loadingStates.update { it.toMutableList().apply { this[platformIndex] = LoadingState.Idle } }
+                }
+            )
+        }
+    }
+
     fun updateChatTitle(title: String) {
         // Should be only used for changing chat title after the chatroom is created.
         if (_chatRoom.value.id > 0) {
