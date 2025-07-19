@@ -81,7 +81,10 @@ class SettingRepositoryImpl @Inject constructor(
                         ApiType.OLLAMA -> ClientType.OLLAMA
                     },
                     enabled = platform.enabled,
-                    apiUrl = if (platform.name == ApiType.OPENAI && platform.apiUrl.endsWith("v1/")) {
+                    apiUrl = if (
+                        (platform.name == ApiType.OPENAI || platform.name == ApiType.GROQ) &&
+                        platform.apiUrl.endsWith("v1/")
+                    ) {
                         platform.apiUrl.removeSuffix("v1/")
                     } else {
                         platform.apiUrl
