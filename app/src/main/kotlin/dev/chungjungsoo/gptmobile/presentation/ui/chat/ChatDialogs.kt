@@ -37,7 +37,6 @@ fun ChatTitleDialog(
     val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
     val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
     var title by rememberSaveable { mutableStateOf(initialTitle) }
-    var useAICore by rememberSaveable { mutableStateOf(false) }
     val untitledChat = stringResource(R.string.untitled_chat)
 
     AlertDialog(
