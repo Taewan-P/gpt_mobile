@@ -33,8 +33,8 @@ data class ChatRoomV2(
 
 class StringListConverter {
     @TypeConverter
-    fun fromString(value: String): List<String> = value.split(',')
+    fun fromString(value: String): List<String> = if (value.isEmpty()) emptyList() else value.split(",")
 
     @TypeConverter
-    fun fromList(value: List<String>): String = value.joinToString(",")
+    fun fromList(value: List<String>): String = if (value.isEmpty()) "" else value.joinToString(",")
 }
