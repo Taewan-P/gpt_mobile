@@ -28,6 +28,7 @@ import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
+import java.io.File
 import javax.inject.Inject
 import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.Flow
@@ -35,6 +36,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onStart
+import kotlinx.io.files.Path
 
 class ChatRepositoryImpl @Inject constructor(
     private val chatRoomDao: ChatRoomDao,
@@ -44,6 +46,29 @@ class ChatRepositoryImpl @Inject constructor(
     private val settingRepository: SettingRepository
 ) : ChatRepository {
 
+    private fun isImageFile(extension: String): Boolean = extension in setOf("jpg", "jpeg", "png", "gif", "bmp", "webp", "tiff", "svg")
+
+    private fun isDocumentFile(extension: String): Boolean = extension in setOf("pdf", "txt", "doc", "docx", "xls", "xlsx")
+
+    private fun getMimeType(extension: String): String = when (extension) {
+        // Images
+        "jpg", "jpeg" -> "image/jpeg"
+        "png" -> "image/png"
+        "gif" -> "image/gif"
+        "bmp" -> "image/bmp"
+        "webp" -> "image/webp"
+        "tiff" -> "image/tiff"
+        "svg" -> "image/svg+xml"
+        // Documents
+        "pdf" -> "application/pdf"
+        "txt" -> "text/plain"
+        "doc" -> "application/msword"
+        "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        "xls" -> "application/vnd.ms-excel"
+        "xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        else -> "application/octet-stream"
+    }
+
     override suspend fun completeChat(userMessages: List<MessageV2>, assistantMessages: List<List<MessageV2>>, platform: PlatformV2): Flow<ApiState> {
         val prompt = prompt(
             id = "${userMessages.hashCode()}${assistantMessages.hashCode()}_${platform.uid}",
@@ -51,7 +76,24 @@ class ChatRepositoryImpl @Inject constructor(
         ) {
             platform.systemPrompt?.let { system(it) }
             userMessages.forEachIndexed { idx, msg ->
-                user(msg.content) // TODO: Handle Attachments
+                user {
+                    +msg.content
+
+                    val validFiles = msg.files.filter { it.isNotBlank() && File(it).exists() }
+                    if (validFiles.isNotEmpty()) {
+                        attachments {
+                            validFiles.forEach { filePath ->
+                                val extension = File(filePath).extension.lowercase()
+                                val path = Path(filePath)
+
+                                when {
+                                    isImageFile(extension) -> image(path)
+                                    isDocumentFile(extension) -> binaryFile(path, getMimeType(extension))
+                                }
+                            }
+                        }
+                    }
+                }
 
                 // The last assistant message is ignored
                 assistantMessages.getOrNull(idx)

@@ -6,6 +6,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.util.Log
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -20,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -33,6 +36,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
@@ -63,6 +67,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -74,6 +79,7 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -108,6 +114,7 @@ fun ChatScreen(
     val isSelectTextSheetOpen by chatViewModel.isSelectTextSheetOpen.collectAsStateWithLifecycle()
     val isLoaded by chatViewModel.isLoaded.collectAsStateWithLifecycle()
     val question by chatViewModel.question.collectAsStateWithLifecycle()
+    val selectedFiles by chatViewModel.selectedFiles.collectAsStateWithLifecycle()
     val appEnabledPlatforms by chatViewModel.enabledPlatformsInApp.collectAsStateWithLifecycle()
     val canUseChat = (chatViewModel.enabledPlatformsInChat.toSet() - appEnabledPlatforms.map { it.uid }.toSet()).isEmpty()
     val isIdle = loadingStates.all { it == ChatViewModel.LoadingState.Idle }
@@ -146,7 +153,10 @@ fun ChatScreen(
                 value = question,
                 onValueChange = { s -> chatViewModel.updateQuestion(s) },
                 chatEnabled = canUseChat,
-                sendButtonEnabled = question.trim().isNotBlank() && isIdle
+                sendButtonEnabled = question.trim().isNotBlank() && isIdle,
+                selectedFiles = selectedFiles,
+                onFileSelected = { filePath -> chatViewModel.addSelectedFile(filePath) },
+                onFileRemoved = { filePath -> chatViewModel.removeSelectedFile(filePath) }
             ) {
                 chatViewModel.askQuestion()
                 focusManager.clearFocus()
@@ -167,6 +177,7 @@ fun ChatScreen(
             modifier = Modifier.padding(innerPadding),
             state = listState
         ) {
+            Log.d("ChatScreen", "GroupMessage: $groupedMessages")
             groupedMessages.userMessages.forEachIndexed { i, message ->
                 // i: index of nth message
                 val platformIndexState = indexStates[i]
@@ -184,6 +195,7 @@ fun ChatScreen(
                             UserChatBubble(
                                 modifier = Modifier.widthIn(max = maximumUserChatBubbleWidth),
                                 text = message.content,
+                                files = message.files,
                                 onLongPress = { isDropDownMenuExpanded = true }
                             )
                             ChatBubbleDropdownMenu(
@@ -432,18 +444,37 @@ fun ChatInputBox(
     onValueChange: (String) -> Unit = {},
     chatEnabled: Boolean = true,
     sendButtonEnabled: Boolean = true,
+    selectedFiles: List<String> = emptyList(),
+    onFileSelected: (String) -> Unit = {},
+    onFileRemoved: (String) -> Unit = {},
     onSendButtonClick: (String) -> Unit = {}
 ) {
     val localStyle = LocalTextStyle.current
     val mergedStyle = localStyle.merge(TextStyle(color = LocalContentColor.current))
+    val context = LocalContext.current
 
-    Box(
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let {
+            val filePath = copyFileToAppDirectory(context, it)
+            filePath?.let { path -> onFileSelected(path) }
+        }
+    }
+
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .windowInsetsPadding(BottomAppBarDefaults.windowInsets)
             .padding(BottomAppBarDefaults.ContentPadding)
             .background(color = MaterialTheme.colorScheme.surface)
     ) {
+        if (selectedFiles.isNotEmpty()) {
+            FileThumbnailRow(
+                selectedFiles = selectedFiles,
+                onFileRemoved = onFileRemoved
+            )
+        }
         BasicTextField(
             modifier = Modifier
                 .heightIn(max = 120.dp),
@@ -462,11 +493,20 @@ fun ChatInputBox(
                         .padding(all = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    IconButton(
+                        enabled = chatEnabled,
+                        onClick = { filePickerLauncher.launch("*/*") }
+                    ) {
+                        Icon(
+                            imageVector = ImageVector.vectorResource(R.drawable.ic_attach_file),
+                            contentDescription = stringResource(R.string.attach_file)
+                        )
+                    }
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .align(Alignment.CenterVertically)
-                            .padding(start = 16.dp)
+                            .padding(start = 8.dp)
                     ) {
                         if (value.isEmpty()) {
                             Text(
@@ -486,6 +526,132 @@ fun ChatInputBox(
             }
         )
     }
+}
+
+@Composable
+private fun FileThumbnailRow(
+    selectedFiles: List<String>,
+    onFileRemoved: (String) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+    ) {
+        selectedFiles.forEach { filePath ->
+            FileThumbnail(
+                filePath = filePath,
+                onRemove = { onFileRemoved(filePath) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun FileThumbnail(
+    filePath: String,
+    onRemove: () -> Unit
+) {
+    val file = File(filePath)
+    val isImage = isImageFile(file.extension)
+
+    Column(
+        modifier = Modifier.width(72.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(64.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            if (isImage) {
+                Icon(
+                    imageVector = ImageVector.vectorResource(R.drawable.ic_image),
+                    contentDescription = file.name,
+                    modifier = Modifier.fillMaxSize(),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                Icon(
+                    imageVector = ImageVector.vectorResource(R.drawable.ic_file),
+                    contentDescription = file.name,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .size(16.dp)
+                    .background(
+                        MaterialTheme.colorScheme.error,
+                        RoundedCornerShape(8.dp)
+                    )
+                    .clickable { onRemove() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Remove",
+                    tint = MaterialTheme.colorScheme.onError,
+                    modifier = Modifier.size(10.dp)
+                )
+            }
+        }
+
+        Text(
+            text = file.name,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier
+                .padding(top = 4.dp)
+                .width(72.dp)
+        )
+    }
+}
+
+private fun copyFileToAppDirectory(context: Context, uri: android.net.Uri): String? = try {
+    val inputStream = context.contentResolver.openInputStream(uri)
+    val fileName = getFileName(context, uri)
+    val file = File(context.filesDir, "attachments/$fileName")
+    file.parentFile?.mkdirs()
+
+    inputStream?.use { input ->
+        file.outputStream().use { output ->
+            input.copyTo(output)
+        }
+    }
+
+    file.absolutePath
+} catch (e: Exception) {
+    null
+}
+
+private fun getFileName(context: Context, uri: android.net.Uri): String {
+    var fileName = "attachment_${System.currentTimeMillis()}"
+
+    context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+        val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+        if (cursor.moveToFirst() && nameIndex != -1) {
+            fileName = cursor.getString(nameIndex) ?: fileName
+        }
+    }
+
+    return fileName
+}
+
+private fun isImageFile(extension: String?): Boolean {
+    val imageExtensions = setOf("jpg", "jpeg", "png", "gif", "bmp", "webp")
+    return extension?.lowercase() in imageExtensions
 }
 
 @Composable

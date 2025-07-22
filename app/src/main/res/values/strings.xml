@@ -205,4 +205,5 @@
     <string name="unknown">Unknown</string>
     <string name="search_chats">Search chats</string>
     <string name="clear">Clear</string>
+    <string name="attach_file">Attach File</string>
 </resources>

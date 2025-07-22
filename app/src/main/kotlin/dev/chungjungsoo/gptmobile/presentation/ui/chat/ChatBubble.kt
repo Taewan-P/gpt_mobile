@@ -1,18 +1,23 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
+import android.util.Log
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Refresh
@@ -36,6 +41,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -44,11 +50,13 @@ import com.halilibo.richtext.markdown.BasicMarkdown
 import com.halilibo.richtext.ui.material3.RichText
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
+import java.io.File
 
 @Composable
 fun UserChatBubble(
     modifier: Modifier = Modifier,
     text: String,
+    files: List<String> = emptyList(),
     onLongPress: () -> Unit
 ) {
     val cardColor = CardColors(
@@ -59,6 +67,10 @@ fun UserChatBubble(
     )
     val parser = remember { CommonmarkAstNodeParser() }
     val astNode = remember(text) { parser.parse(text.trimIndent()) }
+    Log.d("UserChatBubble", "files: $files (size: ${files.size})")
+    files.forEachIndexed { index, file ->
+        Log.d("UserChatBubble", "files[$index] = '$file' (length: ${file.length})")
+    }
 
     Column(horizontalAlignment = Alignment.End) {
         Card(
@@ -73,6 +85,7 @@ fun UserChatBubble(
                 BasicMarkdown(astNode = astNode)
             }
         }
+        UserFileThumbnailRow(files = files)
     }
 }
 
@@ -226,7 +239,7 @@ fun UserChatBubblePreview() {
         in Python?
     """.trimIndent()
     GPTMobileTheme {
-        UserChatBubble(text = sampleText, onLongPress = {})
+        UserChatBubble(text = sampleText, files = emptyList(), onLongPress = {})
     }
 }
 
@@ -257,4 +270,84 @@ fun OpponentChatBubblePreview() {
             onRetryClick = {}
         )
     }
+}
+
+@Composable
+private fun UserFileThumbnailRow(files: List<String>) {
+    // Filter out empty strings and check if we have valid files
+    val validFiles = files.filter { it.isNotEmpty() && it.isNotBlank() }
+
+    Log.d("UserFileThumbnailRow", "Original files: $files (size: ${files.size})")
+    Log.d("UserFileThumbnailRow", "Valid files: $validFiles (size: ${validFiles.size})")
+
+    if (validFiles.isEmpty()) {
+        return
+    }
+
+    Row(
+        modifier = Modifier
+            .padding(top = 8.dp)
+            .wrapContentHeight()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+    ) {
+        validFiles.forEach { filePath ->
+            UserFileThumbnail(filePath = filePath)
+        }
+    }
+}
+
+@Composable
+private fun UserFileThumbnail(filePath: String) {
+    val file = File(filePath)
+    val isImage = isImageFile(file.extension)
+
+    Column(
+        modifier = Modifier.width(56.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f))
+        ) {
+            if (isImage) {
+                Icon(
+                    imageVector = ImageVector.vectorResource(R.drawable.ic_image),
+                    contentDescription = file.name,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            } else {
+                Icon(
+                    imageVector = ImageVector.vectorResource(R.drawable.ic_file),
+                    contentDescription = file.name,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+        }
+
+        Text(
+            text = file.name,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier
+                .padding(top = 4.dp)
+                .width(56.dp)
+        )
+    }
+}
+
+private fun isImageFile(extension: String?): Boolean {
+    val imageExtensions = setOf("jpg", "jpeg", "png", "gif", "bmp", "webp")
+    return extension?.lowercase() in imageExtensions
 }

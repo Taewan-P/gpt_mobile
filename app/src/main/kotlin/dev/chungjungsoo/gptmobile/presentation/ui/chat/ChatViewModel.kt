@@ -62,6 +62,10 @@ class ChatViewModel @Inject constructor(
     private val _question = MutableStateFlow("")
     val question: StateFlow<String> = _question.asStateFlow()
 
+    // Selected files for current message
+    private val _selectedFiles = MutableStateFlow(listOf<String>())
+    val selectedFiles = _selectedFiles.asStateFlow()
+
     // Chat messages currently in the chat room
     private val _groupedMessages = MutableStateFlow(GroupedMessages())
     val groupedMessages = _groupedMessages.asStateFlow()
@@ -113,10 +117,12 @@ class ChatViewModel @Inject constructor(
         MessageV2(
             chatId = chatRoomId,
             content = _question.value,
+            files = _selectedFiles.value,
             platformType = null,
             createdAt = currentTimeStamp
         ).let { addMessage(it) }
         _question.update { "" }
+        clearSelectedFiles()
         completeChat()
     }
 
@@ -196,6 +202,26 @@ class ChatViewModel @Inject constructor(
     }
 
     fun updateQuestion(q: String) = _question.update { q }
+
+    fun addSelectedFile(filePath: String) {
+        _selectedFiles.update { currentFiles ->
+            if (filePath !in currentFiles) {
+                currentFiles + filePath
+            } else {
+                currentFiles
+            }
+        }
+    }
+
+    fun removeSelectedFile(filePath: String) {
+        _selectedFiles.update { currentFiles ->
+            currentFiles.filter { it != filePath }
+        }
+    }
+
+    fun clearSelectedFiles() {
+        _selectedFiles.update { emptyList() }
+    }
 
     fun editQuestion(editedMessage: MessageV2) {
         val userMessages = _groupedMessages.value.userMessages
@@ -372,8 +398,11 @@ class ChatViewModel @Inject constructor(
             _loadingStates.collect { states ->
                 if (_chatRoom.value.id != -1 &&
                     states.all { it == LoadingState.Idle } &&
-                    (_groupedMessages.value.userMessages.isNotEmpty() && _groupedMessages.value.assistantMessages.isNotEmpty())
+                    (_groupedMessages.value.userMessages.isNotEmpty() && _groupedMessages.value.assistantMessages.isNotEmpty()) &&
+                    (_groupedMessages.value.userMessages.size == _groupedMessages.value.assistantMessages.size)
                 ) {
+                    Log.d("ChatViewModel", "GroupMessage: ${_groupedMessages.value}")
+
                     // Save the chat & chat room
                     _chatRoom.update { chatRepository.saveChat(_chatRoom.value, ungroupedMessages()) }
 
