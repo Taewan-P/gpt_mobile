@@ -170,10 +170,6 @@ fun AboutTopAppBar(
     navigationOnClick: () -> Unit
 ) {
     LargeTopAppBar(
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background,
-            titleContentColor = MaterialTheme.colorScheme.onBackground
-        ),
         title = {
             Text(
                 modifier = Modifier.padding(4.dp),

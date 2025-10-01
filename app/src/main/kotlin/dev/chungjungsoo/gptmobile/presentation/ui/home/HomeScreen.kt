@@ -213,18 +213,21 @@ fun HomeTopAppBar(
     navigationOnClick: () -> Unit
 ) {
     TopAppBar(
-        colors = TopAppBarDefaults.topAppBarColors(
-            scrolledContainerColor = if (isSelectionMode) MaterialTheme.colorScheme.primaryContainer else Color.Unspecified,
-            containerColor = if (isSelectionMode) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.background,
-            titleContentColor = if (isSelectionMode) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onBackground
-        ),
+        colors = if (isSelectionMode) {
+            TopAppBarDefaults.topAppBarColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                scrolledContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+        } else {
+            TopAppBarDefaults.topAppBarColors()
+        },
         title = {
             if (isSelectionMode) {
                 Text(
                     modifier = Modifier.padding(4.dp),
                     text = stringResource(R.string.chats_selected, selectedChats),
                     maxLines = 1,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                     overflow = TextOverflow.Ellipsis
                 )
             } else {
@@ -245,7 +248,6 @@ fun HomeTopAppBar(
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Close,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
                         contentDescription = stringResource(R.string.close)
                     )
                 }
@@ -259,7 +261,6 @@ fun HomeTopAppBar(
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Delete,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
                         contentDescription = stringResource(R.string.delete)
                     )
                 }

@@ -17,7 +17,7 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardColors
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -43,18 +43,14 @@ fun UserChatBubble(
     onEditClick: () -> Unit,
     onCopyClick: () -> Unit
 ) {
-    val cardColor = CardColors(
-        containerColor = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        disabledContentColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.38f),
-        disabledContainerColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.38f)
-    )
-
     Column(horizontalAlignment = Alignment.End) {
         Card(
             modifier = modifier,
             shape = RoundedCornerShape(32.dp),
-            colors = cardColor
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            )
         ) {
             MarkdownText(
                 modifier = Modifier.padding(16.dp),
@@ -84,18 +80,14 @@ fun OpponentChatBubble(
     onCopyClick: () -> Unit = {},
     onRetryClick: () -> Unit = {}
 ) {
-    val cardColor = CardColors(
-        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-        disabledContentColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.38f),
-        disabledContainerColor = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.38f)
-    )
-
     Column(modifier = modifier) {
         Column(horizontalAlignment = Alignment.End) {
             Card(
                 shape = RoundedCornerShape(32.dp),
-                colors = cardColor
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                )
             ) {
                 MarkdownText(
                     modifier = Modifier.padding(24.dp),
