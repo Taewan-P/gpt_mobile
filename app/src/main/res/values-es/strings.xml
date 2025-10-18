@@ -150,4 +150,7 @@
     <string name="edit_question">Editar mensaje del usuario</string>
     <string name="user_message">Mensaje del usuario</string>
     <string name="export_chat">Exportar chat</string>
+    <string name="f_droid_icon">F-Droid Icono</string>
+    <string name="play_store_icon">Play Store Icono</string>
+    <string name="url_icon">URL Icono</string>
 </resources>
