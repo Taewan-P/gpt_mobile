@@ -118,4 +118,18 @@ class SettingRepositoryImpl @Inject constructor(
         settingDataSource.updateDynamicTheme(themeSetting.dynamicTheme)
         settingDataSource.updateThemeMode(themeSetting.themeMode)
     }
+
+    override suspend fun addPlatformV2(platform: PlatformV2) {
+        platformV2Dao.addPlatform(platform)
+    }
+
+    override suspend fun updatePlatformV2(platform: PlatformV2) {
+        platformV2Dao.editPlatform(platform)
+    }
+
+    override suspend fun deletePlatformV2(platform: PlatformV2) {
+        platformV2Dao.deletePlatform(platform)
+    }
+
+    override suspend fun getPlatformV2ById(id: Int): PlatformV2? = platformV2Dao.getPlatform(id)
 }

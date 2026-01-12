@@ -52,6 +52,9 @@ class PlatformSettingViewModel @Inject constructor(
         }
     }
 
+    fun openPlatformNameDialog() = _dialogState.update { it.copy(isPlatformNameDialogOpen = true) }
+    fun closePlatformNameDialog() = _dialogState.update { it.copy(isPlatformNameDialogOpen = false) }
+
     fun openApiUrlDialog() = _dialogState.update { it.copy(isApiUrlDialogOpen = true) }
     fun closeApiUrlDialog() = _dialogState.update { it.copy(isApiUrlDialogOpen = false) }
 
@@ -69,6 +72,13 @@ class PlatformSettingViewModel @Inject constructor(
 
     fun openSystemPromptDialog() = _dialogState.update { it.copy(isSystemPromptDialogOpen = true) }
     fun closeSystemPromptDialog() = _dialogState.update { it.copy(isSystemPromptDialogOpen = false) }
+
+    fun updatePlatformName(name: String) {
+        _platformState.value?.let { platform ->
+            updatePlatform(platform.copy(name = name.trim()))
+            closePlatformNameDialog()
+        }
+    }
 
     fun updateApiUrl(url: String) {
         _platformState.value?.let { platform ->
@@ -113,6 +123,7 @@ class PlatformSettingViewModel @Inject constructor(
     }
 
     data class DialogState(
+        val isPlatformNameDialogOpen: Boolean = false,
         val isApiUrlDialogOpen: Boolean = false,
         val isApiTokenDialogOpen: Boolean = false,
         val isApiModelDialogOpen: Boolean = false,

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AskMigrationStateService">
+    <pendingSelectedModel>
+      <entry key="chat-panel" value="GPT-5 mini" />
+      <entry key="edit-panel" value="GPT-5 mini" />
+      <entry key="agent-panel" value="GPT-5 mini" />
+    </pendingSelectedModel>
+  </component>
+</project>

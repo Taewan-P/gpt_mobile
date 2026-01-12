@@ -29,45 +29,38 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import dev.chungjungsoo.gptmobile.R
-import dev.chungjungsoo.gptmobile.data.ModelConstants.anthropicModels
-import dev.chungjungsoo.gptmobile.data.ModelConstants.getDefaultAPIUrl
-import dev.chungjungsoo.gptmobile.data.ModelConstants.googleModels
-import dev.chungjungsoo.gptmobile.data.ModelConstants.groqModels
-import dev.chungjungsoo.gptmobile.data.ModelConstants.ollamaModels
-import dev.chungjungsoo.gptmobile.data.ModelConstants.openaiModels
-import dev.chungjungsoo.gptmobile.data.model.ApiType
-import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
-import dev.chungjungsoo.gptmobile.presentation.common.TokenInputField
-import dev.chungjungsoo.gptmobile.util.generateAnthropicModelList
-import dev.chungjungsoo.gptmobile.util.generateGoogleModelList
-import dev.chungjungsoo.gptmobile.util.generateGroqModelList
-import dev.chungjungsoo.gptmobile.util.generateOpenAIModelList
-import dev.chungjungsoo.gptmobile.util.getPlatformAPILabelResources
-import dev.chungjungsoo.gptmobile.util.getPlatformHelpLinkResources
 import dev.chungjungsoo.gptmobile.util.isValidUrl
 import kotlin.math.roundToInt
 
 @Composable
-fun APIUrlDialog(
-    dialogState: SettingViewModel.DialogState,
-    apiType: ApiType,
+fun PlatformNameDialog(
+    dialogState: PlatformSettingViewModel.DialogState,
     initialValue: String,
-    settingViewModel: SettingViewModel
+    settingViewModel: PlatformSettingViewModel
+) {
+    if (dialogState.isPlatformNameDialogOpen) {
+        PlatformNameDialog(
+            initialValue = initialValue,
+            onDismissRequest = settingViewModel::closePlatformNameDialog,
+            onConfirmRequest = { name ->
+                settingViewModel.updatePlatformName(name)
+            }
+        )
+    }
+}
+
+@Composable
+fun APIUrlDialog(
+    dialogState: PlatformSettingViewModel.DialogState,
+    initialValue: String,
+    settingViewModel: PlatformSettingViewModel
 ) {
     if (dialogState.isApiUrlDialogOpen) {
         APIUrlDialog(
-            apiType = apiType,
             initialValue = initialValue,
             onDismissRequest = settingViewModel::closeApiUrlDialog,
-            onResetRequest = {
-                settingViewModel.updateURL(apiType, getDefaultAPIUrl(apiType))
-                settingViewModel.savePlatformSettings()
-                settingViewModel.closeApiUrlDialog()
-            },
             onConfirmRequest = { apiUrl ->
-                settingViewModel.updateURL(apiType, apiUrl)
-                settingViewModel.savePlatformSettings()
-                settingViewModel.closeApiUrlDialog()
+                settingViewModel.updateApiUrl(apiUrl)
             }
         )
     }
@@ -75,106 +68,133 @@ fun APIUrlDialog(
 
 @Composable
 fun APIKeyDialog(
-    dialogState: SettingViewModel.DialogState,
-    apiType: ApiType,
-    settingViewModel: SettingViewModel
+    dialogState: PlatformSettingViewModel.DialogState,
+    settingViewModel: PlatformSettingViewModel
 ) {
     if (dialogState.isApiTokenDialogOpen) {
         APIKeyDialog(
-            apiType = apiType,
             onDismissRequest = settingViewModel::closeApiTokenDialog
         ) { apiToken ->
-            settingViewModel.updateToken(apiType, apiToken)
-            settingViewModel.savePlatformSettings()
-            settingViewModel.closeApiTokenDialog()
+            settingViewModel.updateApiToken(apiToken)
         }
     }
 }
 
 @Composable
 fun ModelDialog(
-    dialogState: SettingViewModel.DialogState,
-    apiType: ApiType,
-    model: String?,
-    settingViewModel: SettingViewModel
+    dialogState: PlatformSettingViewModel.DialogState,
+    model: String,
+    settingViewModel: PlatformSettingViewModel
 ) {
     if (dialogState.isApiModelDialogOpen) {
         ModelDialog(
-            apiType = apiType,
-            initModel = model ?: "",
+            initModel = model,
             onDismissRequest = settingViewModel::closeApiModelDialog
         ) { m ->
-            settingViewModel.updateModel(apiType, m)
-            settingViewModel.savePlatformSettings()
-            settingViewModel.closeApiModelDialog()
+            settingViewModel.updateApiModel(m)
         }
     }
 }
 
 @Composable
 fun TemperatureDialog(
-    dialogState: SettingViewModel.DialogState,
-    apiType: ApiType,
+    dialogState: PlatformSettingViewModel.DialogState,
     temperature: Float,
-    settingViewModel: SettingViewModel
+    settingViewModel: PlatformSettingViewModel
 ) {
     if (dialogState.isTemperatureDialogOpen) {
         TemperatureDialog(
-            apiType = apiType,
             temperature = temperature,
             onDismissRequest = settingViewModel::closeTemperatureDialog
         ) { temp ->
-            settingViewModel.updateTemperature(apiType, temp)
-            settingViewModel.savePlatformSettings()
-            settingViewModel.closeTemperatureDialog()
+            settingViewModel.updateTemperature(temp)
         }
     }
 }
 
 @Composable
 fun TopPDialog(
-    dialogState: SettingViewModel.DialogState,
-    apiType: ApiType,
+    dialogState: PlatformSettingViewModel.DialogState,
     topP: Float?,
-    settingViewModel: SettingViewModel
+    settingViewModel: PlatformSettingViewModel
 ) {
     if (dialogState.isTopPDialogOpen) {
         TopPDialog(
             topP = topP,
             onDismissRequest = settingViewModel::closeTopPDialog
         ) { p ->
-            settingViewModel.updateTopP(apiType, p)
-            settingViewModel.savePlatformSettings()
-            settingViewModel.closeTopPDialog()
+            settingViewModel.updateTopP(p)
         }
     }
 }
 
 @Composable
 fun SystemPromptDialog(
-    dialogState: SettingViewModel.DialogState,
-    apiType: ApiType,
+    dialogState: PlatformSettingViewModel.DialogState,
     systemPrompt: String,
-    settingViewModel: SettingViewModel
+    settingViewModel: PlatformSettingViewModel
 ) {
     if (dialogState.isSystemPromptDialogOpen) {
         SystemPromptDialog(
             prompt = systemPrompt,
             onDismissRequest = settingViewModel::closeSystemPromptDialog
         ) {
-            settingViewModel.updateSystemPrompt(apiType, it)
-            settingViewModel.savePlatformSettings()
-            settingViewModel.closeSystemPromptDialog()
+            settingViewModel.updateSystemPrompt(it)
         }
     }
 }
 
 @Composable
-private fun APIUrlDialog(
-    apiType: ApiType,
+private fun PlatformNameDialog(
     initialValue: String,
     onDismissRequest: () -> Unit,
-    onResetRequest: () -> Unit,
+    onConfirmRequest: (name: String) -> Unit
+) {
+    var platformName by remember { mutableStateOf(initialValue) }
+    val configuration = LocalWindowInfo.current
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
+    val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
+
+    AlertDialog(
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier
+            .widthIn(max = screenWidth - 40.dp)
+            .heightIn(max = screenHeight - 80.dp),
+        title = { Text(text = stringResource(R.string.platform_name)) },
+        text = {
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = platformName,
+                onValueChange = { platformName = it },
+                label = { Text(stringResource(R.string.platform_name)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                supportingText = {
+                    Text(stringResource(R.string.platform_name_supporting))
+                }
+            )
+        },
+        onDismissRequest = onDismissRequest,
+        confirmButton = {
+            TextButton(
+                enabled = platformName.isNotBlank(),
+                onClick = { onConfirmRequest(platformName) }
+            ) {
+                Text(stringResource(R.string.confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
+@Composable
+private fun APIUrlDialog(
+    initialValue: String,
+    onDismissRequest: () -> Unit,
     onConfirmRequest: (url: String) -> Unit
 ) {
     var apiUrl by remember { mutableStateOf(initialValue) }
@@ -222,16 +242,8 @@ private fun APIUrlDialog(
             }
         },
         dismissButton = {
-            Row {
-                TextButton(
-                    modifier = Modifier.padding(end = 8.dp),
-                    onClick = onResetRequest
-                ) {
-                    Text(stringResource(R.string.reset))
-                }
-                TextButton(onClick = onDismissRequest) {
-                    Text(stringResource(R.string.cancel))
-                }
+            TextButton(onClick = onDismissRequest) {
+                Text(stringResource(R.string.cancel))
             }
         }
     )
@@ -239,7 +251,6 @@ private fun APIUrlDialog(
 
 @Composable
 private fun APIKeyDialog(
-    apiType: ApiType,
     onDismissRequest: () -> Unit,
     onConfirmRequest: (token: String) -> Unit
 ) {
@@ -253,15 +264,15 @@ private fun APIKeyDialog(
         modifier = Modifier
             .widthIn(max = screenWidth - 40.dp)
             .heightIn(max = screenHeight - 80.dp),
-        title = { Text(text = getPlatformAPILabelResources()[apiType]!!) },
+        title = { Text(text = stringResource(R.string.api_key)) },
         text = {
-            TokenInputField(
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
                 value = token,
                 onValueChange = { token = it },
-                onClearClick = { token = "" },
-                label = getPlatformAPILabelResources()[apiType]!!,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                helpLink = getPlatformHelpLinkResources()[apiType]!!
+                label = { Text(stringResource(R.string.api_key)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
             )
         },
         onDismissRequest = onDismissRequest,
@@ -284,31 +295,14 @@ private fun APIKeyDialog(
 
 @Composable
 private fun ModelDialog(
-    apiType: ApiType,
     initModel: String,
     onDismissRequest: () -> Unit,
     onConfirmRequest: (model: String) -> Unit
 ) {
-    val modelList = when (apiType) {
-        ApiType.OPENAI -> openaiModels
-        ApiType.ANTHROPIC -> anthropicModels
-        ApiType.GOOGLE -> googleModels
-        ApiType.GROQ -> groqModels
-        ApiType.OLLAMA -> ollamaModels
-    }
-    val availableModels = when (apiType) {
-        ApiType.OPENAI -> generateOpenAIModelList(models = modelList)
-        ApiType.ANTHROPIC -> generateAnthropicModelList(models = modelList)
-        ApiType.GOOGLE -> generateGoogleModelList(models = modelList)
-        ApiType.GROQ -> generateGroqModelList(models = modelList)
-        ApiType.OLLAMA -> listOf()
-    }
     val configuration = LocalWindowInfo.current
     val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
     val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
     var model by remember { mutableStateOf(initModel) }
-    var customSelected by remember { mutableStateOf(model !in availableModels.map { it.aliasValue }.toSet()) }
-    var customModel by remember { mutableStateOf(if (customSelected) model else "") }
 
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -317,62 +311,23 @@ private fun ModelDialog(
             .heightIn(max = screenHeight - 80.dp),
         title = { Text(text = stringResource(R.string.api_model)) },
         text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                availableModels.forEach { m ->
-                    RadioItem(
-                        value = m.aliasValue,
-                        selected = model == m.aliasValue && !customSelected,
-                        title = m.name,
-                        description = m.description,
-                        onSelected = {
-                            model = it
-                            customSelected = false
-                        }
-                    )
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = model,
+                onValueChange = { model = it },
+                label = { Text(stringResource(R.string.model_name)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                supportingText = {
+                    Text(stringResource(R.string.model_supporting))
                 }
-                RadioItem(
-                    value = customModel,
-                    selected = customSelected,
-                    title = stringResource(R.string.custom),
-                    description = stringResource(R.string.custom_description),
-                    onSelected = {
-                        customSelected = true
-                        customModel = it
-                    }
-                )
-                OutlinedTextField(
-                    modifier = Modifier
-                        .padding(start = 24.dp)
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
-                    enabled = customSelected,
-                    value = customModel,
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    onValueChange = { s -> customModel = s },
-                    label = {
-                        Text(stringResource(R.string.model_name))
-                    },
-                    placeholder = {
-                        Text(stringResource(R.string.model_custom_example))
-                    },
-                    supportingText = {
-                        Text(stringResource(R.string.custom_model_warning))
-                    }
-                )
-            }
+            )
         },
         onDismissRequest = onDismissRequest,
         confirmButton = {
             TextButton(
-                enabled = customSelected || model.isNotBlank(),
-                onClick = {
-                    if (customSelected) {
-                        onConfirmRequest(customModel)
-                    } else {
-                        onConfirmRequest(model)
-                    }
-                }
+                enabled = model.isNotBlank(),
+                onClick = { onConfirmRequest(model) }
             ) {
                 Text(stringResource(R.string.confirm))
             }
@@ -389,7 +344,6 @@ private fun ModelDialog(
 
 @Composable
 private fun TemperatureDialog(
-    apiType: ApiType,
     temperature: Float,
     onDismissRequest: () -> Unit,
     onConfirmRequest: (temp: Float) -> Unit
@@ -420,10 +374,7 @@ private fun TemperatureDialog(
                         textFieldTemperature = t
                         val converted = t.toFloatOrNull()
                         converted?.let {
-                            sliderTemperature = when (apiType) {
-                                ApiType.ANTHROPIC -> it.coerceIn(0F, 1F)
-                                else -> it.coerceIn(0F, 2F)
-                            }
+                            sliderTemperature = it.coerceIn(0F, 2F)
                         }
                     },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -436,14 +387,8 @@ private fun TemperatureDialog(
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp, vertical = 16.dp),
                     value = sliderTemperature,
-                    valueRange = when (apiType) {
-                        ApiType.ANTHROPIC -> 0F..1F
-                        else -> 0F..2F
-                    },
-                    steps = when (apiType) {
-                        ApiType.ANTHROPIC -> 10 - 1
-                        else -> 20 - 1
-                    },
+                    valueRange = 0F..2F,
+                    steps = 19,
                     onValueChange = { t ->
                         sliderTemperature = t
                         textFieldTemperature = t.toString()

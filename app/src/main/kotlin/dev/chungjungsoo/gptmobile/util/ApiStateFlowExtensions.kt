@@ -13,6 +13,7 @@ suspend fun Flow<ApiState>.handleStates(
 ) = collect { chunk ->
     when (chunk) {
         is ApiState.Success -> messageFlow.addContent(platformIdx, chunk.textChunk)
+
         ApiState.Done -> {
             messageFlow.setTimestamp(platformIdx)
             onLoadingComplete()

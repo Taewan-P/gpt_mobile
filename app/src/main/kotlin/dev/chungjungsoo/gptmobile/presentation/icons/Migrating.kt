@@ -15,7 +15,7 @@ val Migrating: ImageVector
         name = "Migrating Icon",
         defaultWidth = 24.0.dp,
         defaultHeight =
-        24.0.dp,
+            24.0.dp,
         viewportWidth = 960.0f,
         viewportHeight = 960.0f
     ).apply {
