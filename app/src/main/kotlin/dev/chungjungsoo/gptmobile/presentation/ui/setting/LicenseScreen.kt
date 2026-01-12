@@ -20,6 +20,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.mikepenz.aboutlibraries.ui.compose.android.produceLibraries
 import com.mikepenz.aboutlibraries.ui.compose.m3.LibrariesContainer
 import dev.chungjungsoo.gptmobile.R
 
@@ -29,6 +30,7 @@ fun LicenseScreen(
     onNavigationClick: () -> Unit
 ) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val libraries = produceLibraries(R.raw.aboutlibraries)
 
     Scaffold(
         modifier = Modifier
@@ -40,7 +42,7 @@ fun LicenseScreen(
         Column(
             modifier = Modifier.padding(innerPadding)
         ) {
-            LibrariesContainer(modifier = Modifier.fillMaxSize())
+            LibrariesContainer(libraries.value, modifier = Modifier.fillMaxSize())
         }
     }
 }

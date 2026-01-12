@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.setting
 
+import android.content.ClipData
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -17,19 +18,21 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.presentation.common.SettingItem
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,13 +44,14 @@ fun AboutScreen(
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val context = LocalContext.current
     val version = context.packageManager.getPackageInfo(context.packageName, 0).versionName
-    val clipboardManager = LocalClipboardManager.current
+    val clipboardManager = LocalClipboard.current
     val uriHandler = LocalUriHandler.current
     val githubLink = stringResource(R.string.github_link)
     val fdroidLink = stringResource(R.string.f_droid_link)
     val googlePlayLink = stringResource(R.string.play_store_link)
     val bugReportLink = stringResource(R.string.bug_report_link)
     val feedbackLink = stringResource(R.string.feedback_link)
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         modifier = Modifier
@@ -68,7 +72,7 @@ fun AboutScreen(
                 modifier = Modifier.height(64.dp),
                 title = stringResource(R.string.version),
                 description = "v$version",
-                onItemClick = { clipboardManager.setText(AnnotatedString("v$version")) },
+                onItemClick = { scope.launch { clipboardManager.setClipEntry(ClipEntry(ClipData.newPlainText("v$version", "v$version"))) } },
                 showTrailingIcon = false,
                 showLeadingIcon = true,
                 leadingIcon = {

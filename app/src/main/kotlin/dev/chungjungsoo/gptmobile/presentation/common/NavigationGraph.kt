@@ -6,7 +6,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -17,11 +17,13 @@ import androidx.navigation.navigation
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.presentation.ui.chat.ChatScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.home.HomeScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.migrate.MigrateScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.AboutScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.setting.AddPlatformScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.LicenseScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.PlatformSettingScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.SettingScreen
-import dev.chungjungsoo.gptmobile.presentation.ui.setting.SettingViewModel
+import dev.chungjungsoo.gptmobile.presentation.ui.setting.SettingViewModelV2
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SelectModelScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SelectPlatformScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupAPIUrlScreen
@@ -40,10 +42,21 @@ fun SetupNavGraph(navController: NavHostController) {
         startDestination = Route.CHAT_LIST
     ) {
         homeScreenNavigation(navController)
+        migrationScreenNavigation(navController)
         startScreenNavigation(navController)
         setupNavigation(navController)
         settingNavigation(navController)
         chatScreenNavigation(navController)
+    }
+}
+
+fun NavGraphBuilder.migrationScreenNavigation(navController: NavHostController) {
+    composable(Route.MIGRATE_V2) {
+        MigrateScreen {
+            navController.navigate(Route.CHAT_LIST) {
+                popUpTo(Route.MIGRATE_V2) { inclusive = true }
+            }
+        }
     }
 }
 
@@ -179,7 +192,7 @@ fun NavGraphBuilder.homeScreenNavigation(navController: NavHostController) {
         HomeScreen(
             settingOnClick = { navController.navigate(Route.SETTING_ROUTE) { launchSingleTop = true } },
             onExistingChatClick = { chatRoom ->
-                val enabledPlatformString = chatRoom.enabledPlatform.joinToString(",") { v -> v.name }
+                val enabledPlatformString = chatRoom.enabledPlatform.joinToString(",")
                 navController.navigate(
                     Route.CHAT_ROOM
                         .replace(oldValue = "{chatRoomId}", newValue = "${chatRoom.id}")
@@ -187,7 +200,7 @@ fun NavGraphBuilder.homeScreenNavigation(navController: NavHostController) {
                 )
             },
             navigateToNewChat = {
-                val enabledPlatformString = it.joinToString(",") { v -> v.name }
+                val enabledPlatformString = it.joinToString(",")
                 navController.navigate(
                     Route.CHAT_ROOM
                         .replace(oldValue = "{chatRoomId}", newValue = "0")
@@ -218,71 +231,39 @@ fun NavGraphBuilder.settingNavigation(navController: NavHostController) {
             val parentEntry = remember(it) {
                 navController.getBackStackEntry(Route.SETTING_ROUTE)
             }
-            val settingViewModel: SettingViewModel = hiltViewModel(parentEntry)
+            val settingViewModel: SettingViewModelV2 = hiltViewModel(parentEntry)
             SettingScreen(
                 settingViewModel = settingViewModel,
                 onNavigationClick = { navController.navigateUp() },
-                onNavigateToPlatformSetting = { apiType ->
-                    when (apiType) {
-                        ApiType.OPENAI -> navController.navigate(Route.OPENAI_SETTINGS)
-                        ApiType.ANTHROPIC -> navController.navigate(Route.ANTHROPIC_SETTINGS)
-                        ApiType.GOOGLE -> navController.navigate(Route.GOOGLE_SETTINGS)
-                        ApiType.GROQ -> navController.navigate(Route.GROQ_SETTINGS)
-                        ApiType.OLLAMA -> navController.navigate(Route.OLLAMA_SETTINGS)
-                    }
+                onNavigateToAddPlatform = { navController.navigate(Route.ADD_PLATFORM) },
+                onNavigateToPlatformSetting = { platformUid ->
+                    navController.navigate(
+                        Route.PLATFORM_SETTINGS.replace("{platformUid}", platformUid)
+                    )
                 },
                 onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) }
             )
         }
-        composable(Route.OPENAI_SETTINGS) {
+        composable(Route.ADD_PLATFORM) {
             val parentEntry = remember(it) {
                 navController.getBackStackEntry(Route.SETTING_ROUTE)
             }
-            val settingViewModel: SettingViewModel = hiltViewModel(parentEntry)
-            PlatformSettingScreen(
-                settingViewModel = settingViewModel,
-                apiType = ApiType.OPENAI
-            ) { navController.navigateUp() }
+            val settingViewModel: SettingViewModelV2 = hiltViewModel(parentEntry)
+            AddPlatformScreen(
+                onNavigationClick = { navController.navigateUp() },
+                onSave = { platform ->
+                    settingViewModel.addPlatform(platform)
+                    navController.navigateUp()
+                }
+            )
         }
-        composable(Route.ANTHROPIC_SETTINGS) {
-            val parentEntry = remember(it) {
-                navController.getBackStackEntry(Route.SETTING_ROUTE)
-            }
-            val settingViewModel: SettingViewModel = hiltViewModel(parentEntry)
+        composable(
+            Route.PLATFORM_SETTINGS,
+            arguments = listOf(navArgument("platformUid") { type = NavType.StringType })
+        ) {
             PlatformSettingScreen(
-                settingViewModel = settingViewModel,
-                apiType = ApiType.ANTHROPIC
-            ) { navController.navigateUp() }
-        }
-        composable(Route.GOOGLE_SETTINGS) {
-            val parentEntry = remember(it) {
-                navController.getBackStackEntry(Route.SETTING_ROUTE)
-            }
-            val settingViewModel: SettingViewModel = hiltViewModel(parentEntry)
-            PlatformSettingScreen(
-                settingViewModel = settingViewModel,
-                apiType = ApiType.GOOGLE
-            ) { navController.navigateUp() }
-        }
-        composable(Route.GROQ_SETTINGS) {
-            val parentEntry = remember(it) {
-                navController.getBackStackEntry(Route.SETTING_ROUTE)
-            }
-            val settingViewModel: SettingViewModel = hiltViewModel(parentEntry)
-            PlatformSettingScreen(
-                settingViewModel = settingViewModel,
-                apiType = ApiType.GROQ
-            ) { navController.navigateUp() }
-        }
-        composable(Route.OLLAMA_SETTINGS) {
-            val parentEntry = remember(it) {
-                navController.getBackStackEntry(Route.SETTING_ROUTE)
-            }
-            val settingViewModel: SettingViewModel = hiltViewModel(parentEntry)
-            PlatformSettingScreen(
-                settingViewModel = settingViewModel,
-                apiType = ApiType.OLLAMA
-            ) { navController.navigateUp() }
+                onNavigationClick = { navController.navigateUp() }
+            )
         }
         composable(Route.ABOUT_PAGE) {
             AboutScreen(

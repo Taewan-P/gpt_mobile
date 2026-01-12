@@ -20,6 +20,7 @@ class MainViewModel @Inject constructor(private val settingRepository: SettingRe
     sealed class SplashEvent {
         data object OpenIntro : SplashEvent()
         data object OpenHome : SplashEvent()
+        data object OpenMigrate : SplashEvent()
     }
 
     private val _isReady: MutableStateFlow<Boolean> = MutableStateFlow(false)
@@ -31,12 +32,24 @@ class MainViewModel @Inject constructor(private val settingRepository: SettingRe
     init {
         viewModelScope.launch {
             val platforms = settingRepository.fetchPlatforms()
+            val platformV2s = settingRepository.fetchPlatformV2s()
 
-            if (platforms.all { it.enabled.not() }) {
-                // Initialize
-                sendSplashEvent(SplashEvent.OpenIntro)
-            } else {
-                sendSplashEvent(SplashEvent.OpenHome)
+            when {
+                (platforms.all { it.enabled.not() } && platforms.all { it.token == null }) &&
+                    (platformV2s.isEmpty())
+                -> {
+                    // Initialize
+                    sendSplashEvent(SplashEvent.OpenIntro)
+                }
+
+                platformV2s.isEmpty() -> {
+                    // Migrate to V2
+                    sendSplashEvent(SplashEvent.OpenMigrate)
+                }
+
+                else -> {
+                    sendSplashEvent(SplashEvent.OpenHome)
+                }
             }
 
             setAsReady()
