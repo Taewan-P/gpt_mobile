@@ -6,9 +6,6 @@ import kotlinx.serialization.Serializable
 @Serializable
 @SerialName("image_url")
 data class ImageContent(
-    @SerialName("type")
-    val type: String = "image_url",
-
     @SerialName("image_url")
     val imageUrl: ImageUrl
 ) : MessageContent()

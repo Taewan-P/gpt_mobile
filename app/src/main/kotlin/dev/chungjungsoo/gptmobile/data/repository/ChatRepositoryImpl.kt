@@ -141,11 +141,13 @@ class ChatRepositoryImpl @Inject constructor(
             // Add user message
             messages.add(transformMessageV2ToOpenAI(userMsg, isUser = true))
 
-            // Add assistant responses if available
+            // Add assistant responses if available (skip empty responses)
             if (index < assistantMessages.size) {
-                assistantMessages[index].forEach { assistantMsg ->
-                    messages.add(transformMessageV2ToOpenAI(assistantMsg, isUser = false))
-                }
+                assistantMessages[index]
+                    .filter { it.content.isNotBlank() }
+                    .forEach { assistantMsg ->
+                        messages.add(transformMessageV2ToOpenAI(assistantMsg, isUser = false))
+                    }
             }
         }
 
@@ -226,11 +228,13 @@ class ChatRepositoryImpl @Inject constructor(
             // Add user message
             messages.add(transformMessageV2ToAnthropic(userMsg, MessageRole.USER))
 
-            // Add assistant responses if available
+            // Add assistant responses if available (skip empty responses)
             if (index < assistantMessages.size) {
-                assistantMessages[index].forEach { assistantMsg ->
-                    messages.add(transformMessageV2ToAnthropic(assistantMsg, MessageRole.ASSISTANT))
-                }
+                assistantMessages[index]
+                    .filter { it.content.isNotBlank() }
+                    .forEach { assistantMsg ->
+                        messages.add(transformMessageV2ToAnthropic(assistantMsg, MessageRole.ASSISTANT))
+                    }
             }
         }
 
@@ -328,11 +332,13 @@ class ChatRepositoryImpl @Inject constructor(
             // Add user message
             contents.add(transformMessageV2ToGoogle(userMsg, GoogleRole.USER))
 
-            // Add assistant responses if available
+            // Add assistant responses if available (skip empty responses)
             if (index < assistantMessages.size) {
-                assistantMessages[index].forEach { assistantMsg ->
-                    contents.add(transformMessageV2ToGoogle(assistantMsg, GoogleRole.MODEL))
-                }
+                assistantMessages[index]
+                    .filter { it.content.isNotBlank() }
+                    .forEach { assistantMsg ->
+                        contents.add(transformMessageV2ToGoogle(assistantMsg, GoogleRole.MODEL))
+                    }
             }
         }
 

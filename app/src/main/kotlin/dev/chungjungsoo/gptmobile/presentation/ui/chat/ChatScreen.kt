@@ -180,9 +180,10 @@ fun ChatScreen(
             Log.d("ChatScreen", "GroupMessage: $groupedMessages")
             groupedMessages.userMessages.forEachIndexed { i, message ->
                 // i: index of nth message
-                val platformIndexState = indexStates[i]
-                val assistantContent = groupedMessages.assistantMessages[i][platformIndexState].content
-                val isCurrentPlatformLoading = loadingStates[platformIndexState] == ChatViewModel.LoadingState.Loading
+                val platformIndexState = indexStates.getOrElse(i) { 0 }
+                val assistantMessages = groupedMessages.assistantMessages.getOrNull(i) ?: emptyList()
+                val assistantContent = assistantMessages.getOrNull(platformIndexState)?.content ?: ""
+                val isCurrentPlatformLoading = loadingStates.getOrElse(platformIndexState) { ChatViewModel.LoadingState.Idle } == ChatViewModel.LoadingState.Loading
                 item {
                     var isDropDownMenuExpanded by remember { mutableStateOf(false) }
                     Column(

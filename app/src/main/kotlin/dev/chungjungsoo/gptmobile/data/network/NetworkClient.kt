@@ -25,17 +25,10 @@ class NetworkClient @Inject constructor(
 
     private val client by lazy {
         HttpClient(httpEngine) {
-            expectSuccess = true
+            expectSuccess = false
 
             install(ContentNegotiation) {
-                json(
-                    Json {
-                        isLenient = true
-                        ignoreUnknownKeys = true
-                        allowSpecialFloatingPointValues = true
-                        useArrayPolymorphism = true
-                    }
-                )
+                json(json)
             }
 
             install(SSE)
@@ -60,5 +53,14 @@ class NetworkClient @Inject constructor(
 
     companion object {
         private const val TIMEOUT = 1_000 * 60 * 5
+
+        val json = Json {
+            isLenient = true
+            ignoreUnknownKeys = true
+            allowSpecialFloatingPointValues = true
+            useArrayPolymorphism = false
+            classDiscriminator = "type"
+            encodeDefaults = true
+        }
     }
 }
