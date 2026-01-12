@@ -2,6 +2,7 @@ package dev.chungjungsoo.gptmobile.presentation.ui.setting
 
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,6 +24,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -204,6 +207,7 @@ fun PlatformSettingScreen(
                     }
                 )
                 ExtendedThinkingSwitch(
+                    modifier = Modifier.height(64.dp),
                     enabled = platformData.enabled,
                     isChecked = platformData.reasoning,
                     onCheckedChange = { settingViewModel.toggleReasoning() }
@@ -279,52 +283,57 @@ fun PlatformTopAppBar(
 
 @Composable
 fun ExtendedThinkingSwitch(
+    modifier: Modifier,
     enabled: Boolean,
     isChecked: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
-    Row(
-        modifier = Modifier
+    val clickableModifier = if (enabled) {
+        modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = ImageVector.vectorResource(id = R.drawable.ic_model),
-            contentDescription = stringResource(R.string.extended_thinking),
-            modifier = Modifier.padding(end = 16.dp),
-            tint = if (enabled) {
-                MaterialTheme.colorScheme.onSurface
-            } else {
-                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-            }
-        )
-        Column(modifier = Modifier.weight(1f)) {
+            .clickable(onClick = { onCheckedChange(!isChecked) })
+            .padding(horizontal = 8.dp)
+    } else {
+        modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp)
+    }
+    val colors = ListItemDefaults.colors()
+
+    ListItem(
+        modifier = clickableModifier,
+        headlineContent = {
             Text(
                 text = stringResource(R.string.extended_thinking),
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (enabled) {
-                    MaterialTheme.colorScheme.onSurface
-                } else {
-                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                }
+                overflow = TextOverflow.Ellipsis
             )
+        },
+        supportingContent = {
             Text(
                 text = stringResource(R.string.extended_thinking_description),
-                style = MaterialTheme.typography.bodySmall,
-                color = if (enabled) {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-                }
+                overflow = TextOverflow.Ellipsis
             )
-        }
-        Switch(
-            checked = isChecked,
-            onCheckedChange = onCheckedChange,
-            enabled = enabled
+        },
+        leadingContent = {
+            Icon(
+                imageVector = ImageVector.vectorResource(id = R.drawable.ic_model),
+                contentDescription = stringResource(R.string.extended_thinking)
+            )
+        },
+        trailingContent = {
+            Switch(
+                checked = isChecked,
+                onCheckedChange = null,
+                enabled = enabled
+            )
+        },
+        colors = ListItemDefaults.colors(
+            headlineColor = if (enabled) colors.headlineColor else colors.disabledHeadlineColor,
+            supportingColor = if (enabled) colors.supportingTextColor else colors.disabledHeadlineColor,
+            leadingIconColor = if (enabled) colors.leadingIconColor else colors.disabledLeadingIconColor,
+            trailingIconColor = if (enabled) colors.trailingIconColor else colors.disabledTrailingIconColor
         )
-    }
+    )
 }
 
 @Composable
