@@ -20,6 +20,8 @@ object Route {
 
     const val SETTING_ROUTE = "setting_route"
     const val SETTINGS = "settings"
+    const val ADD_PLATFORM = "add_platform"
+    const val PLATFORM_SETTINGS = "platform_settings/{platformUid}"
     const val OPENAI_SETTINGS = "openai_settings"
     const val ANTHROPIC_SETTINGS = "anthropic_settings"
     const val GOOGLE_SETTINGS = "google_settings"

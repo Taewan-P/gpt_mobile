@@ -101,7 +101,7 @@ class ChatRepositoryImpl @Inject constructor(
         assistantMessages: List<List<MessageV2>>,
         platform: PlatformV2
     ): Flow<ApiState> = when (platform.compatibleType) {
-        ClientType.OPENAI, ClientType.OLLAMA, ClientType.OPENROUTER, ClientType.CUSTOM -> {
+        ClientType.OPENAI, ClientType.GROQ, ClientType.OLLAMA, ClientType.OPENROUTER, ClientType.CUSTOM -> {
             completeChatWithOpenAI(userMessages, assistantMessages, platform)
         }
 

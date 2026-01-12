@@ -13,6 +13,9 @@ interface PlatformV2Dao {
     @Query("SELECT * FROM platform_v2 ORDER BY platform_id ASC")
     suspend fun getPlatforms(): List<PlatformV2>
 
+    @Query("SELECT * FROM platform_v2 WHERE platform_id = :id")
+    suspend fun getPlatform(id: Int): PlatformV2?
+
     @Insert
     suspend fun addPlatform(platform: PlatformV2): Long
 
