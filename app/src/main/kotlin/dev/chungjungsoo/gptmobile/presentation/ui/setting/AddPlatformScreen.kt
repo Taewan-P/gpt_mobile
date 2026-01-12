@@ -156,7 +156,7 @@ fun AddPlatformScreen(
                                     ClientType.GOOGLE -> ModelConstants.GOOGLE_API_URL
                                     ClientType.GROQ -> ModelConstants.GROQ_API_URL
                                     ClientType.OLLAMA -> "http://localhost:11434"
-                                    ClientType.OPENROUTER -> "https://openrouter.ai/api"
+                                    ClientType.OPENROUTER -> "https://openrouter.ai/api/v1"
                                     ClientType.CUSTOM -> ""
                                 }
                                 clientTypeExpanded = false
@@ -275,11 +275,11 @@ private fun getClientTypeDescription(clientType: ClientType): String = when (cli
 
 @Composable
 private fun getModelPlaceholder(clientType: ClientType): String = when (clientType) {
-    ClientType.OPENAI -> "gpt-4o"
-    ClientType.ANTHROPIC -> "claude-3-5-sonnet-20241022"
-    ClientType.GOOGLE -> "gemini-1.5-pro"
-    ClientType.GROQ -> "llama-3.1-70b-versatile"
-    ClientType.OLLAMA -> "llama2"
+    ClientType.OPENAI -> "gpt-5.2"
+    ClientType.ANTHROPIC -> "claude-sonnet-4-5-20250929"
+    ClientType.GOOGLE -> "gemini-3-pro-preview"
+    ClientType.GROQ -> "openai/gpt-oss-120b"
+    ClientType.OLLAMA -> "gpt-oss"
     ClientType.OPENROUTER -> "openai/gpt-4o"
     ClientType.CUSTOM -> stringResource(R.string.model_name)
 }
