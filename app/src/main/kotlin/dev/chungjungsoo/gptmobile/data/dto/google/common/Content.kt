@@ -12,22 +12,24 @@ data class Content(
     val parts: List<Part>
 )
 
+/**
+ * Google's Part uses field presence to distinguish types, not a type discriminator.
+ * text field is for text content, inline_data field is for binary/image data.
+ * Only one should be non-null at a time.
+ */
 @Serializable
-sealed class Part
-
-@Serializable
-@SerialName("text")
-data class TextPart(
+data class Part(
     @SerialName("text")
-    val text: String
-) : Part()
+    val text: String? = null,
 
-@Serializable
-@SerialName("inline_data")
-data class InlineDataPart(
     @SerialName("inline_data")
-    val inlineData: InlineData
-) : Part()
+    val inlineData: InlineData? = null
+) {
+    companion object {
+        fun text(text: String) = Part(text = text)
+        fun inlineData(mimeType: String, data: String) = Part(inlineData = InlineData(mimeType, data))
+    }
+}
 
 @Serializable
 data class InlineData(

@@ -22,10 +22,8 @@ import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.TextContent as Anthr
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.request.InputMessage
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.request.MessageRequest
 import dev.chungjungsoo.gptmobile.data.dto.google.common.Content
-import dev.chungjungsoo.gptmobile.data.dto.google.common.InlineData
-import dev.chungjungsoo.gptmobile.data.dto.google.common.InlineDataPart
+import dev.chungjungsoo.gptmobile.data.dto.google.common.Part
 import dev.chungjungsoo.gptmobile.data.dto.google.common.Role as GoogleRole
-import dev.chungjungsoo.gptmobile.data.dto.google.common.TextPart
 import dev.chungjungsoo.gptmobile.data.dto.google.request.GenerateContentRequest
 import dev.chungjungsoo.gptmobile.data.dto.google.request.GenerationConfig
 import dev.chungjungsoo.gptmobile.data.dto.openai.common.ImageContent as OpenAIImageContent
@@ -351,7 +349,7 @@ class ChatRepositoryImpl @Inject constructor(
             ),
             systemInstruction = platform.systemPrompt?.takeIf { it.isNotBlank() }?.let {
                 Content(
-                    parts = listOf(TextPart(text = it))
+                    parts = listOf(Part.text(it))
                 )
             }
         )
@@ -363,9 +361,9 @@ class ChatRepositoryImpl @Inject constructor(
                 when {
                     response.error != null -> emit(ApiState.Error(response.error.message))
 
-                    response.candidates?.firstOrNull()?.content?.parts?.firstOrNull() is TextPart -> {
-                        val textPart = response.candidates.first().content.parts.first() as TextPart
-                        emit(ApiState.Success(textPart.text))
+                    response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text != null -> {
+                        val text = response.candidates!!.first().content.parts.first().text!!
+                        emit(ApiState.Success(text))
                     }
 
                     response.candidates?.firstOrNull()?.finishReason != null -> emit(ApiState.Done)
@@ -381,11 +379,11 @@ class ChatRepositoryImpl @Inject constructor(
     }
 
     private fun transformMessageV2ToGoogle(message: MessageV2, role: GoogleRole): Content {
-        val parts = mutableListOf<dev.chungjungsoo.gptmobile.data.dto.google.common.Part>()
+        val parts = mutableListOf<Part>()
 
         // Add text content
         if (message.content.isNotBlank()) {
-            parts.add(TextPart(text = message.content))
+            parts.add(Part.text(message.content))
         }
 
         // Add file content (images)
@@ -394,14 +392,7 @@ class ChatRepositoryImpl @Inject constructor(
             if (FileUtils.isImage(mimeType)) {
                 val base64 = FileUtils.readAndEncodeFile(context, fileUri)
                 if (base64 != null) {
-                    parts.add(
-                        InlineDataPart(
-                            inlineData = InlineData(
-                                mimeType = mimeType,
-                                data = base64
-                            )
-                        )
-                    )
+                    parts.add(Part.inlineData(mimeType, base64))
                 }
             }
         }

@@ -54,7 +54,17 @@ class NetworkClient @Inject constructor(
     companion object {
         private const val TIMEOUT = 1_000 * 60 * 5
 
+        // Default JSON config (used for most APIs)
         val json = Json {
+            isLenient = true
+            ignoreUnknownKeys = true
+            allowSpecialFloatingPointValues = true
+            useArrayPolymorphism = false
+            encodeDefaults = true
+        }
+
+        // OpenAI-specific JSON config with "type" discriminator for MessageContent
+        val openAIJson = Json {
             isLenient = true
             ignoreUnknownKeys = true
             allowSpecialFloatingPointValues = true

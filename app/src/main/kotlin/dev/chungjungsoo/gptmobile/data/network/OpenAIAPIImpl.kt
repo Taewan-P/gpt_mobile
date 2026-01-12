@@ -35,7 +35,7 @@ class OpenAIAPIImpl @Inject constructor(
     override fun streamChatCompletion(request: ChatCompletionRequest): Flow<ChatCompletionChunk> = flow {
         try {
             val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}v1/chat/completions" else "$apiUrl/v1/chat/completions"
-            val requestBody = NetworkClient.json.encodeToString(ChatCompletionRequest.serializer(), request)
+            val requestBody = NetworkClient.openAIJson.encodeToString(ChatCompletionRequest.serializer(), request)
 
             networkClient().preparePost(endpoint) {
                 contentType(ContentType.Application.Json)
@@ -68,7 +68,7 @@ class OpenAIAPIImpl @Inject constructor(
                         }
 
                         try {
-                            val chunk = NetworkClient.json.decodeFromString<ChatCompletionChunk>(data)
+                            val chunk = NetworkClient.openAIJson.decodeFromString<ChatCompletionChunk>(data)
                             emit(chunk)
                         } catch (e: Exception) {
                             Log.e("OpenAIAPI", "Failed to parse chunk: $data", e)
