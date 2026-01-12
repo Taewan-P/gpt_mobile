@@ -115,7 +115,7 @@ fun OpponentChatBubble(
         // Thinking block (collapsed by default)
         if (thoughts.isNotBlank()) {
             ThinkingBlock(
-                modifier = Modifier.padding(bottom = 8.dp),
+                modifier = Modifier.padding(top = 16.dp, start = 8.dp, end = 8.dp),
                 thoughts = thoughts,
                 isLoading = isThinking
             )
