@@ -237,14 +237,23 @@ class ChatRepositoryImpl @Inject constructor(
         }
 
         // Create request
+        // Note: When thinking is enabled, temperature defaults to 1 and top_p/top_k are not allowed
         val request = MessageRequest(
             model = platform.model,
             messages = messages,
-            maxTokens = 4096, // TODO: Make this configurable
+            maxTokens = if (platform.reasoning) 16000 else 4096,
             stream = platform.stream,
             systemPrompt = platform.systemPrompt,
-            temperature = platform.temperature,
-            topP = platform.topP
+            temperature = if (platform.reasoning) null else platform.temperature,
+            topP = if (platform.reasoning) null else platform.topP,
+            thinking = if (platform.reasoning) {
+                dev.chungjungsoo.gptmobile.data.dto.anthropic.request.ThinkingConfig(
+                    type = "enabled",
+                    budgetTokens = 10000
+                )
+            } else {
+                null
+            }
         )
 
         // Stream response
@@ -253,7 +262,18 @@ class ChatRepositoryImpl @Inject constructor(
             anthropicAPI.streamChatMessage(request).collect { chunk ->
                 when (chunk) {
                     is dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ContentDeltaResponseChunk -> {
-                        emit(ApiState.Success(chunk.delta.text))
+                        when (chunk.delta.type) {
+                            dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ContentBlockType.THINKING_DELTA -> {
+                                chunk.delta.thinking?.let { emit(ApiState.Thinking(it)) }
+                            }
+
+                            dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ContentBlockType.DELTA -> {
+                                chunk.delta.text?.let { emit(ApiState.Success(it)) }
+                            }
+
+                            // Ignore signature blocks and other types
+                            else -> { }
+                        }
                     }
 
                     is dev.chungjungsoo.gptmobile.data.dto.anthropic.response.MessageStopResponseChunk -> {

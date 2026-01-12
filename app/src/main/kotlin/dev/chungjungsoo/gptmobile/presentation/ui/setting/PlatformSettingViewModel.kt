@@ -48,6 +48,12 @@ class PlatformSettingViewModel @Inject constructor(
         }
     }
 
+    fun toggleReasoning() {
+        _platformState.value?.let { platform ->
+            updatePlatform(platform.copy(reasoning = !platform.reasoning))
+        }
+    }
+
     fun updatePlatform(platform: PlatformV2) {
         viewModelScope.launch {
             settingRepository.updatePlatformV2(platform)

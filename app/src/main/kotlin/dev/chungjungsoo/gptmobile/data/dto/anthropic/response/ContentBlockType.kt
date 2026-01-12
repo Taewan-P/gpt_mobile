@@ -10,5 +10,17 @@ enum class ContentBlockType {
     TEXT,
 
     @SerialName("text_delta")
-    DELTA
+    DELTA,
+
+    @SerialName("thinking")
+    THINKING,
+
+    @SerialName("thinking_delta")
+    THINKING_DELTA,
+
+    @SerialName("signature")
+    SIGNATURE,
+
+    @SerialName("signature_delta")
+    SIGNATURE_DELTA
 }

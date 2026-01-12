@@ -203,6 +203,11 @@ fun PlatformSettingScreen(
                         )
                     }
                 )
+                ExtendedThinkingSwitch(
+                    enabled = platformData.enabled,
+                    isChecked = platformData.reasoning,
+                    onCheckedChange = { settingViewModel.toggleReasoning() }
+                )
 
                 PlatformNameDialog(dialogState, platformData.name, settingViewModel)
                 APIUrlDialog(dialogState, platformData.apiUrl, settingViewModel)
@@ -270,6 +275,56 @@ fun PlatformTopAppBar(
         },
         scrollBehavior = scrollBehavior
     )
+}
+
+@Composable
+fun ExtendedThinkingSwitch(
+    enabled: Boolean,
+    isChecked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = ImageVector.vectorResource(id = R.drawable.ic_model),
+            contentDescription = stringResource(R.string.extended_thinking),
+            modifier = Modifier.padding(end = 16.dp),
+            tint = if (enabled) {
+                MaterialTheme.colorScheme.onSurface
+            } else {
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+            }
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stringResource(R.string.extended_thinking),
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (enabled) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                }
+            )
+            Text(
+                text = stringResource(R.string.extended_thinking_description),
+                style = MaterialTheme.typography.bodySmall,
+                color = if (enabled) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                }
+            )
+        }
+        Switch(
+            checked = isChecked,
+            onCheckedChange = onCheckedChange,
+            enabled = enabled
+        )
+    }
 }
 
 @Composable

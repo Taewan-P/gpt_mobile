@@ -12,6 +12,8 @@ suspend fun Flow<ApiState>.handleStates(
     onLoadingComplete: () -> Unit
 ) = collect { chunk ->
     when (chunk) {
+        is ApiState.Thinking -> messageFlow.addThought(platformIdx, chunk.thinkingChunk)
+
         is ApiState.Success -> messageFlow.addContent(platformIdx, chunk.textChunk)
 
         ApiState.Done -> {
@@ -25,6 +27,19 @@ suspend fun Flow<ApiState>.handleStates(
         }
 
         else -> {}
+    }
+}
+
+private fun MutableStateFlow<ChatViewModel.GroupedMessages>.addThought(platformIdx: Int, thought: String) {
+    update { groupedMessages ->
+        val updatedMessages = groupedMessages.assistantMessages.last().toMutableList()
+        updatedMessages[platformIdx] = updatedMessages[platformIdx].copy(
+            thoughts = updatedMessages[platformIdx].thoughts + thought
+        )
+        val assistantMessages = groupedMessages.assistantMessages.toMutableList()
+        assistantMessages[assistantMessages.lastIndex] = updatedMessages
+
+        groupedMessages.copy(assistantMessages = assistantMessages)
     }
 }
 

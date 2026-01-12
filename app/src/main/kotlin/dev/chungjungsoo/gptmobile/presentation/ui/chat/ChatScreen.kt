@@ -210,6 +210,7 @@ fun ChatScreen(
                     }
                 }
                 item {
+                    val assistantThoughts = assistantMessages.getOrNull(platformIndexState)?.thoughts ?: ""
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -251,6 +252,7 @@ fun ChatScreen(
                             canRetry = canUseChat && i == groupedMessages.assistantMessages.size - 1 && !isCurrentPlatformLoading,
                             isLoading = if (i == groupedMessages.assistantMessages.size - 1) isCurrentPlatformLoading else false,
                             text = assistantContent,
+                            thoughts = assistantThoughts,
                             onCopyClick = { scope.launch { clipboardManager.setClipEntry(ClipEntry(ClipData.newPlainText(assistantContent, assistantContent))) } },
                             onSelectClick = { chatViewModel.openSelectTextSheet(assistantContent) },
                             onRetryClick = { chatViewModel.retryChat(platformIndexState) }
