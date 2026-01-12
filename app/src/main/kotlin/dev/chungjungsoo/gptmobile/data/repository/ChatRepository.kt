@@ -13,6 +13,7 @@ interface ChatRepository {
     suspend fun completeChat(userMessages: List<MessageV2>, assistantMessages: List<List<MessageV2>>, platform: PlatformV2): Flow<ApiState>
     suspend fun fetchChatList(): List<ChatRoom>
     suspend fun fetchChatListV2(): List<ChatRoomV2>
+    suspend fun searchChatsV2(query: String): List<ChatRoomV2>
     suspend fun fetchMessages(chatId: Int): List<Message>
     suspend fun fetchMessagesV2(chatId: Int): List<MessageV2>
     suspend fun migrateToChatRoomV2MessageV2()

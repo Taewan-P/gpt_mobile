@@ -9,17 +9,27 @@ import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import javax.inject.Inject
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+@OptIn(FlowPreview::class)
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     private val settingRepository: SettingRepository
 ) : ViewModel() {
+
+    companion object {
+        private const val SEARCH_DEBOUNCE_MS = 300L
+    }
 
     data class ChatListState(
         val chats: List<ChatRoomV2> = listOf(),
@@ -44,6 +54,15 @@ class HomeViewModel @Inject constructor(
     private val _showDeleteWarningDialog = MutableStateFlow(false)
     val showDeleteWarningDialog: StateFlow<Boolean> = _showDeleteWarningDialog.asStateFlow()
 
+    init {
+        // Set up debounced search
+        _searchQuery
+            .debounce(SEARCH_DEBOUNCE_MS)
+            .distinctUntilChanged()
+            .onEach { query -> searchChats(query) }
+            .launchIn(viewModelScope)
+    }
+
     fun updatePlatformCheckedState(idx: Int) {
         if (idx < 0 || idx >= _chatListState.value.selectedPlatforms.size) return
 
@@ -60,7 +79,21 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun updateSearchQuery(query: String) = _searchQuery.update { query }
+    fun updateSearchQuery(query: String) {
+        _searchQuery.update { query }
+    }
+
+    private fun searchChats(query: String) {
+        viewModelScope.launch {
+            val chats = chatRepository.searchChatsV2(query)
+            _chatListState.update {
+                it.copy(
+                    chats = chats,
+                    selectedChats = List(chats.size) { false }
+                )
+            }
+        }
+    }
 
     fun openDeleteWarningDialog() {
         closeSelectModelDialog()
@@ -105,6 +138,7 @@ class HomeViewModel @Inject constructor(
     fun disableSearchMode() {
         _chatListState.update { it.copy(isSearchMode = false) }
         _searchQuery.update { "" }
+        fetchChats()
     }
 
     fun enableSelectionMode() {

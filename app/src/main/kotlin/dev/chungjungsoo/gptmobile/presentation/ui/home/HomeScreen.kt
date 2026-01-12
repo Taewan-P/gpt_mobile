@@ -36,10 +36,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SearchBar
-import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
@@ -96,14 +96,17 @@ fun HomeScreen(
     val context = LocalContext.current
 
     LaunchedEffect(lifecycleState) {
-        if (lifecycleState == Lifecycle.State.RESUMED && !chatListState.isSelectionMode) {
+        if (lifecycleState == Lifecycle.State.RESUMED && !chatListState.isSelectionMode && !chatListState.isSearchMode) {
             homeViewModel.fetchChats()
             homeViewModel.fetchPlatformStatus()
         }
     }
 
-    BackHandler(enabled = chatListState.isSelectionMode) {
-        homeViewModel.disableSelectionMode()
+    BackHandler(enabled = chatListState.isSelectionMode || chatListState.isSearchMode) {
+        when {
+            chatListState.isSelectionMode -> homeViewModel.disableSelectionMode()
+            chatListState.isSearchMode -> homeViewModel.disableSearchMode()
+        }
     }
 
     Scaffold(
@@ -154,7 +157,22 @@ fun HomeScreen(
             modifier = Modifier.padding(innerPadding),
             state = listState
         ) {
-            item { ChatsTitle(scrollBehavior) }
+            if (!chatListState.isSearchMode) {
+                item { ChatsTitle(scrollBehavior) }
+            }
+            if (chatListState.isSearchMode && chatListState.chats.isEmpty() && searchQuery.isNotEmpty()) {
+                item {
+                    Text(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        text = stringResource(R.string.no_search_results),
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
             itemsIndexed(chatListState.chats, key = { _, it -> it.id }) { idx, chatRoom ->
                 val usingPlatform = chatRoom.enabledPlatform.joinToString(", ") { uid -> platformState.getPlatformName(uid) }
                 ListItem(
@@ -240,24 +258,22 @@ fun HomeTopAppBar(
             titleContentColor = if (isSelectionMode) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onBackground
         ),
         title = {
-            if (isSearchMode) {
-                SearchBar(
-                    inputField = {
-                        SearchBarDefaults.InputField(
-                            query = searchQuery,
-                            onQueryChange = onSearchQueryChanged,
-                            onSearch = { /* Handle search submission if needed */ },
-                            expanded = searchQuery.isNotBlank(),
-                            onExpandedChange = {},
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text(stringResource(R.string.search_chats)) },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Rounded.Search,
-                                    contentDescription = stringResource(R.string.search_chats)
-                                )
-                            },
-                            trailingIcon = {
+            when {
+                isSearchMode -> {
+                    TextField(
+                        value = searchQuery,
+                        onValueChange = onSearchQueryChanged,
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text(stringResource(R.string.search_chats)) },
+                        singleLine = true,
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent
+                        ),
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
                                 IconButton(onClick = { onSearchQueryChanged("") }) {
                                     Icon(
                                         imageVector = Icons.Rounded.Close,
@@ -265,75 +281,93 @@ fun HomeTopAppBar(
                                     )
                                 }
                             }
-                        )
-                    },
-                    expanded = searchQuery.isNotBlank(),
-                    onExpandedChange = { /* Handle search expansion if needed */ }
-                ) {
+                        }
+                    )
                 }
-            } else if (isSelectionMode) {
-                Text(
-                    modifier = Modifier.padding(4.dp),
-                    text = stringResource(R.string.chats_selected, selectedChats),
-                    maxLines = 1,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    overflow = TextOverflow.Ellipsis
-                )
-            } else {
-                Text(
-                    modifier = Modifier.padding(4.dp),
-                    text = stringResource(R.string.chats),
-                    maxLines = 1,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = scrollBehavior.state.overlappedFraction),
-                    overflow = TextOverflow.Ellipsis
-                )
+
+                isSelectionMode -> {
+                    Text(
+                        modifier = Modifier.padding(4.dp),
+                        text = stringResource(R.string.chats_selected, selectedChats),
+                        maxLines = 1,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                else -> {
+                    Text(
+                        modifier = Modifier.padding(4.dp),
+                        text = stringResource(R.string.chats),
+                        maxLines = 1,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = scrollBehavior.state.overlappedFraction),
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         },
         navigationIcon = {
-            if (isSelectionMode xor isSearchMode) {
-                IconButton(
-                    modifier = Modifier.padding(4.dp),
-                    onClick = navigationOnClick
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Close,
-                        tint = if (!isSearchMode) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onBackground,
-                        contentDescription = stringResource(R.string.close)
-                    )
+            when {
+                isSelectionMode -> {
+                    IconButton(
+                        modifier = Modifier.padding(4.dp),
+                        onClick = navigationOnClick
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            contentDescription = stringResource(R.string.close)
+                        )
+                    }
                 }
-            } else {
-                IconButton(
-                    modifier = Modifier.padding(4.dp),
-                    onClick = navigationOnClick
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Search,
-                        contentDescription = stringResource(R.string.search_chats)
-                    )
+
+                isSearchMode -> {
+                    IconButton(
+                        modifier = Modifier.padding(4.dp),
+                        onClick = navigationOnClick
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = stringResource(R.string.close)
+                        )
+                    }
+                }
+
+                else -> {
+                    IconButton(
+                        modifier = Modifier.padding(4.dp),
+                        onClick = navigationOnClick
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Search,
+                            contentDescription = stringResource(R.string.search_chats)
+                        )
+                    }
                 }
             }
         },
         actions = {
-            if (isSelectionMode) {
-                IconButton(
-                    modifier = Modifier.padding(4.dp),
-                    onClick = actionOnClick
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Delete,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        contentDescription = stringResource(R.string.delete)
-                    )
+            when {
+                isSelectionMode -> {
+                    IconButton(
+                        modifier = Modifier.padding(4.dp),
+                        onClick = actionOnClick
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Delete,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            contentDescription = stringResource(R.string.delete)
+                        )
+                    }
                 }
-                return@TopAppBar
-            }
 
-            if (!isSearchMode) {
-                IconButton(
-                    modifier = Modifier.padding(4.dp),
-                    onClick = actionOnClick
-                ) {
-                    Icon(imageVector = Icons.Outlined.Settings, contentDescription = stringResource(R.string.settings))
+                !isSearchMode -> {
+                    IconButton(
+                        modifier = Modifier.padding(4.dp),
+                        onClick = actionOnClick
+                    ) {
+                        Icon(imageVector = Icons.Outlined.Settings, contentDescription = stringResource(R.string.settings))
+                    }
                 }
             }
         },

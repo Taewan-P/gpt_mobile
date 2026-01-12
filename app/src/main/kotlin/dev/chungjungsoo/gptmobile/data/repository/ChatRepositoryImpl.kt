@@ -407,6 +407,27 @@ class ChatRepositoryImpl @Inject constructor(
 
     override suspend fun fetchChatListV2(): List<ChatRoomV2> = chatRoomV2Dao.getChatRooms()
 
+    override suspend fun searchChatsV2(query: String): List<ChatRoomV2> {
+        if (query.isBlank()) {
+            return chatRoomV2Dao.getChatRooms()
+        }
+
+        // Search by title
+        val titleMatches = chatRoomV2Dao.searchChatRoomsByTitle(query)
+
+        // Search by message content and get chat IDs
+        val messageMatchChatIds = messageV2Dao.searchMessagesByContent(query)
+
+        // Get all chat rooms and filter by message match IDs
+        val allChatRooms = chatRoomV2Dao.getChatRooms()
+        val messageMatches = allChatRooms.filter { it.id in messageMatchChatIds }
+
+        // Combine results and remove duplicates, maintaining order by updatedAt
+        return (titleMatches + messageMatches)
+            .distinctBy { it.id }
+            .sortedByDescending { it.updatedAt }
+    }
+
     override suspend fun fetchMessages(chatId: Int): List<Message> = messageDao.loadMessages(chatId)
 
     override suspend fun fetchMessagesV2(chatId: Int): List<MessageV2> = messageV2Dao.loadMessages(chatId)

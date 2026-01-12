@@ -205,6 +205,7 @@
     <string name="select_text">Select Text</string>
     <string name="unknown">Unknown</string>
     <string name="search_chats">Search chats</string>
+    <string name="no_search_results">No chats found</string>
     <string name="clear">Clear</string>
     <string name="attach_file">Attach File</string>
     <string name="add_platform">Add Platform</string>
