@@ -41,6 +41,7 @@ GPT Mobile is an Android chat app supporting multiple AI providers (OpenAI, Anth
 - **Style**: `android_studio` code style
 - **Run locally**: Use ktlint CLI or IDE integration
 - Linting runs automatically on PRs to main branch
+- Try `ktlint --format` and check before committing
 
 ## Code Style Guidelines
 
@@ -51,6 +52,7 @@ GPT Mobile is an Android chat app supporting multiple AI providers (OpenAI, Anth
 - **Trailing commas**: Disabled
 - **Final newline**: Required
 - **Line endings**: LF
+- **Checkstyle tool**: ktlint
 
 ### Imports
 
