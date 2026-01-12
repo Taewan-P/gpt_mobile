@@ -42,6 +42,7 @@ GPT Mobile is an Android chat app supporting multiple AI providers (OpenAI, Anth
 - **Run locally**: Use ktlint CLI or IDE integration
 - Linting runs automatically on PRs to main branch
 - Try `ktlint --format` and check before committing
+- For annotations, A comment inside or on same line after a 'value_parameter' is not allowed. It may be placed on a separate line above.
 
 ## Code Style Guidelines
 
