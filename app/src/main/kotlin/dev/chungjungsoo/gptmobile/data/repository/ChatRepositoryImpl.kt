@@ -33,6 +33,16 @@ import dev.chungjungsoo.gptmobile.data.dto.openai.common.Role as OpenAIRole
 import dev.chungjungsoo.gptmobile.data.dto.openai.common.TextContent as OpenAITextContent
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatCompletionRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatMessage
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.ReasoningConfig
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseContentPart
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseInputContent
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseInputMessage
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponsesRequest
+import dev.chungjungsoo.gptmobile.data.dto.openai.response.OutputTextDeltaEvent
+import dev.chungjungsoo.gptmobile.data.dto.openai.response.ReasoningTextDeltaEvent
+import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseCompletedEvent
+import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseErrorEvent
+import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseFailedEvent
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.network.AnthropicAPI
@@ -99,8 +109,14 @@ class ChatRepositoryImpl @Inject constructor(
         assistantMessages: List<List<MessageV2>>,
         platform: PlatformV2
     ): Flow<ApiState> = when (platform.compatibleType) {
-        ClientType.OPENAI, ClientType.GROQ, ClientType.OLLAMA, ClientType.OPENROUTER, ClientType.CUSTOM -> {
-            completeChatWithOpenAI(userMessages, assistantMessages, platform)
+        ClientType.OPENAI -> {
+            // Use Responses API for OpenAI (supports reasoning/thinking)
+            completeChatWithOpenAIResponses(userMessages, assistantMessages, platform)
+        }
+
+        ClientType.GROQ, ClientType.OLLAMA, ClientType.OPENROUTER, ClientType.CUSTOM -> {
+            // Use Chat Completions API for OpenAI-compatible services
+            completeChatWithOpenAIChatCompletions(userMessages, assistantMessages, platform)
         }
 
         ClientType.ANTHROPIC -> {
@@ -112,7 +128,92 @@ class ChatRepositoryImpl @Inject constructor(
         }
     }
 
-    private suspend fun completeChatWithOpenAI(
+    private suspend fun completeChatWithOpenAIResponses(
+        userMessages: List<MessageV2>,
+        assistantMessages: List<List<MessageV2>>,
+        platform: PlatformV2
+    ): Flow<ApiState> = try {
+        // Configure API
+        openAIAPI.setToken(platform.token)
+        openAIAPI.setAPIUrl(platform.apiUrl)
+
+        // Build input messages for Responses API
+        val inputMessages = mutableListOf<ResponseInputMessage>()
+
+        // Add conversation history (interleaved user and assistant messages)
+        userMessages.forEachIndexed { index, userMsg ->
+            // Add user message with text and/or images
+            inputMessages.add(transformMessageV2ToResponsesInput(userMsg, isUser = true))
+
+            // Add assistant responses if available (skip empty responses)
+            if (index < assistantMessages.size) {
+                assistantMessages[index]
+                    .filter { it.content.isNotBlank() }
+                    .forEach { assistantMsg ->
+                        inputMessages.add(transformMessageV2ToResponsesInput(assistantMsg, isUser = false))
+                    }
+            }
+        }
+
+        // Create request - include reasoning config only when reasoning is enabled
+        val request = ResponsesRequest(
+            model = platform.model,
+            input = inputMessages,
+            stream = true,
+            instructions = platform.systemPrompt?.takeIf { it.isNotBlank() },
+            temperature = if (platform.reasoning) null else platform.temperature,
+            topP = if (platform.reasoning) null else platform.topP,
+            reasoning = if (platform.reasoning) {
+                ReasoningConfig(
+                    effort = "medium",
+                    summary = "auto"
+                )
+            } else {
+                null
+            }
+        )
+
+        // Stream response
+        flow {
+            emit(ApiState.Loading)
+            openAIAPI.streamResponses(request).collect { event ->
+                when (event) {
+                    is ReasoningTextDeltaEvent -> {
+                        emit(ApiState.Thinking(event.delta))
+                    }
+
+                    is OutputTextDeltaEvent -> {
+                        emit(ApiState.Success(event.delta))
+                    }
+
+                    is ResponseCompletedEvent -> {
+                        emit(ApiState.Done)
+                    }
+
+                    is ResponseFailedEvent -> {
+                        val errorMessage = event.response.error?.message ?: "Response failed"
+                        emit(ApiState.Error(errorMessage))
+                    }
+
+                    is ResponseErrorEvent -> {
+                        emit(ApiState.Error(event.message))
+                    }
+
+                    else -> {
+                        // Ignore other events
+                    }
+                }
+            }
+        }.catch { e ->
+            emit(ApiState.Error(e.message ?: "Unknown error"))
+        }.onCompletion {
+            emit(ApiState.Done)
+        }
+    } catch (e: Exception) {
+        flowOf(ApiState.Error(e.message ?: "Failed to complete chat"))
+    }
+
+    private suspend fun completeChatWithOpenAIChatCompletions(
         userMessages: List<MessageV2>,
         assistantMessages: List<List<MessageV2>>,
         platform: PlatformV2
@@ -137,14 +238,14 @@ class ChatRepositoryImpl @Inject constructor(
         // Add conversation history (interleaved user and assistant messages)
         userMessages.forEachIndexed { index, userMsg ->
             // Add user message
-            messages.add(transformMessageV2ToOpenAI(userMsg, isUser = true))
+            messages.add(transformMessageV2ToChatMessage(userMsg, isUser = true))
 
             // Add assistant responses if available (skip empty responses)
             if (index < assistantMessages.size) {
                 assistantMessages[index]
                     .filter { it.content.isNotBlank() }
                     .forEach { assistantMsg ->
-                        messages.add(transformMessageV2ToOpenAI(assistantMsg, isUser = false))
+                        messages.add(transformMessageV2ToChatMessage(assistantMsg, isUser = false))
                     }
             }
         }
@@ -181,7 +282,7 @@ class ChatRepositoryImpl @Inject constructor(
         flowOf(ApiState.Error(e.message ?: "Failed to complete chat"))
     }
 
-    private fun transformMessageV2ToOpenAI(message: MessageV2, isUser: Boolean): ChatMessage {
+    private fun transformMessageV2ToChatMessage(message: MessageV2, isUser: Boolean): ChatMessage {
         val content = mutableListOf<OpenAIMessageContent>()
 
         // Add text content
@@ -207,6 +308,46 @@ class ChatRepositoryImpl @Inject constructor(
         return ChatMessage(
             role = if (isUser) OpenAIRole.USER else OpenAIRole.ASSISTANT,
             content = content
+        )
+    }
+
+    private fun transformMessageV2ToResponsesInput(message: MessageV2, isUser: Boolean): ResponseInputMessage {
+        val role = if (isUser) "user" else "assistant"
+
+        // Check if there are any image files
+        val imageFiles = message.files.filter { fileUri ->
+            val mimeType = FileUtils.getMimeType(context, fileUri)
+            FileUtils.isImage(mimeType)
+        }
+
+        // If no images, use simple text content
+        if (imageFiles.isEmpty()) {
+            return ResponseInputMessage(
+                role = role,
+                content = ResponseInputContent.text(message.content)
+            )
+        }
+
+        // Build content parts for text + images
+        val parts = mutableListOf<ResponseContentPart>()
+
+        // Add text content if not blank
+        if (message.content.isNotBlank()) {
+            parts.add(ResponseContentPart.text(message.content))
+        }
+
+        // Add image content
+        imageFiles.forEach { fileUri ->
+            val mimeType = FileUtils.getMimeType(context, fileUri)
+            val base64 = FileUtils.readAndEncodeFile(context, fileUri)
+            if (base64 != null) {
+                parts.add(ResponseContentPart.image("data:$mimeType;base64,$base64"))
+            }
+        }
+
+        return ResponseInputMessage(
+            role = role,
+            content = ResponseInputContent.parts(parts)
         )
     }
 
