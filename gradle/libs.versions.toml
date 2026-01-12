@@ -1,26 +1,25 @@
 [versions]
-agp = "8.11.1"
-autoLicense = "12.2.4"
+agp = "8.13.2"
+autoLicense = "13.2.1"
 kotlin = "2.2.0"
-coreKtx = "1.16.0"
+coreKtx = "1.17.0"
 junit = "4.13.2"
-junitVersion = "1.2.1"
-espressoCore = "3.6.1"
-lifecycleRuntime = "2.9.2"
-activityCompose = "1.10.1"
-composeBom = "2025.07.00"
-datastore = "1.1.7"
-hilt = "2.57"
+junitVersion = "1.3.0"
+espressoCore = "3.7.0"
+lifecycleRuntime = "2.10.0"
+activityCompose = "1.12.2"
+composeBom = "2025.12.01"
+datastore = "1.2.0"
+hilt = "2.57.2"
 ksp = "2.2.0-2.0.2" # Also change with Kotlin version
-ktor = "3.2.2"
-koog = "0.3.0"
-material3 = "1.3.2"
-androidxHilt = "1.2.0"
-navigation = "2.9.2"
-markdown = "1.0.0-alpha02"
+ktor = "3.3.3"
+material3 = "1.4.0"
+androidxHilt = "1.3.0"
+navigation = "2.9.6"
+markdown = "1.0.0-alpha03"
 serialization = "1.9.0" # Should not update due to kotlin version
-splashscreen = "1.0.1"
-room = "2.7.2"
+splashscreen = "1.2.0"
+room = "2.8.4"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -40,6 +39,7 @@ androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-toolin
 androidx-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
+androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 auto-license-core = { group = "com.mikepenz", name = "aboutlibraries-core", version.ref = "autoLicense" }
 auto-license-ui = { group = "com.mikepenz", name = "aboutlibraries-compose-m3", version.ref = "autoLicense" }
 compose-markdown = { group = "com.halilibo.compose-richtext", name = "richtext-commonmark", version.ref = "markdown" }
@@ -48,10 +48,10 @@ hilt-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", v
 hilt-navigation = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "androidxHilt" }
 kotlin-serialization = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
 ktor-content-negotiation = { group = "io.ktor", name = "ktor-client-content-negotiation", version.ref = "ktor" }
+ktor-client-cio = { group = "io.ktor", name = "ktor-client-cio", version.ref = "ktor" }
 ktor-core = { group = "io.ktor", name = "ktor-client-core", version.ref = "ktor" }
 ktor-logging = { group = "io.ktor", name = "ktor-client-logging-jvm", version.ref = "ktor" }
 ktor-serialization = { group = "io.ktor", name = "ktor-serialization-kotlinx-json", version.ref = "ktor" }
-koog = { group = "ai.koog", name = "koog-agents", version.ref = "koog" }
 splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splashscreen" }
 richtext = { group = "com.halilibo.compose-richtext", name = "richtext-ui-material3", version.ref = "markdown"}
 room = { group = "androidx.room", name = "room-runtime", version.ref = "room" }

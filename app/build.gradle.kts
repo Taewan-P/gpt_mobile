@@ -75,6 +75,7 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.material.icons.extended)
 
     // SplashScreen
     implementation(libs.splashscreen)
@@ -90,11 +91,9 @@ dependencies {
     // Ktor
     implementation(libs.ktor.content.negotiation)
     implementation(libs.ktor.core)
+    implementation(libs.ktor.client.cio)
     implementation(libs.ktor.logging)
     implementation(libs.ktor.serialization)
-
-    // Koog agent
-    implementation(libs.koog)
 
     // License page UI
     implementation(libs.auto.license.core)
