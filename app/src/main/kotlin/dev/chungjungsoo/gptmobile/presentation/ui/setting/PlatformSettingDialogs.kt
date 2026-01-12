@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.setting
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -99,7 +100,7 @@ fun ModelDialog(
 @Composable
 fun TemperatureDialog(
     dialogState: PlatformSettingViewModel.DialogState,
-    temperature: Float,
+    temperature: Float?,
     settingViewModel: PlatformSettingViewModel
 ) {
     if (dialogState.isTemperatureDialogOpen) {
@@ -344,15 +345,16 @@ private fun ModelDialog(
 
 @Composable
 private fun TemperatureDialog(
-    temperature: Float,
+    temperature: Float?,
     onDismissRequest: () -> Unit,
-    onConfirmRequest: (temp: Float) -> Unit
+    onConfirmRequest: (temp: Float?) -> Unit
 ) {
     val configuration = LocalWindowInfo.current
     val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
     val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
-    var textFieldTemperature by remember { mutableStateOf("%.1f".format(temperature)) }
-    var sliderTemperature by remember { mutableFloatStateOf(temperature) }
+    var textFieldTemperature by remember { mutableStateOf(temperature?.let { "%.1f".format(it) } ?: "") }
+    var sliderTemperature by remember { mutableFloatStateOf(temperature ?: 1F) }
+    var isUnset by remember { mutableStateOf(temperature == null) }
 
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -372,14 +374,22 @@ private fun TemperatureDialog(
                     value = textFieldTemperature,
                     onValueChange = { t ->
                         textFieldTemperature = t
-                        val converted = t.toFloatOrNull()
-                        converted?.let {
-                            sliderTemperature = it.coerceIn(0F, 2F)
+                        if (t.isBlank()) {
+                            isUnset = true
+                        } else {
+                            val converted = t.toFloatOrNull()
+                            converted?.let {
+                                sliderTemperature = it.coerceIn(0F, 2F)
+                                isUnset = false
+                            }
                         }
                     },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     label = {
                         Text(stringResource(R.string.temperature))
+                    },
+                    placeholder = {
+                        Text(stringResource(R.string.not_set))
                     }
                 )
                 Slider(
@@ -389,18 +399,33 @@ private fun TemperatureDialog(
                     value = sliderTemperature,
                     valueRange = 0F..2F,
                     steps = 19,
+                    enabled = !isUnset,
                     onValueChange = { t ->
                         val rounded = (t * 10).roundToInt() / 10F
                         sliderTemperature = rounded
                         textFieldTemperature = "%.1f".format(rounded)
+                        isUnset = false
                     }
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(
+                        onClick = {
+                            textFieldTemperature = ""
+                            isUnset = true
+                        }
+                    ) {
+                        Text(stringResource(R.string.reset))
+                    }
+                }
             }
         },
         onDismissRequest = onDismissRequest,
         confirmButton = {
             TextButton(
-                onClick = { onConfirmRequest(sliderTemperature) }
+                onClick = { onConfirmRequest(if (isUnset) null else sliderTemperature) }
             ) {
                 Text(stringResource(R.string.confirm))
             }
@@ -419,13 +444,14 @@ private fun TemperatureDialog(
 private fun TopPDialog(
     topP: Float?,
     onDismissRequest: () -> Unit,
-    onConfirmRequest: (topP: Float) -> Unit
+    onConfirmRequest: (topP: Float?) -> Unit
 ) {
     val configuration = LocalWindowInfo.current
     val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
     val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
-    var textFieldTopP by remember { mutableStateOf("%.1f".format(topP ?: 1F)) }
+    var textFieldTopP by remember { mutableStateOf(topP?.let { "%.1f".format(it) } ?: "") }
     var sliderTopP by remember { mutableFloatStateOf(topP ?: 1F) }
+    var isUnset by remember { mutableStateOf(topP == null) }
 
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -445,14 +471,22 @@ private fun TopPDialog(
                     value = textFieldTopP,
                     onValueChange = { p ->
                         textFieldTopP = p
-                        p.toFloatOrNull()?.let {
-                            val rounded = (it.coerceIn(0.1F, 1F) * 10).roundToInt() / 10F
-                            sliderTopP = rounded
+                        if (p.isBlank()) {
+                            isUnset = true
+                        } else {
+                            p.toFloatOrNull()?.let {
+                                val rounded = (it.coerceIn(0.1F, 1F) * 10).roundToInt() / 10F
+                                sliderTopP = rounded
+                                isUnset = false
+                            }
                         }
                     },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     label = {
                         Text(stringResource(R.string.top_p))
+                    },
+                    placeholder = {
+                        Text(stringResource(R.string.not_set))
                     }
                 )
                 Slider(
@@ -462,18 +496,33 @@ private fun TopPDialog(
                     value = sliderTopP,
                     valueRange = 0.1F..1F,
                     steps = 8,
+                    enabled = !isUnset,
                     onValueChange = { t ->
                         val rounded = (t * 10).roundToInt() / 10F
                         sliderTopP = rounded
                         textFieldTopP = "%.1f".format(rounded)
+                        isUnset = false
                     }
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(
+                        onClick = {
+                            textFieldTopP = ""
+                            isUnset = true
+                        }
+                    ) {
+                        Text(stringResource(R.string.reset))
+                    }
+                }
             }
         },
         onDismissRequest = onDismissRequest,
         confirmButton = {
             TextButton(
-                onClick = { onConfirmRequest(sliderTopP) }
+                onClick = { onConfirmRequest(if (isUnset) null else sliderTopP) }
             ) {
                 Text(stringResource(R.string.confirm))
             }

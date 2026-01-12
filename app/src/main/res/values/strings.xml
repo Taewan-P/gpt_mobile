@@ -96,6 +96,7 @@
     <string name="google_brand_text" translatable="false">Powered by Gemini</string>
     <string name="token_not_set">Token not set</string>
     <string name="token_set">Token is set as %s*****</string>
+    <string name="not_set">Not set</string>
     <string name="close">Close</string>
     <string name="delete">Delete</string>
     <string name="chats_selected">%d selected</string>

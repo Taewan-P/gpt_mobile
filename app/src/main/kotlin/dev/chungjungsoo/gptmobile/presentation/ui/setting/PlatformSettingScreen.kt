@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
+import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.presentation.common.SettingItem
 import dev.chungjungsoo.gptmobile.util.pinnedExitUntilCollapsedScrollBehavior
 
@@ -161,11 +162,14 @@ fun PlatformSettingScreen(
                         )
                     }
                 )
+                // Disable temperature and top_p when reasoning is enabled for OpenAI
+                val isReasoningDisabled = platformData.compatibleType == ClientType.OPENAI && platformData.reasoning
+                val notSetText = stringResource(R.string.not_set)
                 SettingItem(
                     modifier = Modifier.height(64.dp),
                     title = stringResource(R.string.temperature),
-                    description = platformData.temperature.toString(),
-                    enabled = platformData.enabled,
+                    description = platformData.temperature?.toString() ?: notSetText,
+                    enabled = platformData.enabled && !isReasoningDisabled,
                     onItemClick = settingViewModel::openTemperatureDialog,
                     showTrailingIcon = false,
                     showLeadingIcon = true,
@@ -179,8 +183,8 @@ fun PlatformSettingScreen(
                 SettingItem(
                     modifier = Modifier.height(64.dp),
                     title = stringResource(R.string.top_p),
-                    description = platformData.topP?.toString(),
-                    enabled = platformData.enabled,
+                    description = platformData.topP?.toString() ?: notSetText,
+                    enabled = platformData.enabled && !isReasoningDisabled,
                     onItemClick = settingViewModel::openTopPDialog,
                     showTrailingIcon = false,
                     showLeadingIcon = true,
@@ -217,7 +221,7 @@ fun PlatformSettingScreen(
                 APIUrlDialog(dialogState, platformData.apiUrl, settingViewModel)
                 APIKeyDialog(dialogState, settingViewModel)
                 ModelDialog(dialogState, platformData.model, settingViewModel)
-                TemperatureDialog(dialogState, platformData.temperature ?: 1.0f, settingViewModel)
+                TemperatureDialog(dialogState, platformData.temperature, settingViewModel)
                 TopPDialog(dialogState, platformData.topP, settingViewModel)
                 SystemPromptDialog(dialogState, platformData.systemPrompt ?: "", settingViewModel)
                 DeletePlatformDialog(dialogState, settingViewModel)

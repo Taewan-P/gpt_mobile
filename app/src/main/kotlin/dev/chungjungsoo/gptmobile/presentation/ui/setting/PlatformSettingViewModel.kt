@@ -110,7 +110,7 @@ class PlatformSettingViewModel @Inject constructor(
         }
     }
 
-    fun updateTemperature(temperature: Float) {
+    fun updateTemperature(temperature: Float?) {
         _platformState.value?.let { platform ->
             updatePlatform(platform.copy(temperature = temperature))
             closeTemperatureDialog()
