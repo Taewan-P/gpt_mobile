@@ -61,6 +61,7 @@ class NetworkClient @Inject constructor(
             allowSpecialFloatingPointValues = true
             useArrayPolymorphism = false
             encodeDefaults = true
+            explicitNulls = false
         }
 
         // OpenAI-specific JSON config with "type" discriminator for MessageContent
@@ -71,6 +72,7 @@ class NetworkClient @Inject constructor(
             useArrayPolymorphism = false
             classDiscriminator = "type"
             encodeDefaults = true
+            explicitNulls = false
         }
     }
 }

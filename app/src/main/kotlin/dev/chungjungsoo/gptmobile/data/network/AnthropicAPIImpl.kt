@@ -1,21 +1,24 @@
 package dev.chungjungsoo.gptmobile.data.network
 
-import android.util.Log
 import dev.chungjungsoo.gptmobile.data.ModelConstants
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.request.MessageRequest
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ErrorDetail
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ErrorResponseChunk
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.MessageResponseChunk
-import io.ktor.client.plugins.sse.sse
+import io.ktor.client.call.body
 import io.ktor.client.request.accept
 import io.ktor.client.request.headers
+import io.ktor.client.request.preparePost
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.ContentType
-import io.ktor.http.HttpMethod
+import io.ktor.http.contentType
+import io.ktor.http.isSuccess
+import io.ktor.utils.io.readUTF8Line
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import kotlinx.serialization.encodeToString
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.encodeToJsonElement
 
@@ -41,31 +44,52 @@ class AnthropicAPIImpl @Inject constructor(
         this.apiUrl = url
     }
 
-    override fun streamChatMessage(messageRequest: MessageRequest): Flow<MessageResponseChunk> = flow<MessageResponseChunk> {
+    override fun streamChatMessage(messageRequest: MessageRequest): Flow<MessageResponseChunk> = flow {
         try {
-            val requestJson = json.encodeToString(messageRequest)
-            Log.d("AnthropicAPI", "Request JSON: $requestJson")
+            val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}v1/messages" else "$apiUrl/v1/messages"
 
-            networkClient()
-                .sse(
-                    urlString = if (apiUrl.endsWith("/")) "${apiUrl}v1/messages" else "$apiUrl/v1/messages",
-                    request = {
-                        method = HttpMethod.Post
-                        setBody(json.encodeToJsonElement(messageRequest))
-                        accept(ContentType.Text.EventStream)
-                        headers {
-                            append(API_KEY_HEADER, token ?: "")
-                            append(VERSION_HEADER, ANTHROPIC_VERSION)
+            networkClient().preparePost(endpoint) {
+                contentType(ContentType.Application.Json)
+                setBody(json.encodeToJsonElement(messageRequest))
+                accept(ContentType.Text.EventStream)
+                headers {
+                    append(API_KEY_HEADER, token ?: "")
+                    append(VERSION_HEADER, ANTHROPIC_VERSION)
+                }
+            }.execute { response ->
+                if (!response.status.isSuccess()) {
+                    val errorBody = response.body<String>()
+
+                    // Parse error - Anthropic format: {"type": "error", "error": {"type": "...", "message": "..."}}
+                    val errorMessage = try {
+                        val errorResponse = json.decodeFromString<AnthropicErrorResponse>(errorBody)
+                        errorResponse.error.message
+                    } catch (_: Exception) {
+                        "HTTP ${response.status.value}: $errorBody"
+                    }
+
+                    emit(ErrorResponseChunk(error = ErrorDetail(type = "api_error", message = errorMessage)))
+                    return@execute
+                }
+
+                // Success - read SSE stream
+                val channel = response.bodyAsChannel()
+                while (!channel.isClosedForRead) {
+                    val line = channel.readUTF8Line() ?: break
+
+                    if (line.startsWith("data: ")) {
+                        val data = line.removePrefix("data: ").trim()
+                        try {
+                            val chunk = json.decodeFromString<MessageResponseChunk>(data)
+                            emit(chunk)
+                        } catch (_: Exception) {
+                            // Skip malformed chunks
                         }
                     }
-                ) {
-                    incoming.collect { event ->
-                        event.data?.let { line -> emit(json.decodeFromString(line)) }
-                    }
                 }
+            }
         } catch (e: Exception) {
-            Log.e("AnthropicAPI", "Error: ${e.message}", e)
-            emit(ErrorResponseChunk(error = ErrorDetail(type = "network_error", message = e.message ?: "")))
+            emit(ErrorResponseChunk(error = ErrorDetail(type = "network_error", message = e.message ?: "Unknown error")))
         }
     }
 
@@ -75,3 +99,15 @@ class AnthropicAPIImpl @Inject constructor(
         private const val ANTHROPIC_VERSION = "2023-06-01"
     }
 }
+
+@Serializable
+private data class AnthropicErrorResponse(
+    val type: String,
+    val error: AnthropicError
+)
+
+@Serializable
+private data class AnthropicError(
+    val type: String,
+    val message: String
+)
