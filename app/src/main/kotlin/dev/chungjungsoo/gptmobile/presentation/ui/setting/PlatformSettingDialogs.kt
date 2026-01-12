@@ -351,7 +351,7 @@ private fun TemperatureDialog(
     val configuration = LocalWindowInfo.current
     val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
     val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
-    var textFieldTemperature by remember { mutableStateOf(temperature.toString()) }
+    var textFieldTemperature by remember { mutableStateOf("%.1f".format(temperature)) }
     var sliderTemperature by remember { mutableFloatStateOf(temperature) }
 
     AlertDialog(
@@ -390,8 +390,9 @@ private fun TemperatureDialog(
                     valueRange = 0F..2F,
                     steps = 19,
                     onValueChange = { t ->
-                        sliderTemperature = t
-                        textFieldTemperature = t.toString()
+                        val rounded = (t * 10).roundToInt() / 10F
+                        sliderTemperature = rounded
+                        textFieldTemperature = "%.1f".format(rounded)
                     }
                 )
             }
@@ -423,7 +424,7 @@ private fun TopPDialog(
     val configuration = LocalWindowInfo.current
     val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
     val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
-    var textFieldTopP by remember { mutableStateOf((topP ?: 1F).toString()) }
+    var textFieldTopP by remember { mutableStateOf("%.1f".format(topP ?: 1F)) }
     var sliderTopP by remember { mutableFloatStateOf(topP ?: 1F) }
 
     AlertDialog(
@@ -445,7 +446,7 @@ private fun TopPDialog(
                     onValueChange = { p ->
                         textFieldTopP = p
                         p.toFloatOrNull()?.let {
-                            val rounded = (it.coerceIn(0.1F, 1F) * 100).roundToInt() / 100F
+                            val rounded = (it.coerceIn(0.1F, 1F) * 10).roundToInt() / 10F
                             sliderTopP = rounded
                         }
                     },
@@ -462,9 +463,9 @@ private fun TopPDialog(
                     valueRange = 0.1F..1F,
                     steps = 8,
                     onValueChange = { t ->
-                        val rounded = (t * 100).roundToInt() / 100F
+                        val rounded = (t * 10).roundToInt() / 10F
                         sliderTopP = rounded
-                        textFieldTopP = rounded.toString()
+                        textFieldTopP = "%.1f".format(rounded)
                     }
                 )
             }
