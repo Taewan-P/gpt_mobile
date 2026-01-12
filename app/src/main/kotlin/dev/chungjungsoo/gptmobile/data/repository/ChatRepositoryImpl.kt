@@ -365,7 +365,14 @@ class ChatRepositoryImpl @Inject constructor(
             contents = contents,
             generationConfig = GenerationConfig(
                 temperature = platform.temperature,
-                topP = platform.topP
+                topP = platform.topP,
+                thinkingConfig = if (platform.reasoning) {
+                    dev.chungjungsoo.gptmobile.data.dto.google.request.ThinkingConfig(
+                        includeThoughts = true
+                    )
+                } else {
+                    null
+                }
             ),
             systemInstruction = platform.systemPrompt?.takeIf { it.isNotBlank() }?.let {
                 Content(
@@ -381,9 +388,17 @@ class ChatRepositoryImpl @Inject constructor(
                 when {
                     response.error != null -> emit(ApiState.Error(response.error.message))
 
-                    response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text != null -> {
-                        val text = response.candidates!!.first().content.parts.first().text!!
-                        emit(ApiState.Success(text))
+                    response.candidates?.firstOrNull()?.content?.parts != null -> {
+                        val parts = response.candidates!!.first().content.parts
+                        parts.forEach { part ->
+                            part.text?.let { text ->
+                                if (part.thought == true) {
+                                    emit(ApiState.Thinking(text))
+                                } else {
+                                    emit(ApiState.Success(text))
+                                }
+                            }
+                        }
                     }
 
                     response.candidates?.firstOrNull()?.finishReason != null -> emit(ApiState.Done)
