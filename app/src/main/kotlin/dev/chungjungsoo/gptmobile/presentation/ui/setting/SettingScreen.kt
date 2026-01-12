@@ -22,6 +22,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -29,6 +30,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
@@ -39,6 +43,7 @@ import dev.chungjungsoo.gptmobile.presentation.common.LocalThemeMode
 import dev.chungjungsoo.gptmobile.presentation.common.LocalThemeViewModel
 import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
 import dev.chungjungsoo.gptmobile.presentation.common.SettingItem
+import dev.chungjungsoo.gptmobile.util.getClientTypeDisplayName
 import dev.chungjungsoo.gptmobile.util.getDynamicThemeTitle
 import dev.chungjungsoo.gptmobile.util.getThemeModeTitle
 import dev.chungjungsoo.gptmobile.util.pinnedExitUntilCollapsedScrollBehavior
@@ -59,6 +64,19 @@ fun SettingScreen(
     )
     val platformState by settingViewModel.platformState.collectAsStateWithLifecycle()
     val dialogState by settingViewModel.dialogState.collectAsStateWithLifecycle()
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                settingViewModel.fetchPlatforms()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     Scaffold(
         modifier = modifier
@@ -240,7 +258,7 @@ fun PlatformItem(
 ) {
     SettingItem(
         title = platform.name,
-        description = "${platform.compatibleType.name} • ${if (platform.enabled) stringResource(R.string.enabled) else stringResource(R.string.disabled)}",
+        description = "${getClientTypeDisplayName(platform.compatibleType)} • ${if (platform.enabled) stringResource(R.string.enabled) else stringResource(R.string.disabled)}",
         onItemClick = onItemClick,
         showTrailingIcon = true,
         showLeadingIcon = false

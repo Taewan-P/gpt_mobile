@@ -538,3 +538,48 @@ private fun SystemPromptDialog(
         }
     )
 }
+
+@Composable
+fun DeletePlatformDialog(
+    dialogState: PlatformSettingViewModel.DialogState,
+    settingViewModel: PlatformSettingViewModel
+) {
+    if (dialogState.isDeleteDialogOpen) {
+        DeletePlatformDialog(
+            onDismissRequest = settingViewModel::closeDeleteDialog,
+            onConfirmRequest = settingViewModel::deletePlatform
+        )
+    }
+}
+
+@Composable
+private fun DeletePlatformDialog(
+    onDismissRequest: () -> Unit,
+    onConfirmRequest: () -> Unit
+) {
+    val configuration = LocalWindowInfo.current
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
+    val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
+
+    AlertDialog(
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier
+            .widthIn(max = screenWidth - 40.dp)
+            .heightIn(max = screenHeight - 80.dp),
+        title = { Text(text = stringResource(R.string.delete_platform)) },
+        text = {
+            Text(stringResource(R.string.delete_platform_confirmation))
+        },
+        onDismissRequest = onDismissRequest,
+        confirmButton = {
+            TextButton(onClick = onConfirmRequest) {
+                Text(stringResource(R.string.delete))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}

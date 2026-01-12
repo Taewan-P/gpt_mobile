@@ -15,7 +15,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Label
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -28,8 +31,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,6 +64,13 @@ fun PlatformSettingScreen(
     )
     val platform by settingViewModel.platformState.collectAsStateWithLifecycle()
     val dialogState by settingViewModel.dialogState.collectAsStateWithLifecycle()
+    val isDeleted by settingViewModel.isDeleted.collectAsStateWithLifecycle()
+
+    LaunchedEffect(isDeleted) {
+        if (isDeleted) {
+            onNavigationClick()
+        }
+    }
 
     platform?.let { platformData ->
         Scaffold(
@@ -67,6 +80,7 @@ fun PlatformSettingScreen(
                 PlatformTopAppBar(
                     title = platformData.name,
                     onNavigationClick = onNavigationClick,
+                    onDeleteClick = settingViewModel::openDeleteDialog,
                     scrollBehavior = scrollBehavior
                 )
             }
@@ -197,6 +211,7 @@ fun PlatformSettingScreen(
                 TemperatureDialog(dialogState, platformData.temperature ?: 1.0f, settingViewModel)
                 TopPDialog(dialogState, platformData.topP, settingViewModel)
                 SystemPromptDialog(dialogState, platformData.systemPrompt ?: "", settingViewModel)
+                DeletePlatformDialog(dialogState, settingViewModel)
             }
         }
     }
@@ -207,8 +222,11 @@ fun PlatformSettingScreen(
 fun PlatformTopAppBar(
     title: String,
     onNavigationClick: () -> Unit,
+    onDeleteClick: () -> Unit,
     scrollBehavior: TopAppBarScrollBehavior
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+
     LargeTopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.background,
@@ -228,6 +246,26 @@ fun PlatformTopAppBar(
                 onClick = onNavigationClick
             ) {
                 Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.go_back))
+            }
+        },
+        actions = {
+            IconButton(onClick = { showMenu = true }) {
+                Icon(
+                    imageVector = Icons.Filled.MoreVert,
+                    contentDescription = stringResource(R.string.more_options)
+                )
+            }
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.delete_platform)) },
+                    onClick = {
+                        showMenu = false
+                        onDeleteClick()
+                    }
+                )
             }
         },
         scrollBehavior = scrollBehavior

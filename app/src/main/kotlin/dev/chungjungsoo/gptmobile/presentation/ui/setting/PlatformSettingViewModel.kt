@@ -27,6 +27,9 @@ class PlatformSettingViewModel @Inject constructor(
     private val _dialogState = MutableStateFlow(DialogState())
     val dialogState: StateFlow<DialogState> = _dialogState.asStateFlow()
 
+    private val _isDeleted = MutableStateFlow(false)
+    val isDeleted: StateFlow<Boolean> = _isDeleted.asStateFlow()
+
     init {
         loadPlatform()
     }
@@ -122,6 +125,19 @@ class PlatformSettingViewModel @Inject constructor(
         }
     }
 
+    fun openDeleteDialog() = _dialogState.update { it.copy(isDeleteDialogOpen = true) }
+    fun closeDeleteDialog() = _dialogState.update { it.copy(isDeleteDialogOpen = false) }
+
+    fun deletePlatform() {
+        _platformState.value?.let { platform ->
+            viewModelScope.launch {
+                settingRepository.deletePlatformV2(platform)
+                closeDeleteDialog()
+                _isDeleted.update { true }
+            }
+        }
+    }
+
     data class DialogState(
         val isPlatformNameDialogOpen: Boolean = false,
         val isApiUrlDialogOpen: Boolean = false,
@@ -129,6 +145,7 @@ class PlatformSettingViewModel @Inject constructor(
         val isApiModelDialogOpen: Boolean = false,
         val isTemperatureDialogOpen: Boolean = false,
         val isTopPDialogOpen: Boolean = false,
-        val isSystemPromptDialogOpen: Boolean = false
+        val isSystemPromptDialogOpen: Boolean = false,
+        val isDeleteDialogOpen: Boolean = false
     )
 }
