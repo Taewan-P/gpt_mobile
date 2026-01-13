@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.network
 
+import dev.chungjungsoo.gptmobile.data.ModelConstants
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatCompletionRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponsesRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ChatCompletionChunk
@@ -30,7 +31,7 @@ class OpenAIAPIImpl @Inject constructor(
 ) : OpenAIAPI {
 
     private var token: String? = null
-    private var apiUrl: String = "https://api.openai.com"
+    private var apiUrl: String = ModelConstants.OPENAI_API_URL
 
     override fun setToken(token: String?) {
         this.token = token
@@ -42,7 +43,7 @@ class OpenAIAPIImpl @Inject constructor(
 
     override fun streamChatCompletion(request: ChatCompletionRequest): Flow<ChatCompletionChunk> = flow {
         try {
-            val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}v1/chat/completions" else "$apiUrl/v1/chat/completions"
+            val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}chat/completions" else "$apiUrl/chat/completions"
 
             networkClient()
                 .sse(
@@ -82,7 +83,7 @@ class OpenAIAPIImpl @Inject constructor(
 
     override fun streamResponses(request: ResponsesRequest): Flow<ResponsesStreamEvent> = flow {
         try {
-            val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}v1/responses" else "$apiUrl/v1/responses"
+            val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}responses" else "$apiUrl/responses"
 
             networkClient().preparePost(endpoint) {
                 contentType(ContentType.Application.Json)
