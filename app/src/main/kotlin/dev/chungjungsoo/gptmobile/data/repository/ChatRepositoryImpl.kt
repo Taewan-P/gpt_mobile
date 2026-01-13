@@ -39,7 +39,7 @@ import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseInputContent
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseInputMessage
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponsesRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.OutputTextDeltaEvent
-import dev.chungjungsoo.gptmobile.data.dto.openai.response.ReasoningTextDeltaEvent
+import dev.chungjungsoo.gptmobile.data.dto.openai.response.ReasoningSummaryTextDeltaEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseCompletedEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseErrorEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseFailedEvent
@@ -178,7 +178,7 @@ class ChatRepositoryImpl @Inject constructor(
             emit(ApiState.Loading)
             openAIAPI.streamResponses(request).collect { event ->
                 when (event) {
-                    is ReasoningTextDeltaEvent -> {
+                    is ReasoningSummaryTextDeltaEvent -> {
                         emit(ApiState.Thinking(event.delta))
                     }
 

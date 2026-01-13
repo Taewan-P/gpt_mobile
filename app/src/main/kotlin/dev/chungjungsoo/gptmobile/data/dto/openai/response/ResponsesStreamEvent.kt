@@ -14,41 +14,79 @@ import kotlinx.serialization.json.JsonClassDiscriminator
 sealed class ResponsesStreamEvent
 
 /**
- * Emitted when a delta is added to reasoning text.
+ * Emitted when a delta is added to reasoning summary text.
  */
 @Serializable
-@SerialName("response.reasoning_text.delta")
-data class ReasoningTextDeltaEvent(
+@SerialName("response.reasoning_summary_text.delta")
+data class ReasoningSummaryTextDeltaEvent(
     @SerialName("item_id")
     val itemId: String,
 
     @SerialName("output_index")
     val outputIndex: Int,
 
-    @SerialName("content_index")
-    val contentIndex: Int,
+    @SerialName("summary_index")
+    val summaryIndex: Int,
 
     @SerialName("delta")
     val delta: String
 ) : ResponsesStreamEvent()
 
 /**
- * Emitted when reasoning text is complete.
+ * Emitted when reasoning summary text is complete.
  */
 @Serializable
-@SerialName("response.reasoning_text.done")
-data class ReasoningTextDoneEvent(
+@SerialName("response.reasoning_summary_text.done")
+data class ReasoningSummaryTextDoneEvent(
     @SerialName("item_id")
     val itemId: String,
 
     @SerialName("output_index")
     val outputIndex: Int,
 
-    @SerialName("content_index")
-    val contentIndex: Int,
+    @SerialName("summary_index")
+    val summaryIndex: Int,
 
     @SerialName("text")
     val text: String
+) : ResponsesStreamEvent()
+
+/**
+ * Emitted when a reasoning summary part is added.
+ */
+@Serializable
+@SerialName("response.reasoning_summary_part.added")
+data class ReasoningSummaryPartAddedEvent(
+    @SerialName("item_id")
+    val itemId: String,
+
+    @SerialName("output_index")
+    val outputIndex: Int,
+
+    @SerialName("summary_index")
+    val summaryIndex: Int,
+
+    @SerialName("part")
+    val part: SummaryPart
+) : ResponsesStreamEvent()
+
+/**
+ * Emitted when a reasoning summary part is done.
+ */
+@Serializable
+@SerialName("response.reasoning_summary_part.done")
+data class ReasoningSummaryPartDoneEvent(
+    @SerialName("item_id")
+    val itemId: String,
+
+    @SerialName("output_index")
+    val outputIndex: Int,
+
+    @SerialName("summary_index")
+    val summaryIndex: Int,
+
+    @SerialName("part")
+    val part: SummaryPart
 ) : ResponsesStreamEvent()
 
 /**
@@ -253,4 +291,13 @@ data class OutputItem(
 
     @SerialName("id")
     val id: String
+)
+
+@Serializable
+data class SummaryPart(
+    @SerialName("type")
+    val type: String,
+
+    @SerialName("text")
+    val text: String? = null
 )
