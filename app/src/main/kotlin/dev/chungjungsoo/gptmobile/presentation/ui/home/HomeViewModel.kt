@@ -138,7 +138,6 @@ class HomeViewModel @Inject constructor(
     fun disableSearchMode() {
         _chatListState.update { it.copy(isSearchMode = false) }
         _searchQuery.update { "" }
-        fetchChats()
     }
 
     fun enableSelectionMode() {
@@ -158,8 +157,7 @@ class HomeViewModel @Inject constructor(
             _chatListState.update {
                 it.copy(
                     chats = chats,
-                    selectedChats = List(chats.size) { false },
-                    isSelectionMode = false
+                    selectedChats = List(chats.size) { false }
                 )
             }
 

@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
@@ -142,15 +141,17 @@ fun HomeScreen(
             )
         },
         floatingActionButton = {
-            NewChatButton(expanded = listState.isScrollingUp(), onClick = {
-                val enabledApiTypes = platformState.filter { it.enabled }.map { it.uid }
-                if (enabledApiTypes.size == 1) {
-                    // Navigate to new chat directly if only one platform is enabled
-                    navigateToNewChat(enabledApiTypes)
-                } else {
-                    homeViewModel.openSelectModelDialog()
-                }
-            })
+            if (!chatListState.isSelectionMode && !chatListState.isSearchMode) {
+                NewChatButton(expanded = listState.isScrollingUp(), onClick = {
+                    val enabledApiTypes = platformState.filter { it.enabled }.map { it.uid }
+                    if (enabledApiTypes.size == 1) {
+                        // Navigate to new chat directly if only one platform is enabled
+                        navigateToNewChat(enabledApiTypes)
+                    } else {
+                        homeViewModel.openSelectModelDialog()
+                    }
+                })
+            }
         }
     ) { innerPadding ->
         LazyColumn(
@@ -180,8 +181,10 @@ fun HomeScreen(
                         .fillMaxWidth()
                         .combinedClickable(
                             onLongClick = {
-                                homeViewModel.enableSelectionMode()
-                                homeViewModel.selectChat(idx)
+                                if (!chatListState.isSearchMode) {
+                                    homeViewModel.enableSelectionMode()
+                                    homeViewModel.selectChat(idx)
+                                }
                             },
                             onClick = {
                                 if (chatListState.isSelectionMode) {
