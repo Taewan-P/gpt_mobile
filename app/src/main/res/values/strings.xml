@@ -240,4 +240,30 @@
     <string name="collapse">Collapse</string>
     <string name="extended_thinking">Extended Thinking</string>
     <string name="extended_thinking_description">Enable for reasoning models (o1, o3, Claude with thinking, Gemini thinking)</string>
+
+    <!-- Setup Wizard Strings -->
+    <string name="your_platforms">Your Platforms</string>
+    <string name="no_platforms_yet">No platforms added yet</string>
+    <string name="add_your_first_platform">Add your first AI platform to get started</string>
+    <string name="add_another_platform">Add Another Platform</string>
+    <string name="choose_platform_type">Choose Platform Type</string>
+    <string name="choose_platform_type_description">Select the AI provider you want to add</string>
+    <string name="configure_platform">Configure Platform</string>
+    <string name="step_basics">Basics</string>
+    <string name="step_api_key">API Key</string>
+    <string name="step_model">Model</string>
+    <string name="step_x_of_y">Step %1$d of %2$d</string>
+    <string name="platform_basics_description">Give your platform a name and verify the API URL</string>
+    <string name="api_key_description">Enter your API key. This is stored locally on your device.</string>
+    <string name="api_key_optional_note">API key is optional for local providers like Ollama</string>
+    <string name="model_description">Enter the model identifier you want to use</string>
+    <string name="model_examples">Examples: gpt-4o, claude-sonnet-4-20250514, gemini-1.5-pro</string>
+    <string name="back">Back</string>
+    <string name="finish">Finish</string>
+    <string name="openrouter" translatable="false">OpenRouter</string>
+    <string name="openrouter_description">Access multiple AI models through one API</string>
+    <string name="custom_provider">Custom Provider</string>
+    <string name="custom_provider_description">Connect to any OpenAI-compatible API</string>
+    <string name="platform_added_successfully">Platform added successfully</string>
+    <string name="at_least_one_platform_required">Add at least one platform to continue</string>
 </resources>

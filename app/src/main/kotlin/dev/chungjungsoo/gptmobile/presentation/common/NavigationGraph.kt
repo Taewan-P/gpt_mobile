@@ -6,7 +6,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -14,7 +14,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import androidx.navigation.navigation
-import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.presentation.ui.chat.ChatScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.home.HomeScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.migrate.MigrateScreen
@@ -24,12 +23,11 @@ import dev.chungjungsoo.gptmobile.presentation.ui.setting.LicenseScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.PlatformSettingScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.SettingScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.SettingViewModelV2
-import dev.chungjungsoo.gptmobile.presentation.ui.setup.SelectModelScreen
-import dev.chungjungsoo.gptmobile.presentation.ui.setup.SelectPlatformScreen
-import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupAPIUrlScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupCompleteScreen
-import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupViewModel
-import dev.chungjungsoo.gptmobile.presentation.ui.setup.TokenInputScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupPlatformListScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupPlatformTypeScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupPlatformWizardScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupViewModelV2
 import dev.chungjungsoo.gptmobile.presentation.ui.startscreen.StartScreen
 
 @Composable
@@ -69,113 +67,46 @@ fun NavGraphBuilder.startScreenNavigation(navController: NavHostController) {
 fun NavGraphBuilder.setupNavigation(
     navController: NavHostController
 ) {
-    navigation(startDestination = Route.SELECT_PLATFORM, route = Route.SETUP_ROUTE) {
-        composable(route = Route.SELECT_PLATFORM) {
+    navigation(startDestination = Route.SETUP_PLATFORM_LIST, route = Route.SETUP_ROUTE) {
+        composable(route = Route.SETUP_PLATFORM_LIST) {
             val parentEntry = remember(it) {
                 navController.getBackStackEntry(Route.SETUP_ROUTE)
             }
-            val setupViewModel: SetupViewModel = hiltViewModel(parentEntry)
-            SelectPlatformScreen(
+            val setupViewModel: SetupViewModelV2 = hiltViewModel(parentEntry)
+            SetupPlatformListScreen(
                 setupViewModel = setupViewModel,
-                onNavigate = { route -> navController.navigate(route) },
+                onAddPlatform = { navController.navigate(Route.SETUP_PLATFORM_TYPE) },
+                onComplete = { navController.navigate(Route.SETUP_COMPLETE) },
                 onBackAction = { navController.navigateUp() }
             )
         }
-        composable(route = Route.TOKEN_INPUT) {
+        composable(route = Route.SETUP_PLATFORM_TYPE) {
             val parentEntry = remember(it) {
                 navController.getBackStackEntry(Route.SETUP_ROUTE)
             }
-            val setupViewModel: SetupViewModel = hiltViewModel(parentEntry)
-            TokenInputScreen(
+            val setupViewModel: SetupViewModelV2 = hiltViewModel(parentEntry)
+            SetupPlatformTypeScreen(
                 setupViewModel = setupViewModel,
-                onNavigate = { route -> navController.navigate(route) },
+                onPlatformTypeSelected = { navController.navigate(Route.SETUP_PLATFORM_WIZARD) },
                 onBackAction = { navController.navigateUp() }
             )
         }
-        composable(route = Route.OPENAI_MODEL_SELECT) {
+        composable(route = Route.SETUP_PLATFORM_WIZARD) {
             val parentEntry = remember(it) {
                 navController.getBackStackEntry(Route.SETUP_ROUTE)
             }
-            val setupViewModel: SetupViewModel = hiltViewModel(parentEntry)
-            SelectModelScreen(
+            val setupViewModel: SetupViewModelV2 = hiltViewModel(parentEntry)
+            SetupPlatformWizardScreen(
                 setupViewModel = setupViewModel,
-                currentRoute = Route.OPENAI_MODEL_SELECT,
-                platformType = ApiType.OPENAI,
-                onNavigate = { route -> navController.navigate(route) },
-                onBackAction = { navController.navigateUp() }
-            )
-        }
-        composable(route = Route.ANTHROPIC_MODEL_SELECT) {
-            val parentEntry = remember(it) {
-                navController.getBackStackEntry(Route.SETUP_ROUTE)
-            }
-            val setupViewModel: SetupViewModel = hiltViewModel(parentEntry)
-            SelectModelScreen(
-                setupViewModel = setupViewModel,
-                currentRoute = Route.ANTHROPIC_MODEL_SELECT,
-                platformType = ApiType.ANTHROPIC,
-                onNavigate = { route -> navController.navigate(route) },
-                onBackAction = { navController.navigateUp() }
-            )
-        }
-        composable(route = Route.GOOGLE_MODEL_SELECT) {
-            val parentEntry = remember(it) {
-                navController.getBackStackEntry(Route.SETUP_ROUTE)
-            }
-            val setupViewModel: SetupViewModel = hiltViewModel(parentEntry)
-            SelectModelScreen(
-                setupViewModel = setupViewModel,
-                currentRoute = Route.GOOGLE_MODEL_SELECT,
-                platformType = ApiType.GOOGLE,
-                onNavigate = { route -> navController.navigate(route) },
-                onBackAction = { navController.navigateUp() }
-            )
-        }
-        composable(route = Route.GROQ_MODEL_SELECT) {
-            val parentEntry = remember(it) {
-                navController.getBackStackEntry(Route.SETUP_ROUTE)
-            }
-            val setupViewModel: SetupViewModel = hiltViewModel(parentEntry)
-            SelectModelScreen(
-                setupViewModel = setupViewModel,
-                currentRoute = Route.GROQ_MODEL_SELECT,
-                platformType = ApiType.GROQ,
-                onNavigate = { route -> navController.navigate(route) },
-                onBackAction = { navController.navigateUp() }
-            )
-        }
-        composable(route = Route.OLLAMA_MODEL_SELECT) {
-            val parentEntry = remember(it) {
-                navController.getBackStackEntry(Route.SETUP_ROUTE)
-            }
-            val setupViewModel: SetupViewModel = hiltViewModel(parentEntry)
-            SelectModelScreen(
-                setupViewModel = setupViewModel,
-                currentRoute = Route.OLLAMA_MODEL_SELECT,
-                platformType = ApiType.OLLAMA,
-                onNavigate = { route -> navController.navigate(route) },
-                onBackAction = { navController.navigateUp() }
-            )
-        }
-        composable(route = Route.OLLAMA_API_ADDRESS) {
-            val parentEntry = remember(it) {
-                navController.getBackStackEntry(Route.SETUP_ROUTE)
-            }
-            val setupViewModel: SetupViewModel = hiltViewModel(parentEntry)
-            SetupAPIUrlScreen(
-                setupViewModel = setupViewModel,
-                currentRoute = Route.OLLAMA_API_ADDRESS,
-                onNavigate = { route -> navController.navigate(route) },
+                onComplete = {
+                    // Go back to platform list after adding a platform
+                    navController.popBackStack(Route.SETUP_PLATFORM_LIST, inclusive = false)
+                },
                 onBackAction = { navController.navigateUp() }
             )
         }
         composable(route = Route.SETUP_COMPLETE) {
-            val parentEntry = remember(it) {
-                navController.getBackStackEntry(Route.SETUP_ROUTE)
-            }
-            val setupViewModel: SetupViewModel = hiltViewModel(parentEntry)
             SetupCompleteScreen(
-                setupViewModel = setupViewModel,
                 onNavigate = { route ->
                     navController.navigate(route) {
                         popUpTo(Route.GET_STARTED) { inclusive = true }
