@@ -145,11 +145,11 @@ class ChatRepositoryImpl @Inject constructor(
             // Add user message with text and/or images
             inputMessages.add(transformMessageV2ToResponsesInput(userMsg, isUser = true))
 
-            // Add assistant responses if available (skip empty responses)
+            // Add assistant response if available (only include this platform's response)
             if (index < assistantMessages.size) {
                 assistantMessages[index]
-                    .filter { it.content.isNotBlank() }
-                    .forEach { assistantMsg ->
+                    .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
+                    ?.let { assistantMsg ->
                         inputMessages.add(transformMessageV2ToResponsesInput(assistantMsg, isUser = false))
                     }
             }
@@ -236,11 +236,11 @@ class ChatRepositoryImpl @Inject constructor(
             // Add user message
             messages.add(transformMessageV2ToChatMessage(userMsg, isUser = true))
 
-            // Add assistant responses if available (skip empty responses)
+            // Add assistant response if available (only include this platform's response)
             if (index < assistantMessages.size) {
                 assistantMessages[index]
-                    .filter { it.content.isNotBlank() }
-                    .forEach { assistantMsg ->
+                    .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
+                    ?.let { assistantMsg ->
                         messages.add(transformMessageV2ToChatMessage(assistantMsg, isUser = false))
                     }
             }
@@ -361,11 +361,11 @@ class ChatRepositoryImpl @Inject constructor(
             // Add user message
             messages.add(transformMessageV2ToAnthropic(userMsg, MessageRole.USER))
 
-            // Add assistant responses if available (skip empty responses)
+            // Add assistant response if available (only include this platform's response)
             if (index < assistantMessages.size) {
                 assistantMessages[index]
-                    .filter { it.content.isNotBlank() }
-                    .forEach { assistantMsg ->
+                    .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
+                    ?.let { assistantMsg ->
                         messages.add(transformMessageV2ToAnthropic(assistantMsg, MessageRole.ASSISTANT))
                     }
             }
@@ -485,11 +485,11 @@ class ChatRepositoryImpl @Inject constructor(
             // Add user message
             contents.add(transformMessageV2ToGoogle(userMsg, GoogleRole.USER))
 
-            // Add assistant responses if available (skip empty responses)
+            // Add assistant response if available (only include this platform's response)
             if (index < assistantMessages.size) {
                 assistantMessages[index]
-                    .filter { it.content.isNotBlank() }
-                    .forEach { assistantMsg ->
+                    .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
+                    ?.let { assistantMsg ->
                         contents.add(transformMessageV2ToGoogle(assistantMsg, GoogleRole.MODEL))
                     }
             }
