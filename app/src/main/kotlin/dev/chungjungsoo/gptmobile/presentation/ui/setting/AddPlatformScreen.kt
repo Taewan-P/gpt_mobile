@@ -179,8 +179,7 @@ fun AddPlatformScreen(
                 label = { Text(stringResource(R.string.api_url)) },
                 placeholder = { Text(stringResource(R.string.api_url_hint)) },
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                enabled = selectedClientType != ClientType.GOOGLE
+                singleLine = true
             )
 
             Spacer(modifier = Modifier.height(24.dp))
