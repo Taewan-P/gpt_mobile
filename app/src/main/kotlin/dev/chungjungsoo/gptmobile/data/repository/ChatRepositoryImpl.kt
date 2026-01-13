@@ -40,7 +40,6 @@ import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseInputMessage
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponsesRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.OutputTextDeltaEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ReasoningSummaryTextDeltaEvent
-import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseCompletedEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseErrorEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseFailedEvent
 import dev.chungjungsoo.gptmobile.data.model.ApiType
@@ -407,12 +406,8 @@ class ChatRepositoryImpl @Inject constructor(
                             }
 
                             // Ignore signature blocks and other types
-                            else -> { }
+                            else -> {}
                         }
-                    }
-
-                    is dev.chungjungsoo.gptmobile.data.dto.anthropic.response.MessageStopResponseChunk -> {
-                        emit(ApiState.Done)
                     }
 
                     is dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ErrorResponseChunk -> {
@@ -535,8 +530,6 @@ class ChatRepositoryImpl @Inject constructor(
                             }
                         }
                     }
-
-                    response.candidates?.firstOrNull()?.finishReason != null -> emit(ApiState.Done)
                 }
             }
         }.catch { e ->
