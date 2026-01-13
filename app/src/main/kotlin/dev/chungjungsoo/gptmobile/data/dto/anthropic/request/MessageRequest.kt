@@ -47,5 +47,21 @@ data class MessageRequest(
 
     @SerialName("top_p")
     @EncodeDefault(EncodeDefault.Mode.NEVER)
-    val topP: Float? = null
+    val topP: Float? = null,
+
+    @SerialName("thinking")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val thinking: ThinkingConfig? = null
+)
+
+@OptIn(ExperimentalSerializationApi::class)
+@Serializable
+data class ThinkingConfig(
+    @SerialName("type")
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
+    val type: String = "enabled",
+
+    @SerialName("budget_tokens")
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
+    val budgetTokens: Int = 10000
 )

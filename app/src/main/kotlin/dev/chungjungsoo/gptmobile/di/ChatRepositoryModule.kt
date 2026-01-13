@@ -7,8 +7,12 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomDao
+import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageDao
+import dev.chungjungsoo.gptmobile.data.database.dao.MessageV2Dao
 import dev.chungjungsoo.gptmobile.data.network.AnthropicAPI
+import dev.chungjungsoo.gptmobile.data.network.GoogleAPI
+import dev.chungjungsoo.gptmobile.data.network.OpenAIAPI
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepositoryImpl
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
@@ -21,10 +25,24 @@ object ChatRepositoryModule {
     @Provides
     @Singleton
     fun provideChatRepository(
-        @ApplicationContext appContext: Context,
+        @ApplicationContext context: Context,
         chatRoomDao: ChatRoomDao,
         messageDao: MessageDao,
+        chatRoomV2Dao: ChatRoomV2Dao,
+        messageV2Dao: MessageV2Dao,
         settingRepository: SettingRepository,
-        anthropicAPI: AnthropicAPI
-    ): ChatRepository = ChatRepositoryImpl(appContext, chatRoomDao, messageDao, settingRepository, anthropicAPI)
+        openAIAPI: OpenAIAPI,
+        anthropicAPI: AnthropicAPI,
+        googleAPI: GoogleAPI
+    ): ChatRepository = ChatRepositoryImpl(
+        context,
+        chatRoomDao,
+        messageDao,
+        chatRoomV2Dao,
+        messageV2Dao,
+        settingRepository,
+        openAIAPI,
+        anthropicAPI,
+        googleAPI
+    )
 }

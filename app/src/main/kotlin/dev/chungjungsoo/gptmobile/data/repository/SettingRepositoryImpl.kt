@@ -1,16 +1,20 @@
 package dev.chungjungsoo.gptmobile.data.repository
 
 import dev.chungjungsoo.gptmobile.data.ModelConstants
+import dev.chungjungsoo.gptmobile.data.database.dao.PlatformV2Dao
+import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.datastore.SettingDataSource
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.data.dto.ThemeSetting
 import dev.chungjungsoo.gptmobile.data.model.ApiType
+import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.model.DynamicTheme
 import dev.chungjungsoo.gptmobile.data.model.ThemeMode
 import javax.inject.Inject
 
 class SettingRepositoryImpl @Inject constructor(
-    private val settingDataSource: SettingDataSource
+    private val settingDataSource: SettingDataSource,
+    private val platformV2Dao: PlatformV2Dao
 ) : SettingRepository {
 
     override suspend fun fetchPlatforms(): List<Platform> = ApiType.entries.map { apiType ->
@@ -46,10 +50,56 @@ class SettingRepositoryImpl @Inject constructor(
         )
     }
 
+    override suspend fun fetchPlatformV2s(): List<PlatformV2> = platformV2Dao.getPlatforms()
+
     override suspend fun fetchThemes(): ThemeSetting = ThemeSetting(
         dynamicTheme = settingDataSource.getDynamicTheme() ?: DynamicTheme.OFF,
         themeMode = settingDataSource.getThemeMode() ?: ThemeMode.SYSTEM
     )
+
+    override suspend fun migrateToPlatformV2() {
+        val leftOverPlatformV2s = fetchPlatformV2s()
+        leftOverPlatformV2s.forEach { platformV2Dao.deletePlatform(it) }
+
+        val platforms = fetchPlatforms()
+
+        platforms.forEach { platform ->
+            platformV2Dao.addPlatform(
+                PlatformV2(
+                    name = when (platform.name) {
+                        ApiType.OPENAI -> "OpenAI"
+                        ApiType.ANTHROPIC -> "Anthropic"
+                        ApiType.GOOGLE -> "Google"
+                        ApiType.GROQ -> "Groq"
+                        ApiType.OLLAMA -> "Ollama"
+                    },
+                    compatibleType = when (platform.name) {
+                        ApiType.OPENAI -> ClientType.OPENAI
+                        ApiType.ANTHROPIC -> ClientType.ANTHROPIC
+                        ApiType.GOOGLE -> ClientType.GOOGLE
+                        ApiType.GROQ -> ClientType.GROQ
+                        ApiType.OLLAMA -> ClientType.OLLAMA
+                    },
+                    enabled = platform.enabled,
+                    apiUrl = if (
+                        (platform.name == ApiType.OPENAI || platform.name == ApiType.GROQ) &&
+                        platform.apiUrl.endsWith("v1/")
+                    ) {
+                        platform.apiUrl.removeSuffix("v1/")
+                    } else {
+                        platform.apiUrl
+                    },
+                    token = platform.token,
+                    model = platform.model ?: "",
+                    temperature = platform.temperature,
+                    topP = platform.topP,
+                    systemPrompt = platform.systemPrompt,
+                    stream = true,
+                    reasoning = false
+                )
+            )
+        }
+    }
 
     override suspend fun updatePlatforms(platforms: List<Platform>) {
         platforms.forEach { platform ->
@@ -68,4 +118,18 @@ class SettingRepositoryImpl @Inject constructor(
         settingDataSource.updateDynamicTheme(themeSetting.dynamicTheme)
         settingDataSource.updateThemeMode(themeSetting.themeMode)
     }
+
+    override suspend fun addPlatformV2(platform: PlatformV2) {
+        platformV2Dao.addPlatform(platform)
+    }
+
+    override suspend fun updatePlatformV2(platform: PlatformV2) {
+        platformV2Dao.editPlatform(platform)
+    }
+
+    override suspend fun deletePlatformV2(platform: PlatformV2) {
+        platformV2Dao.deletePlatform(platform)
+    }
+
+    override suspend fun getPlatformV2ById(id: Int): PlatformV2? = platformV2Dao.getPlatform(id)
 }

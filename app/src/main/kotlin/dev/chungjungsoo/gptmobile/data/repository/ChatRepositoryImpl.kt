@@ -1,194 +1,655 @@
 package dev.chungjungsoo.gptmobile.data.repository
 
 import android.content.Context
-import com.aallam.openai.api.chat.ChatCompletionChunk
-import com.aallam.openai.api.chat.ChatCompletionRequest
-import com.aallam.openai.api.chat.ChatMessage
-import com.aallam.openai.api.chat.ChatRole
-import com.aallam.openai.api.model.ModelId
-import com.aallam.openai.client.OpenAI
-import com.aallam.openai.client.OpenAIHost
-import com.google.ai.client.generativeai.GenerativeModel
-import com.google.ai.client.generativeai.type.BlockThreshold
-import com.google.ai.client.generativeai.type.Content
-import com.google.ai.client.generativeai.type.GenerateContentResponse
-import com.google.ai.client.generativeai.type.HarmCategory
-import com.google.ai.client.generativeai.type.SafetySetting
-import com.google.ai.client.generativeai.type.content
-import com.google.ai.client.generativeai.type.generationConfig
-import dev.chungjungsoo.gptmobile.data.ModelConstants
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomDao
+import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageDao
+import dev.chungjungsoo.gptmobile.data.database.dao.MessageV2Dao
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoom
+import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
 import dev.chungjungsoo.gptmobile.data.database.entity.Message
+import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
+import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
+import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.ImageContent as AnthropicImageContent
+import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.ImageSource
+import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.ImageSourceType
+import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.MediaType
+import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.MessageContent as AnthropicMessageContent
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.MessageRole
-import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.TextContent
+import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.TextContent as AnthropicTextContent
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.request.InputMessage
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.request.MessageRequest
-import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ContentDeltaResponseChunk
-import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ErrorResponseChunk
-import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.MessageResponseChunk
+import dev.chungjungsoo.gptmobile.data.dto.google.common.Content
+import dev.chungjungsoo.gptmobile.data.dto.google.common.Part
+import dev.chungjungsoo.gptmobile.data.dto.google.common.Role as GoogleRole
+import dev.chungjungsoo.gptmobile.data.dto.google.request.GenerateContentRequest
+import dev.chungjungsoo.gptmobile.data.dto.google.request.GenerationConfig
+import dev.chungjungsoo.gptmobile.data.dto.openai.common.ImageContent as OpenAIImageContent
+import dev.chungjungsoo.gptmobile.data.dto.openai.common.ImageUrl
+import dev.chungjungsoo.gptmobile.data.dto.openai.common.MessageContent as OpenAIMessageContent
+import dev.chungjungsoo.gptmobile.data.dto.openai.common.Role as OpenAIRole
+import dev.chungjungsoo.gptmobile.data.dto.openai.common.TextContent as OpenAITextContent
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatCompletionRequest
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatMessage
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.ReasoningConfig
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseContentPart
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseInputContent
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseInputMessage
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponsesRequest
+import dev.chungjungsoo.gptmobile.data.dto.openai.response.OutputTextDeltaEvent
+import dev.chungjungsoo.gptmobile.data.dto.openai.response.ReasoningSummaryTextDeltaEvent
+import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseErrorEvent
+import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseFailedEvent
 import dev.chungjungsoo.gptmobile.data.model.ApiType
+import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.network.AnthropicAPI
+import dev.chungjungsoo.gptmobile.data.network.GoogleAPI
+import dev.chungjungsoo.gptmobile.data.network.OpenAIAPI
+import dev.chungjungsoo.gptmobile.util.FileUtils
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.onCompletion
-import kotlinx.coroutines.flow.onStart
 
 class ChatRepositoryImpl @Inject constructor(
-    private val appContext: Context,
+    @ApplicationContext private val context: Context,
     private val chatRoomDao: ChatRoomDao,
     private val messageDao: MessageDao,
+    private val chatRoomV2Dao: ChatRoomV2Dao,
+    private val messageV2Dao: MessageV2Dao,
     private val settingRepository: SettingRepository,
-    private val anthropic: AnthropicAPI
+    private val openAIAPI: OpenAIAPI,
+    private val anthropicAPI: AnthropicAPI,
+    private val googleAPI: GoogleAPI
 ) : ChatRepository {
 
-    private lateinit var openAI: OpenAI
-    private lateinit var google: GenerativeModel
-    private lateinit var ollama: OpenAI
-    private lateinit var groq: OpenAI
+    private fun isImageFile(extension: String): Boolean = extension in setOf("jpg", "jpeg", "png", "gif", "bmp", "webp", "tiff", "svg")
 
-    override suspend fun completeOpenAIChat(question: Message, history: List<Message>): Flow<ApiState> {
-        val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.OPENAI })
-        openAI = OpenAI(platform.token ?: "", host = OpenAIHost(baseUrl = platform.apiUrl))
+    private fun isDocumentFile(extension: String): Boolean = extension in setOf("pdf", "txt", "doc", "docx", "xls", "xlsx")
 
-        val generatedMessages = messageToOpenAICompatibleMessage(ApiType.OPENAI, history + listOf(question))
-        val generatedMessageWithPrompt = listOf(
-            ChatMessage(role = ChatRole.System, content = platform.systemPrompt ?: ModelConstants.OPENAI_PROMPT)
-        ) + generatedMessages
-        val chatCompletionRequest = ChatCompletionRequest(
-            model = ModelId(platform.model ?: ""),
-            messages = generatedMessageWithPrompt,
-            temperature = platform.temperature?.toDouble(),
-            topP = platform.topP?.toDouble()
-        )
+    private fun getMimeType(extension: String): String = when (extension) {
+        // Images
+        "jpg", "jpeg" -> "image/jpeg"
 
-        return openAI.chatCompletions(chatCompletionRequest)
-            .map<ChatCompletionChunk, ApiState> { chunk -> ApiState.Success(chunk.choices.getOrNull(0)?.delta?.content ?: "") }
-            .catch { throwable -> emit(ApiState.Error(throwable.message ?: "Unknown error")) }
-            .onStart { emit(ApiState.Loading) }
-            .onCompletion { emit(ApiState.Done) }
+        "png" -> "image/png"
+
+        "gif" -> "image/gif"
+
+        "bmp" -> "image/bmp"
+
+        "webp" -> "image/webp"
+
+        "tiff" -> "image/tiff"
+
+        "svg" -> "image/svg+xml"
+
+        // Documents
+        "pdf" -> "application/pdf"
+
+        "txt" -> "text/plain"
+
+        "doc" -> "application/msword"
+
+        "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+        "xls" -> "application/vnd.ms-excel"
+
+        "xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+        else -> "application/octet-stream"
     }
 
-    override suspend fun completeAnthropicChat(question: Message, history: List<Message>): Flow<ApiState> {
-        val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.ANTHROPIC })
-        anthropic.setToken(platform.token)
-        anthropic.setAPIUrl(platform.apiUrl)
+    override suspend fun completeChat(
+        userMessages: List<MessageV2>,
+        assistantMessages: List<List<MessageV2>>,
+        platform: PlatformV2
+    ): Flow<ApiState> = when (platform.compatibleType) {
+        ClientType.OPENAI -> {
+            // Use Responses API for OpenAI (supports reasoning/thinking)
+            completeChatWithOpenAIResponses(userMessages, assistantMessages, platform)
+        }
 
-        val generatedMessages = messageToAnthropicMessage(history + listOf(question))
-        val messageRequest = MessageRequest(
-            model = platform.model ?: "",
-            messages = generatedMessages,
-            maxTokens = ModelConstants.ANTHROPIC_MAXIMUM_TOKEN,
-            systemPrompt = platform.systemPrompt ?: ModelConstants.DEFAULT_PROMPT,
+        ClientType.GROQ, ClientType.OLLAMA, ClientType.OPENROUTER, ClientType.CUSTOM -> {
+            // Use Chat Completions API for OpenAI-compatible services
+            completeChatWithOpenAIChatCompletions(userMessages, assistantMessages, platform)
+        }
+
+        ClientType.ANTHROPIC -> {
+            completeChatWithAnthropic(userMessages, assistantMessages, platform)
+        }
+
+        ClientType.GOOGLE -> {
+            completeChatWithGoogle(userMessages, assistantMessages, platform)
+        }
+    }
+
+    private suspend fun completeChatWithOpenAIResponses(
+        userMessages: List<MessageV2>,
+        assistantMessages: List<List<MessageV2>>,
+        platform: PlatformV2
+    ): Flow<ApiState> = try {
+        // Configure API
+        openAIAPI.setToken(platform.token)
+        openAIAPI.setAPIUrl(platform.apiUrl)
+
+        // Build input messages for Responses API
+        val inputMessages = mutableListOf<ResponseInputMessage>()
+
+        // Add conversation history (interleaved user and assistant messages)
+        userMessages.forEachIndexed { index, userMsg ->
+            // Add user message with text and/or images
+            inputMessages.add(transformMessageV2ToResponsesInput(userMsg, isUser = true))
+
+            // Add assistant response if available (only include this platform's response)
+            if (index < assistantMessages.size) {
+                assistantMessages[index]
+                    .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
+                    ?.let { assistantMsg ->
+                        inputMessages.add(transformMessageV2ToResponsesInput(assistantMsg, isUser = false))
+                    }
+            }
+        }
+
+        // Create request - include reasoning config only when reasoning is enabled
+        val request = ResponsesRequest(
+            model = platform.model,
+            input = inputMessages,
             stream = true,
+            instructions = platform.systemPrompt?.takeIf { it.isNotBlank() },
+            temperature = if (platform.reasoning) null else platform.temperature,
+            topP = if (platform.reasoning) null else platform.topP,
+            reasoning = if (platform.reasoning) {
+                ReasoningConfig(
+                    effort = "medium",
+                    summary = "auto"
+                )
+            } else {
+                null
+            }
+        )
+
+        // Stream response
+        flow {
+            emit(ApiState.Loading)
+            openAIAPI.streamResponses(request).collect { event ->
+                when (event) {
+                    is ReasoningSummaryTextDeltaEvent -> {
+                        emit(ApiState.Thinking(event.delta))
+                    }
+
+                    is OutputTextDeltaEvent -> {
+                        emit(ApiState.Success(event.delta))
+                    }
+
+                    is ResponseFailedEvent -> {
+                        val errorMessage = event.response.error?.message ?: "Response failed"
+                        emit(ApiState.Error(errorMessage))
+                    }
+
+                    is ResponseErrorEvent -> {
+                        emit(ApiState.Error(event.message))
+                    }
+
+                    else -> {
+                        // Ignore other events
+                    }
+                }
+            }
+        }.catch { e ->
+            emit(ApiState.Error(e.message ?: "Unknown error"))
+        }.onCompletion {
+            emit(ApiState.Done)
+        }
+    } catch (e: Exception) {
+        flowOf(ApiState.Error(e.message ?: "Failed to complete chat"))
+    }
+
+    private suspend fun completeChatWithOpenAIChatCompletions(
+        userMessages: List<MessageV2>,
+        assistantMessages: List<List<MessageV2>>,
+        platform: PlatformV2
+    ): Flow<ApiState> = try {
+        // Configure API
+        openAIAPI.setToken(platform.token)
+        openAIAPI.setAPIUrl(platform.apiUrl)
+
+        // Build message list
+        val messages = mutableListOf<ChatMessage>()
+
+        // Add system message if present
+        platform.systemPrompt?.takeIf { it.isNotBlank() }?.let { systemPrompt ->
+            messages.add(
+                ChatMessage(
+                    role = OpenAIRole.SYSTEM,
+                    content = listOf(OpenAITextContent(text = systemPrompt))
+                )
+            )
+        }
+
+        // Add conversation history (interleaved user and assistant messages)
+        userMessages.forEachIndexed { index, userMsg ->
+            // Add user message
+            messages.add(transformMessageV2ToChatMessage(userMsg, isUser = true))
+
+            // Add assistant response if available (only include this platform's response)
+            if (index < assistantMessages.size) {
+                assistantMessages[index]
+                    .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
+                    ?.let { assistantMsg ->
+                        messages.add(transformMessageV2ToChatMessage(assistantMsg, isUser = false))
+                    }
+            }
+        }
+
+        // Create request
+        val request = ChatCompletionRequest(
+            model = platform.model,
+            messages = messages,
+            stream = platform.stream,
             temperature = platform.temperature,
             topP = platform.topP
         )
 
-        return anthropic.streamChatMessage(messageRequest)
-            .map<MessageResponseChunk, ApiState> { chunk ->
-                when (chunk) {
-                    is ContentDeltaResponseChunk -> ApiState.Success(chunk.delta.text)
-                    is ErrorResponseChunk -> throw Error(chunk.error.message)
-                    else -> ApiState.Success("")
+        // Stream response
+        flow {
+            emit(ApiState.Loading)
+            openAIAPI.streamChatCompletion(request).collect { chunk ->
+                when {
+                    chunk.error != null -> emit(ApiState.Error(chunk.error.message))
+
+                    chunk.choices?.firstOrNull()?.delta?.content != null -> {
+                        emit(ApiState.Success(chunk.choices.first().delta.content!!))
+                    }
                 }
             }
-            .catch { throwable -> emit(ApiState.Error(throwable.message ?: "Unknown error")) }
-            .onStart { emit(ApiState.Loading) }
-            .onCompletion { emit(ApiState.Done) }
-    }
-
-    override suspend fun completeGoogleChat(question: Message, history: List<Message>): Flow<ApiState> {
-        val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.GOOGLE })
-        val config = generationConfig {
-            temperature = platform.temperature
-            topP = platform.topP
+        }.catch { e ->
+            emit(ApiState.Error(e.message ?: "Unknown error"))
+        }.onCompletion {
+            emit(ApiState.Done)
         }
-        google = GenerativeModel(
-            modelName = platform.model ?: "",
-            apiKey = platform.token ?: "",
-            systemInstruction = content { text(platform.systemPrompt ?: ModelConstants.DEFAULT_PROMPT) },
-            generationConfig = config,
-            safetySettings = listOf(
-                SafetySetting(HarmCategory.DANGEROUS_CONTENT, BlockThreshold.ONLY_HIGH),
-                SafetySetting(HarmCategory.SEXUALLY_EXPLICIT, BlockThreshold.NONE)
+    } catch (e: Exception) {
+        flowOf(ApiState.Error(e.message ?: "Failed to complete chat"))
+    }
+
+    private fun transformMessageV2ToChatMessage(message: MessageV2, isUser: Boolean): ChatMessage {
+        val content = mutableListOf<OpenAIMessageContent>()
+
+        // Add text content
+        if (message.content.isNotBlank()) {
+            content.add(OpenAITextContent(text = message.content))
+        }
+
+        // Add file content (images)
+        message.files.forEach { fileUri ->
+            val mimeType = FileUtils.getMimeType(context, fileUri)
+            if (FileUtils.isImage(mimeType)) {
+                val base64 = FileUtils.readAndEncodeFile(context, fileUri)
+                if (base64 != null) {
+                    content.add(
+                        OpenAIImageContent(
+                            imageUrl = ImageUrl(url = "data:$mimeType;base64,$base64")
+                        )
+                    )
+                }
+            }
+        }
+
+        return ChatMessage(
+            role = if (isUser) OpenAIRole.USER else OpenAIRole.ASSISTANT,
+            content = content
+        )
+    }
+
+    private fun transformMessageV2ToResponsesInput(message: MessageV2, isUser: Boolean): ResponseInputMessage {
+        val role = if (isUser) "user" else "assistant"
+
+        // Check if there are any image files
+        val imageFiles = message.files.filter { fileUri ->
+            val mimeType = FileUtils.getMimeType(context, fileUri)
+            FileUtils.isImage(mimeType)
+        }
+
+        // If no images, use simple text content
+        if (imageFiles.isEmpty()) {
+            return ResponseInputMessage(
+                role = role,
+                content = ResponseInputContent.text(message.content)
             )
+        }
+
+        // Build content parts for text + images
+        val parts = mutableListOf<ResponseContentPart>()
+
+        // Add text content if not blank
+        if (message.content.isNotBlank()) {
+            parts.add(ResponseContentPart.text(message.content))
+        }
+
+        // Add image content
+        imageFiles.forEach { fileUri ->
+            val mimeType = FileUtils.getMimeType(context, fileUri)
+            val base64 = FileUtils.readAndEncodeFile(context, fileUri)
+            if (base64 != null) {
+                parts.add(ResponseContentPart.image("data:$mimeType;base64,$base64"))
+            }
+        }
+
+        return ResponseInputMessage(
+            role = role,
+            content = ResponseInputContent.parts(parts)
         )
-
-        val inputContent = messageToGoogleMessage(history)
-        val chat = google.startChat(history = inputContent)
-
-        return chat.sendMessageStream(question.content)
-            .map<GenerateContentResponse, ApiState> { response -> ApiState.Success(response.text ?: "") }
-            .catch { throwable -> emit(ApiState.Error(throwable.message ?: "Unknown error")) }
-            .onStart { emit(ApiState.Loading) }
-            .onCompletion { emit(ApiState.Done) }
     }
 
-    override suspend fun completeGroqChat(question: Message, history: List<Message>): Flow<ApiState> {
-        val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.GROQ })
-        groq = OpenAI(platform.token ?: "", host = OpenAIHost(baseUrl = platform.apiUrl))
+    private suspend fun completeChatWithAnthropic(
+        userMessages: List<MessageV2>,
+        assistantMessages: List<List<MessageV2>>,
+        platform: PlatformV2
+    ): Flow<ApiState> = try {
+        // Configure API
+        anthropicAPI.setToken(platform.token)
+        anthropicAPI.setAPIUrl(platform.apiUrl)
 
-        val generatedMessages = messageToOpenAICompatibleMessage(ApiType.GROQ, history + listOf(question))
-        val generatedMessageWithPrompt = listOf(
-            ChatMessage(role = ChatRole.System, content = platform.systemPrompt ?: ModelConstants.DEFAULT_PROMPT)
-        ) + generatedMessages
-        val chatCompletionRequest = ChatCompletionRequest(
-            model = ModelId(platform.model ?: ""),
-            messages = generatedMessageWithPrompt,
-            temperature = platform.temperature?.toDouble(),
-            topP = platform.topP?.toDouble()
+        // Build message list (Anthropic alternates user/assistant)
+        val messages = mutableListOf<InputMessage>()
+
+        userMessages.forEachIndexed { index, userMsg ->
+            // Add user message
+            messages.add(transformMessageV2ToAnthropic(userMsg, MessageRole.USER))
+
+            // Add assistant response if available (only include this platform's response)
+            if (index < assistantMessages.size) {
+                assistantMessages[index]
+                    .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
+                    ?.let { assistantMsg ->
+                        messages.add(transformMessageV2ToAnthropic(assistantMsg, MessageRole.ASSISTANT))
+                    }
+            }
+        }
+
+        // Create request
+        // Note: When thinking is enabled, temperature defaults to 1 and top_p/top_k are not allowed
+        val request = MessageRequest(
+            model = platform.model,
+            messages = messages,
+            maxTokens = if (platform.reasoning) 16000 else 4096,
+            stream = platform.stream,
+            systemPrompt = platform.systemPrompt,
+            temperature = if (platform.reasoning) null else platform.temperature,
+            topP = if (platform.reasoning) null else platform.topP,
+            thinking = if (platform.reasoning) {
+                dev.chungjungsoo.gptmobile.data.dto.anthropic.request.ThinkingConfig(
+                    type = "enabled",
+                    budgetTokens = 10000
+                )
+            } else {
+                null
+            }
         )
 
-        return groq.chatCompletions(chatCompletionRequest)
-            .map<ChatCompletionChunk, ApiState> { chunk -> ApiState.Success(chunk.choices.getOrNull(0)?.delta?.content ?: "") }
-            .catch { throwable -> emit(ApiState.Error(throwable.message ?: "Unknown error")) }
-            .onStart { emit(ApiState.Loading) }
-            .onCompletion { emit(ApiState.Done) }
+        // Stream response
+        flow {
+            emit(ApiState.Loading)
+            anthropicAPI.streamChatMessage(request).collect { chunk ->
+                when (chunk) {
+                    is dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ContentDeltaResponseChunk -> {
+                        when (chunk.delta.type) {
+                            dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ContentBlockType.THINKING_DELTA -> {
+                                chunk.delta.thinking?.let { emit(ApiState.Thinking(it)) }
+                            }
+
+                            dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ContentBlockType.DELTA -> {
+                                chunk.delta.text?.let { emit(ApiState.Success(it)) }
+                            }
+
+                            // Ignore signature blocks and other types
+                            else -> {}
+                        }
+                    }
+
+                    is dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ErrorResponseChunk -> {
+                        emit(ApiState.Error(chunk.error.message))
+                    }
+
+                    else -> { /* Ignore other chunk types */ }
+                }
+            }
+        }.catch { e ->
+            emit(ApiState.Error(e.message ?: "Unknown error"))
+        }.onCompletion {
+            emit(ApiState.Done)
+        }
+    } catch (e: Exception) {
+        flowOf(ApiState.Error(e.message ?: "Failed to complete chat"))
     }
 
-    override suspend fun completeOllamaChat(question: Message, history: List<Message>): Flow<ApiState> {
-        val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.OLLAMA })
-        ollama = OpenAI(platform.token ?: "", host = OpenAIHost(baseUrl = "${platform.apiUrl}v1/"))
+    private fun transformMessageV2ToAnthropic(message: MessageV2, role: MessageRole): InputMessage {
+        val content = mutableListOf<AnthropicMessageContent>()
 
-        val generatedMessages = messageToOpenAICompatibleMessage(ApiType.OLLAMA, history + listOf(question))
-        val generatedMessageWithPrompt = listOf(
-            ChatMessage(role = ChatRole.System, content = platform.systemPrompt ?: ModelConstants.DEFAULT_PROMPT)
-        ) + generatedMessages
-        val chatCompletionRequest = ChatCompletionRequest(
-            model = ModelId(platform.model ?: ""),
-            messages = generatedMessageWithPrompt,
-            temperature = platform.temperature?.toDouble(),
-            topP = platform.topP?.toDouble()
+        // Add text content
+        if (message.content.isNotBlank()) {
+            content.add(AnthropicTextContent(text = message.content))
+        }
+
+        // Add file content (images)
+        message.files.forEach { fileUri ->
+            val mimeType = FileUtils.getMimeType(context, fileUri)
+            if (FileUtils.isImage(mimeType)) {
+                val base64 = FileUtils.readAndEncodeFile(context, fileUri)
+                if (base64 != null) {
+                    val mediaType = when {
+                        mimeType.contains("jpeg") || mimeType.contains("jpg") -> MediaType.JPEG
+                        mimeType.contains("png") -> MediaType.PNG
+                        mimeType.contains("gif") -> MediaType.GIF
+                        mimeType.contains("webp") -> MediaType.WEBP
+                        else -> MediaType.JPEG // Default
+                    }
+
+                    content.add(
+                        AnthropicImageContent(
+                            source = ImageSource(
+                                type = ImageSourceType.BASE64,
+                                mediaType = mediaType,
+                                data = base64
+                            )
+                        )
+                    )
+                }
+            }
+        }
+
+        return InputMessage(role = role, content = content)
+    }
+
+    private suspend fun completeChatWithGoogle(
+        userMessages: List<MessageV2>,
+        assistantMessages: List<List<MessageV2>>,
+        platform: PlatformV2
+    ): Flow<ApiState> = try {
+        // Configure API
+        googleAPI.setToken(platform.token)
+        googleAPI.setAPIUrl(platform.apiUrl)
+
+        // Build contents list
+        val contents = mutableListOf<Content>()
+
+        userMessages.forEachIndexed { index, userMsg ->
+            // Add user message
+            contents.add(transformMessageV2ToGoogle(userMsg, GoogleRole.USER))
+
+            // Add assistant response if available (only include this platform's response)
+            if (index < assistantMessages.size) {
+                assistantMessages[index]
+                    .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
+                    ?.let { assistantMsg ->
+                        contents.add(transformMessageV2ToGoogle(assistantMsg, GoogleRole.MODEL))
+                    }
+            }
+        }
+
+        // Create request
+        val request = GenerateContentRequest(
+            contents = contents,
+            generationConfig = GenerationConfig(
+                temperature = platform.temperature,
+                topP = platform.topP,
+                thinkingConfig = if (platform.reasoning) {
+                    dev.chungjungsoo.gptmobile.data.dto.google.request.ThinkingConfig(
+                        includeThoughts = true
+                    )
+                } else {
+                    null
+                }
+            ),
+            systemInstruction = platform.systemPrompt?.takeIf { it.isNotBlank() }?.let {
+                Content(
+                    parts = listOf(Part.text(it))
+                )
+            }
         )
 
-        return ollama.chatCompletions(chatCompletionRequest)
-            .map<ChatCompletionChunk, ApiState> { chunk -> ApiState.Success(chunk.choices.getOrNull(0)?.delta?.content ?: "") }
-            .catch { throwable -> emit(ApiState.Error(throwable.message ?: "Unknown error")) }
-            .onStart { emit(ApiState.Loading) }
-            .onCompletion { emit(ApiState.Done) }
+        // Stream response
+        flow {
+            emit(ApiState.Loading)
+            googleAPI.streamGenerateContent(request, platform.model).collect { response ->
+                when {
+                    response.error != null -> emit(ApiState.Error(response.error.message))
+
+                    response.candidates?.firstOrNull()?.content?.parts != null -> {
+                        val parts = response.candidates.first().content.parts
+                        parts.forEach { part ->
+                            part.text?.let { text ->
+                                if (part.thought == true) {
+                                    emit(ApiState.Thinking(text))
+                                } else {
+                                    emit(ApiState.Success(text))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }.catch { e ->
+            emit(ApiState.Error(e.message ?: "Unknown error"))
+        }.onCompletion {
+            emit(ApiState.Done)
+        }
+    } catch (e: Exception) {
+        flowOf(ApiState.Error(e.message ?: "Failed to complete chat"))
+    }
+
+    private fun transformMessageV2ToGoogle(message: MessageV2, role: GoogleRole): Content {
+        val parts = mutableListOf<Part>()
+
+        // Add text content
+        if (message.content.isNotBlank()) {
+            parts.add(Part.text(message.content))
+        }
+
+        // Add file content (images)
+        message.files.forEach { fileUri ->
+            val mimeType = FileUtils.getMimeType(context, fileUri)
+            if (FileUtils.isImage(mimeType)) {
+                val base64 = FileUtils.readAndEncodeFile(context, fileUri)
+                if (base64 != null) {
+                    parts.add(Part.inlineData(mimeType, base64))
+                }
+            }
+        }
+
+        return Content(role = role, parts = parts)
     }
 
     override suspend fun fetchChatList(): List<ChatRoom> = chatRoomDao.getChatRooms()
 
-    override suspend fun fetchMessages(chatId: Int): List<Message> = messageDao.loadMessages(chatId)
+    override suspend fun fetchChatListV2(): List<ChatRoomV2> = chatRoomV2Dao.getChatRooms()
 
-    override fun generateDefaultChatTitle(messages: List<Message>): String? = messages.sortedBy { it.createdAt }.firstOrNull { it.platformType == null }?.content?.replace('\n', ' ')?.take(50)
+    override suspend fun searchChatsV2(query: String): List<ChatRoomV2> {
+        if (query.isBlank()) {
+            return chatRoomV2Dao.getChatRooms()
+        }
 
-    override suspend fun updateChatTitle(chatRoom: ChatRoom, title: String) {
-        chatRoomDao.editChatRoom(chatRoom.copy(title = title.replace('\n', ' ').take(50)))
+        // Search by title
+        val titleMatches = chatRoomV2Dao.searchChatRoomsByTitle(query)
+
+        // Search by message content and get chat IDs
+        val messageMatchChatIds = messageV2Dao.searchMessagesByContent(query)
+
+        // Get all chat rooms and filter by message match IDs
+        val allChatRooms = chatRoomV2Dao.getChatRooms()
+        val messageMatches = allChatRooms.filter { it.id in messageMatchChatIds }
+
+        // Combine results and remove duplicates, maintaining order by updatedAt
+        return (titleMatches + messageMatches)
+            .distinctBy { it.id }
+            .sortedByDescending { it.updatedAt }
     }
 
-    override suspend fun saveChat(chatRoom: ChatRoom, messages: List<Message>): ChatRoom {
+    override suspend fun fetchMessages(chatId: Int): List<Message> = messageDao.loadMessages(chatId)
+
+    override suspend fun fetchMessagesV2(chatId: Int): List<MessageV2> = messageV2Dao.loadMessages(chatId)
+
+    override suspend fun migrateToChatRoomV2MessageV2() {
+        val leftOverChatRoomV2s = chatRoomV2Dao.getChatRooms()
+        chatRoomV2Dao.deleteChatRooms(*leftOverChatRoomV2s.toTypedArray())
+
+        val chatList = fetchChatList()
+        val platforms = settingRepository.fetchPlatformV2s()
+        val apiTypeMap = mutableMapOf<ApiType, String>()
+
+        platforms.forEach { platform ->
+            when (platform.name) {
+                "OpenAI" -> apiTypeMap[ApiType.OPENAI] = platform.uid
+                "Anthropic" -> apiTypeMap[ApiType.ANTHROPIC] = platform.uid
+                "Google" -> apiTypeMap[ApiType.GOOGLE] = platform.uid
+                "Groq" -> apiTypeMap[ApiType.GROQ] = platform.uid
+                "Ollama" -> apiTypeMap[ApiType.OLLAMA] = platform.uid
+            }
+        }
+
+        chatList.forEach { chatRoom ->
+            val messages = messageDao.loadMessages(chatRoom.id).map { m ->
+                MessageV2(
+                    id = m.id,
+                    chatId = m.chatId,
+                    content = m.content,
+                    files = listOf(),
+                    revisions = listOf(),
+                    linkedMessageId = m.linkedMessageId,
+                    platformType = m.platformType?.let { apiTypeMap[it] },
+                    createdAt = m.createdAt
+                )
+            }
+
+            chatRoomV2Dao.addChatRoom(
+                ChatRoomV2(
+                    id = chatRoom.id,
+                    title = chatRoom.title,
+                    enabledPlatform = chatRoom.enabledPlatform.map { apiTypeMap[it] ?: "" },
+                    createdAt = chatRoom.createdAt,
+                    updatedAt = chatRoom.createdAt
+                )
+            )
+
+            messageV2Dao.addMessages(*messages.toTypedArray())
+        }
+    }
+
+    override fun generateDefaultChatTitle(messages: List<MessageV2>): String? = messages.sortedBy { it.createdAt }.firstOrNull { it.platformType == null }?.content?.replace('\n', ' ')?.take(50)
+
+    override suspend fun updateChatTitle(chatRoom: ChatRoomV2, title: String) {
+        chatRoomV2Dao.editChatRoom(chatRoom.copy(title = title.replace('\n', ' ').take(50)))
+    }
+
+    override suspend fun saveChat(chatRoom: ChatRoomV2, messages: List<MessageV2>): ChatRoomV2 {
         if (chatRoom.id == 0) {
             // New Chat
-            val chatId = chatRoomDao.addChatRoom(chatRoom)
+            val chatId = chatRoomV2Dao.addChatRoom(chatRoom)
             val updatedMessages = messages.map { it.copy(chatId = chatId.toInt()) }
-            messageDao.addMessages(*updatedMessages.toTypedArray())
+            messageV2Dao.addMessages(*updatedMessages.toTypedArray())
 
             val savedChatRoom = chatRoom.copy(id = chatId.toInt())
             updateChatTitle(savedChatRoom, updatedMessages[0].content)
@@ -196,7 +657,7 @@ class ChatRepositoryImpl @Inject constructor(
             return savedChatRoom.copy(title = updatedMessages[0].content.replace('\n', ' ').take(50))
         }
 
-        val savedMessages = fetchMessages(chatRoom.id)
+        val savedMessages = fetchMessagesV2(chatRoom.id)
         val updatedMessages = messages.map { it.copy(chatId = chatRoom.id) }
 
         val shouldBeDeleted = savedMessages.filter { m ->
@@ -209,10 +670,10 @@ class ChatRepositoryImpl @Inject constructor(
             savedMessages.firstOrNull { it.id == m.id } == null
         }
 
-        chatRoomDao.editChatRoom(chatRoom)
-        messageDao.deleteMessages(*shouldBeDeleted.toTypedArray())
-        messageDao.editMessages(*shouldBeUpdated.toTypedArray())
-        messageDao.addMessages(*shouldBeAdded.toTypedArray())
+        chatRoomV2Dao.editChatRoom(chatRoom)
+        messageV2Dao.deleteMessages(*shouldBeDeleted.toTypedArray())
+        messageV2Dao.editMessages(*shouldBeUpdated.toTypedArray())
+        messageV2Dao.addMessages(*shouldBeAdded.toTypedArray())
 
         return chatRoom
     }
@@ -221,69 +682,7 @@ class ChatRepositoryImpl @Inject constructor(
         chatRoomDao.deleteChatRooms(*chatRooms.toTypedArray())
     }
 
-    private fun messageToOpenAICompatibleMessage(apiType: ApiType, messages: List<Message>): List<ChatMessage> {
-        val result = mutableListOf<ChatMessage>()
-
-        messages.forEach { message ->
-            when (message.platformType) {
-                null -> {
-                    result.add(
-                        ChatMessage(
-                            role = ChatRole.User,
-                            content = message.content
-                        )
-                    )
-                }
-
-                apiType -> {
-                    result.add(
-                        ChatMessage(
-                            role = ChatRole.Assistant,
-                            content = message.content
-                        )
-                    )
-                }
-
-                else -> {}
-            }
-        }
-
-        return result
-    }
-
-    private fun messageToAnthropicMessage(messages: List<Message>): List<InputMessage> {
-        val result = mutableListOf<InputMessage>()
-
-        messages.forEach { message ->
-            when (message.platformType) {
-                null -> result.add(
-                    InputMessage(role = MessageRole.USER, content = listOf(TextContent(text = message.content)))
-                )
-
-                ApiType.ANTHROPIC -> result.add(
-                    InputMessage(role = MessageRole.ASSISTANT, content = listOf(TextContent(text = message.content)))
-                )
-
-                else -> {}
-            }
-        }
-
-        return result
-    }
-
-    private fun messageToGoogleMessage(messages: List<Message>): List<Content> {
-        val result = mutableListOf<Content>()
-
-        messages.forEach { message ->
-            when (message.platformType) {
-                null -> result.add(content(role = "user") { text(message.content) })
-
-                ApiType.GOOGLE -> result.add(content(role = "model") { text(message.content) })
-
-                else -> {}
-            }
-        }
-
-        return result
+    override suspend fun deleteChatsV2(chatRooms: List<ChatRoomV2>) {
+        chatRoomV2Dao.deleteChatRooms(*chatRooms.toTypedArray())
     }
 }

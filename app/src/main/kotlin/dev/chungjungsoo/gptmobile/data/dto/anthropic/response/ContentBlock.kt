@@ -10,5 +10,8 @@ data class ContentBlock(
     val type: ContentBlockType,
 
     @SerialName("text")
-    val text: String
+    val text: String? = null,
+
+    @SerialName("thinking")
+    val thinking: String? = null
 )
