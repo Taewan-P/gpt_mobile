@@ -1,6 +1,5 @@
 package dev.chungjungsoo.gptmobile.data.network
 
-import android.util.Log
 import dev.chungjungsoo.gptmobile.data.ModelConstants
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatCompletionRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponsesRequest

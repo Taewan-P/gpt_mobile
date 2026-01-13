@@ -1,6 +1,5 @@
 package dev.chungjungsoo.gptmobile.util
 
-import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
 import android.util.Base64
@@ -82,39 +81,36 @@ object FileUtils {
      * @param filename File name or path
      * @return MIME type string, or "application/octet-stream" if unknown
      */
-    private fun getMimeTypeFromExtension(filename: String): String {
-        val extension = filename.substringAfterLast('.', "").lowercase()
-        return when (extension) {
-            // Images
-            "jpg", "jpeg" -> "image/jpeg"
+    private fun getMimeTypeFromExtension(filename: String): String = when (val extension = filename.substringAfterLast('.', "").lowercase()) {
+        // Images
+        "jpg", "jpeg" -> "image/jpeg"
 
-            "png" -> "image/png"
+        "png" -> "image/png"
 
-            "gif" -> "image/gif"
+        "gif" -> "image/gif"
 
-            "bmp" -> "image/bmp"
+        "bmp" -> "image/bmp"
 
-            "webp" -> "image/webp"
+        "webp" -> "image/webp"
 
-            "tiff", "tif" -> "image/tiff"
+        "tiff", "tif" -> "image/tiff"
 
-            "svg" -> "image/svg+xml"
+        "svg" -> "image/svg+xml"
 
-            // Documents
-            "pdf" -> "application/pdf"
+        // Documents
+        "pdf" -> "application/pdf"
 
-            "txt" -> "text/plain"
+        "txt" -> "text/plain"
 
-            "doc" -> "application/msword"
+        "doc" -> "application/msword"
 
-            "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
-            "xls" -> "application/vnd.ms-excel"
+        "xls" -> "application/vnd.ms-excel"
 
-            "xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        "xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
-            else -> MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: "application/octet-stream"
-        }
+        else -> MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: "application/octet-stream"
     }
 
     /**

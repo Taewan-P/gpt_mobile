@@ -138,7 +138,6 @@ class HomeViewModel @Inject constructor(
     fun disableSearchMode() {
         _chatListState.update { it.copy(isSearchMode = false) }
         _searchQuery.update { "" }
-        fetchChats()
     }
 
     fun enableSelectionMode() {

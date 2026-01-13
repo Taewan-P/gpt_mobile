@@ -6,7 +6,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- When certain value is used in the future, use @EncodeDefault or remove default values
+When certain value is used in the future, use @EncodeDefault or remove default values
  */
 
 @OptIn(ExperimentalSerializationApi::class)
