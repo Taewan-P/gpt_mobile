@@ -80,7 +80,6 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -624,21 +623,48 @@ private fun FileThumbnail(
     }
 }
 
-private fun copyFileToAppDirectory(context: Context, uri: android.net.Uri): String? = try {
-    val inputStream = context.contentResolver.openInputStream(uri)
-    val fileName = getFileName(context, uri)
-    val file = File(context.filesDir, "attachments/$fileName")
-    file.parentFile?.mkdirs()
+private fun copyFileToAppDirectory(context: Context, uri: android.net.Uri): String? {
+    return try {
+        val inputStream = context.contentResolver.openInputStream(uri)
+        val rawFileName = getFileName(context, uri)
+        val sanitizedFileName = sanitizeFileName(rawFileName)
 
-    inputStream?.use { input ->
-        file.outputStream().use { output ->
-            input.copyTo(output)
+        val attachmentsDir = File(context.filesDir, "attachments")
+        attachmentsDir.mkdirs()
+
+        var targetFile = File(attachmentsDir, sanitizedFileName)
+
+        // If file exists, append timestamp to avoid overwrites
+        if (targetFile.exists()) {
+            val nameWithoutExt = sanitizedFileName.substringBeforeLast(".")
+            val ext = sanitizedFileName.substringAfterLast(".", "")
+            val uniqueName = if (ext.isNotEmpty()) {
+                "${nameWithoutExt}_${System.currentTimeMillis()}.$ext"
+            } else {
+                "${sanitizedFileName}_${System.currentTimeMillis()}"
+            }
+            targetFile = File(attachmentsDir, uniqueName)
         }
-    }
 
-    file.absolutePath
-} catch (e: Exception) {
-    null
+        // Verify canonical path is within attachments directory to prevent path traversal
+        val attachmentsDirCanonical = attachmentsDir.canonicalPath
+        val targetFileCanonical = targetFile.canonicalPath
+        if (!targetFileCanonical.startsWith(attachmentsDirCanonical + File.separator) &&
+            targetFileCanonical != attachmentsDirCanonical
+        ) {
+            return null
+        }
+
+        inputStream?.use { input ->
+            targetFile.outputStream().use { output ->
+                input.copyTo(output)
+            }
+        }
+
+        targetFile.absolutePath
+    } catch (e: Exception) {
+        null
+    }
 }
 
 private fun getFileName(context: Context, uri: android.net.Uri): String {
@@ -652,6 +678,25 @@ private fun getFileName(context: Context, uri: android.net.Uri): String {
     }
 
     return fileName
+}
+
+private fun sanitizeFileName(fileName: String): String {
+    val maxLength = 200
+
+    // Remove path separators and ".." segments
+    val withoutPathTraversal = fileName
+        .replace("..", "")
+        .replace("/", "")
+        .replace("\\", "")
+
+    // Keep only safe characters: alphanumerics, dash, underscore, dot
+    val sanitized = withoutPathTraversal
+        .filter { it.isLetterOrDigit() || it == '-' || it == '_' || it == '.' }
+        .take(maxLength)
+        .trim('.')
+
+    // If sanitized name is empty, generate a fallback
+    return sanitized.ifEmpty { "attachment_${System.currentTimeMillis()}" }
 }
 
 private fun isImageFile(extension: String?): Boolean {
