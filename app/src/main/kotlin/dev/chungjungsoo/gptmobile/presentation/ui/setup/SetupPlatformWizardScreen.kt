@@ -68,10 +68,10 @@ fun SetupPlatformWizardScreen(
     // Extract values for use in composables
     val wizardStep = wizardStepState.value
     val selectedClientType = selectedClientTypeState.value
-    val platformName = platformNameState.value
-    val apiUrl = apiUrlState.value
-    val apiKey = apiKeyState.value
-    val model = modelState.value
+    platformNameState.value
+    apiUrlState.value
+    apiKeyState.value
+    modelState.value
 
     // Compute canProceed using derivedStateOf for proper reactivity
     val canProceed by remember {

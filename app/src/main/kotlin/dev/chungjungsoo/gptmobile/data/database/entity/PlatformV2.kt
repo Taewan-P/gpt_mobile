@@ -4,7 +4,7 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import dev.chungjungsoo.gptmobile.data.model.ClientType
-import java.util.UUID
+import java.util.*
 
 @Entity(tableName = "platform_v2")
 data class PlatformV2(

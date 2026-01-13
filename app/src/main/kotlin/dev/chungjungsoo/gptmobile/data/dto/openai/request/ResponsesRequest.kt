@@ -116,8 +116,7 @@ object ResponseInputContentSerializer : KSerializer<ResponseInputContent> {
 
     override fun deserialize(decoder: Decoder): ResponseInputContent {
         val jsonDecoder = decoder as JsonDecoder
-        val element = jsonDecoder.decodeJsonElement()
-        return when (element) {
+        return when (val element = jsonDecoder.decodeJsonElement()) {
             is JsonPrimitive -> ResponseInputContent.Text(element.jsonPrimitive.content)
 
             is JsonArray -> {

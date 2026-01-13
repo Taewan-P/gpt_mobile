@@ -364,8 +364,8 @@ class ChatViewModel @Inject constructor(
         val sortedAssistantMessages = assistantMessages.map { assistantMessage ->
             assistantMessage.sortedWith(
                 compareBy(
-                    { it -> platformOrderMap[it.platformType] ?: Int.MAX_VALUE },
-                    { it -> it.platformType }
+                    { platformOrderMap[it.platformType] ?: Int.MAX_VALUE },
+                    { it.platformType }
                 )
             )
         }
