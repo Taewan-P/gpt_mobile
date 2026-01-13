@@ -42,7 +42,7 @@ class OpenAIAPIImpl @Inject constructor(
 
     override fun streamChatCompletion(request: ChatCompletionRequest): Flow<ChatCompletionChunk> = flow {
         try {
-            val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}chat/completions" else "$apiUrl/chat/completions"
+            val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}v1/chat/completions" else "$apiUrl/v1/chat/completions"
 
             networkClient().preparePost(endpoint) {
                 contentType(ContentType.Application.Json)
@@ -113,7 +113,7 @@ class OpenAIAPIImpl @Inject constructor(
 
     override fun streamResponses(request: ResponsesRequest): Flow<ResponsesStreamEvent> = flow {
         try {
-            val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}responses" else "$apiUrl/responses"
+            val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}v1/responses" else "$apiUrl/v1/responses"
 
             networkClient().preparePost(endpoint) {
                 contentType(ContentType.Application.Json)
