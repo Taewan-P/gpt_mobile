@@ -157,7 +157,8 @@ class HomeViewModel @Inject constructor(
             _chatListState.update {
                 it.copy(
                     chats = chats,
-                    selectedChats = List(chats.size) { false }
+                    selectedChats = List(chats.size) { false },
+                    isSelectionMode = false
                 )
             }
 
