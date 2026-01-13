@@ -77,7 +77,7 @@ class SettingRepositoryImpl @Inject constructor(
                         ApiType.OPENAI -> ClientType.OPENAI
                         ApiType.ANTHROPIC -> ClientType.ANTHROPIC
                         ApiType.GOOGLE -> ClientType.GOOGLE
-                        ApiType.GROQ -> ClientType.OPENAI
+                        ApiType.GROQ -> ClientType.GROQ
                         ApiType.OLLAMA -> ClientType.OLLAMA
                     },
                     enabled = platform.enabled,
