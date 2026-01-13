@@ -526,7 +526,7 @@ class ChatRepositoryImpl @Inject constructor(
                     response.error != null -> emit(ApiState.Error(response.error.message))
 
                     response.candidates?.firstOrNull()?.content?.parts != null -> {
-                        val parts = response.candidates!!.first().content.parts
+                        val parts = response.candidates.first().content.parts
                         parts.forEach { part ->
                             part.text?.let { text ->
                                 if (part.thought == true) {
