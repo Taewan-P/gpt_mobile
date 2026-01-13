@@ -89,7 +89,15 @@ class AnthropicAPIImpl @Inject constructor(
                 }
             }
         } catch (e: Exception) {
-            emit(ErrorResponseChunk(error = ErrorDetail(type = "network_error", message = e.message ?: "Unknown error")))
+            val errorMessage = when (e) {
+                is java.net.UnknownHostException -> "Network error: Unable to resolve host."
+                is java.nio.channels.UnresolvedAddressException -> "Network error: Unable to resolve address. Check your internet connection."
+                is java.net.ConnectException -> "Network error: Connection refused. Check the API URL."
+                is java.net.SocketTimeoutException -> "Network error: Connection timed out."
+                is javax.net.ssl.SSLException -> "Network error: SSL/TLS connection failed."
+                else -> e.message ?: "Unknown network error"
+            }
+            emit(ErrorResponseChunk(error = ErrorDetail(type = "network_error", message = errorMessage)))
         }
     }
 

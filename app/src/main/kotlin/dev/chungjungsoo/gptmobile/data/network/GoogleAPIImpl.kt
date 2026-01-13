@@ -93,12 +93,20 @@ class GoogleAPIImpl @Inject constructor(
                 }
             }
         } catch (e: Exception) {
+            val errorMessage = when (e) {
+                is java.net.UnknownHostException -> "Network error: Unable to resolve host."
+                is java.nio.channels.UnresolvedAddressException -> "Network error: Unable to resolve address. Check your internet connection."
+                is java.net.ConnectException -> "Network error: Connection refused. Check the API URL."
+                is java.net.SocketTimeoutException -> "Network error: Connection timed out."
+                is javax.net.ssl.SSLException -> "Network error: SSL/TLS connection failed."
+                else -> e.message ?: "Unknown network error"
+            }
             emit(
                 GenerateContentResponse(
                     error = ErrorDetail(
-                        message = e.message ?: "Unknown error",
+                        message = errorMessage,
                         code = -1,
-                        status = "INTERNAL"
+                        status = "NETWORK_ERROR"
                     )
                 )
             )
