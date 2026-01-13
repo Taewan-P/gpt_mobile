@@ -186,10 +186,6 @@ class ChatRepositoryImpl @Inject constructor(
                         emit(ApiState.Success(event.delta))
                     }
 
-                    is ResponseCompletedEvent -> {
-                        emit(ApiState.Done)
-                    }
-
                     is ResponseFailedEvent -> {
                         val errorMessage = event.response.error?.message ?: "Response failed"
                         emit(ApiState.Error(errorMessage))
