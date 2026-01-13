@@ -31,7 +31,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -55,23 +57,36 @@ fun SetupPlatformWizardScreen(
     onComplete: () -> Unit,
     onBackAction: () -> Unit
 ) {
-    val wizardStep by setupViewModel.wizardStep.collectAsStateWithLifecycle()
-    val selectedClientType by setupViewModel.selectedClientType.collectAsStateWithLifecycle()
-    val platformName by setupViewModel.platformName.collectAsStateWithLifecycle()
-    val apiUrl by setupViewModel.apiUrl.collectAsStateWithLifecycle()
-    val apiKey by setupViewModel.apiKey.collectAsStateWithLifecycle()
-    val model by setupViewModel.model.collectAsStateWithLifecycle()
+    // Keep State objects for derivedStateOf to properly track dependencies
+    val wizardStepState = setupViewModel.wizardStep.collectAsStateWithLifecycle()
+    val selectedClientTypeState = setupViewModel.selectedClientType.collectAsStateWithLifecycle()
+    val platformNameState = setupViewModel.platformName.collectAsStateWithLifecycle()
+    val apiUrlState = setupViewModel.apiUrl.collectAsStateWithLifecycle()
+    val apiKeyState = setupViewModel.apiKey.collectAsStateWithLifecycle()
+    val modelState = setupViewModel.model.collectAsStateWithLifecycle()
 
-    // Compute canProceed based on collected state values for proper recomposition
-    val canProceed = when (wizardStep) {
-        WIZARD_STEP_BASICS -> platformName.isNotBlank() && apiUrl.isNotBlank()
+    // Extract values for use in composables
+    val wizardStep = wizardStepState.value
+    val selectedClientType = selectedClientTypeState.value
+    val platformName = platformNameState.value
+    val apiUrl = apiUrlState.value
+    val apiKey = apiKeyState.value
+    val model = modelState.value
 
-        WIZARD_STEP_API_KEY -> true
+    // Compute canProceed using derivedStateOf for proper reactivity
+    val canProceed by remember {
+        derivedStateOf {
+            when (wizardStepState.value) {
+                WIZARD_STEP_BASICS -> platformNameState.value.isNotBlank() && apiUrlState.value.isNotBlank()
 
-        // API key is optional for some providers (e.g., Ollama)
-        WIZARD_STEP_MODEL -> model.isNotBlank()
+                WIZARD_STEP_API_KEY -> true
 
-        else -> false
+                // API key is optional for some providers (e.g., Ollama)
+                WIZARD_STEP_MODEL -> modelState.value.isNotBlank()
+
+                else -> false
+            }
+        }
     }
 
     // Handle back press
@@ -127,19 +142,28 @@ fun SetupPlatformWizardScreen(
                 modifier = Modifier.weight(1f)
             ) { step ->
                 when (step) {
-                    WIZARD_STEP_BASICS -> BasicsStep(
-                        clientType = selectedClientType,
-                        platformName = platformName,
-                        onPlatformNameChange = setupViewModel::updatePlatformName,
-                        apiUrl = apiUrl,
-                        onApiUrlChange = setupViewModel::updateApiUrl
-                    )
+                    WIZARD_STEP_BASICS -> {
+                        // Collect states directly inside AnimatedContent for proper state updates
+                        val currentPlatformName by setupViewModel.platformName.collectAsStateWithLifecycle()
+                        val currentApiUrl by setupViewModel.apiUrl.collectAsStateWithLifecycle()
+                        BasicsStep(
+                            clientType = selectedClientType,
+                            platformName = currentPlatformName,
+                            onPlatformNameChange = setupViewModel::updatePlatformName,
+                            apiUrl = currentApiUrl,
+                            onApiUrlChange = setupViewModel::updateApiUrl
+                        )
+                    }
 
-                    WIZARD_STEP_API_KEY -> ApiKeyStep(
-                        clientType = selectedClientType,
-                        apiKey = apiKey,
-                        onApiKeyChange = setupViewModel::updateApiKey
-                    )
+                    WIZARD_STEP_API_KEY -> {
+                        // Collect apiKey state directly inside AnimatedContent for proper state updates
+                        val currentApiKey by setupViewModel.apiKey.collectAsStateWithLifecycle()
+                        ApiKeyStep(
+                            clientType = selectedClientType,
+                            apiKey = currentApiKey,
+                            onApiKeyChange = setupViewModel::updateApiKey
+                        )
+                    }
 
                     WIZARD_STEP_MODEL -> {
                         // Collect model state directly inside AnimatedContent for proper recomposition
