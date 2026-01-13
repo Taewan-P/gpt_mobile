@@ -602,7 +602,7 @@ private fun FileThumbnail(
             ) {
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = "Remove",
+                    contentDescription = stringResource(R.string.remove),
                     tint = MaterialTheme.colorScheme.onError,
                     modifier = Modifier.size(10.dp)
                 )

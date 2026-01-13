@@ -266,4 +266,5 @@
     <string name="custom_provider_description">Connect to any OpenAI-compatible API</string>
     <string name="platform_added_successfully">Platform added successfully</string>
     <string name="at_least_one_platform_required">Add at least one platform to continue</string>
+    <string name="remove">Remove</string>
 </resources>
