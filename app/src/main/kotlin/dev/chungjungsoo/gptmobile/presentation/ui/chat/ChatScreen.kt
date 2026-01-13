@@ -74,6 +74,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
@@ -96,12 +97,13 @@ fun ChatScreen(
     chatViewModel: ChatViewModel = hiltViewModel(),
     onBackAction: () -> Unit
 ) {
-    val screenWidth = LocalWindowInfo.current.containerSize.width.dp
+    val containerSize = LocalWindowInfo.current.containerSize
+    val screenWidthDp = with(LocalDensity.current) { containerSize.width.toDp() }
     val focusManager = LocalFocusManager.current
     val clipboardManager = LocalClipboard.current
     val systemChatMargin = 32.dp
-    val maximumUserChatBubbleWidth = (screenWidth - systemChatMargin) * 0.8F
-    val maximumOpponentChatBubbleWidth = screenWidth - systemChatMargin
+    val maximumUserChatBubbleWidth = (screenWidthDp - systemChatMargin) * 0.8F
+    val maximumOpponentChatBubbleWidth = screenWidthDp - systemChatMargin
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
