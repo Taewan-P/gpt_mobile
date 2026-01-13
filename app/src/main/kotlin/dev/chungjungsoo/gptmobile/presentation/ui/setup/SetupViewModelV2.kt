@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.setup
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -13,6 +14,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+sealed class SaveStatus {
+    data object Idle : SaveStatus()
+    data object Saving : SaveStatus()
+    data object Success : SaveStatus()
+    data class Error(val message: String) : SaveStatus()
+}
 
 @HiltViewModel
 class SetupViewModelV2 @Inject constructor(
@@ -40,6 +48,9 @@ class SetupViewModelV2 @Inject constructor(
 
     private val _model = MutableStateFlow("")
     val model: StateFlow<String> = _model.asStateFlow()
+
+    private val _saveStatus = MutableStateFlow<SaveStatus>(SaveStatus.Idle)
+    val saveStatus: StateFlow<SaveStatus> = _saveStatus.asStateFlow()
 
     init {
         loadPlatforms()
@@ -98,24 +109,40 @@ class SetupViewModelV2 @Inject constructor(
         val clientType = _selectedClientType.value ?: return
 
         viewModelScope.launch {
-            val platform = PlatformV2(
-                name = _platformName.value.trim(),
-                compatibleType = clientType,
-                enabled = true,
-                apiUrl = _apiUrl.value.trim(),
-                token = _apiKey.value.trim().takeIf { it.isNotEmpty() },
-                model = _model.value.trim(),
-                temperature = 1.0f,
-                topP = 1.0f,
-                systemPrompt = ModelConstants.DEFAULT_PROMPT,
-                stream = true,
-                reasoning = false,
-                timeout = 30
-            )
-            settingRepository.addPlatformV2(platform)
-            loadPlatforms()
-            resetWizard()
+            _saveStatus.value = SaveStatus.Saving
+            try {
+                val platform = PlatformV2(
+                    name = _platformName.value.trim(),
+                    compatibleType = clientType,
+                    enabled = true,
+                    apiUrl = _apiUrl.value.trim(),
+                    token = _apiKey.value.trim().takeIf { it.isNotEmpty() },
+                    model = _model.value.trim(),
+                    temperature = 1.0f,
+                    topP = 1.0f,
+                    systemPrompt = ModelConstants.DEFAULT_PROMPT,
+                    stream = true,
+                    reasoning = false,
+                    timeout = 30
+                )
+                settingRepository.addPlatformV2(platform)
+                loadPlatforms()
+                _saveStatus.value = SaveStatus.Success
+                resetWizard()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to save platform", e)
+                val errorMessage = when (e) {
+                    is android.database.sqlite.SQLiteConstraintException -> "A platform with this name already exists."
+                    is android.database.sqlite.SQLiteException -> "Database error: ${e.message}"
+                    else -> e.message ?: "Unknown error occurred while saving platform."
+                }
+                _saveStatus.value = SaveStatus.Error(errorMessage)
+            }
         }
+    }
+
+    fun clearSaveStatus() {
+        _saveStatus.value = SaveStatus.Idle
     }
 
     fun deletePlatform(platform: PlatformV2) {
@@ -159,6 +186,7 @@ class SetupViewModelV2 @Inject constructor(
     }
 
     companion object {
+        private const val TAG = "SetupViewModelV2"
         const val WIZARD_STEP_BASICS = 0
         const val WIZARD_STEP_API_KEY = 1
         const val WIZARD_STEP_MODEL = 2
