@@ -1,3 +1,5 @@
+import org.gradle.kotlin.dsl.aboutLibraries
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.jetbrains.kotlin.android)
@@ -11,19 +13,23 @@ plugins {
 
 android {
     namespace = "dev.chungjungsoo.gptmobile"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "dev.chungjungsoo.gptmobile"
         minSdk = 31
-        targetSdk = 35
-        versionCode = 15
-        versionName = "0.6.3"
+        targetSdk = 36
+        versionCode = 17
+        versionName = "0.7.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
         }
+    }
+
+    ksp {
+        arg("room.schemaLocation", "$projectDir/schemas")
     }
 
     androidResources {
@@ -46,15 +52,14 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
     buildFeatures {
         compose = true
     }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "META-INF/INDEX.LIST"
+            excludes += "META-INF/io.netty.versions.properties"
         }
     }
 }
@@ -70,6 +75,7 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.material.icons.extended)
 
     // SplashScreen
     implementation(libs.splashscreen)
@@ -82,13 +88,10 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose.android)
     ksp(libs.hilt.compiler)
 
-    // Gemini SDK
-    implementation(libs.gemini)
-
     // Ktor
     implementation(libs.ktor.content.negotiation)
     implementation(libs.ktor.core)
-    implementation(libs.ktor.engine)
+    implementation(libs.ktor.client.cio)
     implementation(libs.ktor.logging)
     implementation(libs.ktor.serialization)
 
@@ -98,13 +101,11 @@ dependencies {
 
     // Markdown
     implementation(libs.compose.markdown)
+    implementation(libs.richtext)
 
     // Navigation
     implementation(libs.hilt.navigation)
     implementation(libs.androidx.navigation)
-
-    // OpenAI (Ktor required)
-    implementation(libs.openai)
 
     // Room
     implementation(libs.room)
@@ -126,5 +127,7 @@ dependencies {
 
 aboutLibraries {
     // Remove the "generated" timestamp to allow for reproducible builds
-    excludeFields = arrayOf("generated")
+    export {
+        excludeFields.add("generated")
+    }
 }

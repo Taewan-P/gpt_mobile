@@ -6,7 +6,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- When certain value is used in the future, use @EncodeDefault or remove default values
+When certain value is used in the future, use @EncodeDefault or remove default values
  */
 
 @OptIn(ExperimentalSerializationApi::class)
@@ -47,5 +47,21 @@ data class MessageRequest(
 
     @SerialName("top_p")
     @EncodeDefault(EncodeDefault.Mode.NEVER)
-    val topP: Float? = null
+    val topP: Float? = null,
+
+    @SerialName("thinking")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val thinking: ThinkingConfig? = null
+)
+
+@OptIn(ExperimentalSerializationApi::class)
+@Serializable
+data class ThinkingConfig(
+    @SerialName("type")
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
+    val type: String = "enabled",
+
+    @SerialName("budget_tokens")
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
+    val budgetTokens: Int = 10000
 )

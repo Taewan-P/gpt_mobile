@@ -15,13 +15,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.presentation.common.PrimaryLongButton
 import dev.chungjungsoo.gptmobile.presentation.common.Route
@@ -30,13 +30,11 @@ import dev.chungjungsoo.gptmobile.presentation.icons.Done
 @Composable
 fun SetupCompleteScreen(
     modifier: Modifier = Modifier,
-    currentRoute: String = Route.SETUP_COMPLETE,
-    setupViewModel: SetupViewModel = hiltViewModel(),
     onNavigate: (route: String) -> Unit,
     onBackAction: () -> Unit
 ) {
-    val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp.dp
+    val configuration = LocalWindowInfo.current
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -57,11 +55,7 @@ fun SetupCompleteScreen(
             )
             Spacer(modifier = Modifier.weight(1f))
             PrimaryLongButton(
-                onClick = {
-                    setupViewModel.savePlatformState()
-                    val nextStep = setupViewModel.getNextSetupRoute(currentRoute)
-                    onNavigate(nextStep)
-                },
+                onClick = { onNavigate(Route.CHAT_LIST) },
                 text = stringResource(R.string.done)
             )
         }

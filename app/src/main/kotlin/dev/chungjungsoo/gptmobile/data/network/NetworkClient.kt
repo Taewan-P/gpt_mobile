@@ -9,6 +9,7 @@ import io.ktor.client.plugins.logging.DEFAULT
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
+import io.ktor.client.plugins.sse.SSE
 import io.ktor.client.request.header
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
@@ -24,18 +25,13 @@ class NetworkClient @Inject constructor(
 
     private val client by lazy {
         HttpClient(httpEngine) {
-            expectSuccess = true
+            expectSuccess = false
 
             install(ContentNegotiation) {
-                json(
-                    Json {
-                        isLenient = true
-                        ignoreUnknownKeys = true
-                        allowSpecialFloatingPointValues = true
-                        useArrayPolymorphism = true
-                    }
-                )
+                json(json)
             }
+
+            install(SSE)
 
             install(HttpTimeout) {
                 requestTimeoutMillis = TIMEOUT.toLong()
@@ -57,5 +53,26 @@ class NetworkClient @Inject constructor(
 
     companion object {
         private const val TIMEOUT = 1_000 * 60 * 5
+
+        // Default JSON config (used for most APIs)
+        val json = Json {
+            isLenient = true
+            ignoreUnknownKeys = true
+            allowSpecialFloatingPointValues = true
+            useArrayPolymorphism = false
+            encodeDefaults = true
+            explicitNulls = false
+        }
+
+        // OpenAI-specific JSON config with "type" discriminator for MessageContent
+        val openAIJson = Json {
+            isLenient = true
+            ignoreUnknownKeys = true
+            allowSpecialFloatingPointValues = true
+            useArrayPolymorphism = false
+            classDiscriminator = "type"
+            encodeDefaults = true
+            explicitNulls = false
+        }
     }
 }

@@ -3,6 +3,7 @@ package dev.chungjungsoo.gptmobile.data.database.entity
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 
@@ -15,7 +16,8 @@ import dev.chungjungsoo.gptmobile.data.model.ApiType
             childColumns = ["chat_id"],
             onDelete = ForeignKey.CASCADE
         )
-    ]
+    ],
+    indices = [Index(value = ["chat_id"])]
 )
 data class Message(
     @PrimaryKey(autoGenerate = true)

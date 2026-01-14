@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.setting
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,52 +22,46 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import dev.chungjungsoo.gptmobile.R
-import dev.chungjungsoo.gptmobile.data.ModelConstants.anthropicModels
-import dev.chungjungsoo.gptmobile.data.ModelConstants.getDefaultAPIUrl
-import dev.chungjungsoo.gptmobile.data.ModelConstants.googleModels
-import dev.chungjungsoo.gptmobile.data.ModelConstants.groqModels
-import dev.chungjungsoo.gptmobile.data.ModelConstants.ollamaModels
-import dev.chungjungsoo.gptmobile.data.ModelConstants.openaiModels
-import dev.chungjungsoo.gptmobile.data.model.ApiType
-import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
-import dev.chungjungsoo.gptmobile.presentation.common.TokenInputField
-import dev.chungjungsoo.gptmobile.util.generateAnthropicModelList
-import dev.chungjungsoo.gptmobile.util.generateGoogleModelList
-import dev.chungjungsoo.gptmobile.util.generateGroqModelList
-import dev.chungjungsoo.gptmobile.util.generateOpenAIModelList
-import dev.chungjungsoo.gptmobile.util.getPlatformAPILabelResources
-import dev.chungjungsoo.gptmobile.util.getPlatformHelpLinkResources
 import dev.chungjungsoo.gptmobile.util.isValidUrl
 import kotlin.math.roundToInt
 
 @Composable
-fun APIUrlDialog(
-    dialogState: SettingViewModel.DialogState,
-    apiType: ApiType,
+fun PlatformNameDialog(
+    dialogState: PlatformSettingViewModel.DialogState,
     initialValue: String,
-    settingViewModel: SettingViewModel
+    settingViewModel: PlatformSettingViewModel
+) {
+    if (dialogState.isPlatformNameDialogOpen) {
+        PlatformNameDialog(
+            initialValue = initialValue,
+            onDismissRequest = settingViewModel::closePlatformNameDialog,
+            onConfirmRequest = { name ->
+                settingViewModel.updatePlatformName(name)
+            }
+        )
+    }
+}
+
+@Composable
+fun APIUrlDialog(
+    dialogState: PlatformSettingViewModel.DialogState,
+    initialValue: String,
+    settingViewModel: PlatformSettingViewModel
 ) {
     if (dialogState.isApiUrlDialogOpen) {
         APIUrlDialog(
-            apiType = apiType,
             initialValue = initialValue,
             onDismissRequest = settingViewModel::closeApiUrlDialog,
-            onResetRequest = {
-                settingViewModel.updateURL(apiType, getDefaultAPIUrl(apiType))
-                settingViewModel.savePlatformSettings()
-                settingViewModel.closeApiUrlDialog()
-            },
             onConfirmRequest = { apiUrl ->
-                settingViewModel.updateURL(apiType, apiUrl)
-                settingViewModel.savePlatformSettings()
-                settingViewModel.closeApiUrlDialog()
+                settingViewModel.updateApiUrl(apiUrl)
             }
         )
     }
@@ -74,116 +69,145 @@ fun APIUrlDialog(
 
 @Composable
 fun APIKeyDialog(
-    dialogState: SettingViewModel.DialogState,
-    apiType: ApiType,
-    settingViewModel: SettingViewModel
+    dialogState: PlatformSettingViewModel.DialogState,
+    settingViewModel: PlatformSettingViewModel
 ) {
     if (dialogState.isApiTokenDialogOpen) {
         APIKeyDialog(
-            apiType = apiType,
             onDismissRequest = settingViewModel::closeApiTokenDialog
         ) { apiToken ->
-            settingViewModel.updateToken(apiType, apiToken)
-            settingViewModel.savePlatformSettings()
-            settingViewModel.closeApiTokenDialog()
+            settingViewModel.updateApiToken(apiToken)
         }
     }
 }
 
 @Composable
 fun ModelDialog(
-    dialogState: SettingViewModel.DialogState,
-    apiType: ApiType,
-    model: String?,
-    settingViewModel: SettingViewModel
+    dialogState: PlatformSettingViewModel.DialogState,
+    model: String,
+    settingViewModel: PlatformSettingViewModel
 ) {
     if (dialogState.isApiModelDialogOpen) {
         ModelDialog(
-            apiType = apiType,
-            initModel = model ?: "",
+            initModel = model,
             onDismissRequest = settingViewModel::closeApiModelDialog
         ) { m ->
-            settingViewModel.updateModel(apiType, m)
-            settingViewModel.savePlatformSettings()
-            settingViewModel.closeApiModelDialog()
+            settingViewModel.updateApiModel(m)
         }
     }
 }
 
 @Composable
 fun TemperatureDialog(
-    dialogState: SettingViewModel.DialogState,
-    apiType: ApiType,
-    temperature: Float,
-    settingViewModel: SettingViewModel
+    dialogState: PlatformSettingViewModel.DialogState,
+    temperature: Float?,
+    settingViewModel: PlatformSettingViewModel
 ) {
     if (dialogState.isTemperatureDialogOpen) {
         TemperatureDialog(
-            apiType = apiType,
             temperature = temperature,
             onDismissRequest = settingViewModel::closeTemperatureDialog
         ) { temp ->
-            settingViewModel.updateTemperature(apiType, temp)
-            settingViewModel.savePlatformSettings()
-            settingViewModel.closeTemperatureDialog()
+            settingViewModel.updateTemperature(temp)
         }
     }
 }
 
 @Composable
 fun TopPDialog(
-    dialogState: SettingViewModel.DialogState,
-    apiType: ApiType,
+    dialogState: PlatformSettingViewModel.DialogState,
     topP: Float?,
-    settingViewModel: SettingViewModel
+    settingViewModel: PlatformSettingViewModel
 ) {
     if (dialogState.isTopPDialogOpen) {
         TopPDialog(
             topP = topP,
             onDismissRequest = settingViewModel::closeTopPDialog
         ) { p ->
-            settingViewModel.updateTopP(apiType, p)
-            settingViewModel.savePlatformSettings()
-            settingViewModel.closeTopPDialog()
+            settingViewModel.updateTopP(p)
         }
     }
 }
 
 @Composable
 fun SystemPromptDialog(
-    dialogState: SettingViewModel.DialogState,
-    apiType: ApiType,
+    dialogState: PlatformSettingViewModel.DialogState,
     systemPrompt: String,
-    settingViewModel: SettingViewModel
+    settingViewModel: PlatformSettingViewModel
 ) {
     if (dialogState.isSystemPromptDialogOpen) {
         SystemPromptDialog(
             prompt = systemPrompt,
             onDismissRequest = settingViewModel::closeSystemPromptDialog
         ) {
-            settingViewModel.updateSystemPrompt(apiType, it)
-            settingViewModel.savePlatformSettings()
-            settingViewModel.closeSystemPromptDialog()
+            settingViewModel.updateSystemPrompt(it)
         }
     }
 }
 
 @Composable
-private fun APIUrlDialog(
-    apiType: ApiType,
+private fun PlatformNameDialog(
     initialValue: String,
     onDismissRequest: () -> Unit,
-    onResetRequest: () -> Unit,
-    onConfirmRequest: (url: String) -> Unit
+    onConfirmRequest: (name: String) -> Unit
 ) {
-    var apiUrl by remember { mutableStateOf(initialValue) }
-    val configuration = LocalConfiguration.current
+    var platformName by remember { mutableStateOf(initialValue) }
+    val configuration = LocalWindowInfo.current
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
+    val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
 
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
         modifier = Modifier
-            .widthIn(max = configuration.screenWidthDp.dp - 40.dp)
-            .heightIn(max = configuration.screenHeightDp.dp - 80.dp),
+            .widthIn(max = screenWidth - 40.dp)
+            .heightIn(max = screenHeight - 80.dp),
+        title = { Text(text = stringResource(R.string.platform_name)) },
+        text = {
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = platformName,
+                onValueChange = { platformName = it },
+                label = { Text(stringResource(R.string.platform_name)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                supportingText = {
+                    Text(stringResource(R.string.platform_name_supporting))
+                }
+            )
+        },
+        onDismissRequest = onDismissRequest,
+        confirmButton = {
+            TextButton(
+                enabled = platformName.isNotBlank(),
+                onClick = { onConfirmRequest(platformName) }
+            ) {
+                Text(stringResource(R.string.confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
+@Composable
+private fun APIUrlDialog(
+    initialValue: String,
+    onDismissRequest: () -> Unit,
+    onConfirmRequest: (url: String) -> Unit
+) {
+    var apiUrl by remember { mutableStateOf(initialValue) }
+    val configuration = LocalWindowInfo.current
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
+    val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
+
+    AlertDialog(
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier
+            .widthIn(max = screenWidth - 40.dp)
+            .heightIn(max = screenHeight - 80.dp),
         title = { Text(text = stringResource(R.string.api_url)) },
         text = {
             Column {
@@ -219,16 +243,8 @@ private fun APIUrlDialog(
             }
         },
         dismissButton = {
-            Row {
-                TextButton(
-                    modifier = Modifier.padding(end = 8.dp),
-                    onClick = onResetRequest
-                ) {
-                    Text(stringResource(R.string.reset))
-                }
-                TextButton(onClick = onDismissRequest) {
-                    Text(stringResource(R.string.cancel))
-                }
+            TextButton(onClick = onDismissRequest) {
+                Text(stringResource(R.string.cancel))
             }
         }
     )
@@ -236,33 +252,33 @@ private fun APIUrlDialog(
 
 @Composable
 private fun APIKeyDialog(
-    apiType: ApiType,
     onDismissRequest: () -> Unit,
     onConfirmRequest: (token: String) -> Unit
 ) {
     var token by remember { mutableStateOf("") }
-    val configuration = LocalConfiguration.current
+    val configuration = LocalWindowInfo.current
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
+    val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
 
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
         modifier = Modifier
-            .widthIn(max = configuration.screenWidthDp.dp - 40.dp)
-            .heightIn(max = configuration.screenHeightDp.dp - 80.dp),
-        title = { Text(text = getPlatformAPILabelResources()[apiType]!!) },
+            .widthIn(max = screenWidth - 40.dp)
+            .heightIn(max = screenHeight - 80.dp),
+        title = { Text(text = stringResource(R.string.api_key)) },
         text = {
-            TokenInputField(
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
                 value = token,
                 onValueChange = { token = it },
-                onClearClick = { token = "" },
-                label = getPlatformAPILabelResources()[apiType]!!,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                helpLink = getPlatformHelpLinkResources()[apiType]!!
+                label = { Text(stringResource(R.string.api_key)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
             )
         },
         onDismissRequest = onDismissRequest,
         confirmButton = {
             TextButton(
-                enabled = token.isNotBlank(),
                 onClick = { onConfirmRequest(token) }
             ) {
                 Text(stringResource(R.string.confirm))
@@ -280,93 +296,39 @@ private fun APIKeyDialog(
 
 @Composable
 private fun ModelDialog(
-    apiType: ApiType,
     initModel: String,
     onDismissRequest: () -> Unit,
     onConfirmRequest: (model: String) -> Unit
 ) {
-    val modelList = when (apiType) {
-        ApiType.OPENAI -> openaiModels
-        ApiType.ANTHROPIC -> anthropicModels
-        ApiType.GOOGLE -> googleModels
-        ApiType.GROQ -> groqModels
-        ApiType.OLLAMA -> ollamaModels
-    }
-    val availableModels = when (apiType) {
-        ApiType.OPENAI -> generateOpenAIModelList(models = modelList)
-        ApiType.ANTHROPIC -> generateAnthropicModelList(models = modelList)
-        ApiType.GOOGLE -> generateGoogleModelList(models = modelList)
-        ApiType.GROQ -> generateGroqModelList(models = modelList)
-        ApiType.OLLAMA -> listOf()
-    }
-    val configuration = LocalConfiguration.current
+    val configuration = LocalWindowInfo.current
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
+    val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
     var model by remember { mutableStateOf(initModel) }
-    var customSelected by remember { mutableStateOf(model !in availableModels.map { it.aliasValue }.toSet()) }
-    var customModel by remember { mutableStateOf(if (customSelected) model else "") }
 
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
         modifier = Modifier
-            .widthIn(max = configuration.screenWidthDp.dp - 40.dp)
-            .heightIn(max = configuration.screenHeightDp.dp - 80.dp),
+            .widthIn(max = screenWidth - 40.dp)
+            .heightIn(max = screenHeight - 80.dp),
         title = { Text(text = stringResource(R.string.api_model)) },
         text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                availableModels.forEach { m ->
-                    RadioItem(
-                        value = m.aliasValue,
-                        selected = model == m.aliasValue && !customSelected,
-                        title = m.name,
-                        description = m.description,
-                        onSelected = {
-                            model = it
-                            customSelected = false
-                        }
-                    )
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = model,
+                onValueChange = { model = it },
+                label = { Text(stringResource(R.string.model_name)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                supportingText = {
+                    Text(stringResource(R.string.model_supporting))
                 }
-                RadioItem(
-                    value = customModel,
-                    selected = customSelected,
-                    title = stringResource(R.string.custom),
-                    description = stringResource(R.string.custom_description),
-                    onSelected = {
-                        customSelected = true
-                        customModel = it
-                    }
-                )
-                OutlinedTextField(
-                    modifier = Modifier
-                        .padding(start = 24.dp)
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
-                    enabled = customSelected,
-                    value = customModel,
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    onValueChange = { s -> customModel = s },
-                    label = {
-                        Text(stringResource(R.string.model_name))
-                    },
-                    placeholder = {
-                        Text(stringResource(R.string.model_custom_example))
-                    },
-                    supportingText = {
-                        Text(stringResource(R.string.custom_model_warning))
-                    }
-                )
-            }
+            )
         },
         onDismissRequest = onDismissRequest,
         confirmButton = {
             TextButton(
-                enabled = if (customSelected) customModel.isNotBlank() else model.isNotBlank(),
-                onClick = {
-                    if (customSelected) {
-                        onConfirmRequest(customModel)
-                    } else {
-                        onConfirmRequest(model)
-                    }
-                }
+                enabled = model.isNotBlank(),
+                onClick = { onConfirmRequest(model) }
             ) {
                 Text(stringResource(R.string.confirm))
             }
@@ -383,20 +345,22 @@ private fun ModelDialog(
 
 @Composable
 private fun TemperatureDialog(
-    apiType: ApiType,
-    temperature: Float,
+    temperature: Float?,
     onDismissRequest: () -> Unit,
-    onConfirmRequest: (temp: Float) -> Unit
+    onConfirmRequest: (temp: Float?) -> Unit
 ) {
-    val configuration = LocalConfiguration.current
-    var textFieldTemperature by remember { mutableStateOf(temperature.toString()) }
-    var sliderTemperature by remember { mutableFloatStateOf(temperature) }
+    val configuration = LocalWindowInfo.current
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
+    val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
+    var textFieldTemperature by remember { mutableStateOf(temperature?.let { "%.1f".format(it) } ?: "") }
+    var sliderTemperature by remember { mutableFloatStateOf(temperature ?: 1F) }
+    var isUnset by remember { mutableStateOf(temperature == null) }
 
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
         modifier = Modifier
-            .widthIn(max = configuration.screenWidthDp.dp - 40.dp)
-            .heightIn(max = configuration.screenHeightDp.dp - 80.dp),
+            .widthIn(max = screenWidth - 40.dp)
+            .heightIn(max = screenHeight - 80.dp),
         title = { Text(text = stringResource(R.string.temperature_setting)) },
         text = {
             Column(
@@ -410,17 +374,22 @@ private fun TemperatureDialog(
                     value = textFieldTemperature,
                     onValueChange = { t ->
                         textFieldTemperature = t
-                        val converted = t.toFloatOrNull()
-                        converted?.let {
-                            sliderTemperature = when (apiType) {
-                                ApiType.ANTHROPIC -> it.coerceIn(0F, 1F)
-                                else -> it.coerceIn(0F, 2F)
+                        if (t.isBlank()) {
+                            isUnset = true
+                        } else {
+                            val converted = t.toFloatOrNull()
+                            converted?.let {
+                                sliderTemperature = it.coerceIn(0F, 2F)
+                                isUnset = false
                             }
                         }
                     },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     label = {
                         Text(stringResource(R.string.temperature))
+                    },
+                    placeholder = {
+                        Text(stringResource(R.string.not_set))
                     }
                 )
                 Slider(
@@ -428,25 +397,35 @@ private fun TemperatureDialog(
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp, vertical = 16.dp),
                     value = sliderTemperature,
-                    valueRange = when (apiType) {
-                        ApiType.ANTHROPIC -> 0F..1F
-                        else -> 0F..2F
-                    },
-                    steps = when (apiType) {
-                        ApiType.ANTHROPIC -> 10 - 1
-                        else -> 20 - 1
-                    },
+                    valueRange = 0F..2F,
+                    steps = 19,
+                    enabled = !isUnset,
                     onValueChange = { t ->
-                        sliderTemperature = t
-                        textFieldTemperature = t.toString()
+                        val rounded = (t * 10).roundToInt() / 10F
+                        sliderTemperature = rounded
+                        textFieldTemperature = "%.1f".format(rounded)
+                        isUnset = false
                     }
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(
+                        onClick = {
+                            textFieldTemperature = ""
+                            isUnset = true
+                        }
+                    ) {
+                        Text(stringResource(R.string.reset))
+                    }
+                }
             }
         },
         onDismissRequest = onDismissRequest,
         confirmButton = {
             TextButton(
-                onClick = { onConfirmRequest(sliderTemperature) }
+                onClick = { onConfirmRequest(if (isUnset) null else sliderTemperature) }
             ) {
                 Text(stringResource(R.string.confirm))
             }
@@ -465,17 +444,20 @@ private fun TemperatureDialog(
 private fun TopPDialog(
     topP: Float?,
     onDismissRequest: () -> Unit,
-    onConfirmRequest: (topP: Float) -> Unit
+    onConfirmRequest: (topP: Float?) -> Unit
 ) {
-    val configuration = LocalConfiguration.current
-    var textFieldTopP by remember { mutableStateOf((topP ?: 1F).toString()) }
+    val configuration = LocalWindowInfo.current
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
+    val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
+    var textFieldTopP by remember { mutableStateOf(topP?.let { "%.1f".format(it) } ?: "") }
     var sliderTopP by remember { mutableFloatStateOf(topP ?: 1F) }
+    var isUnset by remember { mutableStateOf(topP == null) }
 
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
         modifier = Modifier
-            .widthIn(max = configuration.screenWidthDp.dp - 40.dp)
-            .heightIn(max = configuration.screenHeightDp.dp - 80.dp),
+            .widthIn(max = screenWidth - 40.dp)
+            .heightIn(max = screenHeight - 80.dp),
         title = { Text(text = stringResource(R.string.top_p_setting)) },
         text = {
             Column(
@@ -489,14 +471,22 @@ private fun TopPDialog(
                     value = textFieldTopP,
                     onValueChange = { p ->
                         textFieldTopP = p
-                        p.toFloatOrNull()?.let {
-                            val rounded = (it.coerceIn(0.1F, 1F) * 100).roundToInt() / 100F
-                            sliderTopP = rounded
+                        if (p.isBlank()) {
+                            isUnset = true
+                        } else {
+                            p.toFloatOrNull()?.let {
+                                val rounded = (it.coerceIn(0.1F, 1F) * 10).roundToInt() / 10F
+                                sliderTopP = rounded
+                                isUnset = false
+                            }
                         }
                     },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     label = {
                         Text(stringResource(R.string.top_p))
+                    },
+                    placeholder = {
+                        Text(stringResource(R.string.not_set))
                     }
                 )
                 Slider(
@@ -506,18 +496,33 @@ private fun TopPDialog(
                     value = sliderTopP,
                     valueRange = 0.1F..1F,
                     steps = 8,
+                    enabled = !isUnset,
                     onValueChange = { t ->
-                        val rounded = (t * 100).roundToInt() / 100F
+                        val rounded = (t * 10).roundToInt() / 10F
                         sliderTopP = rounded
-                        textFieldTopP = rounded.toString()
+                        textFieldTopP = "%.1f".format(rounded)
+                        isUnset = false
                     }
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(
+                        onClick = {
+                            textFieldTopP = ""
+                            isUnset = true
+                        }
+                    ) {
+                        Text(stringResource(R.string.reset))
+                    }
+                }
             }
         },
         onDismissRequest = onDismissRequest,
         confirmButton = {
             TextButton(
-                onClick = { onConfirmRequest(sliderTopP) }
+                onClick = { onConfirmRequest(if (isUnset) null else sliderTopP) }
             ) {
                 Text(stringResource(R.string.confirm))
             }
@@ -538,14 +543,16 @@ private fun SystemPromptDialog(
     onDismissRequest: () -> Unit,
     onConfirmRequest: (text: String) -> Unit
 ) {
-    val configuration = LocalConfiguration.current
+    val configuration = LocalWindowInfo.current
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
+    val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
     var textFieldPrompt by remember { mutableStateOf(prompt) }
 
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
         modifier = Modifier
-            .widthIn(max = configuration.screenWidthDp.dp - 40.dp)
-            .heightIn(max = configuration.screenHeightDp.dp - 80.dp),
+            .widthIn(max = screenWidth - 40.dp)
+            .heightIn(max = screenHeight - 80.dp),
         title = { Text(text = stringResource(R.string.system_prompt_setting)) },
         text = {
             Column(
@@ -567,7 +574,6 @@ private fun SystemPromptDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = {
             TextButton(
-                enabled = textFieldPrompt.isNotBlank(),
                 onClick = { onConfirmRequest(textFieldPrompt) }
             ) {
                 Text(stringResource(R.string.confirm))
@@ -577,6 +583,51 @@ private fun SystemPromptDialog(
             TextButton(
                 onClick = onDismissRequest
             ) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
+@Composable
+fun DeletePlatformDialog(
+    dialogState: PlatformSettingViewModel.DialogState,
+    settingViewModel: PlatformSettingViewModel
+) {
+    if (dialogState.isDeleteDialogOpen) {
+        DeletePlatformDialog(
+            onDismissRequest = settingViewModel::closeDeleteDialog,
+            onConfirmRequest = settingViewModel::deletePlatform
+        )
+    }
+}
+
+@Composable
+private fun DeletePlatformDialog(
+    onDismissRequest: () -> Unit,
+    onConfirmRequest: () -> Unit
+) {
+    val configuration = LocalWindowInfo.current
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
+    val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
+
+    AlertDialog(
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier
+            .widthIn(max = screenWidth - 40.dp)
+            .heightIn(max = screenHeight - 80.dp),
+        title = { Text(text = stringResource(R.string.delete_platform)) },
+        text = {
+            Text(stringResource(R.string.delete_platform_confirmation))
+        },
+        onDismissRequest = onDismissRequest,
+        confirmButton = {
+            TextButton(onClick = onConfirmRequest) {
+                Text(stringResource(R.string.delete))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) {
                 Text(stringResource(R.string.cancel))
             }
         }

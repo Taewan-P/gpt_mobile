@@ -5,6 +5,7 @@ import androidx.compose.ui.res.stringResource
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.dto.APIModel
 import dev.chungjungsoo.gptmobile.data.model.ApiType
+import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.model.DynamicTheme
 import dev.chungjungsoo.gptmobile.data.model.ThemeMode
 
@@ -148,4 +149,14 @@ fun getPlatformAPIBrandText(apiType: ApiType) = when (apiType) {
     ApiType.GOOGLE -> stringResource(R.string.google_brand_text)
     ApiType.GROQ -> stringResource(R.string.groq_brand_text)
     ApiType.OLLAMA -> stringResource(R.string.ollama_brand_text)
+}
+
+fun getClientTypeDisplayName(clientType: ClientType): String = when (clientType) {
+    ClientType.OPENAI -> "OpenAI"
+    ClientType.ANTHROPIC -> "Anthropic"
+    ClientType.GOOGLE -> "Google"
+    ClientType.GROQ -> "Groq"
+    ClientType.OPENROUTER -> "OpenRouter"
+    ClientType.OLLAMA -> "Ollama"
+    ClientType.CUSTOM -> "Custom"
 }

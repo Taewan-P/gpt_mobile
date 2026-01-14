@@ -1,47 +1,62 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
-import android.text.util.Linkify
+import android.util.Log
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardColors
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.halilibo.richtext.commonmark.CommonmarkAstNodeParser
+import com.halilibo.richtext.markdown.BasicMarkdown
+import com.halilibo.richtext.ui.material3.RichText
 import dev.chungjungsoo.gptmobile.R
-import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
-import dev.chungjungsoo.gptmobile.util.getPlatformAPIBrandText
-import dev.jeziellago.compose.markdowntext.MarkdownText
+import java.io.File
 
 @Composable
 fun UserChatBubble(
     modifier: Modifier = Modifier,
     text: String,
-    isLoading: Boolean,
-    onEditClick: () -> Unit,
-    onCopyClick: () -> Unit
+    files: List<String> = emptyList(),
+    onLongPress: () -> Unit
 ) {
     val cardColor = CardColors(
         containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -49,27 +64,27 @@ fun UserChatBubble(
         disabledContentColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.38f),
         disabledContainerColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.38f)
     )
+    val parser = remember { CommonmarkAstNodeParser() }
+    val astNode = remember(text) { parser.parse(text.trimIndent()) }
+    Log.d("UserChatBubble", "files: $files (size: ${files.size})")
+    files.forEachIndexed { index, file ->
+        Log.d("UserChatBubble", "files[$index] = '$file' (length: ${file.length})")
+    }
 
     Column(horizontalAlignment = Alignment.End) {
         Card(
-            modifier = modifier,
+            modifier = modifier
+                .pointerInput(Unit) {
+                    detectTapGestures(onLongPress = { onLongPress.invoke() })
+                },
             shape = RoundedCornerShape(32.dp),
             colors = cardColor
         ) {
-            MarkdownText(
-                modifier = Modifier.padding(16.dp),
-                markdown = text,
-                isTextSelectable = true,
-                linkifyMask = Linkify.WEB_URLS
-            )
-        }
-        Row {
-            if (!isLoading) {
-                EditTextChip(onEditClick)
-                Spacer(modifier = Modifier.width(8.dp))
+            RichText(modifier = Modifier.padding(16.dp)) {
+                BasicMarkdown(astNode = astNode)
             }
-            CopyTextChip(onCopyClick)
         }
+        UserFileThumbnailRow(files = files)
     }
 }
 
@@ -79,43 +94,62 @@ fun OpponentChatBubble(
     canRetry: Boolean,
     isLoading: Boolean,
     isError: Boolean = false,
-    apiType: ApiType,
     text: String,
+    thoughts: String = "",
     onCopyClick: () -> Unit = {},
+    onSelectClick: () -> Unit = {},
     onRetryClick: () -> Unit = {}
 ) {
     val cardColor = CardColors(
-        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-        disabledContentColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.38f),
-        disabledContainerColor = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.38f)
+        containerColor = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onBackground,
+        disabledContentColor = MaterialTheme.colorScheme.background.copy(alpha = 0.38f),
+        disabledContainerColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.38f)
     )
 
+    // Show thinking block while loading if we have thoughts but no text yet
+    val isThinking = isLoading && thoughts.isNotBlank() && text.isBlank()
+
     Column(modifier = modifier) {
-        Column(horizontalAlignment = Alignment.End) {
+        // Thinking block (collapsed by default)
+        if (thoughts.isNotBlank()) {
+            ThinkingBlock(
+                modifier = Modifier.padding(top = 16.dp, start = 8.dp, end = 8.dp),
+                thoughts = thoughts,
+                isLoading = isThinking
+            )
+        }
+
+        Column {
             Card(
-                shape = RoundedCornerShape(32.dp),
+                shape = RoundedCornerShape(0.dp),
                 colors = cardColor
             ) {
-                MarkdownText(
-                    modifier = Modifier.padding(24.dp),
-                    markdown = text.trimIndent() + if (isLoading) "▊" else "",
-                    isTextSelectable = true,
-                    linkifyMask = Linkify.WEB_URLS
-                )
-                if (!isLoading) {
-                    BrandText(apiType)
+                val parser = remember { CommonmarkAstNodeParser() }
+                val displayText = if (isLoading) text.trimIndent() + "●" else text.trimIndent()
+                val astNode = remember(displayText) { parser.parse(displayText) }
+
+                RichText(
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .then(if (isLoading) Modifier.animateContentSize() else Modifier)
+                ) {
+                    BasicMarkdown(astNode = astNode)
                 }
             }
 
             if (!isLoading) {
-                Row {
+                Row(
+                    modifier = Modifier.padding(start = 16.dp)
+                ) {
                     if (!isError) {
-                        CopyTextChip(onCopyClick)
+                        CopyTextIcon(onCopyClick)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        SelectTextIcon(onSelectClick)
                     }
                     if (canRetry) {
                         Spacer(modifier = Modifier.width(8.dp))
-                        RetryChip(onRetryClick)
+                        RetryIcon(onRetryClick)
                     }
                 }
             }
@@ -124,62 +158,87 @@ fun OpponentChatBubble(
 }
 
 @Composable
-private fun EditTextChip(onEditClick: () -> Unit) {
-    AssistChip(
-        onClick = onEditClick,
-        label = { Text(stringResource(R.string.edit)) },
-        leadingIcon = {
-            Icon(
-                Icons.Outlined.Edit,
-                contentDescription = stringResource(R.string.edit),
-                modifier = Modifier.size(AssistChipDefaults.IconSize)
-            )
-        }
-    )
-}
-
-@Composable
-private fun CopyTextChip(onCopyClick: () -> Unit) {
-    AssistChip(
-        onClick = onCopyClick,
-        label = { Text(stringResource(R.string.copy_text)) },
-        leadingIcon = {
-            Icon(
-                imageVector = ImageVector.vectorResource(id = R.drawable.ic_copy),
-                contentDescription = stringResource(R.string.copy_text),
-                modifier = Modifier.size(AssistChipDefaults.IconSize)
-            )
-        }
-    )
-}
-
-@Composable
-private fun RetryChip(onRetryClick: () -> Unit) {
-    AssistChip(
-        onClick = onRetryClick,
-        label = { Text(stringResource(R.string.retry)) },
-        leadingIcon = {
-            Icon(
-                Icons.Rounded.Refresh,
-                contentDescription = stringResource(R.string.retry),
-                modifier = Modifier.size(AssistChipDefaults.IconSize)
-            )
-        }
-    )
-}
-
-@Composable
-private fun BrandText(apiType: ApiType) {
+fun GPTMobileIcon(loading: Boolean) {
     Box(
         modifier = Modifier
-            .padding(start = 24.dp, end = 24.dp, bottom = 16.dp)
-            .fillMaxWidth()
+            .padding(start = 8.dp)
+            .size(40.dp)
+            .clip(RoundedCornerShape(40.dp))
+            .background(color = Color(0xFF00A67D)),
+        contentAlignment = Alignment.Center
     ) {
+        if (loading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(40.dp)
+            )
+        }
+        Image(
+            painter = painterResource(R.drawable.ic_gpt_mobile_no_padding),
+            contentDescription = null,
+            modifier = Modifier.size(24.dp)
+        )
+    }
+}
+
+@Composable
+fun PlatformButton(
+    isLoading: Boolean,
+    name: String,
+    selected: Boolean,
+    onPlatformClick: () -> Unit
+) {
+    val buttonContent: @Composable RowScope.() -> Unit = {
+        Spacer(modifier = Modifier.width(12.dp))
+
+        if (isLoading) {
+            CircularProgressIndicator(modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+        }
+
         Text(
-            modifier = Modifier.align(Alignment.CenterEnd),
-            text = getPlatformAPIBrandText(apiType),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            text = name,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            color = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        if (isLoading) Spacer(modifier = Modifier.width(4.dp))
+    }
+
+    TextButton(
+        modifier = Modifier.widthIn(max = 160.dp),
+        onClick = onPlatformClick,
+        colors = if (selected) ButtonDefaults.filledTonalButtonColors() else ButtonDefaults.textButtonColors(),
+        content = buttonContent
+    )
+}
+
+@Composable
+private fun CopyTextIcon(onCopyClick: () -> Unit) {
+    IconButton(onClick = onCopyClick) {
+        Icon(
+            imageVector = ImageVector.vectorResource(id = R.drawable.ic_copy),
+            contentDescription = stringResource(R.string.copy_text)
+        )
+    }
+}
+
+@Composable
+private fun SelectTextIcon(onSelectClick: () -> Unit) {
+    IconButton(onClick = onSelectClick) {
+        Icon(
+            imageVector = ImageVector.vectorResource(id = R.drawable.ic_select),
+            contentDescription = stringResource(R.string.select_text)
+        )
+    }
+}
+
+@Composable
+private fun RetryIcon(onRetryClick: () -> Unit) {
+    IconButton(onClick = onRetryClick) {
+        Icon(
+            Icons.Rounded.Refresh,
+            contentDescription = stringResource(R.string.retry)
         )
     }
 }
@@ -192,7 +251,7 @@ fun UserChatBubblePreview() {
         in Python?
     """.trimIndent()
     GPTMobileTheme {
-        UserChatBubble(text = sampleText, isLoading = false, onCopyClick = {}, onEditClick = {})
+        UserChatBubble(text = sampleText, files = emptyList(), onLongPress = {})
     }
 }
 
@@ -219,9 +278,88 @@ fun OpponentChatBubblePreview() {
             text = sampleText,
             canRetry = true,
             isLoading = false,
-            apiType = ApiType.OPENAI,
             onCopyClick = {},
             onRetryClick = {}
         )
     }
+}
+
+@Composable
+private fun UserFileThumbnailRow(files: List<String>) {
+    // Filter out empty strings and check if we have valid files
+    val validFiles = files.filter { it.isNotEmpty() && it.isNotBlank() }
+
+    Log.d("UserFileThumbnailRow", "Original files: $files (size: ${files.size})")
+    Log.d("UserFileThumbnailRow", "Valid files: $validFiles (size: ${validFiles.size})")
+
+    if (validFiles.isEmpty()) {
+        return
+    }
+
+    Row(
+        modifier = Modifier
+            .padding(top = 8.dp)
+            .wrapContentHeight()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+    ) {
+        validFiles.forEach { filePath ->
+            UserFileThumbnail(filePath = filePath)
+        }
+    }
+}
+
+@Composable
+private fun UserFileThumbnail(filePath: String) {
+    val file = File(filePath)
+    val isImage = isImageFile(file.extension)
+
+    Column(
+        modifier = Modifier.width(56.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f))
+        ) {
+            if (isImage) {
+                Icon(
+                    imageVector = ImageVector.vectorResource(R.drawable.ic_image),
+                    contentDescription = file.name,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            } else {
+                Icon(
+                    imageVector = ImageVector.vectorResource(R.drawable.ic_file),
+                    contentDescription = file.name,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+        }
+
+        Text(
+            text = file.name,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier
+                .padding(top = 4.dp)
+                .width(56.dp)
+        )
+    }
+}
+
+private fun isImageFile(extension: String?): Boolean {
+    val imageExtensions = setOf("jpg", "jpeg", "png", "gif", "bmp", "webp")
+    return extension?.lowercase() in imageExtensions
 }

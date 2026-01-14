@@ -413,6 +413,7 @@ fun GPTMobileTheme(
         }
 
         useDarkTheme -> darkScheme
+
         else -> lightScheme
     }
     val view = LocalView.current
