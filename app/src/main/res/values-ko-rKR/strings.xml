@@ -117,7 +117,7 @@
     <string name="reset">초기화</string>
     <string name="custom">사용자 지정</string>
     <string name="custom_description">직접 모델 값을 설정하세요.</string>
-    <string name="model_name">모델 이름</string>
+    <string name="model_name">모델 식별자</string>
     <string name="model_custom_example">예시) llama3.2, llava, llama3:latest, …</string>
     <string name="custom_model_warning">API가 지원하는 이름을 입력해야 정상 작동합니다.</string>
     <string name="enter_api_address">API 주소 입력</string>
@@ -152,4 +152,8 @@
     <string name="chat_title_dialog_description">AI 제목 생성은 AICore가 지원되는 디바이스에서만 사용가능합니다.</string>
     <string name="edit_question">사용자 메시지 편집</string>
     <string name="user_message">사용자 메시지</string>
+    <string name="more_options">더보기</string>
+    <string name="not_set">설정되지 않음</string>
+    <string name="export_chat">채팅 내보내기</string>
+    <string name="migration_assistant">마이그레이션 도구</string>
 </resources>
