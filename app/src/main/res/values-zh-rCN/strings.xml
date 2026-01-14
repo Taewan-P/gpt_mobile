@@ -220,7 +220,7 @@
     <string name="model_examples">例如：gpt-4o、claude-sonnet-4-20250514、gemini-1.5-pro</string>
     <string name="back">返回</string>
     <string name="finish">完成</string>
-    <string name="openrouter_description">通过单一API端点，使用多种ai模型</string>
+    <string name="openrouter_description">通过单一API端点，使用多种AI模型</string>
     <string name="custom_provider">自定义提供商</string>
     <string name="custom_provider_description">连接到任意兼容 OpenAI 格式的API端点</string>
     <string name="platform_added_successfully">提供商添加成功</string>
