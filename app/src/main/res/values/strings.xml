@@ -147,7 +147,7 @@
     <string name="select_ollama_model_description">Please select the Ollama model. Since there is so many models and tags that are supported, you can customize the model value. Make sure that the endpoint actually supports the model and get it running. Otherwise, it will not generate a response.</string>
     <string name="custom">Custom</string>
     <string name="custom_description">Use model that is not on the list.</string>
-    <string name="model_name">Model Name</string>
+    <string name="model_name">Model Identifier</string>
     <string name="model_custom_example">e.g. llama3.2, llava, llama3:latest, …</string>
     <string name="custom_model_warning">Note that the model name should be supported by the api.</string>
     <string name="enter_api_address">Enter API Address</string>
