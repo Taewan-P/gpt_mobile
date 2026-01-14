@@ -209,7 +209,7 @@
     <string name="choose_platform_type">选择提供商类型</string>
     <string name="choose_platform_type_description">选择您想要添加的供应商</string>
     <string name="configure_platform">配置提供商</string>
-    <string name="step_basics">普通</string>
+    <string name="step_basics">基本设置</string>
     <string name="step_api_key">API密钥</string>
     <string name="step_model">模型</string>
     <string name="step_x_of_y">第 %1$d 步，共 %2$d 步</string>
