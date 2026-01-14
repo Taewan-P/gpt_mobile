@@ -116,7 +116,7 @@
     <string name="select_ollama_model_description">由于Ollama的模型型号过多，您需要自定义模型。确保API支持您自定义的模型，否则会发生错误</string>
     <string name="custom">自定义模型</string>
     <string name="custom_description">使用的模型不在这个列表中</string>
-    <string name="model_name">模型标识符</string>
+    <string name="model_name">模型名称</string>
     <string name="model_custom_example">示例: llama3.2, llava, llama3:latest, …</string>
     <string name="custom_model_warning">注意：API必须支持您自定义的模型，才可正常使用</string>
     <string name="enter_api_address">输入API地址</string>
@@ -205,7 +205,7 @@
     <string name="your_platforms">你的提供商</string>
     <string name="no_platforms_yet">尚未添加任何提供商</string>
     <string name="add_your_first_platform">开始前，请先添加一个提供商</string>
-    <string name="add_another_platform">添加另一个提供商</string>
+    <string name="add_another_platform">添加提供商</string>
     <string name="choose_platform_type">选择提供商类型</string>
     <string name="choose_platform_type_description">选择您想要添加的供应商</string>
     <string name="configure_platform">配置提供商</string>
