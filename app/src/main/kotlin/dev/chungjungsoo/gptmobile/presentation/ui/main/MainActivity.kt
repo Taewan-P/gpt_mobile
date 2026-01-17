@@ -34,6 +34,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
+        // Prevent keyboard from pushing the entire view up - composable handles insets via imePadding()
+        window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+
         setContent {
             val navController = rememberNavController()
             navController.checkForExistingSettings()

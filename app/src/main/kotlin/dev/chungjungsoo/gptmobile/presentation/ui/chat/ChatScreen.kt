@@ -17,15 +17,18 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -40,11 +43,9 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material3.BottomAppBarDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FabPosition
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
@@ -70,7 +71,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
@@ -88,6 +88,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
 import java.io.File
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -131,14 +132,22 @@ fun ChatScreen(
         listState.animateScrollToItem(groupedMessages.userMessages.size * 2)
     }
 
+    // Auto-scroll to bottom when keyboard opens
+    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    LaunchedEffect(imeVisible) {
+        if (imeVisible) {
+            delay(100) // Small delay to let keyboard animation start
+            listState.animateScrollToItem(groupedMessages.userMessages.size * 2)
+        }
+    }
+
     Scaffold(
         modifier = Modifier
-            .fillMaxSize()
-            .nestedScroll(scrollBehavior.nestedScrollConnection)
             .clickable(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() }
             ) { focusManager.clearFocus() },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             ChatTopBar(
                 chatRoom.title,
@@ -148,8 +157,125 @@ fun ChatScreen(
                 chatViewModel::openChatTitleDialog,
                 onExportChatItemClick = { exportChat(context, chatViewModel) }
             )
-        },
-        bottomBar = {
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .navigationBarsPadding()
+                .imePadding()
+        ) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    state = listState
+                ) {
+                    Log.d("ChatScreen", "GroupMessage: $groupedMessages")
+                    groupedMessages.userMessages.forEachIndexed { i, message ->
+                        // i: index of nth message
+                        val platformIndexState = indexStates.getOrElse(i) { 0 }
+                        val assistantMessages = groupedMessages.assistantMessages.getOrNull(i) ?: emptyList()
+                        val assistantContent = assistantMessages.getOrNull(platformIndexState)?.content ?: ""
+                        val isCurrentPlatformLoading = loadingStates.getOrElse(platformIndexState) { ChatViewModel.LoadingState.Idle } == ChatViewModel.LoadingState.Loading
+                        item {
+                            var isDropDownMenuExpanded by remember { mutableStateOf(false) }
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                horizontalAlignment = Alignment.End
+                            ) {
+                                Box {
+                                    UserChatBubble(
+                                        modifier = Modifier.widthIn(max = maximumUserChatBubbleWidth),
+                                        text = message.content,
+                                        files = message.files,
+                                        onLongPress = { isDropDownMenuExpanded = true }
+                                    )
+                                    ChatBubbleDropdownMenu(
+                                        isChatBubbleDropdownMenuExpanded = isDropDownMenuExpanded,
+                                        canEdit = canUseChat && isIdle,
+                                        onDismissRequest = { isDropDownMenuExpanded = false },
+                                        onEditItemClick = { chatViewModel.openEditQuestionDialog(message) },
+                                        onCopyItemClick = { scope.launch { clipboardManager.setClipEntry(ClipEntry(ClipData.newPlainText(message.content, message.content))) } }
+                                    )
+                                }
+                            }
+                        }
+                        item {
+                            val assistantThoughts = assistantMessages.getOrNull(platformIndexState)?.thoughts ?: ""
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    GPTMobileIcon(if (i == groupedMessages.assistantMessages.size - 1) !isIdle else false)
+                                    if (chatViewModel.enabledPlatformsInChat.size > 1) {
+                                        Row(
+                                            modifier = Modifier
+                                                .padding(horizontal = 16.dp)
+                                                .fillMaxWidth()
+                                                .horizontalScroll(rememberScrollState())
+                                        ) {
+                                            chatViewModel.enabledPlatformsInChat.forEachIndexed { j, uid ->
+                                                val platform = appEnabledPlatforms.find { it.uid == uid }
+                                                val isLoading = loadingStates[j] == ChatViewModel.LoadingState.Loading
+                                                PlatformButton(
+                                                    isLoading = if (i == groupedMessages.assistantMessages.size - 1) isLoading else false,
+                                                    name = platform?.name ?: stringResource(R.string.unknown),
+                                                    selected = platformIndexState == j,
+                                                    onPlatformClick = { chatViewModel.updateChatPlatformIndex(i, j) }
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                            }
+                                        }
+                                    }
+                                }
+                                OpponentChatBubble(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 8.dp)
+                                        .widthIn(max = maximumOpponentChatBubbleWidth),
+                                    canRetry = canUseChat && i == groupedMessages.assistantMessages.size - 1 && !isCurrentPlatformLoading,
+                                    isLoading = if (i == groupedMessages.assistantMessages.size - 1) isCurrentPlatformLoading else false,
+                                    text = assistantContent,
+                                    thoughts = assistantThoughts,
+                                    onCopyClick = { scope.launch { clipboardManager.setClipEntry(ClipEntry(ClipData.newPlainText(assistantContent, assistantContent))) } },
+                                    onSelectClick = { chatViewModel.openSelectTextSheet(assistantContent) },
+                                    onRetryClick = { chatViewModel.retryChat(platformIndexState) }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (listState.canScrollForward) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(bottom = 16.dp),
+                        contentAlignment = Alignment.BottomCenter
+                    ) {
+                        ScrollToBottomButton {
+                            scope.launch {
+                                listState.animateScrollToItem(groupedMessages.userMessages.size * 2)
+                            }
+                        }
+                    }
+                }
+            }
+
             ChatInputBox(
                 value = question,
                 onValueChange = { s -> chatViewModel.updateQuestion(s) },
@@ -161,105 +287,6 @@ fun ChatScreen(
             ) {
                 chatViewModel.askQuestion()
                 focusManager.clearFocus()
-            }
-        },
-        floatingActionButton = {
-            if (listState.canScrollForward) {
-                ScrollToBottomButton {
-                    scope.launch {
-                        listState.animateScrollToItem(groupedMessages.userMessages.size * 2)
-                    }
-                }
-            }
-        },
-        floatingActionButtonPosition = FabPosition.Center
-    ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier.padding(innerPadding),
-            state = listState
-        ) {
-            Log.d("ChatScreen", "GroupMessage: $groupedMessages")
-            groupedMessages.userMessages.forEachIndexed { i, message ->
-                // i: index of nth message
-                val platformIndexState = indexStates.getOrElse(i) { 0 }
-                val assistantMessages = groupedMessages.assistantMessages.getOrNull(i) ?: emptyList()
-                val assistantContent = assistantMessages.getOrNull(platformIndexState)?.content ?: ""
-                val isCurrentPlatformLoading = loadingStates.getOrElse(platformIndexState) { ChatViewModel.LoadingState.Idle } == ChatViewModel.LoadingState.Loading
-                item {
-                    var isDropDownMenuExpanded by remember { mutableStateOf(false) }
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        horizontalAlignment = Alignment.End
-                    ) {
-                        Box {
-                            UserChatBubble(
-                                modifier = Modifier.widthIn(max = maximumUserChatBubbleWidth),
-                                text = message.content,
-                                files = message.files,
-                                onLongPress = { isDropDownMenuExpanded = true }
-                            )
-                            ChatBubbleDropdownMenu(
-                                isChatBubbleDropdownMenuExpanded = isDropDownMenuExpanded,
-                                canEdit = canUseChat && isIdle,
-                                onDismissRequest = { isDropDownMenuExpanded = false },
-                                onEditItemClick = { chatViewModel.openEditQuestionDialog(message) },
-                                onCopyItemClick = { scope.launch { clipboardManager.setClipEntry(ClipEntry(ClipData.newPlainText(message.content, message.content))) } }
-                            )
-                        }
-                    }
-                }
-                item {
-                    val assistantThoughts = assistantMessages.getOrNull(platformIndexState)?.thoughts ?: ""
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            GPTMobileIcon(if (i == groupedMessages.assistantMessages.size - 1) !isIdle else false)
-                            if (chatViewModel.enabledPlatformsInChat.size > 1) {
-                                Row(
-                                    modifier = Modifier
-                                        .padding(horizontal = 16.dp)
-                                        .fillMaxWidth()
-                                        .horizontalScroll(rememberScrollState())
-                                ) {
-                                    chatViewModel.enabledPlatformsInChat.forEachIndexed { j, uid ->
-                                        val platform = appEnabledPlatforms.find { it.uid == uid }
-                                        val isLoading = loadingStates[j] == ChatViewModel.LoadingState.Loading
-                                        PlatformButton(
-                                            isLoading = if (i == groupedMessages.assistantMessages.size - 1) isLoading else false,
-                                            name = platform?.name ?: stringResource(R.string.unknown),
-                                            selected = platformIndexState == j,
-                                            onPlatformClick = { chatViewModel.updateChatPlatformIndex(i, j) }
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                    }
-                                }
-                            }
-                        }
-                        OpponentChatBubble(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 8.dp)
-                                .widthIn(max = maximumOpponentChatBubbleWidth),
-                            canRetry = canUseChat && i == groupedMessages.assistantMessages.size - 1 && !isCurrentPlatformLoading,
-                            isLoading = if (i == groupedMessages.assistantMessages.size - 1) isCurrentPlatformLoading else false,
-                            text = assistantContent,
-                            thoughts = assistantThoughts,
-                            onCopyClick = { scope.launch { clipboardManager.setClipEntry(ClipEntry(ClipData.newPlainText(assistantContent, assistantContent))) } },
-                            onSelectClick = { chatViewModel.openSelectTextSheet(assistantContent) },
-                            onRetryClick = { chatViewModel.retryChat(platformIndexState) }
-                        )
-                    }
-                }
             }
         }
 
@@ -469,8 +496,6 @@ fun ChatInputBox(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .windowInsetsPadding(BottomAppBarDefaults.windowInsets)
-            .padding(BottomAppBarDefaults.ContentPadding)
             .background(color = MaterialTheme.colorScheme.surface)
     ) {
         if (selectedFiles.isNotEmpty()) {
