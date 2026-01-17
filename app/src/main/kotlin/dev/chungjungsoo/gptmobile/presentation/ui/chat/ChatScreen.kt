@@ -17,12 +17,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -88,6 +93,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
 import java.io.File
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -131,55 +137,47 @@ fun ChatScreen(
         listState.animateScrollToItem(groupedMessages.userMessages.size * 2)
     }
 
-    Scaffold(
+    // Auto-scroll to bottom when keyboard opens
+    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    LaunchedEffect(imeVisible) {
+        if (imeVisible) {
+            delay(100) // Small delay to let keyboard animation start
+            listState.animateScrollToItem(groupedMessages.userMessages.size * 2)
+        }
+    }
+
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .nestedScroll(scrollBehavior.nestedScrollConnection)
+            .background(MaterialTheme.colorScheme.background)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .navigationBarsPadding()
+            .imePadding()
             .clickable(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() }
-            ) { focusManager.clearFocus() },
-        topBar = {
-            ChatTopBar(
-                chatRoom.title,
-                chatRoom.id > 0,
-                onBackAction,
-                scrollBehavior,
-                chatViewModel::openChatTitleDialog,
-                onExportChatItemClick = { exportChat(context, chatViewModel) }
-            )
-        },
-        bottomBar = {
-            ChatInputBox(
-                value = question,
-                onValueChange = { s -> chatViewModel.updateQuestion(s) },
-                chatEnabled = canUseChat,
-                sendButtonEnabled = question.trim().isNotBlank() && isIdle,
-                selectedFiles = selectedFiles,
-                onFileSelected = { filePath -> chatViewModel.addSelectedFile(filePath) },
-                onFileRemoved = { filePath -> chatViewModel.removeSelectedFile(filePath) }
-            ) {
-                chatViewModel.askQuestion()
-                focusManager.clearFocus()
-            }
-        },
-        floatingActionButton = {
-            if (listState.canScrollForward) {
-                ScrollToBottomButton {
-                    scope.launch {
-                        listState.animateScrollToItem(groupedMessages.userMessages.size * 2)
-                    }
-                }
-            }
-        },
-        floatingActionButtonPosition = FabPosition.Center
-    ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier.padding(innerPadding),
-            state = listState
+            ) { focusManager.clearFocus() }
+    ) {
+        ChatTopBar(
+            chatRoom.title,
+            chatRoom.id > 0,
+            onBackAction,
+            scrollBehavior,
+            chatViewModel::openChatTitleDialog,
+            onExportChatItemClick = { exportChat(context, chatViewModel) }
+        )
+
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
         ) {
-            Log.d("ChatScreen", "GroupMessage: $groupedMessages")
-            groupedMessages.userMessages.forEachIndexed { i, message ->
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                state = listState
+            ) {
+                Log.d("ChatScreen", "GroupMessage: $groupedMessages")
+                groupedMessages.userMessages.forEachIndexed { i, message ->
                 // i: index of nth message
                 val platformIndexState = indexStates.getOrElse(i) { 0 }
                 val assistantMessages = groupedMessages.assistantMessages.getOrNull(i) ?: emptyList()
@@ -261,6 +259,35 @@ fun ChatScreen(
                     }
                 }
             }
+        }
+
+            if (listState.canScrollForward) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(bottom = 16.dp),
+                    contentAlignment = Alignment.BottomCenter
+                ) {
+                    ScrollToBottomButton {
+                        scope.launch {
+                            listState.animateScrollToItem(groupedMessages.userMessages.size * 2)
+                        }
+                    }
+                }
+            }
+        }
+
+        ChatInputBox(
+            value = question,
+            onValueChange = { s -> chatViewModel.updateQuestion(s) },
+            chatEnabled = canUseChat,
+            sendButtonEnabled = question.trim().isNotBlank() && isIdle,
+            selectedFiles = selectedFiles,
+            onFileSelected = { filePath -> chatViewModel.addSelectedFile(filePath) },
+            onFileRemoved = { filePath -> chatViewModel.removeSelectedFile(filePath) }
+        ) {
+            chatViewModel.askQuestion()
+            focusManager.clearFocus()
         }
 
         if (isChatTitleDialogOpen) {
@@ -469,8 +496,6 @@ fun ChatInputBox(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .windowInsetsPadding(BottomAppBarDefaults.windowInsets)
-            .padding(BottomAppBarDefaults.ContentPadding)
             .background(color = MaterialTheme.colorScheme.surface)
     ) {
         if (selectedFiles.isNotEmpty()) {
