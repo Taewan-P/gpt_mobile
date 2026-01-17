@@ -75,4 +75,12 @@
     <string name="api_model">API-Modell</string>
     <string name="dynamic_theme">Dynamisches Thema</string>
     <string name="dark_mode">Dunkler Modus</string>
+    <string name="more_options">Weitere Optionen</string>
+    <string name="key_icon">Schlüsselsymbol</string>
+    <string name="model_icon">Modellsymbol</string>
+    <string name="send">Senden</string>
+    <string name="copy_text">Text kopieren</string>
+    <string name="retry">Wiederholen</string>
+    <string name="ask_a_question">Stelle eine Frage…</string>
+    <string name="some_platforms_disabled">Einige APIs sind deaktiviert</string>
 </resources>
