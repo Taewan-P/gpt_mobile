@@ -111,6 +111,7 @@ fun ChatScreen(
     val groupedMessages by chatViewModel.groupedMessages.collectAsStateWithLifecycle()
     val indexStates by chatViewModel.indexStates.collectAsStateWithLifecycle()
     val loadingStates by chatViewModel.loadingStates.collectAsStateWithLifecycle()
+    val mcpToolEvents by chatViewModel.mcpToolEvents.collectAsStateWithLifecycle()
     val isChatTitleDialogOpen by chatViewModel.isChatTitleDialogOpen.collectAsStateWithLifecycle()
     val isEditQuestionDialogOpen by chatViewModel.isEditQuestionDialogOpen.collectAsStateWithLifecycle()
     val isSelectTextSheetOpen by chatViewModel.isSelectTextSheetOpen.collectAsStateWithLifecycle()
@@ -209,6 +210,8 @@ fun ChatScreen(
                         }
                         item {
                             val assistantThoughts = assistantMessages.getOrNull(platformIndexState)?.thoughts ?: ""
+                            val toolEventKey = "$i:$platformIndexState"
+                            val currentToolEvents = mcpToolEvents[toolEventKey].orEmpty()
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -254,6 +257,10 @@ fun ChatScreen(
                                     onCopyClick = { scope.launch { clipboardManager.setClipEntry(ClipEntry(ClipData.newPlainText(assistantContent, assistantContent))) } },
                                     onSelectClick = { chatViewModel.openSelectTextSheet(assistantContent) },
                                     onRetryClick = { chatViewModel.retryChat(platformIndexState) }
+                                )
+
+                                McpToolCallBadge(
+                                    events = currentToolEvents
                                 )
                             }
                         }

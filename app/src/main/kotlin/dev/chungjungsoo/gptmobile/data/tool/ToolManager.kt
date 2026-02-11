@@ -21,6 +21,11 @@ class ToolManager @Inject constructor(
         return builtIn + mcp
     }
 
+    fun isBuiltInTool(toolName: String): Boolean =
+        builtInTools.any { it.definition.name == toolName }
+
+    fun isMcpTool(toolName: String): Boolean = !isBuiltInTool(toolName)
+
     override suspend fun execute(toolCall: ToolCall): ToolResult {
         val builtIn = builtInTools.firstOrNull { it.definition.name == toolCall.name }
         if (builtIn != null) {

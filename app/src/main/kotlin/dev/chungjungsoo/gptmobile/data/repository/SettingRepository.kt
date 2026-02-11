@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.repository
 
+import dev.chungjungsoo.gptmobile.data.database.entity.McpServerConfig
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.data.dto.ThemeSetting
@@ -17,4 +18,12 @@ interface SettingRepository {
     suspend fun updatePlatformV2(platform: PlatformV2)
     suspend fun deletePlatformV2(platform: PlatformV2)
     suspend fun getPlatformV2ById(id: Int): PlatformV2?
+
+    // MCP server CRUD operations
+    suspend fun fetchMcpServers(): List<McpServerConfig>
+    suspend fun fetchEnabledMcpServers(): List<McpServerConfig>
+    suspend fun getMcpServerById(id: Int): McpServerConfig?
+    suspend fun addMcpServer(server: McpServerConfig): Long
+    suspend fun updateMcpServer(server: McpServerConfig)
+    suspend fun deleteMcpServer(server: McpServerConfig)
 }

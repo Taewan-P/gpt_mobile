@@ -1,7 +1,9 @@
 package dev.chungjungsoo.gptmobile.data.repository
 
 import dev.chungjungsoo.gptmobile.data.ModelConstants
+import dev.chungjungsoo.gptmobile.data.database.dao.McpServerDao
 import dev.chungjungsoo.gptmobile.data.database.dao.PlatformV2Dao
+import dev.chungjungsoo.gptmobile.data.database.entity.McpServerConfig
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.datastore.SettingDataSource
 import dev.chungjungsoo.gptmobile.data.dto.Platform
@@ -14,7 +16,8 @@ import javax.inject.Inject
 
 class SettingRepositoryImpl @Inject constructor(
     private val settingDataSource: SettingDataSource,
-    private val platformV2Dao: PlatformV2Dao
+    private val platformV2Dao: PlatformV2Dao,
+    private val mcpServerDao: McpServerDao
 ) : SettingRepository {
 
     override suspend fun fetchPlatforms(): List<Platform> = ApiType.entries.map { apiType ->
@@ -132,4 +135,20 @@ class SettingRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getPlatformV2ById(id: Int): PlatformV2? = platformV2Dao.getPlatform(id)
+
+    override suspend fun fetchMcpServers(): List<McpServerConfig> = mcpServerDao.getServers()
+
+    override suspend fun fetchEnabledMcpServers(): List<McpServerConfig> = mcpServerDao.getEnabledServers()
+
+    override suspend fun getMcpServerById(id: Int): McpServerConfig? = mcpServerDao.getServer(id)
+
+    override suspend fun addMcpServer(server: McpServerConfig): Long = mcpServerDao.addServer(server)
+
+    override suspend fun updateMcpServer(server: McpServerConfig) {
+        mcpServerDao.editServer(server)
+    }
+
+    override suspend fun deleteMcpServer(server: McpServerConfig) {
+        mcpServerDao.deleteServer(server)
+    }
 }

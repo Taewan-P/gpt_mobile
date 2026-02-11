@@ -8,8 +8,11 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
+import dev.chungjungsoo.gptmobile.data.dto.ApiState
+import dev.chungjungsoo.gptmobile.data.dto.tool.ToolResult
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
+import dev.chungjungsoo.gptmobile.data.tool.ToolManager
 import dev.chungjungsoo.gptmobile.util.getPlatformName
 import dev.chungjungsoo.gptmobile.util.handleStates
 import javax.inject.Inject
@@ -23,7 +26,8 @@ import kotlinx.coroutines.launch
 class ChatViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val chatRepository: ChatRepository,
-    private val settingRepository: SettingRepository
+    private val settingRepository: SettingRepository,
+    private val toolManager: ToolManager
 ) : ViewModel() {
     sealed class LoadingState {
         data object Idle : LoadingState()
@@ -34,6 +38,22 @@ class ChatViewModel @Inject constructor(
         val userMessages: List<MessageV2> = listOf(),
         val assistantMessages: List<List<MessageV2>> = listOf()
     )
+
+    data class McpToolEvent(
+        val callId: String,
+        val toolName: String,
+        val request: String,
+        val output: String = "",
+        val status: ToolCallStatus = ToolCallStatus.REQUESTED,
+        val isError: Boolean = false
+    )
+
+    enum class ToolCallStatus {
+        REQUESTED,
+        EXECUTING,
+        COMPLETED,
+        FAILED
+    }
 
     private val chatRoomId: Int = checkNotNull(savedStateHandle["chatRoomId"])
     private val enabledPlatformString: String = checkNotNull(savedStateHandle["enabledPlatforms"])
@@ -78,6 +98,10 @@ class ChatViewModel @Inject constructor(
     // Loading states for each platform
     private val _loadingStates = MutableStateFlow(List<LoadingState>(enabledPlatformsInChat.size) { LoadingState.Idle })
     val loadingStates = _loadingStates.asStateFlow()
+
+    // MCP tool call events keyed by "<messageIndex>:<platformIndex>"
+    private val _mcpToolEvents = MutableStateFlow<Map<String, List<McpToolEvent>>>(emptyMap())
+    val mcpToolEvents = _mcpToolEvents.asStateFlow()
 
     // Used for passing user question to Edit User Message Dialog
     private val _editedQuestion = MutableStateFlow(MessageV2(chatId = chatRoomId, content = "", platformType = null))
@@ -164,16 +188,23 @@ class ChatViewModel @Inject constructor(
             it.copy(assistantMessages = updatedAssistantMessages)
         }
 
+        val messageIndex = _groupedMessages.value.userMessages.lastIndex
+        clearMcpToolEvents(messageIndex, platformIndex)
+
         viewModelScope.launch {
             chatRepository.completeChat(
                 _groupedMessages.value.userMessages,
                 _groupedMessages.value.assistantMessages,
-                platform
+                platform,
+                tools = toolManager.getAllTools()
             ).handleStates(
                 messageFlow = _groupedMessages,
                 platformIdx = platformIndex,
                 onLoadingComplete = {
                     _loadingStates.update { it.toMutableList().apply { this[platformIndex] = LoadingState.Idle } }
+                },
+                onToolState = { state ->
+                    updateMcpToolEvents(messageIndex, platformIndex, state)
                 }
             )
         }
@@ -302,23 +333,123 @@ class ChatViewModel @Inject constructor(
         _loadingStates.update { List(enabledPlatformsInChat.size) { LoadingState.Loading } }
 
         // Send chat completion requests
+        val messageIndex = _groupedMessages.value.userMessages.lastIndex
         enabledPlatformsInChat.forEachIndexed { idx, platformUid ->
             val platform = _enabledPlatformsInApp.value.firstOrNull { it.uid == platformUid } ?: return@forEachIndexed
+            clearMcpToolEvents(messageIndex, idx)
             viewModelScope.launch {
                 chatRepository.completeChat(
                     _groupedMessages.value.userMessages,
                     _groupedMessages.value.assistantMessages,
-                    platform
+                    platform,
+                    tools = toolManager.getAllTools()
                 ).handleStates(
                     messageFlow = _groupedMessages,
                     platformIdx = idx,
                     onLoadingComplete = {
                         _loadingStates.update { it.toMutableList().apply { this[idx] = LoadingState.Idle } }
+                    },
+                    onToolState = { state ->
+                        updateMcpToolEvents(messageIndex, idx, state)
                     }
                 )
             }
         }
     }
+
+    fun getMcpToolEvents(messageIndex: Int, platformIndex: Int): List<McpToolEvent> =
+        _mcpToolEvents.value[messagePlatformKey(messageIndex, platformIndex)].orEmpty()
+
+    private fun clearMcpToolEvents(messageIndex: Int, platformIndex: Int) {
+        val key = messagePlatformKey(messageIndex, platformIndex)
+        _mcpToolEvents.update { current -> current - key }
+    }
+
+    private fun updateMcpToolEvents(messageIndex: Int, platformIndex: Int, apiState: ApiState) {
+        val key = messagePlatformKey(messageIndex, platformIndex)
+        val existing = _mcpToolEvents.value[key].orEmpty().toMutableList()
+
+        when (apiState) {
+            is ApiState.ToolCallRequested -> {
+                apiState.toolCalls.forEach { toolCall ->
+                    if (!toolManager.isMcpTool(toolCall.name)) {
+                        return@forEach
+                    }
+                    val existingIndex = existing.indexOfFirst { it.callId == toolCall.id }
+                    val event = McpToolEvent(
+                        callId = toolCall.id,
+                        toolName = toolCall.name,
+                        request = toolCall.arguments.toString(),
+                        status = ToolCallStatus.REQUESTED
+                    )
+                    if (existingIndex >= 0) {
+                        existing[existingIndex] = event
+                    } else {
+                        existing.add(event)
+                    }
+                }
+            }
+
+            is ApiState.ToolExecuting -> {
+                if (!toolManager.isMcpTool(apiState.toolName)) {
+                    return
+                }
+                val targetIndex = existing.indexOfLast {
+                    it.toolName == apiState.toolName &&
+                        it.status != ToolCallStatus.COMPLETED &&
+                        it.status != ToolCallStatus.FAILED
+                }
+                if (targetIndex >= 0) {
+                    existing[targetIndex] = existing[targetIndex].copy(status = ToolCallStatus.EXECUTING)
+                }
+            }
+
+            is ApiState.ToolResultReceived -> {
+                applyToolResults(existing, apiState.results)
+            }
+
+            else -> Unit
+        }
+
+        _mcpToolEvents.update { current ->
+            if (existing.isEmpty()) {
+                current - key
+            } else {
+                current + (key to existing)
+            }
+        }
+    }
+
+    private fun applyToolResults(existing: MutableList<McpToolEvent>, results: List<ToolResult>) {
+        results.forEach { result ->
+            if (!toolManager.isMcpTool(result.name)) {
+                return@forEach
+            }
+            val index = existing.indexOfFirst { it.callId == result.callId }
+            val status = if (result.isError) ToolCallStatus.FAILED else ToolCallStatus.COMPLETED
+            if (index >= 0) {
+                existing[index] = existing[index].copy(
+                    output = result.output,
+                    status = status,
+                    isError = result.isError
+                )
+            } else {
+                existing.add(
+                    McpToolEvent(
+                        callId = result.callId,
+                        toolName = result.name,
+                        request = "{}",
+                        output = result.output,
+                        status = status,
+                        isError = result.isError
+                    )
+                )
+            }
+        }
+    }
+
+    private fun messagePlatformKey(messageIndex: Int, platformIndex: Int): String =
+        "$messageIndex:$platformIndex"
 
     private fun formatCurrentDateTime(): String {
         val currentDate = java.util.Date()
@@ -419,3 +550,10 @@ class ChatViewModel @Inject constructor(
         return merged.filter { it.content.isNotBlank() }.sortedBy { it.createdAt }
     }
 }
+
+
+
+
+
+
+

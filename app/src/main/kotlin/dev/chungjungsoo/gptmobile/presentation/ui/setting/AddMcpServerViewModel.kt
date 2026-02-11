@@ -1,0 +1,264 @@
+package dev.chungjungsoo.gptmobile.presentation.ui.setting
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.chungjungsoo.gptmobile.data.database.entity.McpServerConfig
+import dev.chungjungsoo.gptmobile.data.database.entity.McpTransportType
+import dev.chungjungsoo.gptmobile.data.mcp.McpManager
+import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
+import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+
+@HiltViewModel
+class AddMcpServerViewModel @Inject constructor(
+    private val settingRepository: SettingRepository,
+    private val mcpManager: McpManager
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow(UiState())
+    val uiState: StateFlow<UiState> = _uiState.asStateFlow()
+
+    fun updateName(name: String) {
+        _uiState.update { it.copy(name = name) }
+    }
+
+    fun updateType(type: McpTransportType) {
+        _uiState.update {
+            it.copy(
+                type = type,
+                connectionMessage = null,
+                isConnectionError = false
+            )
+        }
+    }
+
+    fun updateUrl(url: String) {
+        _uiState.update { it.copy(url = url, connectionMessage = null, isConnectionError = false) }
+    }
+
+    fun updateCommand(command: String) {
+        _uiState.update { it.copy(command = command, connectionMessage = null, isConnectionError = false) }
+    }
+
+    fun updateInstallJson(installJson: String) {
+        _uiState.update { it.copy(installJson = installJson) }
+    }
+
+    fun importInstallJson() {
+        val payload = _uiState.value.installJson.trim()
+        if (payload.isBlank()) {
+            _uiState.update {
+                it.copy(
+                    connectionMessage = "Paste install JSON first.",
+                    isConnectionError = true
+                )
+            }
+            return
+        }
+
+        runCatching {
+            parseInstallJson(payload)
+        }.onSuccess { imported ->
+            _uiState.update {
+                it.copy(
+                    name = imported.name.ifBlank { it.name },
+                    type = imported.type,
+                    url = imported.url,
+                    headers = imported.headers,
+                    connectionMessage = "Imported ${imported.name} config (${imported.headers.size} headers).",
+                    isConnectionError = false
+                )
+            }
+        }.onFailure { throwable ->
+            _uiState.update {
+                it.copy(
+                    connectionMessage = throwable.message ?: "Invalid install JSON",
+                    isConnectionError = true
+                )
+            }
+        }
+    }
+
+    fun testConnection() {
+        val state = _uiState.value
+        if (!state.canTest) {
+            return
+        }
+
+        val testConfig = buildServerConfig(id = 0, enabled = true)
+        _uiState.update { it.copy(isTesting = true, connectionMessage = null, isConnectionError = false) }
+
+        viewModelScope.launch {
+            val before = mcpManager.availableTools.value.size
+            val result = mcpManager.connect(testConfig)
+            val after = mcpManager.availableTools.value.size
+            _uiState.update {
+                if (result.isSuccess) {
+                    val discovered = (after - before).coerceAtLeast(0)
+                    it.copy(
+                        isTesting = false,
+                        connectionMessage = if (discovered > 0) {
+                            "Connection successful. Found $discovered new tools."
+                        } else {
+                            "Connection successful."
+                        },
+                        isConnectionError = false
+                    )
+                } else {
+                    it.copy(
+                        isTesting = false,
+                        connectionMessage = result.exceptionOrNull()?.message ?: "Connection failed",
+                        isConnectionError = true
+                    )
+                }
+            }
+        }
+    }
+
+    fun save(onSaved: () -> Unit) {
+        val state = _uiState.value
+        if (!state.isValid || state.isSaving) {
+            return
+        }
+
+        _uiState.update { it.copy(isSaving = true, connectionMessage = null, isConnectionError = false) }
+
+        viewModelScope.launch {
+            runCatching {
+                val insertedId = settingRepository.addMcpServer(buildServerConfig(id = 0, enabled = true))
+                val savedServer = settingRepository.getMcpServerById(insertedId.toInt())
+                if (savedServer != null && savedServer.enabled) {
+                    mcpManager.disconnectAll()
+                    mcpManager.connectAll()
+                }
+            }.onSuccess {
+                _uiState.update { it.copy(isSaving = false) }
+                onSaved()
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        isSaving = false,
+                        connectionMessage = throwable.message ?: "Failed to save server",
+                        isConnectionError = true
+                    )
+                }
+            }
+        }
+    }
+
+    private fun buildServerConfig(id: Int, enabled: Boolean): McpServerConfig = McpServerConfig(
+        id = id,
+        name = _uiState.value.name.trim(),
+        type = _uiState.value.type,
+        url = _uiState.value.url.trim().takeIf { it.isNotBlank() },
+        command = _uiState.value.command.trim().takeIf { it.isNotBlank() },
+        headers = _uiState.value.headers,
+        enabled = enabled
+    )
+
+    private fun parseInstallJson(rawJson: String): ImportedServer {
+        val root = Json.parseToJsonElement(rawJson).jsonObject
+        val mcpServers = root["mcpServers"]?.jsonObject
+            ?: throw IllegalArgumentException("JSON must contain mcpServers")
+
+        val firstServer = mcpServers.entries.firstOrNull()
+            ?: throw IllegalArgumentException("mcpServers is empty")
+
+        val serverName = firstServer.key
+        val serverConfig = firstServer.value.jsonObject
+        val url = serverConfig["url"]?.jsonPrimitive?.content?.trim().orEmpty()
+        if (url.isBlank()) {
+            throw IllegalArgumentException("Install JSON server is missing url")
+        }
+
+        val headers = parseHeaders(serverConfig["headers"]?.jsonObject)
+        val importedType = inferTransportType(serverConfig, url)
+
+        return ImportedServer(
+            name = serverName,
+            type = importedType,
+            url = url,
+            headers = headers
+        )
+    }
+
+    private fun parseHeaders(headersJson: JsonObject?): Map<String, String> {
+        if (headersJson == null) {
+            return emptyMap()
+        }
+
+        return headersJson.entries.associate { (key, value) ->
+            key to value.jsonPrimitive.content
+        }
+    }
+
+    private fun inferTransportType(serverConfig: JsonObject, url: String): McpTransportType {
+        val transportHint = serverConfig["transport"]?.jsonPrimitive?.content
+            ?.trim()
+            ?.lowercase()
+            ?: serverConfig["type"]?.jsonPrimitive?.content
+                ?.trim()
+                ?.lowercase()
+                .orEmpty()
+
+        if (transportHint.contains("ws")) {
+            return McpTransportType.WEBSOCKET
+        }
+        if (transportHint.contains("streamable") || transportHint.contains("http")) {
+            return McpTransportType.STREAMABLE_HTTP
+        }
+        if (transportHint.contains("sse")) {
+            return McpTransportType.SSE
+        }
+
+        return when {
+            url.startsWith("ws://") || url.startsWith("wss://") -> McpTransportType.WEBSOCKET
+            else -> McpTransportType.SSE
+        }
+    }
+
+    data class UiState(
+        val name: String = "",
+        val type: McpTransportType = McpTransportType.STREAMABLE_HTTP,
+        val url: String = "",
+        val command: String = "",
+        val installJson: String = "",
+        val headers: Map<String, String> = emptyMap(),
+        val isSaving: Boolean = false,
+        val isTesting: Boolean = false,
+        val connectionMessage: String? = null,
+        val isConnectionError: Boolean = false
+    ) {
+        val isValid: Boolean
+            get() = name.isNotBlank() && when (type) {
+                McpTransportType.STDIO -> command.isNotBlank()
+                McpTransportType.WEBSOCKET -> url.startsWith("wss://") || url.startsWith("ws://")
+                McpTransportType.STREAMABLE_HTTP,
+                McpTransportType.SSE -> url.startsWith("https://") || url.startsWith("http://")
+            }
+
+        val canTest: Boolean
+            get() = when (type) {
+                McpTransportType.STDIO -> false
+                McpTransportType.WEBSOCKET -> url.startsWith("wss://") || url.startsWith("ws://")
+                McpTransportType.STREAMABLE_HTTP,
+                McpTransportType.SSE -> url.startsWith("https://") || url.startsWith("http://")
+            }
+    }
+
+    private data class ImportedServer(
+        val name: String,
+        val type: McpTransportType,
+        val url: String,
+        val headers: Map<String, String>
+    )
+}

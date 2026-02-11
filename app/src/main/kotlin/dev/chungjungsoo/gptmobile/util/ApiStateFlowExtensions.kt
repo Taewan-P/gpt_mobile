@@ -9,7 +9,8 @@ import kotlinx.coroutines.flow.update
 suspend fun Flow<ApiState>.handleStates(
     messageFlow: MutableStateFlow<ChatViewModel.GroupedMessages>,
     platformIdx: Int,
-    onLoadingComplete: () -> Unit
+    onLoadingComplete: () -> Unit,
+    onToolState: (ApiState) -> Unit = {}
 ) = collect { chunk ->
     when (chunk) {
         is ApiState.Thinking -> messageFlow.addThought(platformIdx, chunk.thinkingChunk)
@@ -25,6 +26,10 @@ suspend fun Flow<ApiState>.handleStates(
             messageFlow.setErrorMessage(platformIdx, chunk.message)
             onLoadingComplete()
         }
+
+        is ApiState.ToolCallRequested,
+        is ApiState.ToolExecuting,
+        is ApiState.ToolResultReceived -> onToolState(chunk)
 
         else -> {}
     }

@@ -56,6 +56,7 @@ fun SettingScreen(
     onNavigationClick: () -> Unit,
     onNavigateToAddPlatform: () -> Unit,
     onNavigateToPlatformSetting: (String) -> Unit,
+    onNavigateToMcpSettings: () -> Unit,
     onNavigateToAboutPage: () -> Unit
 ) {
     val scrollState = rememberScrollState()
@@ -109,6 +110,14 @@ fun SettingScreen(
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
+            )
+
+            SettingItem(
+                title = stringResource(R.string.mcp_servers),
+                description = stringResource(R.string.mcp_servers_description),
+                onItemClick = onNavigateToMcpSettings,
+                showTrailingIcon = true,
+                showLeadingIcon = false
             )
 
             // Dynamic platform list
@@ -258,7 +267,7 @@ fun PlatformItem(
 ) {
     SettingItem(
         title = platform.name,
-        description = "${getClientTypeDisplayName(platform.compatibleType)} • ${if (platform.enabled) stringResource(R.string.enabled) else stringResource(R.string.disabled)}",
+        description = "${getClientTypeDisplayName(platform.compatibleType)} - ${if (platform.enabled) stringResource(R.string.enabled) else stringResource(R.string.disabled)}",
         onItemClick = onItemClick,
         showTrailingIcon = true,
         showLeadingIcon = false
@@ -293,3 +302,5 @@ fun DeletePlatformDialog(
         }
     )
 }
+
+

@@ -18,8 +18,11 @@ import dev.chungjungsoo.gptmobile.presentation.ui.chat.ChatScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.home.HomeScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.migrate.MigrateScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.AboutScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.setting.AddMcpServerScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.AddPlatformScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.LicenseScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.setting.McpServerDetailScreen
+import dev.chungjungsoo.gptmobile.presentation.ui.setting.McpSettingsScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.PlatformSettingScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.SettingScreen
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.SettingViewModelV2
@@ -172,6 +175,7 @@ fun NavGraphBuilder.settingNavigation(navController: NavHostController) {
                         Route.PLATFORM_SETTINGS.replace("{platformUid}", platformUid)
                     )
                 },
+                onNavigateToMcpSettings = { navController.navigate(Route.MCP_SETTINGS) },
                 onNavigateToAboutPage = { navController.navigate(Route.ABOUT_PAGE) }
             )
         }
@@ -193,6 +197,29 @@ fun NavGraphBuilder.settingNavigation(navController: NavHostController) {
             arguments = listOf(navArgument("platformUid") { type = NavType.StringType })
         ) {
             PlatformSettingScreen(
+                onNavigationClick = { navController.navigateUp() }
+            )
+        }
+        composable(Route.MCP_SETTINGS) {
+            McpSettingsScreen(
+                onNavigationClick = { navController.navigateUp() },
+                onAddServer = { navController.navigate(Route.ADD_MCP_SERVER) },
+                onServerClick = { serverId ->
+                    navController.navigate(Route.MCP_SERVER_DETAIL.replace("{serverId}", "$serverId"))
+                }
+            )
+        }
+        composable(Route.ADD_MCP_SERVER) {
+            AddMcpServerScreen(
+                onNavigationClick = { navController.navigateUp() },
+                onServerAdded = { navController.navigateUp() }
+            )
+        }
+        composable(
+            Route.MCP_SERVER_DETAIL,
+            arguments = listOf(navArgument("serverId") { type = NavType.IntType })
+        ) {
+            McpServerDetailScreen(
                 onNavigationClick = { navController.navigateUp() }
             )
         }

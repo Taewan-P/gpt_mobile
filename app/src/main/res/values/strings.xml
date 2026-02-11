@@ -89,7 +89,7 @@
     <string name="send">Send</string>
     <string name="copy_text">Copy Text</string>
     <string name="retry">Retry</string>
-    <string name="ask_a_question">Ask a question…</string>
+    <string name="ask_a_question">Ask a question...</string>
     <string name="some_platforms_disabled">Some APIs are disabled</string>
     <string name="openai_brand_text" translatable="false">Powered by OpenAI</string>
     <string name="anthropic_brand_text" translatable="false">Powered by Claude</string>
@@ -148,7 +148,7 @@
     <string name="custom">Custom</string>
     <string name="custom_description">Use model that is not on the list.</string>
     <string name="model_name">Model Identifier</string>
-    <string name="model_custom_example">e.g. llama3.2, llava, llama3:latest, …</string>
+    <string name="model_custom_example">e.g. llama3.2, llava, llama3:latest, ...</string>
     <string name="custom_model_warning">Note that the model name should be supported by the api.</string>
     <string name="enter_api_address">Enter API Address</string>
     <string name="api_address_description">Please enter the address of your Ollama API including the port number. The app will be using v1/chat/completions endpoint, so please enter only the front part of the full address. The address must end with a \'/\'. e.g) http://192.168.1.100:11434/</string>
@@ -224,7 +224,7 @@
     <string name="client_type_openrouter_desc">OpenRouter OpenAI-compatible API</string>
     <string name="client_type_custom_desc">Custom OpenAI-compatible endpoint</string>
     <string name="api_url_hint">https://api.example.com</string>
-    <string name="api_key_hint">sk-…</string>
+    <string name="api_key_hint">sk-...</string>
     <string name="api_key_supporting">Your API key is stored locally</string>
     <string name="model">Model</string>
     <string name="model_supporting">Enter the model identifier exactly as specified by the API</string>
@@ -235,7 +235,7 @@
     <string name="delete_platform_confirmation">Are you sure you want to delete this platform? This action cannot be undone.</string>
     <string name="view_thinking">View thinking process</string>
     <string name="hide_thinking">Hide thinking</string>
-    <string name="thinking_in_progress">Thinking…</string>
+    <string name="thinking_in_progress">Thinking...</string>
     <string name="expand">Expand</string>
     <string name="collapse">Collapse</string>
     <string name="extended_thinking">Extended Thinking</string>
@@ -267,4 +267,51 @@
     <string name="platform_added_successfully">Platform added successfully</string>
     <string name="at_least_one_platform_required">Add at least one platform to continue</string>
     <string name="remove">Remove</string>
+
+    <!-- MCP Settings -->
+    <string name="mcp_servers">MCP Servers</string>
+    <string name="mcp_servers_description">Manage remote and local MCP tool servers</string>
+    <string name="add_mcp_server">Add MCP Server</string>
+    <string name="add_mcp_server_description">Connect external tool providers</string>
+    <string name="mcp_server_detail">MCP Server</string>
+    <string name="mcp_server_not_found">Server not found.</string>
+    <string name="server_name">Server Name</string>
+    <string name="server_name_hint">Brave MCP</string>
+    <string name="server_url">Server URL</string>
+    <string name="server_url_hint">https://example.com/mcp</string>
+    <string name="transport_type">Connection Type</string>
+    <string name="test_connection">Test Connection</string>
+    <string name="builtin_tools">Built-in Tools</string>
+    <string name="no_builtin_tools_available">No built-in tools available.</string>
+    <string name="stdio_requires_native_support">Local process support is coming in a future phase.</string>
+    <string name="enable_server">Enable Server</string>
+    <string name="delete_server">Delete Server</string>
+    <string name="delete_server_confirmation">Delete this MCP server? This action cannot be undone.</string>
+    <string name="command">Command</string>
+    <string name="command_hint">npx @modelcontextprotocol/server-filesystem .</string>
+
+    <!-- Transport Types -->
+    <string name="transport_websocket">WebSocket</string>
+    <string name="transport_websocket_desc">Bidirectional connection for MCP over WS</string>
+    <string name="transport_http">Streamable HTTP</string>
+    <string name="transport_http_desc">HTTP transport with stream support</string>
+    <string name="transport_sse">Server-Sent Events</string>
+    <string name="transport_sse_desc">Legacy HTTP streaming transport</string>
+    <string name="transport_stdio">Local Process</string>
+    <string name="transport_stdio_desc">Run server as a local subprocess</string>
+    <string name="mcp_install_json">Install JSON</string>
+    <string name="mcp_install_json_hint">Paste mcpServers JSON from provider docs</string>
+    <string name="import_install_json">Import JSON</string>
+    <string name="mcp_headers_imported">Imported headers: %1$d</string>
+    <string name="mcp_tool_call">MCP Tool Call</string>
+    <string name="mcp_tool_calls">MCP Tool Calls</string>
+    <string name="tool_request">Request</string>
+    <string name="tool_output">Output</string>
 </resources>
+
+
+
+
+
+
+
