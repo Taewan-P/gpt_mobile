@@ -22,5 +22,11 @@ enum class ContentBlockType {
     SIGNATURE,
 
     @SerialName("signature_delta")
-    SIGNATURE_DELTA
+    SIGNATURE_DELTA,
+
+    @SerialName("tool_use")
+    TOOL_USE,
+
+    @SerialName("input_json_delta")
+    INPUT_JSON_DELTA
 }

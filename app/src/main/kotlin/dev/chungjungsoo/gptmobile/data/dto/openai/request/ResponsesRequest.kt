@@ -50,7 +50,15 @@ data class ResponsesRequest(
 
     @SerialName("reasoning")
     @EncodeDefault(EncodeDefault.Mode.NEVER)
-    val reasoning: ReasoningConfig? = null
+    val reasoning: ReasoningConfig? = null,
+
+    @SerialName("tools")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val tools: List<OpenAITool>? = null,
+
+    @SerialName("tool_choice")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val toolChoice: String? = null
 )
 
 @OptIn(ExperimentalSerializationApi::class)
@@ -151,7 +159,23 @@ data class ResponseContentPart(
 
     @SerialName("detail")
     @EncodeDefault(EncodeDefault.Mode.NEVER)
-    val detail: String? = null
+    val detail: String? = null,
+
+    @SerialName("call_id")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val callId: String? = null,
+
+    @SerialName("name")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val name: String? = null,
+
+    @SerialName("arguments")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val arguments: String? = null,
+
+    @SerialName("output")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val output: String? = null
 ) {
     companion object {
         fun text(text: String) = ResponseContentPart(type = "input_text", text = text)

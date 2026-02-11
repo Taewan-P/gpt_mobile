@@ -19,13 +19,18 @@ import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.MediaType
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.MessageContent as AnthropicMessageContent
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.MessageRole
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.TextContent as AnthropicTextContent
+import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.ToolResultContent
+import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.ToolUseContent
+import dev.chungjungsoo.gptmobile.data.dto.anthropic.request.AnthropicTool
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.request.InputMessage
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.request.MessageRequest
 import dev.chungjungsoo.gptmobile.data.dto.google.common.Content
+import dev.chungjungsoo.gptmobile.data.dto.google.common.FunctionCall
 import dev.chungjungsoo.gptmobile.data.dto.google.common.Part
 import dev.chungjungsoo.gptmobile.data.dto.google.common.Role as GoogleRole
 import dev.chungjungsoo.gptmobile.data.dto.google.request.GenerateContentRequest
 import dev.chungjungsoo.gptmobile.data.dto.google.request.GenerationConfig
+import dev.chungjungsoo.gptmobile.data.dto.google.request.GoogleTool
 import dev.chungjungsoo.gptmobile.data.dto.openai.common.ImageContent as OpenAIImageContent
 import dev.chungjungsoo.gptmobile.data.dto.openai.common.ImageUrl
 import dev.chungjungsoo.gptmobile.data.dto.openai.common.MessageContent as OpenAIMessageContent
@@ -33,27 +38,39 @@ import dev.chungjungsoo.gptmobile.data.dto.openai.common.Role as OpenAIRole
 import dev.chungjungsoo.gptmobile.data.dto.openai.common.TextContent as OpenAITextContent
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatCompletionRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatMessage
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.OpenAIFunctionCall
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.OpenAIToolCall
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.OpenAITool
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ReasoningConfig
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseContentPart
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseInputContent
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseInputMessage
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponsesRequest
+import dev.chungjungsoo.gptmobile.data.dto.openai.response.OutputItemDoneEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.OutputTextDeltaEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ReasoningSummaryTextDeltaEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseErrorEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseFailedEvent
+import dev.chungjungsoo.gptmobile.data.dto.tool.ProviderTools
+import dev.chungjungsoo.gptmobile.data.dto.tool.Tool
+import dev.chungjungsoo.gptmobile.data.dto.tool.ToolCall
+import dev.chungjungsoo.gptmobile.data.dto.tool.ToolConverter
+import dev.chungjungsoo.gptmobile.data.dto.tool.ToolResult
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.network.AnthropicAPI
 import dev.chungjungsoo.gptmobile.data.network.GoogleAPI
 import dev.chungjungsoo.gptmobile.data.network.OpenAIAPI
+import dev.chungjungsoo.gptmobile.data.tool.ToolExecutor
 import dev.chungjungsoo.gptmobile.util.FileUtils
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.onCompletion
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.put
 
 class ChatRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -64,8 +81,16 @@ class ChatRepositoryImpl @Inject constructor(
     private val settingRepository: SettingRepository,
     private val openAIAPI: OpenAIAPI,
     private val anthropicAPI: AnthropicAPI,
-    private val googleAPI: GoogleAPI
+    private val googleAPI: GoogleAPI,
+    private val toolExecutor: ToolExecutor
 ) : ChatRepository {
+
+    private val json = Json {
+        ignoreUnknownKeys = true
+        explicitNulls = false
+    }
+
+    private val maxToolIterations = 10
 
     private fun isImageFile(extension: String): Boolean = extension in setOf("jpg", "jpeg", "png", "gif", "bmp", "webp", "tiff", "svg")
 
@@ -106,173 +131,249 @@ class ChatRepositoryImpl @Inject constructor(
     override suspend fun completeChat(
         userMessages: List<MessageV2>,
         assistantMessages: List<List<MessageV2>>,
-        platform: PlatformV2
-    ): Flow<ApiState> = when (platform.compatibleType) {
-        ClientType.OPENAI -> {
-            // Use Responses API for OpenAI (supports reasoning/thinking)
-            completeChatWithOpenAIResponses(userMessages, assistantMessages, platform)
-        }
+        platform: PlatformV2,
+        tools: List<Tool>?
+    ): Flow<ApiState> {
+        val providerTools = tools?.let { ToolConverter.convertToolsForProvider(it, platform.compatibleType) }
+        
+        return when (platform.compatibleType) {
+            ClientType.OPENAI -> {
+                completeChatWithOpenAIResponses(userMessages, assistantMessages, platform, providerTools)
+            }
 
-        ClientType.GROQ, ClientType.OLLAMA, ClientType.OPENROUTER, ClientType.CUSTOM -> {
-            // Use Chat Completions API for OpenAI-compatible services
-            completeChatWithOpenAIChatCompletions(userMessages, assistantMessages, platform)
-        }
+            ClientType.GROQ, ClientType.OLLAMA, ClientType.OPENROUTER, ClientType.CUSTOM -> {
+                completeChatWithOpenAIChatCompletions(userMessages, assistantMessages, platform, providerTools)
+            }
 
-        ClientType.ANTHROPIC -> {
-            completeChatWithAnthropic(userMessages, assistantMessages, platform)
-        }
+            ClientType.ANTHROPIC -> {
+                completeChatWithAnthropic(userMessages, assistantMessages, platform, providerTools)
+            }
 
-        ClientType.GOOGLE -> {
-            completeChatWithGoogle(userMessages, assistantMessages, platform)
+            ClientType.GOOGLE -> {
+                completeChatWithGoogle(userMessages, assistantMessages, platform, providerTools)
+            }
         }
     }
 
     private suspend fun completeChatWithOpenAIResponses(
         userMessages: List<MessageV2>,
         assistantMessages: List<List<MessageV2>>,
-        platform: PlatformV2
-    ): Flow<ApiState> = try {
-        // Configure API
-        openAIAPI.setToken(platform.token)
-        openAIAPI.setAPIUrl(platform.apiUrl)
+        platform: PlatformV2,
+        providerTools: ProviderTools?
+    ): Flow<ApiState> = flow {
+        try {
+            openAIAPI.setToken(platform.token)
+            openAIAPI.setAPIUrl(platform.apiUrl)
 
-        // Build input messages for Responses API
-        val inputMessages = mutableListOf<ResponseInputMessage>()
-
-        // Add conversation history (interleaved user and assistant messages)
-        userMessages.forEachIndexed { index, userMsg ->
-            // Add user message with text and/or images
-            inputMessages.add(transformMessageV2ToResponsesInput(userMsg, isUser = true))
-
-            // Add assistant response if available (only include this platform's response)
-            if (index < assistantMessages.size) {
-                assistantMessages[index]
-                    .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
-                    ?.let { assistantMsg ->
-                        inputMessages.add(transformMessageV2ToResponsesInput(assistantMsg, isUser = false))
-                    }
-            }
-        }
-
-        // Create request - include reasoning config only when reasoning is enabled
-        val request = ResponsesRequest(
-            model = platform.model,
-            input = inputMessages,
-            stream = true,
-            instructions = platform.systemPrompt?.takeIf { it.isNotBlank() },
-            temperature = if (platform.reasoning) null else platform.temperature,
-            topP = if (platform.reasoning) null else platform.topP,
-            reasoning = if (platform.reasoning) {
-                ReasoningConfig(
-                    effort = "medium",
-                    summary = "auto"
-                )
-            } else {
-                null
-            }
-        )
-
-        // Stream response
-        flow {
             emit(ApiState.Loading)
-            openAIAPI.streamResponses(request).collect { event ->
-                when (event) {
-                    is ReasoningSummaryTextDeltaEvent -> {
-                        emit(ApiState.Thinking(event.delta))
-                    }
 
-                    is OutputTextDeltaEvent -> {
-                        emit(ApiState.Success(event.delta))
-                    }
+            val openAITools = (providerTools as? ProviderTools.OpenAI)?.tools
+            val inputMessages = buildInitialResponsesInput(userMessages, assistantMessages, platform)
 
-                    is ResponseFailedEvent -> {
-                        val errorMessage = event.response.error?.message ?: "Response failed"
-                        emit(ApiState.Error(errorMessage))
-                    }
+            repeat(maxToolIterations) {
+                val request = ResponsesRequest(
+                    model = platform.model,
+                    input = inputMessages,
+                    stream = true,
+                    instructions = platform.systemPrompt?.takeIf { it.isNotBlank() },
+                    temperature = if (platform.reasoning) null else platform.temperature,
+                    topP = if (platform.reasoning) null else platform.topP,
+                    reasoning = if (platform.reasoning) {
+                        ReasoningConfig(
+                            effort = "medium",
+                            summary = "auto"
+                        )
+                    } else {
+                        null
+                    },
+                    tools = openAITools,
+                    toolChoice = if (openAITools.isNullOrEmpty()) null else "auto"
+                )
 
-                    is ResponseErrorEvent -> {
-                        emit(ApiState.Error(event.message))
-                    }
+                val parsedToolCalls = mutableListOf<ToolCall>()
+                var hasError = false
 
-                    else -> {
-                        // Ignore other events
+                openAIAPI.streamResponses(request).collect { event ->
+                    when (event) {
+                        is ReasoningSummaryTextDeltaEvent -> emit(ApiState.Thinking(event.delta))
+                        is OutputTextDeltaEvent -> emit(ApiState.Success(event.delta))
+                        is OutputItemDoneEvent -> {
+                            if (event.item.type == "function_call") {
+                                toToolCall(
+                                    id = event.item.callId ?: event.item.id,
+                                    name = event.item.name,
+                                    arguments = event.item.arguments
+                                )?.let { parsedToolCalls.add(it) }
+                            }
+                        }
+                        is ResponseFailedEvent -> {
+                            hasError = true
+                            emit(ApiState.Error(event.response.error?.message ?: "Response failed"))
+                        }
+                        is ResponseErrorEvent -> {
+                            hasError = true
+                            emit(ApiState.Error(event.message))
+                        }
+                        else -> {}
                     }
                 }
+
+                if (hasError) {
+                    return@flow
+                }
+
+                if (parsedToolCalls.isEmpty()) {
+                    emit(ApiState.Done)
+                    return@flow
+                }
+
+                emit(ApiState.ToolCallRequested(parsedToolCalls))
+                val results = executeToolCalls(parsedToolCalls) { emit(it) }
+                emit(ApiState.ToolResultReceived(results))
+
+                inputMessages.add(
+                    ResponseInputMessage(
+                        role = "assistant",
+                        content = ResponseInputContent.parts(
+                            parsedToolCalls.map {
+                                ResponseContentPart(
+                                    type = "function_call",
+                                    text = null,
+                                    imageUrl = null,
+                                    detail = null,
+                                    callId = it.id,
+                                    name = it.name,
+                                    arguments = json.encodeToString(JsonObject.serializer(), it.arguments)
+                                )
+                            }
+                        )
+                    )
+                )
+
+                inputMessages.add(
+                    ResponseInputMessage(
+                        role = "user",
+                        content = ResponseInputContent.parts(
+                            results.map {
+                                ResponseContentPart(
+                                    type = "function_call_output",
+                                    text = null,
+                                    imageUrl = null,
+                                    detail = null,
+                                    callId = it.callId,
+                                    output = it.output
+                                )
+                            }
+                        )
+                    )
+                )
             }
-        }.catch { e ->
-            emit(ApiState.Error(e.message ?: "Unknown error"))
-        }.onCompletion {
-            emit(ApiState.Done)
+
+            emit(ApiState.Error("Too many tool call iterations"))
+        } catch (e: Exception) {
+            emit(ApiState.Error(e.message ?: "Failed to complete chat"))
         }
-    } catch (e: Exception) {
-        flowOf(ApiState.Error(e.message ?: "Failed to complete chat"))
     }
 
     private suspend fun completeChatWithOpenAIChatCompletions(
         userMessages: List<MessageV2>,
         assistantMessages: List<List<MessageV2>>,
-        platform: PlatformV2
-    ): Flow<ApiState> = try {
-        // Configure API
-        openAIAPI.setToken(platform.token)
-        openAIAPI.setAPIUrl(platform.apiUrl)
+        platform: PlatformV2,
+        providerTools: ProviderTools?
+    ): Flow<ApiState> = flow {
+        try {
+            openAIAPI.setToken(platform.token)
+            openAIAPI.setAPIUrl(platform.apiUrl)
 
-        // Build message list
-        val messages = mutableListOf<ChatMessage>()
-
-        // Add system message if present
-        platform.systemPrompt?.takeIf { it.isNotBlank() }?.let { systemPrompt ->
-            messages.add(
-                ChatMessage(
-                    role = OpenAIRole.SYSTEM,
-                    content = listOf(OpenAITextContent(text = systemPrompt))
-                )
-            )
-        }
-
-        // Add conversation history (interleaved user and assistant messages)
-        userMessages.forEachIndexed { index, userMsg ->
-            // Add user message
-            messages.add(transformMessageV2ToChatMessage(userMsg, isUser = true))
-
-            // Add assistant response if available (only include this platform's response)
-            if (index < assistantMessages.size) {
-                assistantMessages[index]
-                    .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
-                    ?.let { assistantMsg ->
-                        messages.add(transformMessageV2ToChatMessage(assistantMsg, isUser = false))
-                    }
-            }
-        }
-
-        // Create request
-        val request = ChatCompletionRequest(
-            model = platform.model,
-            messages = messages,
-            stream = platform.stream,
-            temperature = platform.temperature,
-            topP = platform.topP
-        )
-
-        // Stream response
-        flow {
             emit(ApiState.Loading)
-            openAIAPI.streamChatCompletion(request).collect { chunk ->
-                when {
-                    chunk.error != null -> emit(ApiState.Error(chunk.error.message))
 
-                    chunk.choices?.firstOrNull()?.delta?.content != null -> {
-                        emit(ApiState.Success(chunk.choices.first().delta.content!!))
+            val messages = buildInitialChatMessages(userMessages, assistantMessages, platform)
+            val openAITools = (providerTools as? ProviderTools.OpenAI)?.tools
+
+            repeat(maxToolIterations) {
+                val request = ChatCompletionRequest(
+                    model = platform.model,
+                    messages = messages,
+                    stream = platform.stream,
+                    temperature = platform.temperature,
+                    topP = platform.topP,
+                    tools = openAITools,
+                    toolChoice = if (openAITools.isNullOrEmpty()) null else "auto"
+                )
+
+                val toolCallBuilders = linkedMapOf<Int, MutableOpenAIToolCall>()
+                var sawToolCalls = false
+
+                openAIAPI.streamChatCompletion(request).collect { chunk ->
+                    when {
+                        chunk.error != null -> {
+                            emit(ApiState.Error(chunk.error.message))
+                            return@collect
+                        }
+                        chunk.choices?.firstOrNull()?.delta?.content != null -> {
+                            emit(ApiState.Success(chunk.choices.first().delta.content ?: ""))
+                        }
+                    }
+
+                    val deltaToolCalls = chunk.choices?.firstOrNull()?.delta?.toolCalls.orEmpty()
+                    if (deltaToolCalls.isNotEmpty()) {
+                        sawToolCalls = true
+                    }
+
+                    deltaToolCalls.forEach { delta ->
+                        val builder = toolCallBuilders.getOrPut(delta.index) { MutableOpenAIToolCall() }
+                        delta.id?.let { builder.id = it }
+                        delta.function?.name?.let { builder.name = it }
+                        delta.function?.arguments?.let { builder.arguments.append(it) }
                     }
                 }
+
+                if (!sawToolCalls || toolCallBuilders.isEmpty()) {
+                    emit(ApiState.Done)
+                    return@flow
+                }
+
+                val toolCalls = toolCallBuilders.values.mapNotNull { it.toToolCall() }
+                if (toolCalls.isEmpty()) {
+                    emit(ApiState.Error("Failed to parse tool calls"))
+                    return@flow
+                }
+
+                emit(ApiState.ToolCallRequested(toolCalls))
+                val results = executeToolCalls(toolCalls) { emit(it) }
+                emit(ApiState.ToolResultReceived(results))
+
+                messages.add(
+                    ChatMessage(
+                        role = OpenAIRole.ASSISTANT,
+                        content = null,
+                        toolCalls = toolCalls.map {
+                            OpenAIToolCall(
+                                id = it.id,
+                                function = OpenAIFunctionCall(
+                                    name = it.name,
+                                    arguments = json.encodeToString(JsonObject.serializer(), it.arguments)
+                                )
+                            )
+                        }
+                    )
+                )
+
+                results.forEach { result ->
+                    messages.add(
+                        ChatMessage(
+                            role = OpenAIRole.TOOL,
+                            content = listOf(OpenAITextContent(text = result.output)),
+                            toolCallId = result.callId
+                        )
+                    )
+                }
             }
-        }.catch { e ->
-            emit(ApiState.Error(e.message ?: "Unknown error"))
-        }.onCompletion {
-            emit(ApiState.Done)
+
+            emit(ApiState.Error("Too many tool call iterations"))
+        } catch (e: Exception) {
+            emit(ApiState.Error(e.message ?: "Failed to complete chat"))
         }
-    } catch (e: Exception) {
-        flowOf(ApiState.Error(e.message ?: "Failed to complete chat"))
     }
 
     private fun transformMessageV2ToChatMessage(message: MessageV2, isUser: Boolean): ChatMessage {
@@ -347,83 +448,126 @@ class ChatRepositoryImpl @Inject constructor(
     private suspend fun completeChatWithAnthropic(
         userMessages: List<MessageV2>,
         assistantMessages: List<List<MessageV2>>,
-        platform: PlatformV2
-    ): Flow<ApiState> = try {
-        // Configure API
-        anthropicAPI.setToken(platform.token)
-        anthropicAPI.setAPIUrl(platform.apiUrl)
+        platform: PlatformV2,
+        providerTools: ProviderTools?
+    ): Flow<ApiState> = flow {
+        try {
+            anthropicAPI.setToken(platform.token)
+            anthropicAPI.setAPIUrl(platform.apiUrl)
 
-        // Build message list (Anthropic alternates user/assistant)
-        val messages = mutableListOf<InputMessage>()
-
-        userMessages.forEachIndexed { index, userMsg ->
-            // Add user message
-            messages.add(transformMessageV2ToAnthropic(userMsg, MessageRole.USER))
-
-            // Add assistant response if available (only include this platform's response)
-            if (index < assistantMessages.size) {
-                assistantMessages[index]
-                    .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
-                    ?.let { assistantMsg ->
-                        messages.add(transformMessageV2ToAnthropic(assistantMsg, MessageRole.ASSISTANT))
-                    }
-            }
-        }
-
-        // Create request
-        // Note: When thinking is enabled, temperature defaults to 1 and top_p/top_k are not allowed
-        val request = MessageRequest(
-            model = platform.model,
-            messages = messages,
-            maxTokens = if (platform.reasoning) 16000 else 4096,
-            stream = platform.stream,
-            systemPrompt = platform.systemPrompt,
-            temperature = if (platform.reasoning) null else platform.temperature,
-            topP = if (platform.reasoning) null else platform.topP,
-            thinking = if (platform.reasoning) {
-                dev.chungjungsoo.gptmobile.data.dto.anthropic.request.ThinkingConfig(
-                    type = "enabled",
-                    budgetTokens = 10000
-                )
-            } else {
-                null
-            }
-        )
-
-        // Stream response
-        flow {
             emit(ApiState.Loading)
-            anthropicAPI.streamChatMessage(request).collect { chunk ->
-                when (chunk) {
-                    is dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ContentDeltaResponseChunk -> {
-                        when (chunk.delta.type) {
-                            dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ContentBlockType.THINKING_DELTA -> {
-                                chunk.delta.thinking?.let { emit(ApiState.Thinking(it)) }
-                            }
 
-                            dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ContentBlockType.DELTA -> {
-                                chunk.delta.text?.let { emit(ApiState.Success(it)) }
-                            }
+            val messages = buildInitialAnthropicMessages(userMessages, assistantMessages, platform)
+            val anthropicTools = (providerTools as? ProviderTools.Anthropic)?.tools
 
-                            // Ignore signature blocks and other types
-                            else -> {}
+            repeat(maxToolIterations) {
+                val request = MessageRequest(
+                    model = platform.model,
+                    messages = messages,
+                    maxTokens = if (platform.reasoning) 16000 else 4096,
+                    stream = platform.stream,
+                    systemPrompt = platform.systemPrompt,
+                    temperature = if (platform.reasoning) null else platform.temperature,
+                    topP = if (platform.reasoning) null else platform.topP,
+                    thinking = if (platform.reasoning) {
+                        dev.chungjungsoo.gptmobile.data.dto.anthropic.request.ThinkingConfig(
+                            type = "enabled",
+                            budgetTokens = 10000
+                        )
+                    } else {
+                        null
+                    },
+                    tools = anthropicTools
+                )
+
+                val toolCallBuilders = mutableMapOf<Int, MutableAnthropicToolCall>()
+                var sawToolCalls = false
+                var hasError = false
+
+                anthropicAPI.streamChatMessage(request).collect { chunk ->
+                    when (chunk) {
+                        is dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ContentStartResponseChunk -> {
+                            if (chunk.contentBlock.type == dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ContentBlockType.TOOL_USE) {
+                                sawToolCalls = true
+                                toolCallBuilders[chunk.index] = MutableAnthropicToolCall(
+                                    id = chunk.contentBlock.id,
+                                    name = chunk.contentBlock.name,
+                                    argumentsObject = chunk.contentBlock.input,
+                                    argumentsBuilder = StringBuilder()
+                                )
+                            }
                         }
+                        is dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ContentDeltaResponseChunk -> {
+                            when (chunk.delta.type) {
+                                dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ContentBlockType.THINKING_DELTA -> {
+                                    chunk.delta.thinking?.let { emit(ApiState.Thinking(it)) }
+                                }
+                                dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ContentBlockType.DELTA -> {
+                                    chunk.delta.text?.let { emit(ApiState.Success(it)) }
+                                }
+                                dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ContentBlockType.INPUT_JSON_DELTA -> {
+                                    toolCallBuilders[chunk.index]?.argumentsBuilder?.append(chunk.delta.partialJson ?: "")
+                                }
+                                else -> {}
+                            }
+                        }
+                        is dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ErrorResponseChunk -> {
+                            hasError = true
+                            emit(ApiState.Error(chunk.error.message))
+                        }
+                        else -> {}
                     }
-
-                    is dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ErrorResponseChunk -> {
-                        emit(ApiState.Error(chunk.error.message))
-                    }
-
-                    else -> { /* Ignore other chunk types */ }
                 }
+
+                if (hasError) {
+                    return@flow
+                }
+
+                if (!sawToolCalls || toolCallBuilders.isEmpty()) {
+                    emit(ApiState.Done)
+                    return@flow
+                }
+
+                val toolCalls = toolCallBuilders.values.mapNotNull { it.toToolCall() }
+                if (toolCalls.isEmpty()) {
+                    emit(ApiState.Error("Failed to parse tool calls"))
+                    return@flow
+                }
+
+                emit(ApiState.ToolCallRequested(toolCalls))
+                val results = executeToolCalls(toolCalls) { emit(it) }
+                emit(ApiState.ToolResultReceived(results))
+
+                messages.add(
+                    InputMessage(
+                        role = MessageRole.ASSISTANT,
+                        content = toolCalls.map {
+                            ToolUseContent(
+                                id = it.id,
+                                name = it.name,
+                                input = it.arguments
+                            )
+                        }
+                    )
+                )
+                messages.add(
+                    InputMessage(
+                        role = MessageRole.USER,
+                        content = results.map {
+                            ToolResultContent(
+                                toolUseId = it.callId,
+                                content = it.output,
+                                isError = it.isError
+                            )
+                        }
+                    )
+                )
             }
-        }.catch { e ->
-            emit(ApiState.Error(e.message ?: "Unknown error"))
-        }.onCompletion {
-            emit(ApiState.Done)
+
+            emit(ApiState.Error("Too many tool call iterations"))
+        } catch (e: Exception) {
+            emit(ApiState.Error(e.message ?: "Failed to complete chat"))
         }
-    } catch (e: Exception) {
-        flowOf(ApiState.Error(e.message ?: "Failed to complete chat"))
     }
 
     private fun transformMessageV2ToAnthropic(message: MessageV2, role: MessageRole): InputMessage {
@@ -467,78 +611,114 @@ class ChatRepositoryImpl @Inject constructor(
     private suspend fun completeChatWithGoogle(
         userMessages: List<MessageV2>,
         assistantMessages: List<List<MessageV2>>,
-        platform: PlatformV2
-    ): Flow<ApiState> = try {
-        // Configure API
-        googleAPI.setToken(platform.token)
-        googleAPI.setAPIUrl(platform.apiUrl)
+        platform: PlatformV2,
+        providerTools: ProviderTools?
+    ): Flow<ApiState> = flow {
+        try {
+            googleAPI.setToken(platform.token)
+            googleAPI.setAPIUrl(platform.apiUrl)
 
-        // Build contents list
-        val contents = mutableListOf<Content>()
-
-        userMessages.forEachIndexed { index, userMsg ->
-            // Add user message
-            contents.add(transformMessageV2ToGoogle(userMsg, GoogleRole.USER))
-
-            // Add assistant response if available (only include this platform's response)
-            if (index < assistantMessages.size) {
-                assistantMessages[index]
-                    .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
-                    ?.let { assistantMsg ->
-                        contents.add(transformMessageV2ToGoogle(assistantMsg, GoogleRole.MODEL))
-                    }
-            }
-        }
-
-        // Create request
-        val request = GenerateContentRequest(
-            contents = contents,
-            generationConfig = GenerationConfig(
-                temperature = platform.temperature,
-                topP = platform.topP,
-                thinkingConfig = if (platform.reasoning) {
-                    dev.chungjungsoo.gptmobile.data.dto.google.request.ThinkingConfig(
-                        includeThoughts = true
-                    )
-                } else {
-                    null
-                }
-            ),
-            systemInstruction = platform.systemPrompt?.takeIf { it.isNotBlank() }?.let {
-                Content(
-                    parts = listOf(Part.text(it))
-                )
-            }
-        )
-
-        // Stream response
-        flow {
             emit(ApiState.Loading)
-            googleAPI.streamGenerateContent(request, platform.model).collect { response ->
-                when {
-                    response.error != null -> emit(ApiState.Error(response.error.message))
 
-                    response.candidates?.firstOrNull()?.content?.parts != null -> {
-                        val parts = response.candidates.first().content.parts
-                        parts.forEach { part ->
-                            part.text?.let { text ->
-                                if (part.thought == true) {
-                                    emit(ApiState.Thinking(text))
-                                } else {
-                                    emit(ApiState.Success(text))
+            val contents = buildInitialGoogleContents(userMessages, assistantMessages, platform)
+            val googleTools = (providerTools as? ProviderTools.Google)?.tools
+
+            repeat(maxToolIterations) {
+                val request = GenerateContentRequest(
+                    contents = contents,
+                    generationConfig = GenerationConfig(
+                        temperature = platform.temperature,
+                        topP = platform.topP,
+                        thinkingConfig = if (platform.reasoning) {
+                            dev.chungjungsoo.gptmobile.data.dto.google.request.ThinkingConfig(
+                                includeThoughts = true
+                            )
+                        } else {
+                            null
+                        }
+                    ),
+                    systemInstruction = platform.systemPrompt?.takeIf { it.isNotBlank() }?.let {
+                        Content(parts = listOf(Part.text(it)))
+                    },
+                    tools = googleTools
+                )
+
+                val toolCalls = mutableListOf<ToolCall>()
+                var hasError = false
+
+                googleAPI.streamGenerateContent(request, platform.model).collect { response ->
+                    when {
+                        response.error != null -> {
+                            hasError = true
+                            emit(ApiState.Error(response.error.message))
+                            return@collect
+                        }
+                        response.candidates?.firstOrNull()?.content?.parts != null -> {
+                            val parts = response.candidates.first().content.parts
+                            parts.forEach { part ->
+                                part.text?.let { text ->
+                                    if (part.thought == true) {
+                                        emit(ApiState.Thinking(text))
+                                    } else {
+                                        emit(ApiState.Success(text))
+                                    }
+                                }
+
+                                part.functionCall?.let { functionCall ->
+                                    toolCalls.add(
+                                        ToolCall(
+                                            id = "google_${functionCall.name}_${toolCalls.size}",
+                                            name = functionCall.name,
+                                            arguments = functionCall.args
+                                        )
+                                    )
                                 }
                             }
                         }
                     }
                 }
+
+                if (hasError) {
+                    return@flow
+                }
+
+                if (toolCalls.isEmpty()) {
+                    emit(ApiState.Done)
+                    return@flow
+                }
+
+                emit(ApiState.ToolCallRequested(toolCalls))
+                val results = executeToolCalls(toolCalls) { emit(it) }
+                emit(ApiState.ToolResultReceived(results))
+
+                contents.add(
+                    Content(
+                        role = GoogleRole.MODEL,
+                        parts = toolCalls.map {
+                            Part(functionCall = FunctionCall(name = it.name, args = it.arguments))
+                        }
+                    )
+                )
+                contents.add(
+                    Content(
+                        role = GoogleRole.USER,
+                        parts = results.map {
+                            Part.functionResponse(
+                                name = it.name,
+                                response = buildJsonObject {
+                                    put("output", it.output)
+                                    put("is_error", it.isError)
+                                }
+                            )
+                        }
+                    )
+                )
             }
-        }.catch { e ->
-            emit(ApiState.Error(e.message ?: "Unknown error"))
-        }.onCompletion {
-            emit(ApiState.Done)
+
+            emit(ApiState.Error("Too many tool call iterations"))
+        } catch (e: Exception) {
+            emit(ApiState.Error(e.message ?: "Failed to complete chat"))
         }
-    } catch (e: Exception) {
-        flowOf(ApiState.Error(e.message ?: "Failed to complete chat"))
     }
 
     private fun transformMessageV2ToGoogle(message: MessageV2, role: GoogleRole): Content {
@@ -561,6 +741,171 @@ class ChatRepositoryImpl @Inject constructor(
         }
 
         return Content(role = role, parts = parts)
+    }
+
+    private fun buildInitialChatMessages(
+        userMessages: List<MessageV2>,
+        assistantMessages: List<List<MessageV2>>,
+        platform: PlatformV2
+    ): MutableList<ChatMessage> {
+        val messages = mutableListOf<ChatMessage>()
+
+        platform.systemPrompt?.takeIf { it.isNotBlank() }?.let { systemPrompt ->
+            messages.add(
+                ChatMessage(
+                    role = OpenAIRole.SYSTEM,
+                    content = listOf(OpenAITextContent(text = systemPrompt))
+                )
+            )
+        }
+
+        userMessages.forEachIndexed { index, userMsg ->
+            messages.add(transformMessageV2ToChatMessage(userMsg, isUser = true))
+
+            if (index < assistantMessages.size) {
+                assistantMessages[index]
+                    .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
+                    ?.let { assistantMsg ->
+                        messages.add(transformMessageV2ToChatMessage(assistantMsg, isUser = false))
+                    }
+            }
+        }
+
+        return messages
+    }
+
+    private fun buildInitialResponsesInput(
+        userMessages: List<MessageV2>,
+        assistantMessages: List<List<MessageV2>>,
+        platform: PlatformV2
+    ): MutableList<ResponseInputMessage> {
+        val inputMessages = mutableListOf<ResponseInputMessage>()
+
+        userMessages.forEachIndexed { index, userMsg ->
+            inputMessages.add(transformMessageV2ToResponsesInput(userMsg, isUser = true))
+            if (index < assistantMessages.size) {
+                assistantMessages[index]
+                    .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
+                    ?.let { assistantMsg ->
+                        inputMessages.add(transformMessageV2ToResponsesInput(assistantMsg, isUser = false))
+                    }
+            }
+        }
+
+        return inputMessages
+    }
+
+    private fun buildInitialAnthropicMessages(
+        userMessages: List<MessageV2>,
+        assistantMessages: List<List<MessageV2>>,
+        platform: PlatformV2
+    ): MutableList<InputMessage> {
+        val messages = mutableListOf<InputMessage>()
+        userMessages.forEachIndexed { index, userMsg ->
+            messages.add(transformMessageV2ToAnthropic(userMsg, MessageRole.USER))
+
+            if (index < assistantMessages.size) {
+                assistantMessages[index]
+                    .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
+                    ?.let { assistantMsg ->
+                        messages.add(transformMessageV2ToAnthropic(assistantMsg, MessageRole.ASSISTANT))
+                    }
+            }
+        }
+        return messages
+    }
+
+    private fun buildInitialGoogleContents(
+        userMessages: List<MessageV2>,
+        assistantMessages: List<List<MessageV2>>,
+        platform: PlatformV2
+    ): MutableList<Content> {
+        val contents = mutableListOf<Content>()
+        userMessages.forEachIndexed { index, userMsg ->
+            contents.add(transformMessageV2ToGoogle(userMsg, GoogleRole.USER))
+
+            if (index < assistantMessages.size) {
+                assistantMessages[index]
+                    .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
+                    ?.let { assistantMsg ->
+                        contents.add(transformMessageV2ToGoogle(assistantMsg, GoogleRole.MODEL))
+                    }
+            }
+        }
+
+        return contents
+    }
+
+    private suspend fun executeToolCalls(
+        toolCalls: List<ToolCall>,
+        emitState: suspend (ApiState) -> Unit
+    ): List<ToolResult> {
+        val results = mutableListOf<ToolResult>()
+        toolCalls.forEach { toolCall ->
+            emitState(ApiState.ToolExecuting(toolCall.name))
+            results.add(toolExecutor.execute(toolCall))
+        }
+        return results
+    }
+
+    private fun toToolCall(id: String?, name: String?, arguments: String?): ToolCall? {
+        if (id.isNullOrBlank() || name.isNullOrBlank() || arguments.isNullOrBlank()) {
+            return null
+        }
+
+        val argumentsObject = parseArguments(arguments) ?: return null
+        return ToolCall(id = id, name = name, arguments = argumentsObject)
+    }
+
+    private fun parseArguments(arguments: String): JsonObject? = try {
+        Json.parseToJsonElement(arguments).jsonObject
+    } catch (_: Exception) {
+        null
+    }
+
+    private data class MutableOpenAIToolCall(
+        var id: String? = null,
+        var name: String? = null,
+        val arguments: StringBuilder = StringBuilder()
+    ) {
+        fun toToolCall(): ToolCall? {
+            val callId = id ?: return null
+            val toolName = name ?: return null
+            val args = try {
+                Json.parseToJsonElement(arguments.toString()).jsonObject
+            } catch (_: Exception) {
+                return null
+            }
+
+            return ToolCall(
+                id = callId,
+                name = toolName,
+                arguments = args
+            )
+        }
+    }
+
+    private data class MutableAnthropicToolCall(
+        var id: String?,
+        var name: String?,
+        var argumentsObject: JsonObject?,
+        val argumentsBuilder: StringBuilder
+    ) {
+        fun toToolCall(): ToolCall? {
+            val callId = id ?: return null
+            val toolName = name ?: return null
+            val args = argumentsObject ?: try {
+                Json.parseToJsonElement(argumentsBuilder.toString()).jsonObject
+            } catch (_: Exception) {
+                return null
+            }
+
+            return ToolCall(
+                id = callId,
+                name = toolName,
+                arguments = args
+            )
+        }
     }
 
     override suspend fun fetchChatList(): List<ChatRoom> = chatRoomDao.getChatRooms()

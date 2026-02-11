@@ -12,5 +12,8 @@ enum class Role {
     USER,
 
     @SerialName("assistant")
-    ASSISTANT
+    ASSISTANT,
+
+    @SerialName("tool")
+    TOOL
 }

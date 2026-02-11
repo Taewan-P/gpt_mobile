@@ -18,7 +18,11 @@ data class GenerateContentRequest(
 
     @SerialName("systemInstruction")
     @EncodeDefault(EncodeDefault.Mode.NEVER)
-    val systemInstruction: Content? = null
+    val systemInstruction: Content? = null,
+
+    @SerialName("tools")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val tools: List<GoogleTool>? = null
 )
 
 @OptIn(ExperimentalSerializationApi::class)

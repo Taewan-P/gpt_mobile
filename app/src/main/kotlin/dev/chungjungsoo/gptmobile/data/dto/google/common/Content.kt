@@ -2,6 +2,7 @@ package dev.chungjungsoo.gptmobile.data.dto.google.common
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 
 @Serializable
 data class Content(
@@ -27,11 +28,23 @@ data class Part(
     val inlineData: InlineData? = null,
 
     @SerialName("thought")
-    val thought: Boolean? = null
+    val thought: Boolean? = null,
+
+    @SerialName("functionCall")
+    val functionCall: FunctionCall? = null,
+
+    @SerialName("functionResponse")
+    val functionResponse: FunctionResponse? = null
 ) {
     companion object {
         fun text(text: String) = Part(text = text)
         fun inlineData(mimeType: String, data: String) = Part(inlineData = InlineData(mimeType, data))
+        fun functionResponse(name: String, response: JsonObject) = Part(
+            functionResponse = FunctionResponse(
+                name = name,
+                response = response
+            )
+        )
     }
 }
 
@@ -43,4 +56,22 @@ data class InlineData(
     // Base64-encoded
     @SerialName("data")
     val data: String
+)
+
+@Serializable
+data class FunctionCall(
+    @SerialName("name")
+    val name: String,
+
+    @SerialName("args")
+    val args: JsonObject
+)
+
+@Serializable
+data class FunctionResponse(
+    @SerialName("name")
+    val name: String,
+
+    @SerialName("response")
+    val response: JsonObject
 )

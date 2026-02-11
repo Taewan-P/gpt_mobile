@@ -16,6 +16,7 @@ import dev.chungjungsoo.gptmobile.data.network.OpenAIAPI
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepositoryImpl
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
+import dev.chungjungsoo.gptmobile.data.tool.ToolExecutor
 import javax.inject.Singleton
 
 @Module
@@ -33,7 +34,8 @@ object ChatRepositoryModule {
         settingRepository: SettingRepository,
         openAIAPI: OpenAIAPI,
         anthropicAPI: AnthropicAPI,
-        googleAPI: GoogleAPI
+        googleAPI: GoogleAPI,
+        toolExecutor: ToolExecutor
     ): ChatRepository = ChatRepositoryImpl(
         context,
         chatRoomDao,
@@ -43,6 +45,7 @@ object ChatRepositoryModule {
         settingRepository,
         openAIAPI,
         anthropicAPI,
-        googleAPI
+        googleAPI,
+        toolExecutor
     )
 }
