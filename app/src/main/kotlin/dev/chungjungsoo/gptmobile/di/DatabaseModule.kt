@@ -2,6 +2,8 @@ package dev.chungjungsoo.gptmobile.di
 
 import android.content.Context
 import androidx.room.Room
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -11,6 +13,7 @@ import dev.chungjungsoo.gptmobile.data.database.ChatDatabase
 import dev.chungjungsoo.gptmobile.data.database.ChatDatabaseV2
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomDao
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomV2Dao
+import dev.chungjungsoo.gptmobile.data.database.dao.McpServerDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.PlatformV2Dao
@@ -38,6 +41,9 @@ object DatabaseModule {
     fun provideMessageV2Dao(chatDatabaseV2: ChatDatabaseV2): MessageV2Dao = chatDatabaseV2.messageDao()
 
     @Provides
+    fun provideMcpServerDao(chatDatabaseV2: ChatDatabaseV2): McpServerDao = chatDatabaseV2.mcpServerDao()
+
+    @Provides
     @Singleton
     fun provideChatDatabase(@ApplicationContext appContext: Context): ChatDatabase = Room.databaseBuilder(
         appContext,
@@ -51,5 +57,28 @@ object DatabaseModule {
         appContext,
         ChatDatabaseV2::class.java,
         DB_NAME_V2
-    ).build()
+    )
+        .addMigrations(MIGRATION_1_2_V2)
+        .build()
+
+    private val MIGRATION_1_2_V2 = object : Migration(1, 2) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS mcp_servers (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    name TEXT NOT NULL,
+                    type TEXT NOT NULL,
+                    url TEXT,
+                    command TEXT,
+                    args TEXT NOT NULL,
+                    env TEXT NOT NULL,
+                    headers TEXT NOT NULL,
+                    enabled INTEGER NOT NULL,
+                    allowed_tools TEXT
+                )
+                """.trimIndent()
+            )
+        }
+    }
 }
