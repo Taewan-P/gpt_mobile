@@ -20,9 +20,14 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -40,6 +45,13 @@ fun AddMcpServerScreen(
     onServerAdded: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var installJsonField by remember { mutableStateOf(TextFieldValue(uiState.installJson)) }
+
+    LaunchedEffect(uiState.installJson) {
+        if (uiState.installJson != installJsonField.text) {
+            installJsonField = TextFieldValue(uiState.installJson)
+        }
+    }
 
     Scaffold(
         modifier = modifier,
@@ -64,8 +76,11 @@ fun AddMcpServerScreen(
                 .imePadding()
         ) {
             OutlinedTextField(
-                value = uiState.installJson,
-                onValueChange = viewModel::updateInstallJson,
+                value = installJsonField,
+                onValueChange = { value ->
+                    installJsonField = value
+                    viewModel.updateInstallJson(value.text)
+                },
                 label = { Text(stringResource(R.string.mcp_install_json)) },
                 placeholder = { Text(stringResource(R.string.mcp_install_json_hint)) },
                 modifier = Modifier

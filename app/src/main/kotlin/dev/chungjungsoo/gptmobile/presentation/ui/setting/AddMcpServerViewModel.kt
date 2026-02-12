@@ -151,23 +151,18 @@ class AddMcpServerViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching {
                 val insertedId = settingRepository.addMcpServer(buildServerConfig(id = 0, enabled = true))
-                val savedServer = settingRepository.getMcpServerById(insertedId.toInt())
-                savedServer
+                settingRepository.getMcpServerById(insertedId.toInt())
             }.onSuccess {
-                _uiState.update { it.copy(isSaving = false) }
-                onSaved()
-
-                // Refresh MCP connections in background so save/navigation is instant.
                 if (it != null && it.enabled) {
-                    viewModelScope.launch {
-                        runCatching {
-                            withTimeout(REFRESH_CONNECTION_TIMEOUT_MS) {
-                                mcpManager.disconnectAll()
-                                mcpManager.connectAll()
-                            }
+                    runCatching {
+                        withTimeout(CONNECT_SAVED_SERVER_TIMEOUT_MS) {
+                            mcpManager.connect(it).getOrThrow()
                         }
                     }
                 }
+
+                _uiState.update { it.copy(isSaving = false) }
+                onSaved()
             }.onFailure { throwable ->
                 _uiState.update {
                     it.copy(
@@ -289,6 +284,6 @@ class AddMcpServerViewModel @Inject constructor(
 
     companion object {
         private const val TEST_CONNECTION_TIMEOUT_MS = 25_000L
-        private const val REFRESH_CONNECTION_TIMEOUT_MS = 12_000L
+        private const val CONNECT_SAVED_SERVER_TIMEOUT_MS = 8_000L
     }
 }

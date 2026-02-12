@@ -50,8 +50,11 @@ class McpServerDetailViewModel @Inject constructor(
                     isStatusError = false
                 )
             }
-            mcpManager.disconnectAll()
-            mcpManager.connectAll()
+            if (enabled) {
+                mcpManager.connect(updated)
+            } else {
+                mcpManager.disconnect(updated.id)
+            }
         }
     }
 
@@ -84,12 +87,13 @@ class McpServerDetailViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching {
                 settingRepository.deleteMcpServer(currentServer)
-                runCatching {
-                    mcpManager.disconnectAll()
-                    mcpManager.connectAll()
-                }
             }.onSuccess {
                 _uiState.update { it.copy(server = null, isDeleted = true) }
+
+                // Cleanup should not block navigation; disconnect in background.
+                viewModelScope.launch {
+                    runCatching { mcpManager.disconnect(currentServer.id) }
+                }
             }.onFailure { throwable ->
                 _uiState.update {
                     it.copy(

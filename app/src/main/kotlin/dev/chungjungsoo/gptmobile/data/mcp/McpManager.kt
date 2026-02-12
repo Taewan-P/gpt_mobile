@@ -70,7 +70,7 @@ class McpManager @Inject constructor(
     suspend fun connect(config: McpServerConfig): Result<Unit> = runCatching {
         lock.withLock {
             connectInternal(config)
-            refreshToolListLocked()
+            refreshServerToolsLocked(config.id)
         }
     }
 
@@ -117,6 +117,51 @@ class McpManager @Inject constructor(
             toolToServer.clear()
             _availableTools.value = emptyList()
         }
+    }
+
+    suspend fun disconnect(serverId: Int) {
+        lock.withLock {
+            connections.remove(serverId)?.let { connection ->
+                runCatching { connection.client.close() }
+            }
+            removeServerToolsLocked(serverId)
+        }
+    }
+
+    private fun removeServerToolsLocked(serverId: Int) {
+        val removedNames = toolToServer
+            .filterValues { it == serverId }
+            .keys
+            .toSet()
+        if (removedNames.isEmpty()) {
+            return
+        }
+
+        removedNames.forEach { toolToServer.remove(it) }
+        _availableTools.value = _availableTools.value.filterNot { it.name in removedNames }
+    }
+
+    private suspend fun refreshServerToolsLocked(serverId: Int) {
+        removeServerToolsLocked(serverId)
+
+        val connection = connections[serverId] ?: return
+        val mcpTools = listAllTools(connection.client)
+        val filteredTools = connection.config.allowedTools?.let { allowed ->
+            mcpTools.filter { it.name in allowed }
+        } ?: mcpTools
+
+        val mergedTools = _availableTools.value.toMutableList()
+        filteredTools.forEach { mcpTool ->
+            val existing = toolToServer[mcpTool.name]
+            if (existing != null && existing != serverId) {
+                Log.w(TAG, "Tool name collision: " + mcpTool.name + " from server " + serverId + " overrides " + existing)
+                mergedTools.removeAll { it.name == mcpTool.name }
+            }
+            toolToServer[mcpTool.name] = serverId
+            mergedTools.add(mcpTool.toUnifiedTool())
+        }
+
+        _availableTools.value = mergedTools
     }
 
     private suspend fun connectInternal(config: McpServerConfig) {
