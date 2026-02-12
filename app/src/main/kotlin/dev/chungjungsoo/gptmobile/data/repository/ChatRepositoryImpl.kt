@@ -68,6 +68,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
@@ -849,18 +850,29 @@ class ChatRepositoryImpl @Inject constructor(
     }
 
     private fun toToolCall(id: String?, name: String?, arguments: String?): ToolCall? {
-        if (id.isNullOrBlank() || name.isNullOrBlank() || arguments.isNullOrBlank()) {
+        if (id.isNullOrBlank() || name.isNullOrBlank()) {
             return null
         }
 
-        val argumentsObject = parseArguments(arguments) ?: return null
+        val argumentsObject = parseArguments(arguments)
         return ToolCall(id = id, name = name, arguments = argumentsObject)
     }
 
-    private fun parseArguments(arguments: String): JsonObject? = try {
-        Json.parseToJsonElement(arguments).jsonObject
-    } catch (_: Exception) {
-        null
+    private fun parseArguments(arguments: String?): JsonObject {
+        val payload = arguments?.trim().orEmpty()
+        if (payload.isBlank()) {
+            return buildJsonObject {}
+        }
+
+        val parsed = runCatching { Json.parseToJsonElement(payload) }.getOrNull() ?: return buildJsonObject {}
+        return when (parsed) {
+            is JsonObject -> parsed
+            is JsonPrimitive -> {
+                val nestedJson = parsed.content.trim()
+                runCatching { Json.parseToJsonElement(nestedJson).jsonObject }.getOrElse { buildJsonObject {} }
+            }
+            else -> buildJsonObject {}
+        }
     }
 
     private data class MutableOpenAIToolCall(
@@ -874,7 +886,7 @@ class ChatRepositoryImpl @Inject constructor(
             val args = try {
                 Json.parseToJsonElement(arguments.toString()).jsonObject
             } catch (_: Exception) {
-                return null
+                buildJsonObject {}
             }
 
             return ToolCall(
@@ -897,7 +909,7 @@ class ChatRepositoryImpl @Inject constructor(
             val args = argumentsObject ?: try {
                 Json.parseToJsonElement(argumentsBuilder.toString()).jsonObject
             } catch (_: Exception) {
-                return null
+                buildJsonObject {}
             }
 
             return ToolCall(

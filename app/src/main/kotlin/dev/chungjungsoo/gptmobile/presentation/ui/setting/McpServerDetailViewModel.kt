@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 
 @HiltViewModel
 class McpServerDetailViewModel @Inject constructor(
@@ -59,7 +60,11 @@ class McpServerDetailViewModel @Inject constructor(
         _uiState.update { it.copy(isTesting = true, statusMessage = null, isStatusError = false) }
 
         viewModelScope.launch {
-            val result = mcpManager.connect(currentServer.copy(enabled = true))
+            val result = runCatching {
+                withTimeout(TEST_CONNECTION_TIMEOUT_MS) {
+                    mcpManager.connect(currentServer.copy(enabled = true)).getOrThrow()
+                }
+            }
             _uiState.update {
                 if (result.isSuccess) {
                     it.copy(isTesting = false, statusMessage = "Connection successful", isStatusError = false)
@@ -74,16 +79,17 @@ class McpServerDetailViewModel @Inject constructor(
         }
     }
 
-    fun delete(onDeleted: () -> Unit) {
+    fun delete() {
         val currentServer = _uiState.value.server ?: return
         viewModelScope.launch {
             runCatching {
                 settingRepository.deleteMcpServer(currentServer)
-                mcpManager.disconnectAll()
-                mcpManager.connectAll()
+                runCatching {
+                    mcpManager.disconnectAll()
+                    mcpManager.connectAll()
+                }
             }.onSuccess {
                 _uiState.update { it.copy(server = null, isDeleted = true) }
-                onDeleted()
             }.onFailure { throwable ->
                 _uiState.update {
                     it.copy(
@@ -102,4 +108,8 @@ class McpServerDetailViewModel @Inject constructor(
         val isStatusError: Boolean = false,
         val isDeleted: Boolean = false
     )
+
+    companion object {
+        private const val TEST_CONNECTION_TIMEOUT_MS = 10_000L
+    }
 }

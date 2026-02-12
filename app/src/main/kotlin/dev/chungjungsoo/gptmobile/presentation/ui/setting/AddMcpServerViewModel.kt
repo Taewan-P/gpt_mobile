@@ -8,11 +8,13 @@ import dev.chungjungsoo.gptmobile.data.database.entity.McpTransportType
 import dev.chungjungsoo.gptmobile.data.mcp.McpManager
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import javax.inject.Inject
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
@@ -99,7 +101,11 @@ class AddMcpServerViewModel @Inject constructor(
 
         viewModelScope.launch {
             val before = mcpManager.availableTools.value.size
-            val result = mcpManager.connect(testConfig)
+            val result = runCatching {
+                withTimeout(TEST_CONNECTION_TIMEOUT_MS) {
+                    mcpManager.connect(testConfig).getOrThrow()
+                }
+            }
             val after = mcpManager.availableTools.value.size
             _uiState.update {
                 if (result.isSuccess) {
@@ -114,9 +120,19 @@ class AddMcpServerViewModel @Inject constructor(
                         isConnectionError = false
                     )
                 } else {
+                    val error = result.exceptionOrNull()
                     it.copy(
                         isTesting = false,
-                        connectionMessage = result.exceptionOrNull()?.message ?: "Connection failed",
+                        connectionMessage = when {
+                            error is TimeoutCancellationException -> {
+                                if (state.url.contains("context7.com", ignoreCase = true)) {
+                                    "Connection timed out. For Context7, use Streamable HTTP and include auth header if required."
+                                } else {
+                                    "Connection timed out. Verify server URL/transport and try again."
+                                }
+                            }
+                            else -> error?.message ?: "Connection failed"
+                        },
                         isConnectionError = true
                     )
                 }
@@ -136,13 +152,22 @@ class AddMcpServerViewModel @Inject constructor(
             runCatching {
                 val insertedId = settingRepository.addMcpServer(buildServerConfig(id = 0, enabled = true))
                 val savedServer = settingRepository.getMcpServerById(insertedId.toInt())
-                if (savedServer != null && savedServer.enabled) {
-                    mcpManager.disconnectAll()
-                    mcpManager.connectAll()
-                }
+                savedServer
             }.onSuccess {
                 _uiState.update { it.copy(isSaving = false) }
                 onSaved()
+
+                // Refresh MCP connections in background so save/navigation is instant.
+                if (it != null && it.enabled) {
+                    viewModelScope.launch {
+                        runCatching {
+                            withTimeout(REFRESH_CONNECTION_TIMEOUT_MS) {
+                                mcpManager.disconnectAll()
+                                mcpManager.connectAll()
+                            }
+                        }
+                    }
+                }
             }.onFailure { throwable ->
                 _uiState.update {
                     it.copy(
@@ -222,7 +247,7 @@ class AddMcpServerViewModel @Inject constructor(
 
         return when {
             url.startsWith("ws://") || url.startsWith("wss://") -> McpTransportType.WEBSOCKET
-            else -> McpTransportType.SSE
+            else -> McpTransportType.STREAMABLE_HTTP
         }
     }
 
@@ -261,4 +286,9 @@ class AddMcpServerViewModel @Inject constructor(
         val url: String,
         val headers: Map<String, String>
     )
+
+    companion object {
+        private const val TEST_CONNECTION_TIMEOUT_MS = 25_000L
+        private const val REFRESH_CONNECTION_TIMEOUT_MS = 12_000L
+    }
 }

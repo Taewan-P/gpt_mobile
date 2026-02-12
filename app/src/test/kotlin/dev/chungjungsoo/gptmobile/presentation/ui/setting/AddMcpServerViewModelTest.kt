@@ -56,4 +56,16 @@ class AddMcpServerViewModelTest {
         assertTrue(withCommand.isValid)
         assertFalse(withCommand.canTest)
     }
+
+    @Test
+    fun inferType_defaultsToStreamableHttpForHttpUrls() {
+        val state = AddMcpServerViewModel.UiState(
+            name = "Context7",
+            type = McpTransportType.STREAMABLE_HTTP,
+            url = "https://mcp.context7.com/mcp"
+        )
+
+        assertTrue(state.isValid)
+        assertTrue(state.canTest)
+    }
 }

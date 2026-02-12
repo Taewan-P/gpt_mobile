@@ -158,7 +158,13 @@ fun AddMcpServerScreen(
                 enabled = uiState.canTest && !uiState.isTesting && !uiState.isSaving,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                Text(stringResource(R.string.test_connection))
+                Text(
+                    if (uiState.isTesting) {
+                        stringResource(R.string.testing)
+                    } else {
+                        stringResource(R.string.test_connection)
+                    }
+                )
             }
 
             uiState.connectionMessage?.let { message ->
@@ -177,7 +183,7 @@ fun AddMcpServerScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             PrimaryLongButton(
-                text = stringResource(R.string.save),
+                text = if (uiState.isSaving) stringResource(R.string.saving) else stringResource(R.string.save),
                 enabled = uiState.isValid && !uiState.isSaving,
                 onClick = { viewModel.save(onServerAdded) }
             )

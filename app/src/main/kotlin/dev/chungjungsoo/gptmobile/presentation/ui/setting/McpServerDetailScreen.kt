@@ -20,6 +20,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,6 +44,12 @@ fun McpServerDetailScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val server = uiState.server
     var isDeleteDialogOpen by remember { mutableStateOf(false) }
+
+    LaunchedEffect(uiState.isDeleted) {
+        if (uiState.isDeleted) {
+            onNavigationClick()
+        }
+    }
 
     Scaffold(
         modifier = modifier,
@@ -87,7 +94,13 @@ fun McpServerDetailScreen(
                 enabled = !uiState.isTesting,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                Text(stringResource(R.string.test_connection))
+                Text(
+                    if (uiState.isTesting) {
+                        stringResource(R.string.testing)
+                    } else {
+                        stringResource(R.string.test_connection)
+                    }
+                )
             }
 
             uiState.statusMessage?.let { message ->
@@ -126,7 +139,7 @@ fun McpServerDetailScreen(
             confirmButton = {
                 TextButton(onClick = {
                     isDeleteDialogOpen = false
-                    viewModel.delete(onNavigationClick)
+                    viewModel.delete()
                 }) {
                     Text(stringResource(R.string.delete))
                 }

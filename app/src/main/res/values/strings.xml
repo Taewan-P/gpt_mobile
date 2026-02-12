@@ -307,8 +307,9 @@
     <string name="mcp_tool_calls">MCP Tool Calls</string>
     <string name="tool_request">Request</string>
     <string name="tool_output">Output</string>
+    <string name="testing">Testing...</string>
+    <string name="saving">Saving...</string>
 </resources>
-
 
 
 

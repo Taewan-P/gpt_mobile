@@ -117,7 +117,6 @@ class McpManager @Inject constructor(
             toolToServer.clear()
             _availableTools.value = emptyList()
         }
-        runCatching { httpClient.close() }
     }
 
     private suspend fun connectInternal(config: McpServerConfig) {
