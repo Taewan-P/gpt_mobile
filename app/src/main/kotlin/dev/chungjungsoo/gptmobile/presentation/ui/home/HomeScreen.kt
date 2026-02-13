@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -410,8 +411,10 @@ private fun McpStatusIndicator(
             .padding(horizontal = 4.dp),
         contentAlignment = Alignment.Center
     ) {
-        Canvas(modifier = Modifier.widthIn(min = 20.dp).height(20.dp)) {
-            val diameter = size.minDimension
+        Canvas(modifier = Modifier.size(20.dp)) {
+            val stroke = strokeWidth.toPx()
+            val diameter = size.minDimension - stroke
+            val topLeft = androidx.compose.ui.geometry.Offset(stroke / 2f, stroke / 2f)
             val arcSize = Size(diameter, diameter)
             var start = -90f
             val segments = listOf(
@@ -427,7 +430,8 @@ private fun McpStatusIndicator(
                         startAngle = start,
                         sweepAngle = sweep,
                         useCenter = false,
-                        style = Stroke(width = strokeWidth.toPx(), cap = StrokeCap.Butt),
+                        topLeft = topLeft,
+                        style = Stroke(width = stroke, cap = StrokeCap.Butt),
                         size = arcSize
                     )
                     start += sweep
@@ -436,7 +440,7 @@ private fun McpStatusIndicator(
         }
         if (state.isConnecting) {
             CircularProgressIndicator(
-                modifier = Modifier.widthIn(min = 10.dp).height(10.dp),
+                modifier = Modifier.size(10.dp),
                 strokeWidth = 1.5.dp
             )
         }
