@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.network
 
+import android.util.Log
 import dev.chungjungsoo.gptmobile.data.ModelConstants
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatCompletionRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponsesRequest
@@ -27,6 +28,10 @@ import kotlinx.serialization.json.encodeToJsonElement
 class OpenAIAPIImpl @Inject constructor(
     private val networkClient: NetworkClient
 ) : OpenAIAPI {
+    private companion object {
+        private const val TAG = "OpenAIAPIImpl"
+        private const val MAX_LOGGED_CHUNK_CHARS = 800
+    }
 
     private var token: String? = null
     private var apiUrl: String = ModelConstants.OPENAI_API_URL
@@ -84,8 +89,8 @@ class OpenAIAPIImpl @Inject constructor(
                         try {
                             val chunk = NetworkClient.openAIJson.decodeFromString<ChatCompletionChunk>(data)
                             emit(chunk)
-                        } catch (_: Exception) {
-                            // Skip malformed chunks
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to parse chat completion chunk: ${data.take(MAX_LOGGED_CHUNK_CHARS)}", e)
                         }
                     }
                 }
@@ -96,9 +101,11 @@ class OpenAIAPIImpl @Inject constructor(
                 is java.nio.channels.UnresolvedAddressException -> "Network error: Unable to resolve address. Check your internet connection."
                 is java.net.ConnectException -> "Network error: Connection refused. Check the API URL."
                 is java.net.SocketTimeoutException -> "Network error: Connection timed out."
+                is java.net.SocketException -> "Network socket error: ${e.message ?: "Connection aborted"}"
                 is javax.net.ssl.SSLException -> "Network error: SSL/TLS connection failed."
                 else -> e.message ?: "Unknown network error"
             }
+            Log.e(TAG, "streamChatCompletion failed", e)
             emit(
                 ChatCompletionChunk(
                     error = ErrorDetail(
@@ -146,7 +153,8 @@ class OpenAIAPIImpl @Inject constructor(
                         try {
                             val streamEvent = NetworkClient.openAIJson.decodeFromString<ResponsesStreamEvent>(data)
                             emit(streamEvent)
-                        } catch (_: Exception) {
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to parse responses stream event: ${data.take(MAX_LOGGED_CHUNK_CHARS)}", e)
                             emit(UnknownEvent)
                         }
                     }
@@ -158,9 +166,11 @@ class OpenAIAPIImpl @Inject constructor(
                 is java.nio.channels.UnresolvedAddressException -> "Network error: Unable to resolve address. Check your internet connection."
                 is java.net.ConnectException -> "Network error: Connection refused. Check the API URL."
                 is java.net.SocketTimeoutException -> "Network error: Connection timed out."
+                is java.net.SocketException -> "Network socket error: ${e.message ?: "Connection aborted"}"
                 is javax.net.ssl.SSLException -> "Network error: SSL/TLS connection failed."
                 else -> e.message ?: "Unknown network error"
             }
+            Log.e(TAG, "streamResponses failed", e)
             emit(
                 ResponseErrorEvent(
                     message = errorMessage,

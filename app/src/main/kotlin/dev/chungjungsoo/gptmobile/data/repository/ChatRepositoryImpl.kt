@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.repository
 
+import android.util.Log
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomDao
@@ -71,7 +72,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
 class ChatRepositoryImpl @Inject constructor(
@@ -302,7 +302,6 @@ class ChatRepositoryImpl @Inject constructor(
             val messages = buildInitialChatMessages(userMessages, assistantMessages, platform)
             val openAITools = (providerTools as? ProviderTools.OpenAI)?.tools
             var unproductiveToolIterations = 0
-            var lastResolvedContext7LibraryId: String? = null
 
             repeat(maxToolIterations) {
                 val request = ChatCompletionRequest(
@@ -342,7 +341,13 @@ class ChatRepositoryImpl @Inject constructor(
                         val builder = toolCallBuilders.getOrPut(delta.index) { MutableOpenAIToolCall() }
                         delta.id?.let { builder.id = it }
                         delta.function?.name?.let { builder.name = it }
-                        delta.function?.arguments?.let { builder.arguments.append(it) }
+                        delta.function?.arguments?.let { chunk ->
+                            builder.arguments.append(chunk)
+                            Log.i(
+                                TAG,
+                                "toolCallDelta index=${delta.index} id=${builder.id} name=${builder.name} chunkLen=${chunk.length} totalLen=${builder.arguments.length}"
+                            )
+                        }
                         val callId = builder.id
                         val toolName = builder.name
                         if (callId != null && toolName != null && announcedToolCallIds.add(callId)) {
@@ -371,19 +376,22 @@ class ChatRepositoryImpl @Inject constructor(
                     return@flow
                 }
 
-                val toolCalls = normalizeContext7ToolCalls(
-                    toolCallBuilders.values.mapNotNull { it.toToolCall() },
-                    latestUserQuestion = userMessages.lastOrNull()?.content.orEmpty(),
-                    lastResolvedLibraryId = lastResolvedContext7LibraryId
-                )
+                val toolCalls = toolCallBuilders.values.mapNotNull { it.toToolCallWithLog() }
                 if (toolCalls.isEmpty()) {
+                    Log.w(
+                        TAG,
+                        "Failed to parse tool calls. builders=${
+                            toolCallBuilders.values.joinToString { builder ->
+                                "id=${builder.id},name=${builder.name},argsLen=${builder.arguments.length},args=${builder.arguments.toString().take(MAX_LOGGED_ARGUMENT_CHARS)}"
+                            }
+                        }"
+                    )
                     emit(ApiState.Error("Failed to parse tool calls"))
                     return@flow
                 }
 
                 emit(ApiState.ToolCallRequested(toolCalls))
                 val results = executeToolCalls(toolCalls) { emit(it) }
-                lastResolvedContext7LibraryId = extractResolvedLibraryId(results, lastResolvedContext7LibraryId)
                 emit(ApiState.ToolResultReceived(results))
                 terminalToolError(results)?.let {
                     emit(ApiState.Error(it))
@@ -927,78 +935,6 @@ class ChatRepositoryImpl @Inject constructor(
         return if (results.all { isUnproductiveToolResult(it) }) current + 1 else 0
     }
 
-    private fun normalizeContext7ToolCalls(
-        toolCalls: List<ToolCall>,
-        latestUserQuestion: String,
-        lastResolvedLibraryId: String?
-    ): List<ToolCall> {
-        if (toolCalls.isEmpty()) {
-            return toolCalls
-        }
-
-        val guessedLibraryName = extractRepositoryName(latestUserQuestion)
-        return toolCalls.map { call ->
-            when (call.name) {
-                "resolve-library-id" -> {
-                    val query = getStringArgument(call.arguments, "query").ifBlank { latestUserQuestion }
-                    val libraryName = getStringArgument(call.arguments, "libraryName").ifBlank {
-                        guessedLibraryName.ifBlank { latestUserQuestion }
-                    }
-                    call.copy(
-                        arguments = call.arguments.withMissingArguments(
-                            "query" to query,
-                            "libraryName" to libraryName
-                        )
-                    )
-                }
-
-                "query-docs" -> {
-                    val libraryId = getStringArgument(call.arguments, "libraryId").ifBlank {
-                        lastResolvedLibraryId.orEmpty()
-                    }
-                    val query = getStringArgument(call.arguments, "query").ifBlank { latestUserQuestion }
-                    call.copy(
-                        arguments = call.arguments.withMissingArguments(
-                            "libraryId" to libraryId,
-                            "query" to query
-                        )
-                    )
-                }
-
-                else -> call
-            }
-        }
-    }
-
-    private fun extractResolvedLibraryId(results: List<ToolResult>, fallback: String?): String? {
-        results.firstOrNull { it.name == "resolve-library-id" }?.let { result ->
-            extractContext7LibraryId(result.output)?.let { return it }
-        }
-        return fallback
-    }
-
-    private fun getStringArgument(arguments: JsonObject, key: String): String {
-        return arguments[key]?.jsonPrimitive?.content?.trim().orEmpty()
-    }
-
-    private fun JsonObject.withMissingArguments(vararg args: Pair<String, String>): JsonObject = buildJsonObject {
-        entries.forEach { (key, value) -> put(key, value) }
-        args.forEach { (key, value) ->
-            if (value.isNotBlank() && this@withMissingArguments[key] == null) {
-                put(key, value)
-            }
-        }
-    }
-
-    private fun extractRepositoryName(text: String): String {
-        val match = REPOSITORY_PATTERN.find(text.trim())
-        return match?.value.orEmpty()
-    }
-
-    private fun extractContext7LibraryId(text: String): String? {
-        return CONTEXT7_LIBRARY_PATTERN.find(text)?.value
-    }
-
     private fun terminalToolError(results: List<ToolResult>): String? {
         val output = results.joinToString("\n") { it.output }.lowercase()
         return when {
@@ -1053,12 +989,17 @@ class ChatRepositoryImpl @Inject constructor(
         var name: String? = null,
         val arguments: StringBuilder = StringBuilder()
     ) {
-        fun toToolCall(): ToolCall? {
+        fun toToolCallWithLog(): ToolCall? {
             val callId = id ?: return null
             val toolName = name ?: return null
             val args = try {
                 Json.parseToJsonElement(arguments.toString()).jsonObject
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                Log.w(
+                    TAG,
+                    "toolCallParseFailed id=$callId name=$toolName argsRaw=${arguments.toString().take(MAX_LOGGED_ARGUMENT_CHARS)}",
+                    e
+                )
                 buildJsonObject {}
             }
 
@@ -1095,8 +1036,8 @@ class ChatRepositoryImpl @Inject constructor(
 
     companion object {
         private const val MAX_UNPRODUCTIVE_TOOL_ITERATIONS = 3
-        private val REPOSITORY_PATTERN = Regex("""[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+""")
-        private val CONTEXT7_LIBRARY_PATTERN = Regex("""/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?""")
+        private const val TAG = "ChatRepositoryImpl"
+        private const val MAX_LOGGED_ARGUMENT_CHARS = 600
     }
 
     override suspend fun fetchChatList(): List<ChatRoom> = chatRoomDao.getChatRooms()
