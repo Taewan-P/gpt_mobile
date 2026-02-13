@@ -28,7 +28,8 @@ class ChatViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val chatRepository: ChatRepository,
     private val settingRepository: SettingRepository,
-    private val toolManager: ToolManager
+    private val toolManager: ToolManager,
+    private val mcpToolEventStore: McpToolEventStore
 ) : ViewModel() {
     sealed class LoadingState {
         data object Idle : LoadingState()
@@ -101,7 +102,7 @@ class ChatViewModel @Inject constructor(
     val loadingStates = _loadingStates.asStateFlow()
 
     // MCP tool call events keyed by "<messageIndex>:<platformIndex>"
-    private val _mcpToolEvents = MutableStateFlow<Map<String, List<McpToolEvent>>>(emptyMap())
+    private val _mcpToolEvents = MutableStateFlow<Map<String, List<McpToolEvent>>>(mcpToolEventStore.get(chatRoomId))
     val mcpToolEvents = _mcpToolEvents.asStateFlow()
 
     // Used for passing user question to Edit User Message Dialog
@@ -377,6 +378,7 @@ class ChatViewModel @Inject constructor(
     private fun clearMcpToolEvents(messageIndex: Int, platformIndex: Int) {
         val key = messagePlatformKey(messageIndex, platformIndex)
         _mcpToolEvents.update { current -> current - key }
+        mcpToolEventStore.put(chatRoomId, _mcpToolEvents.value)
     }
 
     private fun updateMcpToolEvents(messageIndex: Int, platformIndex: Int, apiState: ApiState) {
@@ -432,6 +434,7 @@ class ChatViewModel @Inject constructor(
                 current + (key to existing)
             }
         }
+        mcpToolEventStore.put(chatRoomId, _mcpToolEvents.value)
     }
 
     private fun applyToolResults(existing: MutableList<McpToolEvent>, results: List<ToolResult>) {

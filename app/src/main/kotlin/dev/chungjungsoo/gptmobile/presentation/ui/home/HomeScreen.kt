@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -13,12 +14,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.Delete
@@ -49,9 +52,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
@@ -72,8 +78,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
+import dev.chungjungsoo.gptmobile.data.mcp.McpManager
 import dev.chungjungsoo.gptmobile.presentation.common.PlatformCheckBoxItem
 import dev.chungjungsoo.gptmobile.util.getPlatformName
+import androidx.compose.foundation.Canvas
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -90,6 +98,7 @@ fun HomeScreen(
     val showDeleteWarningDialog by homeViewModel.showDeleteWarningDialog.collectAsStateWithLifecycle()
     val platformState by homeViewModel.platformState.collectAsStateWithLifecycle()
     val searchQuery by homeViewModel.searchQuery.collectAsStateWithLifecycle()
+    val mcpConnectionState by homeViewModel.mcpConnectionState.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
     val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -137,7 +146,8 @@ fun HomeScreen(
                     }
                 },
                 onSearchQueryChanged = homeViewModel::updateSearchQuery,
-                searchQuery = searchQuery
+                searchQuery = searchQuery,
+                mcpConnectionState = mcpConnectionState
             )
         },
         floatingActionButton = {
@@ -252,7 +262,8 @@ fun HomeTopAppBar(
     actionOnClick: () -> Unit,
     navigationOnClick: () -> Unit,
     onSearchQueryChanged: (String) -> Unit,
-    searchQuery: String
+    searchQuery: String,
+    mcpConnectionState: McpManager.ConnectionState
 ) {
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
@@ -365,6 +376,10 @@ fun HomeTopAppBar(
                 }
 
                 !isSearchMode -> {
+                    McpStatusIndicator(
+                        state = mcpConnectionState,
+                        modifier = Modifier.padding(end = 4.dp)
+                    )
                     IconButton(
                         modifier = Modifier.padding(4.dp),
                         onClick = actionOnClick
@@ -376,6 +391,56 @@ fun HomeTopAppBar(
         },
         scrollBehavior = scrollBehavior
     )
+}
+
+@Composable
+private fun McpStatusIndicator(
+    state: McpManager.ConnectionState,
+    modifier: Modifier = Modifier
+) {
+    val total = state.totalServers.coerceAtLeast(1)
+    val connected = state.connectedServers.coerceIn(0, total)
+    val failed = state.failedServers.coerceIn(0, total - connected)
+    val uninitialized = (total - connected - failed).coerceAtLeast(0)
+    val strokeWidth = 4.dp
+
+    Box(
+        modifier = modifier
+            .wrapContentSize()
+            .padding(horizontal = 4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.widthIn(min = 20.dp).height(20.dp)) {
+            val diameter = size.minDimension
+            val arcSize = Size(diameter, diameter)
+            var start = -90f
+            val segments = listOf(
+                connected.toFloat() / total.toFloat() to Color(0xFF4CAF50),
+                uninitialized.toFloat() / total.toFloat() to Color(0xFFFFC107),
+                failed.toFloat() / total.toFloat() to Color(0xFFF44336)
+            )
+            segments.forEach { (fraction, color) ->
+                if (fraction > 0f) {
+                    val sweep = 360f * fraction
+                    drawArc(
+                        color = color,
+                        startAngle = start,
+                        sweepAngle = sweep,
+                        useCenter = false,
+                        style = Stroke(width = strokeWidth.toPx(), cap = StrokeCap.Butt),
+                        size = arcSize
+                    )
+                    start += sweep
+                }
+            }
+        }
+        if (state.isConnecting) {
+            CircularProgressIndicator(
+                modifier = Modifier.widthIn(min = 10.dp).height(10.dp),
+                strokeWidth = 1.5.dp
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

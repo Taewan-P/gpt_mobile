@@ -8,10 +8,12 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -92,38 +94,47 @@ fun McpToolCallBadge(
 
         if (expanded) {
             events.forEach { event ->
-                Text(
-                    text = "${event.toolName} - ${event.status.name.lowercase()}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = if (event.isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.padding(top = 10.dp)
-                )
-                Text(
-                    text = stringResource(R.string.tool_request),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-                Text(
-                    text = event.request,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier.padding(top = 2.dp)
-                )
-
-                if (event.output.isNotBlank()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 10.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
+                        .padding(10.dp)
+                ) {
                     Text(
-                        text = stringResource(R.string.tool_output),
+                        text = "${event.toolName} - ${event.status.name.lowercase()}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (event.isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
+                    Text(
+                        text = stringResource(R.string.tool_request),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier.padding(top = 8.dp)
+                        modifier = Modifier.padding(top = 2.dp)
                     )
                     Text(
-                        text = event.output,
+                        text = event.request,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                         modifier = Modifier.padding(top = 2.dp)
                     )
+
+                    if (event.output.isNotBlank()) {
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
+                        Text(
+                            text = stringResource(R.string.tool_output),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Text(
+                            text = event.output,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
                 }
             }
         }
