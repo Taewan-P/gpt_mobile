@@ -71,6 +71,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
 class ChatRepositoryImpl @Inject constructor(
@@ -301,6 +302,7 @@ class ChatRepositoryImpl @Inject constructor(
             val messages = buildInitialChatMessages(userMessages, assistantMessages, platform)
             val openAITools = (providerTools as? ProviderTools.OpenAI)?.tools
             var unproductiveToolIterations = 0
+            var lastResolvedContext7LibraryId: String? = null
 
             repeat(maxToolIterations) {
                 val request = ChatCompletionRequest(
@@ -315,11 +317,15 @@ class ChatRepositoryImpl @Inject constructor(
 
                 val toolCallBuilders = linkedMapOf<Int, MutableOpenAIToolCall>()
                 var sawToolCalls = false
+                var hasStreamError = false
+                var streamErrorMessage = ""
+                val announcedToolCallIds = mutableSetOf<String>()
 
                 openAIAPI.streamChatCompletion(request).collect { chunk ->
                     when {
                         chunk.error != null -> {
-                            emit(ApiState.Error(chunk.error.message))
+                            hasStreamError = true
+                            streamErrorMessage = chunk.error.message
                             return@collect
                         }
                         chunk.choices?.firstOrNull()?.delta?.content != null -> {
@@ -337,7 +343,27 @@ class ChatRepositoryImpl @Inject constructor(
                         delta.id?.let { builder.id = it }
                         delta.function?.name?.let { builder.name = it }
                         delta.function?.arguments?.let { builder.arguments.append(it) }
+                        val callId = builder.id
+                        val toolName = builder.name
+                        if (callId != null && toolName != null && announcedToolCallIds.add(callId)) {
+                            emit(
+                                ApiState.ToolCallRequested(
+                                    listOf(
+                                        ToolCall(
+                                            id = callId,
+                                            name = toolName,
+                                            arguments = buildJsonObject {}
+                                        )
+                                    )
+                                )
+                            )
+                        }
                     }
+                }
+
+                if (hasStreamError) {
+                    emit(ApiState.Error(streamErrorMessage.ifBlank { "Chat completion failed" }))
+                    return@flow
                 }
 
                 if (!sawToolCalls || toolCallBuilders.isEmpty()) {
@@ -345,7 +371,11 @@ class ChatRepositoryImpl @Inject constructor(
                     return@flow
                 }
 
-                val toolCalls = toolCallBuilders.values.mapNotNull { it.toToolCall() }
+                val toolCalls = normalizeContext7ToolCalls(
+                    toolCallBuilders.values.mapNotNull { it.toToolCall() },
+                    latestUserQuestion = userMessages.lastOrNull()?.content.orEmpty(),
+                    lastResolvedLibraryId = lastResolvedContext7LibraryId
+                )
                 if (toolCalls.isEmpty()) {
                     emit(ApiState.Error("Failed to parse tool calls"))
                     return@flow
@@ -353,6 +383,7 @@ class ChatRepositoryImpl @Inject constructor(
 
                 emit(ApiState.ToolCallRequested(toolCalls))
                 val results = executeToolCalls(toolCalls) { emit(it) }
+                lastResolvedContext7LibraryId = extractResolvedLibraryId(results, lastResolvedContext7LibraryId)
                 emit(ApiState.ToolResultReceived(results))
                 terminalToolError(results)?.let {
                     emit(ApiState.Error(it))
@@ -896,6 +927,78 @@ class ChatRepositoryImpl @Inject constructor(
         return if (results.all { isUnproductiveToolResult(it) }) current + 1 else 0
     }
 
+    private fun normalizeContext7ToolCalls(
+        toolCalls: List<ToolCall>,
+        latestUserQuestion: String,
+        lastResolvedLibraryId: String?
+    ): List<ToolCall> {
+        if (toolCalls.isEmpty()) {
+            return toolCalls
+        }
+
+        val guessedLibraryName = extractRepositoryName(latestUserQuestion)
+        return toolCalls.map { call ->
+            when (call.name) {
+                "resolve-library-id" -> {
+                    val query = getStringArgument(call.arguments, "query").ifBlank { latestUserQuestion }
+                    val libraryName = getStringArgument(call.arguments, "libraryName").ifBlank {
+                        guessedLibraryName.ifBlank { latestUserQuestion }
+                    }
+                    call.copy(
+                        arguments = call.arguments.withMissingArguments(
+                            "query" to query,
+                            "libraryName" to libraryName
+                        )
+                    )
+                }
+
+                "query-docs" -> {
+                    val libraryId = getStringArgument(call.arguments, "libraryId").ifBlank {
+                        lastResolvedLibraryId.orEmpty()
+                    }
+                    val query = getStringArgument(call.arguments, "query").ifBlank { latestUserQuestion }
+                    call.copy(
+                        arguments = call.arguments.withMissingArguments(
+                            "libraryId" to libraryId,
+                            "query" to query
+                        )
+                    )
+                }
+
+                else -> call
+            }
+        }
+    }
+
+    private fun extractResolvedLibraryId(results: List<ToolResult>, fallback: String?): String? {
+        results.firstOrNull { it.name == "resolve-library-id" }?.let { result ->
+            extractContext7LibraryId(result.output)?.let { return it }
+        }
+        return fallback
+    }
+
+    private fun getStringArgument(arguments: JsonObject, key: String): String {
+        return arguments[key]?.jsonPrimitive?.content?.trim().orEmpty()
+    }
+
+    private fun JsonObject.withMissingArguments(vararg args: Pair<String, String>): JsonObject = buildJsonObject {
+        entries.forEach { (key, value) -> put(key, value) }
+        args.forEach { (key, value) ->
+            if (value.isNotBlank() && this@withMissingArguments[key] == null) {
+                put(key, value)
+            }
+        }
+    }
+
+    private fun extractRepositoryName(text: String): String {
+        val match = REPOSITORY_PATTERN.find(text.trim())
+        return match?.value.orEmpty()
+    }
+
+    private fun extractContext7LibraryId(text: String): String? {
+        return CONTEXT7_LIBRARY_PATTERN.find(text)?.value
+    }
+
     private fun terminalToolError(results: List<ToolResult>): String? {
         val output = results.joinToString("\n") { it.output }.lowercase()
         return when {
@@ -992,6 +1095,8 @@ class ChatRepositoryImpl @Inject constructor(
 
     companion object {
         private const val MAX_UNPRODUCTIVE_TOOL_ITERATIONS = 3
+        private val REPOSITORY_PATTERN = Regex("""[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+""")
+        private val CONTEXT7_LIBRARY_PATTERN = Regex("""/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)?""")
     }
 
     override suspend fun fetchChatList(): List<ChatRoom> = chatRoomDao.getChatRooms()
