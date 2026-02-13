@@ -1,6 +1,4 @@
 package dev.chungjungsoo.gptmobile.data.dto.openai.response
-
-import dev.chungjungsoo.gptmobile.data.dto.openai.request.OpenAIFunctionCall
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -61,7 +59,16 @@ data class ToolCallDelta(
     val type: String? = null,
 
     @SerialName("function")
-    val function: OpenAIFunctionCall? = null
+    val function: FunctionCallDelta? = null
+)
+
+@Serializable
+data class FunctionCallDelta(
+    @SerialName("name")
+    val name: String? = null,
+
+    @SerialName("arguments")
+    val arguments: String? = null
 )
 
 @Serializable
