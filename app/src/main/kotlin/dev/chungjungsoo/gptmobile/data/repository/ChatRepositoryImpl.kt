@@ -232,6 +232,10 @@ class ChatRepositoryImpl @Inject constructor(
                 emit(ApiState.ToolCallRequested(parsedToolCalls))
                 val results = executeToolCalls(parsedToolCalls) { emit(it) }
                 emit(ApiState.ToolResultReceived(results))
+                terminalToolError(results)?.let {
+                    emit(ApiState.Error(it))
+                    return@flow
+                }
                 unproductiveToolIterations = updateUnproductiveIterations(unproductiveToolIterations, results)
                 if (unproductiveToolIterations >= MAX_UNPRODUCTIVE_TOOL_ITERATIONS) {
                     emit(ApiState.Error("Tool loop detected. No useful tool output was returned."))
@@ -350,6 +354,10 @@ class ChatRepositoryImpl @Inject constructor(
                 emit(ApiState.ToolCallRequested(toolCalls))
                 val results = executeToolCalls(toolCalls) { emit(it) }
                 emit(ApiState.ToolResultReceived(results))
+                terminalToolError(results)?.let {
+                    emit(ApiState.Error(it))
+                    return@flow
+                }
                 unproductiveToolIterations = updateUnproductiveIterations(unproductiveToolIterations, results)
                 if (unproductiveToolIterations >= MAX_UNPRODUCTIVE_TOOL_ITERATIONS) {
                     emit(ApiState.Error("Tool loop detected. No useful tool output was returned."))
@@ -551,6 +559,10 @@ class ChatRepositoryImpl @Inject constructor(
                 emit(ApiState.ToolCallRequested(toolCalls))
                 val results = executeToolCalls(toolCalls) { emit(it) }
                 emit(ApiState.ToolResultReceived(results))
+                terminalToolError(results)?.let {
+                    emit(ApiState.Error(it))
+                    return@flow
+                }
                 unproductiveToolIterations = updateUnproductiveIterations(unproductiveToolIterations, results)
                 if (unproductiveToolIterations >= MAX_UNPRODUCTIVE_TOOL_ITERATIONS) {
                     emit(ApiState.Error("Tool loop detected. No useful tool output was returned."))
@@ -710,6 +722,10 @@ class ChatRepositoryImpl @Inject constructor(
                 emit(ApiState.ToolCallRequested(toolCalls))
                 val results = executeToolCalls(toolCalls) { emit(it) }
                 emit(ApiState.ToolResultReceived(results))
+                terminalToolError(results)?.let {
+                    emit(ApiState.Error(it))
+                    return@flow
+                }
                 unproductiveToolIterations = updateUnproductiveIterations(unproductiveToolIterations, results)
                 if (unproductiveToolIterations >= MAX_UNPRODUCTIVE_TOOL_ITERATIONS) {
                     emit(ApiState.Error("Tool loop detected. No useful tool output was returned."))
@@ -880,6 +896,15 @@ class ChatRepositoryImpl @Inject constructor(
         return if (results.all { isUnproductiveToolResult(it) }) current + 1 else 0
     }
 
+    private fun terminalToolError(results: List<ToolResult>): String? {
+        val output = results.joinToString("\n") { it.output }.lowercase()
+        return when {
+            output.contains("invalid api key") && output.contains("ctx7sk") ->
+                "Context7 API key is missing or invalid. Add a valid key (ctx7sk...) in MCP server headers."
+            else -> null
+        }
+    }
+
     private fun isUnproductiveToolResult(result: ToolResult): Boolean {
         if (result.isError) {
             return true
@@ -888,7 +913,10 @@ class ChatRepositoryImpl @Inject constructor(
         return normalized.isBlank() ||
             normalized.contains("\"results\":[]") ||
             normalized.contains("\"results\": []") ||
-            normalized.contains("\"error\"")
+            normalized.contains("\"error\"") ||
+            normalized.contains("mcp error") ||
+            normalized.contains("input validation error") ||
+            normalized.contains("invalid api key")
     }
 
     private fun toToolCall(id: String?, name: String?, arguments: String?): ToolCall? {

@@ -60,10 +60,22 @@ class McpManager @Inject constructor(
     private val _connectionState = MutableStateFlow(ConnectionState())
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
-    suspend fun connectAll() {
+    suspend fun connectAll(forceRefresh: Boolean = false) {
         lock.withLock {
             val servers = mcpServerDao.getEnabledServers()
             Log.i(TAG, "connectAll enabledServers=${servers.size}")
+            if (!forceRefresh && isAlreadyConnectedLocked(servers)) {
+                _connectionState.value = _connectionState.value.copy(
+                    isConnecting = false,
+                    totalServers = servers.size,
+                    attemptedServers = servers.size,
+                    connectedServers = servers.size,
+                    failedServers = 0
+                )
+                Log.i(TAG, "connectAll skipped: already connected")
+                return
+            }
+
             val enabledServerIds = servers.map { it.id }.toSet()
             val staleServerIds = connections.keys.filterNot { it in enabledServerIds }
             staleServerIds.forEach { staleId ->
@@ -238,6 +250,22 @@ class McpManager @Inject constructor(
         )
         client.connect(transport)
         connections[config.id] = McpConnection(client = client, config = config)
+    }
+
+    private fun isAlreadyConnectedLocked(servers: List<McpServerConfig>): Boolean {
+        if (servers.isEmpty()) {
+            return connections.isEmpty()
+        }
+        if (_availableTools.value.isEmpty()) {
+            return false
+        }
+        if (connections.size != servers.size) {
+            return false
+        }
+        return servers.all { config ->
+            val existing = connections[config.id]
+            existing != null && existing.config == config
+        }
     }
 
     private fun createTransport(config: McpServerConfig): Transport {
