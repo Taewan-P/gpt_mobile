@@ -303,6 +303,9 @@
     <string name="mcp_install_json_hint">Paste mcpServers JSON from provider docs</string>
     <string name="import_install_json">Import JSON</string>
     <string name="mcp_headers_imported">Imported headers: %1$d</string>
+    <string name="mcp_connection_status">Connection Status</string>
+    <string name="mcp_connecting_status">Connecting %1$d/%2$d servers...</string>
+    <string name="mcp_connected_status">Connected %1$d/%2$d servers</string>
     <string name="mcp_tool_call">MCP Tool Call</string>
     <string name="mcp_tool_calls">MCP Tool Calls</string>
     <string name="tool_request">Request</string>
@@ -310,7 +313,6 @@
     <string name="testing">Testing...</string>
     <string name="saving">Saving...</string>
 </resources>
-
 
 
 

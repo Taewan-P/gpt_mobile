@@ -29,6 +29,7 @@ import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -56,18 +57,50 @@ class McpManager @Inject constructor(
 
     private val _availableTools = MutableStateFlow<List<Tool>>(emptyList())
     val availableTools = _availableTools.asStateFlow()
+    private val _connectionState = MutableStateFlow(ConnectionState())
+    val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
     suspend fun connectAll() {
         lock.withLock {
             val servers = mcpServerDao.getEnabledServers()
             Log.i(TAG, "connectAll enabledServers=${servers.size}")
+            val enabledServerIds = servers.map { it.id }.toSet()
+            val staleServerIds = connections.keys.filterNot { it in enabledServerIds }
+            staleServerIds.forEach { staleId ->
+                connections.remove(staleId)?.let { staleConnection ->
+                    runCatching { staleConnection.client.close() }
+                }
+                removeServerToolsLocked(staleId)
+            }
+            _connectionState.value = ConnectionState(
+                isConnecting = true,
+                totalServers = servers.size,
+                attemptedServers = 0,
+                connectedServers = 0,
+                failedServers = 0
+            )
             servers.forEach { config ->
                 runCatching { connectInternal(config) }
+                    .onSuccess {
+                        _connectionState.value = _connectionState.value.copy(
+                            attemptedServers = _connectionState.value.attemptedServers + 1,
+                            connectedServers = connections.size
+                        )
+                    }
                     .onFailure { throwable ->
+                        _connectionState.value = _connectionState.value.copy(
+                            attemptedServers = _connectionState.value.attemptedServers + 1,
+                            failedServers = _connectionState.value.failedServers + 1,
+                            lastError = throwable.message
+                        )
                         Log.e(TAG, "connectAll failed serverId=${config.id} name=${config.name}", throwable)
                     }
             }
             refreshToolListLocked()
+            _connectionState.value = _connectionState.value.copy(
+                isConnecting = false,
+                connectedServers = connections.size
+            )
             Log.i(TAG, "connectAll complete availableMcpTools=${_availableTools.value.size} names=${_availableTools.value.joinToString { it.name }}")
         }
     }
@@ -76,6 +109,11 @@ class McpManager @Inject constructor(
         lock.withLock {
             connectInternal(config)
             refreshServerToolsLocked(config.id)
+            _connectionState.value = _connectionState.value.copy(
+                connectedServers = connections.size,
+                totalServers = maxOf(_connectionState.value.totalServers, connections.size),
+                isConnecting = false
+            )
         }
     }.onSuccess {
         Log.i(TAG, "connect success serverId=${config.id} name=${config.name} toolsNow=${_availableTools.value.size}")
@@ -125,6 +163,7 @@ class McpManager @Inject constructor(
             connections.clear()
             toolToServer.clear()
             _availableTools.value = emptyList()
+            _connectionState.value = ConnectionState()
         }
     }
 
@@ -134,6 +173,12 @@ class McpManager @Inject constructor(
                 runCatching { connection.client.close() }
             }
             removeServerToolsLocked(serverId)
+            val totalAfterDisconnect = maxOf(0, _connectionState.value.totalServers - 1)
+            _connectionState.value = _connectionState.value.copy(
+                connectedServers = connections.size,
+                totalServers = totalAfterDisconnect,
+                attemptedServers = minOf(_connectionState.value.attemptedServers, totalAfterDisconnect)
+            )
             Log.i(TAG, "disconnect serverId=$serverId toolsNow=${_availableTools.value.size}")
         }
     }
@@ -351,6 +396,15 @@ class McpManager @Inject constructor(
     private data class McpConnection(
         val client: Client,
         val config: McpServerConfig
+    )
+
+    data class ConnectionState(
+        val isConnecting: Boolean = false,
+        val totalServers: Int = 0,
+        val attemptedServers: Int = 0,
+        val connectedServers: Int = 0,
+        val failedServers: Int = 0,
+        val lastError: String? = null
     )
 
     companion object {

@@ -332,8 +332,6 @@ class ChatViewModel @Inject constructor(
     private fun completeChat() {
         // Update all the platform loading states to Loading
         _loadingStates.update { List(enabledPlatformsInChat.size) { LoadingState.Loading } }
-        val allTools = toolManager.getAllTools()
-        val mcpTools = toolManager.getMcpTools()
         val latestQuestion = _groupedMessages.value.userMessages.lastOrNull()?.content.orEmpty()
         val requestedMcp = requestsMcp(latestQuestion)
 
@@ -343,9 +341,13 @@ class ChatViewModel @Inject constructor(
             val platform = _enabledPlatformsInApp.value.firstOrNull { it.uid == platformUid } ?: return@forEachIndexed
             clearMcpToolEvents(messageIndex, idx)
             viewModelScope.launch {
-                val responseFlow = if (requestedMcp && mcpTools.isEmpty()) {
-                    Log.w(TAG, "MCP requested but no MCP tools available. question=$latestQuestion")
-                    flowOf(ApiState.Error("No MCP tools are connected. Open Settings > MCP Servers and verify connection."))
+                if (requestedMcp && toolManager.getMcpTools().isEmpty()) {
+                    runCatching { toolManager.ensureMcpConnected() }
+                }
+                val allTools = toolManager.getAllTools()
+                val responseFlow = if (requestedMcp && toolManager.getMcpTools().isEmpty()) {
+                    Log.w(TAG, "MCP requested but no MCP tools available after reconnect. question=$latestQuestion")
+                    flowOf(ApiState.Error("No MCP tools are connected. Open Settings > MCP Servers and check connection status."))
                 } else {
                     chatRepository.completeChat(
                         _groupedMessages.value.userMessages,

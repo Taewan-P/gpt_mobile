@@ -16,6 +16,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -35,6 +36,7 @@ import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.McpServerConfig
 import dev.chungjungsoo.gptmobile.data.database.entity.McpTransportType
 import dev.chungjungsoo.gptmobile.data.dto.tool.Tool
+import dev.chungjungsoo.gptmobile.data.mcp.McpManager
 import dev.chungjungsoo.gptmobile.presentation.common.SettingItem
 import dev.chungjungsoo.gptmobile.util.pinnedExitUntilCollapsedScrollBehavior
 
@@ -53,6 +55,7 @@ fun McpSettingsScreen(
     )
     val servers by viewModel.servers.collectAsStateWithLifecycle()
     val builtInTools by viewModel.builtInTools.collectAsStateWithLifecycle()
+    val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
 
     DisposableEffect(lifecycleOwner) {
@@ -89,6 +92,8 @@ fun McpSettingsScreen(
                 .padding(innerPadding)
                 .verticalScroll(scrollState)
         ) {
+            McpConnectionStatus(connectionState)
+
             SettingItem(
                 title = stringResource(R.string.add_mcp_server),
                 description = stringResource(R.string.add_mcp_server_description),
@@ -119,6 +124,46 @@ fun McpSettingsScreen(
 
             BuiltInToolsList(builtInTools = builtInTools)
         }
+    }
+}
+
+@Composable
+private fun McpConnectionStatus(connectionState: McpManager.ConnectionState) {
+    val description = if (connectionState.isConnecting) {
+        stringResource(
+            R.string.mcp_connecting_status,
+            connectionState.attemptedServers,
+            connectionState.totalServers
+        )
+    } else {
+        stringResource(
+            R.string.mcp_connected_status,
+            connectionState.connectedServers,
+            connectionState.totalServers
+        )
+    }
+
+    SettingItem(
+        title = stringResource(R.string.mcp_connection_status),
+        description = description,
+        enabled = false,
+        onItemClick = {},
+        showTrailingIcon = false,
+        showLeadingIcon = false
+    )
+
+    if (connectionState.isConnecting && connectionState.totalServers > 0) {
+        LinearProgressIndicator(
+            progress = { connectionState.attemptedServers.toFloat() / connectionState.totalServers.toFloat() },
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+        )
+    } else if (!connectionState.lastError.isNullOrBlank()) {
+        Text(
+            text = connectionState.lastError,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+        )
     }
 }
 

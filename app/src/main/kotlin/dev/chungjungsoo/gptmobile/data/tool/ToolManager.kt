@@ -26,6 +26,13 @@ class ToolManager @Inject constructor(
 
     fun getMcpTools(): List<Tool> = mcpManager.availableTools.value
 
+    suspend fun ensureMcpConnected() {
+        if (mcpManager.availableTools.value.isNotEmpty()) {
+            return
+        }
+        mcpManager.connectAll()
+    }
+
     fun isBuiltInTool(toolName: String): Boolean =
         builtInTools.any { it.definition.name == toolName }
 

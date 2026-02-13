@@ -170,6 +170,7 @@ class ChatRepositoryImpl @Inject constructor(
 
             val openAITools = (providerTools as? ProviderTools.OpenAI)?.tools
             val inputMessages = buildInitialResponsesInput(userMessages, assistantMessages, platform)
+            var unproductiveToolIterations = 0
 
             repeat(maxToolIterations) {
                 val request = ResponsesRequest(
@@ -231,6 +232,11 @@ class ChatRepositoryImpl @Inject constructor(
                 emit(ApiState.ToolCallRequested(parsedToolCalls))
                 val results = executeToolCalls(parsedToolCalls) { emit(it) }
                 emit(ApiState.ToolResultReceived(results))
+                unproductiveToolIterations = updateUnproductiveIterations(unproductiveToolIterations, results)
+                if (unproductiveToolIterations >= MAX_UNPRODUCTIVE_TOOL_ITERATIONS) {
+                    emit(ApiState.Error("Tool loop detected. No useful tool output was returned."))
+                    return@flow
+                }
 
                 inputMessages.add(
                     ResponseInputMessage(
@@ -290,6 +296,7 @@ class ChatRepositoryImpl @Inject constructor(
 
             val messages = buildInitialChatMessages(userMessages, assistantMessages, platform)
             val openAITools = (providerTools as? ProviderTools.OpenAI)?.tools
+            var unproductiveToolIterations = 0
 
             repeat(maxToolIterations) {
                 val request = ChatCompletionRequest(
@@ -343,6 +350,11 @@ class ChatRepositoryImpl @Inject constructor(
                 emit(ApiState.ToolCallRequested(toolCalls))
                 val results = executeToolCalls(toolCalls) { emit(it) }
                 emit(ApiState.ToolResultReceived(results))
+                unproductiveToolIterations = updateUnproductiveIterations(unproductiveToolIterations, results)
+                if (unproductiveToolIterations >= MAX_UNPRODUCTIVE_TOOL_ITERATIONS) {
+                    emit(ApiState.Error("Tool loop detected. No useful tool output was returned."))
+                    return@flow
+                }
 
                 messages.add(
                     ChatMessage(
@@ -460,6 +472,7 @@ class ChatRepositoryImpl @Inject constructor(
 
             val messages = buildInitialAnthropicMessages(userMessages, assistantMessages, platform)
             val anthropicTools = (providerTools as? ProviderTools.Anthropic)?.tools
+            var unproductiveToolIterations = 0
 
             repeat(maxToolIterations) {
                 val request = MessageRequest(
@@ -538,6 +551,11 @@ class ChatRepositoryImpl @Inject constructor(
                 emit(ApiState.ToolCallRequested(toolCalls))
                 val results = executeToolCalls(toolCalls) { emit(it) }
                 emit(ApiState.ToolResultReceived(results))
+                unproductiveToolIterations = updateUnproductiveIterations(unproductiveToolIterations, results)
+                if (unproductiveToolIterations >= MAX_UNPRODUCTIVE_TOOL_ITERATIONS) {
+                    emit(ApiState.Error("Tool loop detected. No useful tool output was returned."))
+                    return@flow
+                }
 
                 messages.add(
                     InputMessage(
@@ -623,6 +641,7 @@ class ChatRepositoryImpl @Inject constructor(
 
             val contents = buildInitialGoogleContents(userMessages, assistantMessages, platform)
             val googleTools = (providerTools as? ProviderTools.Google)?.tools
+            var unproductiveToolIterations = 0
 
             repeat(maxToolIterations) {
                 val request = GenerateContentRequest(
@@ -691,6 +710,11 @@ class ChatRepositoryImpl @Inject constructor(
                 emit(ApiState.ToolCallRequested(toolCalls))
                 val results = executeToolCalls(toolCalls) { emit(it) }
                 emit(ApiState.ToolResultReceived(results))
+                unproductiveToolIterations = updateUnproductiveIterations(unproductiveToolIterations, results)
+                if (unproductiveToolIterations >= MAX_UNPRODUCTIVE_TOOL_ITERATIONS) {
+                    emit(ApiState.Error("Tool loop detected. No useful tool output was returned."))
+                    return@flow
+                }
 
                 contents.add(
                     Content(
@@ -849,6 +873,24 @@ class ChatRepositoryImpl @Inject constructor(
         return results
     }
 
+    private fun updateUnproductiveIterations(current: Int, results: List<ToolResult>): Int {
+        if (results.isEmpty()) {
+            return current
+        }
+        return if (results.all { isUnproductiveToolResult(it) }) current + 1 else 0
+    }
+
+    private fun isUnproductiveToolResult(result: ToolResult): Boolean {
+        if (result.isError) {
+            return true
+        }
+        val normalized = result.output.lowercase()
+        return normalized.isBlank() ||
+            normalized.contains("\"results\":[]") ||
+            normalized.contains("\"results\": []") ||
+            normalized.contains("\"error\"")
+    }
+
     private fun toToolCall(id: String?, name: String?, arguments: String?): ToolCall? {
         if (id.isNullOrBlank() || name.isNullOrBlank()) {
             return null
@@ -918,6 +960,10 @@ class ChatRepositoryImpl @Inject constructor(
                 arguments = args
             )
         }
+    }
+
+    companion object {
+        private const val MAX_UNPRODUCTIVE_TOOL_ITERATIONS = 3
     }
 
     override suspend fun fetchChatList(): List<ChatRoom> = chatRoomDao.getChatRooms()

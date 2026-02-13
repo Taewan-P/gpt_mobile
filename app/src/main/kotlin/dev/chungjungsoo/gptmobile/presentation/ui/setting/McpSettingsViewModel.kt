@@ -27,6 +27,7 @@ class McpSettingsViewModel @Inject constructor(
 
     private val _builtInTools = MutableStateFlow<List<Tool>>(builtInTools.map { it.definition }.sortedBy { it.name })
     val builtInTools: StateFlow<List<Tool>> = _builtInTools.asStateFlow()
+    val connectionState = mcpManager.connectionState
 
     init {
         refresh()
@@ -35,7 +36,6 @@ class McpSettingsViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _servers.update { settingRepository.fetchMcpServers() }
-            mcpManager.disconnectAll()
             mcpManager.connectAll()
         }
     }

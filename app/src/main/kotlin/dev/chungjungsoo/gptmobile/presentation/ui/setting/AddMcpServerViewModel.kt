@@ -153,16 +153,18 @@ class AddMcpServerViewModel @Inject constructor(
                 val insertedId = settingRepository.addMcpServer(buildServerConfig(id = 0, enabled = true))
                 settingRepository.getMcpServerById(insertedId.toInt())
             }.onSuccess {
+                _uiState.update { it.copy(isSaving = false) }
+                onSaved()
+
                 if (it != null && it.enabled) {
-                    runCatching {
-                        withTimeout(CONNECT_SAVED_SERVER_TIMEOUT_MS) {
-                            mcpManager.connect(it).getOrThrow()
+                    viewModelScope.launch {
+                        runCatching {
+                            withTimeout(CONNECT_SAVED_SERVER_TIMEOUT_MS) {
+                                mcpManager.connect(it).getOrThrow()
+                            }
                         }
                     }
                 }
-
-                _uiState.update { it.copy(isSaving = false) }
-                onSaved()
             }.onFailure { throwable ->
                 _uiState.update {
                     it.copy(
