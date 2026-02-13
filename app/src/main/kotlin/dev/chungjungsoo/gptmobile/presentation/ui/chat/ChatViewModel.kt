@@ -344,8 +344,13 @@ class ChatViewModel @Inject constructor(
                 if (requestedMcp && toolManager.getMcpTools().isEmpty()) {
                     runCatching { toolManager.ensureMcpConnected() }
                 }
-                val allTools = toolManager.getAllTools()
-                val responseFlow = if (requestedMcp && toolManager.getMcpTools().isEmpty()) {
+                val mcpTools = toolManager.getMcpTools()
+                val toolsForRequest = if (requestedMcp && mcpTools.isNotEmpty()) {
+                    mcpTools
+                } else {
+                    toolManager.getAllTools()
+                }
+                val responseFlow = if (requestedMcp && mcpTools.isEmpty()) {
                     Log.w(TAG, "MCP requested but no MCP tools available after reconnect. question=$latestQuestion")
                     flowOf(ApiState.Error("No MCP tools are connected. Open Settings > MCP Servers and check connection status."))
                 } else {
@@ -353,7 +358,7 @@ class ChatViewModel @Inject constructor(
                         _groupedMessages.value.userMessages,
                         _groupedMessages.value.assistantMessages,
                         platform,
-                        tools = allTools
+                        tools = toolsForRequest
                     )
                 }
 
