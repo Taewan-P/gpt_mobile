@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.tool
 
+import android.util.Log
 import dev.chungjungsoo.gptmobile.data.dto.tool.Tool
 import dev.chungjungsoo.gptmobile.data.dto.tool.ToolCall
 import dev.chungjungsoo.gptmobile.data.dto.tool.ToolResult
@@ -17,9 +18,13 @@ class ToolManager @Inject constructor(
 
     fun getAllTools(): List<Tool> {
         val builtIn = builtInTools.map { it.definition }
-        val mcp = mcpManager.availableTools.value
-        return builtIn + mcp
+        val mcp = getMcpTools()
+        val tools = builtIn + mcp
+        Log.i(TAG, "getAllTools builtIn=${builtIn.size} mcp=${mcp.size} names=${tools.joinToString { it.name }}")
+        return tools
     }
+
+    fun getMcpTools(): List<Tool> = mcpManager.availableTools.value
 
     fun isBuiltInTool(toolName: String): Boolean =
         builtInTools.any { it.definition.name == toolName }
@@ -49,5 +54,9 @@ class ToolManager @Inject constructor(
         }
 
         return mcpManager.callTool(toolCall)
+    }
+
+    private companion object {
+        private const val TAG = "ToolManager"
     }
 }

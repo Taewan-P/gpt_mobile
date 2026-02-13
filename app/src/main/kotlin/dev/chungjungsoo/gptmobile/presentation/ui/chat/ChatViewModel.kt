@@ -19,6 +19,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -331,6 +332,10 @@ class ChatViewModel @Inject constructor(
     private fun completeChat() {
         // Update all the platform loading states to Loading
         _loadingStates.update { List(enabledPlatformsInChat.size) { LoadingState.Loading } }
+        val allTools = toolManager.getAllTools()
+        val mcpTools = toolManager.getMcpTools()
+        val latestQuestion = _groupedMessages.value.userMessages.lastOrNull()?.content.orEmpty()
+        val requestedMcp = requestsMcp(latestQuestion)
 
         // Send chat completion requests
         val messageIndex = _groupedMessages.value.userMessages.lastIndex
@@ -338,12 +343,19 @@ class ChatViewModel @Inject constructor(
             val platform = _enabledPlatformsInApp.value.firstOrNull { it.uid == platformUid } ?: return@forEachIndexed
             clearMcpToolEvents(messageIndex, idx)
             viewModelScope.launch {
-                chatRepository.completeChat(
-                    _groupedMessages.value.userMessages,
-                    _groupedMessages.value.assistantMessages,
-                    platform,
-                    tools = toolManager.getAllTools()
-                ).handleStates(
+                val responseFlow = if (requestedMcp && mcpTools.isEmpty()) {
+                    Log.w(TAG, "MCP requested but no MCP tools available. question=$latestQuestion")
+                    flowOf(ApiState.Error("No MCP tools are connected. Open Settings > MCP Servers and verify connection."))
+                } else {
+                    chatRepository.completeChat(
+                        _groupedMessages.value.userMessages,
+                        _groupedMessages.value.assistantMessages,
+                        platform,
+                        tools = allTools
+                    )
+                }
+
+                responseFlow.handleStates(
                     messageFlow = _groupedMessages,
                     platformIdx = idx,
                     onLoadingComplete = {
@@ -451,6 +463,11 @@ class ChatViewModel @Inject constructor(
     private fun messagePlatformKey(messageIndex: Int, platformIndex: Int): String =
         "$messageIndex:$platformIndex"
 
+    private fun requestsMcp(content: String): Boolean {
+        val normalized = content.lowercase()
+        return normalized.contains("mcp") || normalized.contains("context7")
+    }
+
     private fun formatCurrentDateTime(): String {
         val currentDate = java.util.Date()
         val format = java.text.SimpleDateFormat("yyyy-MM-dd hh:mm a", java.util.Locale.getDefault())
@@ -548,6 +565,10 @@ class ChatViewModel @Inject constructor(
         // Flatten the grouped messages into a single list
         val merged = _groupedMessages.value.userMessages + _groupedMessages.value.assistantMessages.flatten()
         return merged.filter { it.content.isNotBlank() }.sortedBy { it.createdAt }
+    }
+
+    private companion object {
+        private const val TAG = "ChatViewModel"
     }
 }
 

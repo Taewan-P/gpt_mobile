@@ -60,10 +60,15 @@ class McpManager @Inject constructor(
     suspend fun connectAll() {
         lock.withLock {
             val servers = mcpServerDao.getEnabledServers()
+            Log.i(TAG, "connectAll enabledServers=${servers.size}")
             servers.forEach { config ->
-                connectInternal(config)
+                runCatching { connectInternal(config) }
+                    .onFailure { throwable ->
+                        Log.e(TAG, "connectAll failed serverId=${config.id} name=${config.name}", throwable)
+                    }
             }
             refreshToolListLocked()
+            Log.i(TAG, "connectAll complete availableMcpTools=${_availableTools.value.size} names=${_availableTools.value.joinToString { it.name }}")
         }
     }
 
@@ -72,6 +77,10 @@ class McpManager @Inject constructor(
             connectInternal(config)
             refreshServerToolsLocked(config.id)
         }
+    }.onSuccess {
+        Log.i(TAG, "connect success serverId=${config.id} name=${config.name} toolsNow=${_availableTools.value.size}")
+    }.onFailure { throwable ->
+        Log.e(TAG, "connect failed serverId=${config.id} name=${config.name}", throwable)
     }
 
     suspend fun refreshTools() {
@@ -125,6 +134,7 @@ class McpManager @Inject constructor(
                 runCatching { connection.client.close() }
             }
             removeServerToolsLocked(serverId)
+            Log.i(TAG, "disconnect serverId=$serverId toolsNow=${_availableTools.value.size}")
         }
     }
 
@@ -162,6 +172,7 @@ class McpManager @Inject constructor(
         }
 
         _availableTools.value = mergedTools
+        Log.i(TAG, "refreshServerTools serverId=$serverId discovered=${filteredTools.size} toolsNow=${_availableTools.value.size}")
     }
 
     private suspend fun connectInternal(config: McpServerConfig) {
@@ -249,6 +260,7 @@ class McpManager @Inject constructor(
             cursor = response.nextCursor
         } while (cursor != null)
 
+        Log.i(TAG, "listAllTools count=${results.size} names=${results.joinToString { it.name }}")
         return results
     }
 
