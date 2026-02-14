@@ -1,6 +1,5 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.setting
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -10,15 +9,12 @@ import dev.chungjungsoo.gptmobile.data.mcp.McpManager
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import dev.chungjungsoo.gptmobile.data.tool.BuiltInTool
 import javax.inject.Inject
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-
-private const val TAG = "McpSettingsViewModel"
 
 @HiltViewModel
 class McpSettingsViewModel @Inject constructor(
@@ -35,7 +31,14 @@ class McpSettingsViewModel @Inject constructor(
     val connectionState = mcpManager.connectionState
 
     init {
-        loadServers()
+        refresh()
+    }
+
+    fun refresh() {
+        viewModelScope.launch {
+            _servers.update { settingRepository.fetchMcpServers() }
+            mcpManager.connectAll()
+        }
     }
 
     fun loadServers() {
@@ -45,34 +48,17 @@ class McpSettingsViewModel @Inject constructor(
     }
 
     fun connectAll() {
-        Log.d(TAG, "connectAll called")
         // Use GlobalScope to prevent cancellation when user navigates away from MCP Settings
         GlobalScope.launch {
-            try {
-                Log.d(TAG, "connectAll launching")
-                mcpManager.connectAll()
-                Log.d(TAG, "connectAll completed")
-            } catch (e: CancellationException) {
-                Log.w(TAG, "connectAll cancelled", e)
-            }
+            mcpManager.connectAll()
         }
     }
 
     fun reconnectServer(serverId: Int) {
-        Log.d(TAG, "reconnectServer called serverId=$serverId")
         // Use GlobalScope to prevent cancellation when user navigates away from MCP Settings
         GlobalScope.launch {
-            try {
-                val server = _servers.value.find { it.id == serverId } ?: run {
-                    Log.w(TAG, "reconnectServer server not found serverId=$serverId")
-                    return@launch
-                }
-                Log.d(TAG, "reconnectServer launching serverId=$serverId name=${server.name}")
-                mcpManager.connect(server)
-                Log.d(TAG, "reconnectServer completed serverId=$serverId")
-            } catch (e: CancellationException) {
-                Log.w(TAG, "reconnectServer cancelled serverId=$serverId", e)
-            }
+            val server = _servers.value.find { it.id == serverId } ?: return@launch
+            mcpManager.connect(server)
         }
     }
 }
