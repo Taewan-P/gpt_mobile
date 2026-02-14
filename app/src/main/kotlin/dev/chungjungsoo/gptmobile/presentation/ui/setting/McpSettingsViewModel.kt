@@ -11,6 +11,7 @@ import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import dev.chungjungsoo.gptmobile.data.tool.BuiltInTool
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -45,7 +46,8 @@ class McpSettingsViewModel @Inject constructor(
 
     fun connectAll() {
         Log.d(TAG, "connectAll called")
-        viewModelScope.launch {
+        // Use GlobalScope to prevent cancellation when user navigates away from MCP Settings
+        GlobalScope.launch {
             try {
                 Log.d(TAG, "connectAll launching")
                 mcpManager.connectAll()
@@ -58,7 +60,8 @@ class McpSettingsViewModel @Inject constructor(
 
     fun reconnectServer(serverId: Int) {
         Log.d(TAG, "reconnectServer called serverId=$serverId")
-        viewModelScope.launch {
+        // Use GlobalScope to prevent cancellation when user navigates away from MCP Settings
+        GlobalScope.launch {
             try {
                 val server = _servers.value.find { it.id == serverId } ?: run {
                     Log.w(TAG, "reconnectServer server not found serverId=$serverId")
