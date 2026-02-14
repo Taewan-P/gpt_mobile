@@ -51,6 +51,34 @@ class AddMcpServerViewModel @Inject constructor(
         _uiState.update { it.copy(command = command, connectionMessage = null, isConnectionError = false) }
     }
 
+    fun updateArgs(args: List<String>) {
+        _uiState.update { it.copy(args = args, connectionMessage = null, isConnectionError = false) }
+    }
+
+    fun addArg(arg: String) {
+        _uiState.update { it.copy(args = it.args + arg, connectionMessage = null, isConnectionError = false) }
+    }
+
+    fun removeArg(index: Int) {
+        _uiState.update { state ->
+            state.copy(
+                args = state.args.filterIndexed { i, _ -> i != index },
+                connectionMessage = null,
+                isConnectionError = false
+            )
+        }
+    }
+
+    fun updateArg(index: Int, newValue: String) {
+        _uiState.update { state ->
+            state.copy(
+                args = state.args.mapIndexed { i, arg -> if (i == index) newValue else arg },
+                connectionMessage = null,
+                isConnectionError = false
+            )
+        }
+    }
+
     fun updateInstallJson(installJson: String) {
         _uiState.update { it.copy(installJson = installJson) }
     }
@@ -209,6 +237,7 @@ class AddMcpServerViewModel @Inject constructor(
         type = _uiState.value.type,
         url = _uiState.value.url.trim().takeIf { it.isNotBlank() },
         command = _uiState.value.command.trim().takeIf { it.isNotBlank() },
+        args = _uiState.value.args,
         headers = _uiState.value.headers,
         enabled = enabled
     )
@@ -279,6 +308,7 @@ class AddMcpServerViewModel @Inject constructor(
         val type: McpTransportType = McpTransportType.STREAMABLE_HTTP,
         val url: String = "",
         val command: String = "",
+        val args: List<String> = emptyList(),
         val installJson: String = "",
         val headers: Map<String, String> = emptyMap(),
         val isSaving: Boolean = false,
@@ -297,7 +327,7 @@ class AddMcpServerViewModel @Inject constructor(
 
         val canTest: Boolean
             get() = when (type) {
-                McpTransportType.STDIO -> false
+                McpTransportType.STDIO -> command.isNotBlank()
                 McpTransportType.WEBSOCKET -> url.startsWith("wss://") || url.startsWith("ws://")
                 McpTransportType.STREAMABLE_HTTP,
                 McpTransportType.SSE -> url.startsWith("https://") || url.startsWith("http://")

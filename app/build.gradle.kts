@@ -26,7 +26,20 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        ndk {
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+        }
     }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/jni/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
+
+    ndkVersion = "25.2.9519653"
 
     ksp {
         arg("room.schemaLocation", "$projectDir/schemas")

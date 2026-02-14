@@ -157,7 +157,6 @@ fun AddMcpServerScreen(
                     onValueChange = viewModel::updateCommand,
                     label = { Text(stringResource(R.string.command)) },
                     placeholder = { Text(stringResource(R.string.command_hint)) },
-                    enabled = false,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -165,28 +164,37 @@ fun AddMcpServerScreen(
                 )
 
                 Text(
-                    text = stringResource(R.string.stdio_requires_native_support),
+                    text = stringResource(R.string.stdio_termux_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp)
                 )
-            }
 
-            if (uiState.headers.isNotEmpty()) {
-                Text(
-                    text = stringResource(R.string.mcp_headers_imported, uiState.headers.size),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                ArgsSection(
+                    args = uiState.args,
+                    onAddArg = viewModel::addArg,
+                    onRemoveArg = viewModel::removeArg,
+                    onUpdateArg = viewModel::updateArg
                 )
             }
 
-            HeadersSection(
-                headers = uiState.headers,
-                onAddHeader = viewModel::addHeader,
-                onRemoveHeader = viewModel::removeHeader,
-                onUpdateHeader = viewModel::updateHeader
-            )
+            if (uiState.type != McpTransportType.STDIO) {
+                if (uiState.headers.isNotEmpty()) {
+                    Text(
+                        text = stringResource(R.string.mcp_headers_imported, uiState.headers.size),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                }
+
+                HeadersSection(
+                    headers = uiState.headers,
+                    onAddHeader = viewModel::addHeader,
+                    onRemoveHeader = viewModel::removeHeader,
+                    onUpdateHeader = viewModel::updateHeader
+                )
+            }
 
             Button(
                 onClick = viewModel::testConnection,
@@ -356,6 +364,104 @@ internal fun HeaderRow(
     LaunchedEffect(editKey, editValue) {
         if (editKey != headerKey || editValue != headerValue) {
             onUpdate(editKey, editValue)
+        }
+    }
+}
+
+@Composable
+internal fun ArgsSection(
+    args: List<String>,
+    onAddArg: (String) -> Unit,
+    onRemoveArg: (Int) -> Unit,
+    onUpdateArg: (Int, String) -> Unit
+) {
+    var newArg by remember { mutableStateOf("") }
+
+    Text(
+        text = stringResource(R.string.mcp_args),
+        style = MaterialTheme.typography.titleMedium,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+    )
+
+    if (args.isEmpty()) {
+        Text(
+            text = stringResource(R.string.no_args),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+        )
+    } else {
+        args.forEachIndexed { index, arg ->
+            ArgRow(
+                arg = arg,
+                onUpdate = { newValue -> onUpdateArg(index, newValue) },
+                onRemove = { onRemoveArg(index) }
+            )
+        }
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        OutlinedTextField(
+            value = newArg,
+            onValueChange = { newArg = it },
+            label = { Text(stringResource(R.string.mcp_arg)) },
+            placeholder = { Text(stringResource(R.string.mcp_arg_hint)) },
+            modifier = Modifier.weight(1f),
+            singleLine = true
+        )
+        IconButton(
+            onClick = {
+                if (newArg.isNotBlank()) {
+                    onAddArg(newArg)
+                    newArg = ""
+                }
+            }
+        ) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = stringResource(R.string.add_arg)
+            )
+        }
+    }
+}
+
+@Composable
+internal fun ArgRow(
+    arg: String,
+    onUpdate: (String) -> Unit,
+    onRemove: () -> Unit
+) {
+    var editValue by remember(arg) { mutableStateOf(arg) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        OutlinedTextField(
+            value = editValue,
+            onValueChange = { editValue = it },
+            label = { Text(stringResource(R.string.mcp_arg)) },
+            modifier = Modifier.weight(1f),
+            singleLine = true
+        )
+        IconButton(onClick = onRemove) {
+            Icon(
+                imageVector = Icons.Default.Delete,
+                contentDescription = stringResource(R.string.remove_arg)
+            )
+        }
+    }
+
+    LaunchedEffect(editValue) {
+        if (editValue != arg) {
+            onUpdate(editValue)
         }
     }
 }

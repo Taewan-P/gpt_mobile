@@ -1,6 +1,8 @@
 package dev.chungjungsoo.gptmobile.data.mcp
 
+import android.content.Context
 import android.util.Log
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.chungjungsoo.gptmobile.data.database.dao.McpServerDao
 import dev.chungjungsoo.gptmobile.data.database.entity.McpServerConfig
 import dev.chungjungsoo.gptmobile.data.database.entity.McpTransportType
@@ -43,7 +45,8 @@ import kotlinx.serialization.json.put
 
 @Singleton
 class McpManager @Inject constructor(
-    private val mcpServerDao: McpServerDao
+    private val mcpServerDao: McpServerDao,
+    @ApplicationContext private val context: Context
 ) {
     private val connections = mutableMapOf<Int, McpConnection>()
     private val toolToServer = mutableMapOf<String, Int>()
@@ -337,7 +340,14 @@ class McpManager @Inject constructor(
                 }
             }
             McpTransportType.STDIO -> {
-                throw UnsupportedOperationException("STDIO MCP transport requires native process support")
+                val command = requireNotNull(config.command) { "STDIO MCP server requires command" }
+                StdioMcpTransport(
+                    command = command,
+                    args = config.args,
+                    env = config.env,
+                    workingDir = null,
+                    context = context
+                )
             }
         }
     }
@@ -479,6 +489,10 @@ class McpManager @Inject constructor(
         val lastError: String? = null,
         val serverErrors: Map<Int, String> = emptyMap()
     )
+
+    fun getTermuxStatus(): TermuxHelper.TermuxStatus {
+        return TermuxHelper.checkTermuxStatus(context)
+    }
 
     companion object {
         private const val TAG = "McpManager"

@@ -1,8 +1,10 @@
 package dev.chungjungsoo.gptmobile.di
 
+import android.content.Context
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.chungjungsoo.gptmobile.data.database.dao.McpServerDao
 import dev.chungjungsoo.gptmobile.data.mcp.McpManager
@@ -20,7 +22,10 @@ object ToolModule {
 
     @Provides
     @Singleton
-    fun provideMcpManager(mcpServerDao: McpServerDao): McpManager = McpManager(mcpServerDao)
+    fun provideMcpManager(
+        mcpServerDao: McpServerDao,
+        @ApplicationContext context: Context
+    ): McpManager = McpManager(mcpServerDao, context)
 
     @Provides
     @Singleton

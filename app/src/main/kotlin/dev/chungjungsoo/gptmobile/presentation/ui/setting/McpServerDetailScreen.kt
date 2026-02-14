@@ -32,6 +32,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.McpServerConfig
+import dev.chungjungsoo.gptmobile.data.database.entity.McpTransportType
 import dev.chungjungsoo.gptmobile.presentation.common.SettingItem
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -89,12 +90,14 @@ fun McpServerDetailScreen(
 
             ServerDetails(server)
 
-            HeadersSection(
-                headers = server.headers,
-                onAddHeader = viewModel::addHeader,
-                onRemoveHeader = viewModel::removeHeader,
-                onUpdateHeader = viewModel::updateHeader
-            )
+            if (server.type != McpTransportType.STDIO) {
+                HeadersSection(
+                    headers = server.headers,
+                    onAddHeader = viewModel::addHeader,
+                    onRemoveHeader = viewModel::removeHeader,
+                    onUpdateHeader = viewModel::updateHeader
+                )
+            }
 
             Button(
                 onClick = viewModel::testConnection,

@@ -284,6 +284,13 @@
     <string name="builtin_tools">Built-in Tools</string>
     <string name="no_builtin_tools_available">No built-in tools available.</string>
     <string name="stdio_requires_native_support">Local process support is coming in a future phase.</string>
+    <string name="stdio_termux_hint">Requires Termux with Node.js/Python installed. Commands like npx, node, python are auto-resolved.</string>
+    <string name="mcp_args">Arguments</string>
+    <string name="mcp_arg">Argument</string>
+    <string name="mcp_arg_hint">-y</string>
+    <string name="add_arg">Add Argument</string>
+    <string name="remove_arg">Remove Argument</string>
+    <string name="no_args">No arguments configured</string>
     <string name="enable_server">Enable Server</string>
     <string name="delete_server">Delete Server</string>
     <string name="delete_server_confirmation">Delete this MCP server? This action cannot be undone.</string>
