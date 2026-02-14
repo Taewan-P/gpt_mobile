@@ -62,10 +62,11 @@ class McpManager @Inject constructor(
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
     suspend fun connectAll(forceRefresh: Boolean = false) {
+        Log.i(TAG, "connectAll start forceRefresh=$forceRefresh currentConnections=${connections.size} currentTools=${_availableTools.value.size}")
         try {
             lock.withLock {
                 val servers = mcpServerDao.getEnabledServers()
-                Log.i(TAG, "connectAll enabledServers=${servers.size}")
+                Log.i(TAG, "connectAll enabledServers=${servers.size} connections=${connections.size} tools=${_availableTools.value.size}")
                 if (!forceRefresh && isAlreadyConnectedLocked(servers)) {
                     _connectionState.value = _connectionState.value.copy(
                         isConnecting = false,
@@ -317,19 +318,25 @@ class McpManager @Inject constructor(
     }
 
     private fun isAlreadyConnectedLocked(servers: List<McpServerConfig>): Boolean {
+        Log.d(TAG, "isAlreadyConnectedLocked servers=${servers.size} connections=${connections.size} tools=${_availableTools.value.size}")
         if (servers.isEmpty()) {
+            Log.d(TAG, "isAlreadyConnectedLocked: servers empty, returning ${connections.isEmpty()}")
             return connections.isEmpty()
         }
         if (_availableTools.value.isEmpty()) {
+            Log.d(TAG, "isAlreadyConnectedLocked: tools empty, returning false")
             return false
         }
         if (connections.size != servers.size) {
+            Log.d(TAG, "isAlreadyConnectedLocked: connections.size ${connections.size} != servers.size ${servers.size}, returning false")
             return false
         }
-        return servers.all { config ->
+        val result = servers.all { config ->
             val existing = connections[config.id]
             existing != null && existing.config == config
         }
+        Log.d(TAG, "isAlreadyConnectedLocked: returning $result")
+        return result
     }
 
     private fun createTransport(config: McpServerConfig): Transport {
