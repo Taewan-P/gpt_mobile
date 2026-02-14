@@ -77,17 +77,23 @@ class AddMcpServerViewModel @Inject constructor(
                     url = imported.url,
                     headers = imported.headers,
                     connectionMessage = "Imported ${imported.name} config (${imported.headers.size} headers).",
-                    isConnectionError = false
+                    isConnectionError = false,
+                    importSucceeded = true
                 )
             }
         }.onFailure { throwable ->
             _uiState.update {
                 it.copy(
                     connectionMessage = throwable.message ?: "Invalid install JSON",
-                    isConnectionError = true
+                    isConnectionError = true,
+                    importSucceeded = false
                 )
             }
         }
+    }
+
+    fun clearImportSucceeded() {
+        _uiState.update { it.copy(importSucceeded = false) }
     }
 
     fun testConnection() {
@@ -258,7 +264,8 @@ class AddMcpServerViewModel @Inject constructor(
         val isSaving: Boolean = false,
         val isTesting: Boolean = false,
         val connectionMessage: String? = null,
-        val isConnectionError: Boolean = false
+        val isConnectionError: Boolean = false,
+        val importSucceeded: Boolean = false
     ) {
         val isValid: Boolean
             get() = name.isNotBlank() && when (type) {

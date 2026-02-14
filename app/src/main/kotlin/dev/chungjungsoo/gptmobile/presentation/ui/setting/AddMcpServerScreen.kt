@@ -46,10 +46,18 @@ fun AddMcpServerScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var installJsonField by remember { mutableStateOf(TextFieldValue(uiState.installJson)) }
+    val scrollState = rememberScrollState()
 
     LaunchedEffect(uiState.installJson) {
         if (uiState.installJson != installJsonField.text) {
             installJsonField = TextFieldValue(uiState.installJson)
+        }
+    }
+
+    LaunchedEffect(uiState.importSucceeded) {
+        if (uiState.importSucceeded) {
+            scrollState.animateScrollTo(scrollState.maxValue)
+            viewModel.clearImportSucceeded()
         }
     }
 
@@ -72,7 +80,7 @@ fun AddMcpServerScreen(
         Column(
             modifier = Modifier
                 .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .imePadding()
         ) {
             OutlinedTextField(
