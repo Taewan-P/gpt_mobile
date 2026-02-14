@@ -110,7 +110,9 @@ class McpManager @Inject constructor(
                         }
                         .onFailure { throwable ->
                             val errorMap = _connectionState.value.serverErrors.toMutableMap()
-                            if (throwable !is CancellationException) {
+                            if (throwable is CancellationException) {
+                                Log.w(TAG, "connectAll caught CancellationException serverId=${config.id} name=${config.name}", throwable)
+                            } else {
                                 errorMap[config.id] = throwable.message ?: "Connection failed"
                                 Log.e(TAG, "connectAll failed serverId=${config.id} name=${config.name}", throwable)
                             }
