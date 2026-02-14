@@ -108,12 +108,14 @@ class McpManager @Inject constructor(
                     .onFailure { throwable ->
                         val updatedConnecting = _connectionState.value.connectingServers.toMutableSet()
                         updatedConnecting.remove(config.id)
+                        val errorMap = _connectionState.value.serverErrors.toMutableMap()
+                        errorMap[config.id] = throwable.message ?: "Connection failed"
                         _connectionState.value = _connectionState.value.copy(
                             attemptedServers = _connectionState.value.attemptedServers + 1,
                             failedServers = _connectionState.value.failedServers + 1,
                             connectingCount = maxOf(0, _connectionState.value.connectingCount - 1),
                             connectingServers = updatedConnecting,
-                            lastError = throwable.message
+                            serverErrors = errorMap
                         )
                         Log.e(TAG, "connectAll failed serverId=${config.id} name=${config.name}", throwable)
                     }
@@ -162,11 +164,13 @@ class McpManager @Inject constructor(
         val updatedConnecting = _connectionState.value.connectingServers.toMutableSet()
         updatedConnecting.remove(config.id)
         
+        val errorMap = _connectionState.value.serverErrors.toMutableMap()
+        errorMap[config.id] = throwable.message ?: "Connection failed"
         _connectionState.value = _connectionState.value.copy(
             connectingCount = maxOf(0, _connectionState.value.connectingCount - 1),
             connectingServers = updatedConnecting,
             isConnecting = updatedConnecting.isNotEmpty(),
-            lastError = throwable.message
+            serverErrors = errorMap
         )
         Log.e(TAG, "connect failed serverId=${config.id} name=${config.name}", throwable)
     }
