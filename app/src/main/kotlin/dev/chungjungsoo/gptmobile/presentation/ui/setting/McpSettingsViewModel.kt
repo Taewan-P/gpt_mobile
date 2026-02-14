@@ -31,13 +31,13 @@ class McpSettingsViewModel @Inject constructor(
     val connectionState = mcpManager.connectionState
 
     init {
+        // Only connect on first load, not on every refresh
         refresh()
     }
 
     fun refresh() {
         viewModelScope.launch {
             _servers.update { settingRepository.fetchMcpServers() }
-            mcpManager.connectAll()
         }
     }
 
