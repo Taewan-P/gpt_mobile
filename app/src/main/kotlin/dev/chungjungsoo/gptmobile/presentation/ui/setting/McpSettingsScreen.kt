@@ -115,6 +115,7 @@ fun McpSettingsScreen(
                 McpServerItem(
                     server = server,
                     serverError = connectionState.serverErrors[server.id],
+                    isConnecting = server.id in connectionState.connectingServers,
                     onItemClick = { onServerClick(server.id) },
                     onReconnectClick = { viewModel.reconnectServer(server.id) }
                 )
@@ -186,6 +187,7 @@ private fun McpConnectionStatus(connectionState: McpManager.ConnectionState, onC
 private fun McpServerItem(
     server: McpServerConfig,
     serverError: String?,
+    isConnecting: Boolean,
     onItemClick: () -> Unit,
     onReconnectClick: () -> Unit
 ) {
@@ -208,10 +210,17 @@ private fun McpServerItem(
                 )
             },
             trailingIcon = {
-                IconButton(onClick = onReconnectClick) {
+                IconButton(
+                    onClick = onReconnectClick,
+                    enabled = !isConnecting
+                ) {
                     Icon(
                         imageVector = Icons.Filled.Refresh,
-                        contentDescription = stringResource(R.string.reconnect)
+                        contentDescription = stringResource(R.string.reconnect),
+                        tint = if (isConnecting) 
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f) 
+                        else 
+                            MaterialTheme.colorScheme.primary
                     )
                 }
             }

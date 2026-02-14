@@ -118,18 +118,44 @@ class McpManager @Inject constructor(
     }
 
     suspend fun connect(config: McpServerConfig): Result<Unit> = runCatching {
+        // Mark this server as connecting
+        val currentConnecting = _connectionState.value.connectingServers.toMutableSet()
+        currentConnecting.add(config.id)
+        _connectionState.value = _connectionState.value.copy(
+            isConnecting = true,
+            connectingCount = _connectionState.value.connectingCount + 1,
+            connectingServers = currentConnecting
+        )
+        
         lock.withLock {
             connectInternal(config)
             refreshServerToolsLocked(config.id)
+            
+            // Remove from connecting set
+            val updatedConnecting = _connectionState.value.connectingServers.toMutableSet()
+            updatedConnecting.remove(config.id)
+            
             _connectionState.value = _connectionState.value.copy(
                 connectedServers = connections.size,
                 totalServers = maxOf(_connectionState.value.totalServers, connections.size),
-                isConnecting = false
+                connectingCount = maxOf(0, _connectionState.value.connectingCount - 1),
+                connectingServers = updatedConnecting,
+                isConnecting = updatedConnecting.isNotEmpty()
             )
         }
     }.onSuccess {
         Log.i(TAG, "connect success serverId=${config.id} name=${config.name} toolsNow=${_availableTools.value.size}")
     }.onFailure { throwable ->
+        // Remove from connecting set on failure
+        val updatedConnecting = _connectionState.value.connectingServers.toMutableSet()
+        updatedConnecting.remove(config.id)
+        
+        _connectionState.value = _connectionState.value.copy(
+            connectingCount = maxOf(0, _connectionState.value.connectingCount - 1),
+            connectingServers = updatedConnecting,
+            isConnecting = updatedConnecting.isNotEmpty(),
+            lastError = throwable.message
+        )
         Log.e(TAG, "connect failed serverId=${config.id} name=${config.name}", throwable)
     }
 
@@ -429,6 +455,7 @@ class McpManager @Inject constructor(
     data class ConnectionState(
         val isConnecting: Boolean = false,
         val connectingCount: Int = 0,
+        val connectingServers: Set<Int> = emptySet(),
         val totalServers: Int = 0,
         val attemptedServers: Int = 0,
         val connectedServers: Int = 0,
