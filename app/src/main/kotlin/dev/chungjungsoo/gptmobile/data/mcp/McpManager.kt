@@ -81,12 +81,14 @@ class McpManager @Inject constructor(
 
                 val enabledServerIds = servers.map { it.id }.toSet()
                 val staleServerIds = connections.keys.filterNot { it in enabledServerIds }
+                Log.i(TAG, "connectAll staleServerIds=$staleServerIds currentConnections=${connections.keys}")
                 staleServerIds.forEach { staleId ->
                     connections.remove(staleId)?.let { staleConnection ->
                         runCatching { staleConnection.client.close() }
                     }
                     removeServerToolsLocked(staleId)
                 }
+                Log.i(TAG, "connectAll after cleanup connections=${connections.keys} tools=${_availableTools.value.size}")
                 _connectionState.value = ConnectionState(
                     isConnecting = true,
                     connectingCount = servers.size,
@@ -96,8 +98,10 @@ class McpManager @Inject constructor(
                     failedServers = 0
                 )
                 servers.forEach { config ->
+                    Log.i(TAG, "connectAll processing server serverId=${config.id} name=${config.name} currentConnections=${connections.keys}")
                     runCatching { connectInternal(config) }
                         .onSuccess {
+                            Log.i(TAG, "connectAll success serverId=${config.id} nowConnections=${connections.keys}")
                             _connectionState.value = _connectionState.value.copy(
                                 attemptedServers = _connectionState.value.attemptedServers + 1,
                                 connectedServers = connections.size,
@@ -110,6 +114,7 @@ class McpManager @Inject constructor(
                                 errorMap[config.id] = throwable.message ?: "Connection failed"
                                 Log.e(TAG, "connectAll failed serverId=${config.id} name=${config.name}", throwable)
                             }
+                            Log.i(TAG, "connectAll after failure serverId=${config.id} nowConnections=${connections.keys}")
                             _connectionState.value = _connectionState.value.copy(
                                 attemptedServers = _connectionState.value.attemptedServers + 1,
                                 failedServers = _connectionState.value.failedServers + 1,
@@ -118,7 +123,9 @@ class McpManager @Inject constructor(
                             )
                         }
                 }
+                Log.i(TAG, "connectAll before refreshToolListLocked connections=${connections.keys} tools=${_availableTools.value.size}")
                 refreshToolListLocked()
+                Log.i(TAG, "connectAll after refreshToolListLocked connections=${connections.keys} tools=${_availableTools.value.size}")
                 _connectionState.value = _connectionState.value.copy(
                     isConnecting = false,
                     connectingCount = 0,
@@ -290,31 +297,34 @@ class McpManager @Inject constructor(
     }
 
     private suspend fun connectInternal(config: McpServerConfig) {
-        Log.d(TAG, "connectInternal start serverId=${config.id} name=${config.name} enabled=${config.enabled}")
+        Log.i(TAG, "connectInternal start serverId=${config.id} name=${config.name} enabled=${config.enabled} currentConnections=${connections.keys}")
         if (!config.enabled) {
-            Log.d(TAG, "connectInternal skipped - not enabled serverId=${config.id}")
+            Log.i(TAG, "connectInternal skipped - not enabled serverId=${config.id}")
             return
         }
 
-        connections.remove(config.id)?.let { previous ->
-            Log.d(TAG, "connectInternal closing previous connection serverId=${config.id}")
-            runCatching { previous.client.close() }
+        val removed = connections.remove(config.id)
+        if (removed != null) {
+            Log.i(TAG, "connectInternal closing previous connection serverId=${config.id} removed=$removed")
+            runCatching { removed.client.close() }
+        } else {
+            Log.i(TAG, "connectInternal no previous connection to close serverId=${config.id}")
         }
 
-        Log.d(TAG, "connectInternal creating transport serverId=${config.id}")
+        Log.i(TAG, "connectInternal creating transport serverId=${config.id}")
         val transport = createTransport(config)
-        Log.d(TAG, "connectInternal creating client serverId=${config.id}")
+        Log.i(TAG, "connectInternal creating client serverId=${config.id}")
         val client = Client(
             clientInfo = Implementation(
                 name = "GPTMobile",
                 version = "0.7.1"
             )
         )
-        Log.d(TAG, "connectInternal calling client.connect serverId=${config.id}")
+        Log.i(TAG, "connectInternal calling client.connect serverId=${config.id}")
         client.connect(transport)
-        Log.d(TAG, "connectInternal storing connection serverId=${config.id}")
+        Log.i(TAG, "connectInternal storing connection serverId=${config.id}")
         connections[config.id] = McpConnection(client = client, config = config)
-        Log.d(TAG, "connectInternal done serverId=${config.id}")
+        Log.i(TAG, "connectInternal done serverId=${config.id}")
     }
 
     private fun isAlreadyConnectedLocked(servers: List<McpServerConfig>): Boolean {
