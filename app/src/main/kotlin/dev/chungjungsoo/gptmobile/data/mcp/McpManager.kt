@@ -110,9 +110,7 @@ class McpManager @Inject constructor(
                         }
                         .onFailure { throwable ->
                             val errorMap = _connectionState.value.serverErrors.toMutableMap()
-                            if (throwable is CancellationException) {
-                                Log.w(TAG, "connectAll cancelled serverId=${config.id} name=${config.name}", throwable)
-                            } else {
+                            if (throwable !is CancellationException) {
                                 errorMap[config.id] = throwable.message ?: "Connection failed"
                                 Log.e(TAG, "connectAll failed serverId=${config.id} name=${config.name}", throwable)
                             }
@@ -305,10 +303,12 @@ class McpManager @Inject constructor(
             return
         }
 
-        // Skip if already connected - don't close and reconnect
-        if (connections.containsKey(config.id)) {
-            Log.i(TAG, "connectInternal skipping - already connected serverId=${config.id}")
-            return
+        val removed = connections.remove(config.id)
+        if (removed != null) {
+            Log.i(TAG, "connectInternal closing previous connection serverId=${config.id} removed=$removed")
+            runCatching { removed.client.close() }
+        } else {
+            Log.i(TAG, "connectInternal no previous connection to close serverId=${config.id}")
         }
 
         Log.i(TAG, "connectInternal creating transport serverId=${config.id}")
