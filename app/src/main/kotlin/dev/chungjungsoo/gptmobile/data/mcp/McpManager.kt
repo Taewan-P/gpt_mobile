@@ -296,11 +296,9 @@ class McpManager @Inject constructor(
             return
         }
 
-        // Skip if already connected
-        val existingConnection = connections[config.id]
-        if (existingConnection != null) {
-            Log.d(TAG, "connectInternal skipping - already connected serverId=${config.id}")
-            return
+        connections.remove(config.id)?.let { previous ->
+            Log.d(TAG, "connectInternal closing previous connection serverId=${config.id}")
+            runCatching { previous.client.close() }
         }
 
         Log.d(TAG, "connectInternal creating transport serverId=${config.id}")
