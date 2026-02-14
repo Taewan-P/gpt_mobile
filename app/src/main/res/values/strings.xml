@@ -303,6 +303,14 @@
     <string name="mcp_install_json_hint">Paste mcpServers JSON from provider docs</string>
     <string name="import_install_json">Import JSON</string>
     <string name="mcp_headers_imported">Imported headers: %1$d</string>
+    <string name="mcp_headers">Headers</string>
+    <string name="mcp_header_name">Header Name</string>
+    <string name="mcp_header_name_hint">Authorization</string>
+    <string name="mcp_header_value">Header Value</string>
+    <string name="mcp_header_value_hint">Bearer token...</string>
+    <string name="add_header">Add Header</string>
+    <string name="remove_header">Remove Header</string>
+    <string name="no_headers">No headers configured</string>
     <string name="mcp_connection_status">Connection Status</string>
     <string name="mcp_connecting_status">Connecting %1$d server(s)...</string>
     <string name="mcp_connected_status">Connected %1$d/%2$d servers</string>

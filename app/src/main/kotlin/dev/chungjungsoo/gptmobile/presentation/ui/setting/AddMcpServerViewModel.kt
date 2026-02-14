@@ -55,6 +55,26 @@ class AddMcpServerViewModel @Inject constructor(
         _uiState.update { it.copy(installJson = installJson) }
     }
 
+    fun addHeader(key: String, value: String) {
+        if (key.isBlank()) return
+        _uiState.update { it.copy(headers = it.headers + (key to value)) }
+    }
+
+    fun removeHeader(key: String) {
+        _uiState.update { it.copy(headers = it.headers - key) }
+    }
+
+    fun updateHeader(oldKey: String, newKey: String, newValue: String) {
+        _uiState.update {
+            val updated = it.headers.toMutableMap()
+            updated.remove(oldKey)
+            if (newKey.isNotBlank()) {
+                updated[newKey] = newValue
+            }
+            it.copy(headers = updated)
+        }
+    }
+
     fun importInstallJson() {
         val payload = _uiState.value.installJson.trim()
         if (payload.isBlank()) {

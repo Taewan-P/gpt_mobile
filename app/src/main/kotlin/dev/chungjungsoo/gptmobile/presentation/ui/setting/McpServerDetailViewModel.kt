@@ -58,6 +58,39 @@ class McpServerDetailViewModel @Inject constructor(
         }
     }
 
+    fun addHeader(key: String, value: String) {
+        if (key.isBlank()) return
+        val currentServer = _uiState.value.server ?: return
+        viewModelScope.launch {
+            val updated = currentServer.copy(headers = currentServer.headers + (key to value))
+            settingRepository.updateMcpServer(updated)
+            _uiState.update { it.copy(server = updated) }
+        }
+    }
+
+    fun removeHeader(key: String) {
+        val currentServer = _uiState.value.server ?: return
+        viewModelScope.launch {
+            val updated = currentServer.copy(headers = currentServer.headers - key)
+            settingRepository.updateMcpServer(updated)
+            _uiState.update { it.copy(server = updated) }
+        }
+    }
+
+    fun updateHeader(oldKey: String, newKey: String, newValue: String) {
+        val currentServer = _uiState.value.server ?: return
+        viewModelScope.launch {
+            val updatedHeaders = currentServer.headers.toMutableMap()
+            updatedHeaders.remove(oldKey)
+            if (newKey.isNotBlank()) {
+                updatedHeaders[newKey] = newValue
+            }
+            val updated = currentServer.copy(headers = updatedHeaders)
+            settingRepository.updateMcpServer(updated)
+            _uiState.update { it.copy(server = updated) }
+        }
+    }
+
     fun testConnection() {
         val currentServer = _uiState.value.server ?: return
         _uiState.update { it.copy(isTesting = true, statusMessage = null, isStatusError = false) }

@@ -89,6 +89,13 @@ fun McpServerDetailScreen(
 
             ServerDetails(server)
 
+            HeadersSection(
+                headers = server.headers,
+                onAddHeader = viewModel::addHeader,
+                onRemoveHeader = viewModel::removeHeader,
+                onUpdateHeader = viewModel::updateHeader
+            )
+
             Button(
                 onClick = viewModel::testConnection,
                 enabled = !uiState.isTesting,

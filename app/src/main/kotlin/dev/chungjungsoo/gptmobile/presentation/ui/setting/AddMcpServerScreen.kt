@@ -1,15 +1,20 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.setting
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -176,6 +181,13 @@ fun AddMcpServerScreen(
                 )
             }
 
+            HeadersSection(
+                headers = uiState.headers,
+                onAddHeader = viewModel::addHeader,
+                onRemoveHeader = viewModel::removeHeader,
+                onUpdateHeader = viewModel::updateHeader
+            )
+
             Button(
                 onClick = viewModel::testConnection,
                 enabled = uiState.canTest && !uiState.isTesting && !uiState.isSaving,
@@ -228,4 +240,122 @@ private fun transportTypeDescription(type: McpTransportType): String = when (typ
     McpTransportType.STREAMABLE_HTTP -> stringResource(R.string.transport_http_desc)
     McpTransportType.SSE -> stringResource(R.string.transport_sse_desc)
     McpTransportType.STDIO -> stringResource(R.string.transport_stdio_desc)
+}
+
+@Composable
+internal fun HeadersSection(
+    headers: Map<String, String>,
+    onAddHeader: (String, String) -> Unit,
+    onRemoveHeader: (String) -> Unit,
+    onUpdateHeader: (String, String, String) -> Unit
+) {
+    var newHeaderKey by remember { mutableStateOf("") }
+    var newHeaderValue by remember { mutableStateOf("") }
+
+    Text(
+        text = stringResource(R.string.mcp_headers),
+        style = MaterialTheme.typography.titleMedium,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+    )
+
+    if (headers.isEmpty()) {
+        Text(
+            text = stringResource(R.string.no_headers),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+        )
+    } else {
+        headers.forEach { (key, value) ->
+            HeaderRow(
+                headerKey = key,
+                headerValue = value,
+                onUpdate = { newKey, newValue -> onUpdateHeader(key, newKey, newValue) },
+                onRemove = { onRemoveHeader(key) }
+            )
+        }
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        OutlinedTextField(
+            value = newHeaderKey,
+            onValueChange = { newHeaderKey = it },
+            label = { Text(stringResource(R.string.mcp_header_name)) },
+            placeholder = { Text(stringResource(R.string.mcp_header_name_hint)) },
+            modifier = Modifier.weight(1f),
+            singleLine = true
+        )
+        OutlinedTextField(
+            value = newHeaderValue,
+            onValueChange = { newHeaderValue = it },
+            label = { Text(stringResource(R.string.mcp_header_value)) },
+            placeholder = { Text(stringResource(R.string.mcp_header_value_hint)) },
+            modifier = Modifier.weight(1f),
+            singleLine = true
+        )
+        IconButton(
+            onClick = {
+                if (newHeaderKey.isNotBlank()) {
+                    onAddHeader(newHeaderKey, newHeaderValue)
+                    newHeaderKey = ""
+                    newHeaderValue = ""
+                }
+            }
+        ) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = stringResource(R.string.add_header)
+            )
+        }
+    }
+}
+
+@Composable
+internal fun HeaderRow(
+    headerKey: String,
+    headerValue: String,
+    onUpdate: (String, String) -> Unit,
+    onRemove: () -> Unit
+) {
+    var editKey by remember(headerKey) { mutableStateOf(headerKey) }
+    var editValue by remember(headerValue) { mutableStateOf(headerValue) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        OutlinedTextField(
+            value = editKey,
+            onValueChange = { editKey = it },
+            label = { Text(stringResource(R.string.mcp_header_name)) },
+            modifier = Modifier.weight(1f),
+            singleLine = true
+        )
+        OutlinedTextField(
+            value = editValue,
+            onValueChange = { editValue = it },
+            label = { Text(stringResource(R.string.mcp_header_value)) },
+            modifier = Modifier.weight(1f),
+            singleLine = true
+        )
+        IconButton(onClick = onRemove) {
+            Icon(
+                imageVector = Icons.Default.Delete,
+                contentDescription = stringResource(R.string.remove_header)
+            )
+        }
+    }
+
+    LaunchedEffect(editKey, editValue) {
+        if (editKey != headerKey || editValue != headerValue) {
+            onUpdate(editKey, editValue)
+        }
+    }
 }
