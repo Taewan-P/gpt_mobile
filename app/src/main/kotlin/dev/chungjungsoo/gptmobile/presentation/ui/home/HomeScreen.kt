@@ -4,6 +4,7 @@ import android.content.res.Configuration
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -90,7 +91,8 @@ fun HomeScreen(
     homeViewModel: HomeViewModel = hiltViewModel(),
     settingOnClick: () -> Unit,
     onExistingChatClick: (ChatRoomV2) -> Unit,
-    navigateToNewChat: (enabledPlatforms: List<String>) -> Unit
+    navigateToNewChat: (enabledPlatforms: List<String>) -> Unit,
+    navigateToMcpSettings: () -> Unit
 ) {
     val listState = rememberLazyListState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
@@ -148,7 +150,8 @@ fun HomeScreen(
                 },
                 onSearchQueryChanged = homeViewModel::updateSearchQuery,
                 searchQuery = searchQuery,
-                mcpConnectionState = mcpConnectionState
+                mcpConnectionState = mcpConnectionState,
+                onMcpStatusClick = navigateToMcpSettings
             )
         },
         floatingActionButton = {
@@ -264,7 +267,8 @@ fun HomeTopAppBar(
     navigationOnClick: () -> Unit,
     onSearchQueryChanged: (String) -> Unit,
     searchQuery: String,
-    mcpConnectionState: McpManager.ConnectionState
+    mcpConnectionState: McpManager.ConnectionState,
+    onMcpStatusClick: () -> Unit
 ) {
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
@@ -379,6 +383,7 @@ fun HomeTopAppBar(
                 !isSearchMode -> {
                     McpStatusIndicator(
                         state = mcpConnectionState,
+                        onClick = onMcpStatusClick,
                         modifier = Modifier.padding(end = 4.dp)
                     )
                     IconButton(
@@ -397,6 +402,7 @@ fun HomeTopAppBar(
 @Composable
 private fun McpStatusIndicator(
     state: McpManager.ConnectionState,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val total = state.totalServers.coerceAtLeast(1)
@@ -408,6 +414,7 @@ private fun McpStatusIndicator(
     Box(
         modifier = modifier
             .wrapContentSize()
+            .clickable(onClick = onClick)
             .padding(horizontal = 4.dp),
         contentAlignment = Alignment.Center
     ) {

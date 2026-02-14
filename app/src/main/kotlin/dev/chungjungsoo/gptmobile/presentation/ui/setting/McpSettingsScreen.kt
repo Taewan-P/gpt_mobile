@@ -11,7 +11,9 @@ import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -61,7 +63,7 @@ fun McpSettingsScreen(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                viewModel.refresh()
+                viewModel.loadServers()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -92,7 +94,7 @@ fun McpSettingsScreen(
                 .padding(innerPadding)
                 .verticalScroll(scrollState)
         ) {
-            McpConnectionStatus(connectionState)
+            McpConnectionStatus(connectionState = connectionState, onConnectClick = { viewModel.connectAll() })
 
             SettingItem(
                 title = stringResource(R.string.add_mcp_server),
@@ -112,7 +114,9 @@ fun McpSettingsScreen(
             servers.forEach { server ->
                 McpServerItem(
                     server = server,
-                    onItemClick = { onServerClick(server.id) }
+                    serverError = connectionState.serverErrors[server.id],
+                    onItemClick = { onServerClick(server.id) },
+                    onReconnectClick = { viewModel.reconnectServer(server.id) }
                 )
             }
 
@@ -128,13 +132,11 @@ fun McpSettingsScreen(
 }
 
 @Composable
-private fun McpConnectionStatus(connectionState: McpManager.ConnectionState) {
+private fun McpConnectionStatus(connectionState: McpManager.ConnectionState, onConnectClick: () -> Unit) {
     val description = if (connectionState.isConnecting) {
-        stringResource(
-            R.string.mcp_connecting_status,
-            connectionState.attemptedServers,
-            connectionState.totalServers
-        )
+        stringResource(R.string.mcp_connecting_status, connectionState.connectingCount)
+    } else if (connectionState.totalServers == 0) {
+        stringResource(R.string.mcp_no_servers)
     } else {
         stringResource(
             R.string.mcp_connected_status,
@@ -146,11 +148,24 @@ private fun McpConnectionStatus(connectionState: McpManager.ConnectionState) {
     SettingItem(
         title = stringResource(R.string.mcp_connection_status),
         description = description,
-        enabled = false,
         onItemClick = {},
         showTrailingIcon = false,
         showLeadingIcon = false
     )
+
+    if (!connectionState.isConnecting && connectionState.totalServers > 0) {
+        Button(
+            onClick = onConnectClick,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Refresh,
+                contentDescription = null,
+                modifier = Modifier.padding(end = 8.dp)
+            )
+            Text(stringResource(R.string.connect_all))
+        }
+    }
 
     if (connectionState.isConnecting && connectionState.totalServers > 0) {
         LinearProgressIndicator(
@@ -168,25 +183,48 @@ private fun McpConnectionStatus(connectionState: McpManager.ConnectionState) {
 }
 
 @Composable
-private fun McpServerItem(server: McpServerConfig, onItemClick: () -> Unit) {
-    SettingItem(
-        title = server.name,
-        description = "${server.type.name} - ${if (server.enabled) stringResource(R.string.enabled) else stringResource(R.string.disabled)}",
-        onItemClick = onItemClick,
-        showTrailingIcon = true,
-        showLeadingIcon = true,
-        leadingIcon = {
-            Icon(
-                imageVector = when (server.type) {
-                    McpTransportType.WEBSOCKET -> Icons.Filled.Cloud
-                    McpTransportType.STREAMABLE_HTTP -> Icons.Filled.Link
-                    McpTransportType.SSE -> Icons.Filled.Public
-                    McpTransportType.STDIO -> Icons.Filled.Terminal
-                },
-                contentDescription = null
+private fun McpServerItem(
+    server: McpServerConfig,
+    serverError: String?,
+    onItemClick: () -> Unit,
+    onReconnectClick: () -> Unit
+) {
+    Column {
+        SettingItem(
+            title = server.name,
+            description = "${server.type.name} - ${if (server.enabled) stringResource(R.string.enabled) else stringResource(R.string.disabled)}",
+            onItemClick = onItemClick,
+            showTrailingIcon = false,
+            showLeadingIcon = true,
+            leadingIcon = {
+                Icon(
+                    imageVector = when (server.type) {
+                        McpTransportType.WEBSOCKET -> Icons.Filled.Cloud
+                        McpTransportType.STREAMABLE_HTTP -> Icons.Filled.Link
+                        McpTransportType.SSE -> Icons.Filled.Public
+                        McpTransportType.STDIO -> Icons.Filled.Terminal
+                    },
+                    contentDescription = null
+                )
+            },
+            trailingIcon = {
+                IconButton(onClick = onReconnectClick) {
+                    Icon(
+                        imageVector = Icons.Filled.Refresh,
+                        contentDescription = stringResource(R.string.reconnect)
+                    )
+                }
+            }
+        )
+        if (serverError != null) {
+            Text(
+                text = serverError,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(start = 72.dp, end = 16.dp, bottom = 8.dp)
             )
         }
-    )
+    }
 }
 
 @Composable

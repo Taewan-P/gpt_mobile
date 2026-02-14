@@ -140,7 +140,8 @@ fun NavGraphBuilder.homeScreenNavigation(navController: NavHostController) {
                         .replace(oldValue = "{chatRoomId}", newValue = "0")
                         .replace(oldValue = "{enabledPlatforms}", newValue = enabledPlatformString)
                 )
-            }
+            },
+            navigateToMcpSettings = { navController.navigate(Route.MCP_SETTINGS) }
         )
     }
 }

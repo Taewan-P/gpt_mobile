@@ -28,6 +28,7 @@ import io.modelcontextprotocol.kotlin.sdk.types.TextContent
 import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -61,76 +62,131 @@ class McpManager @Inject constructor(
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
     suspend fun connectAll(forceRefresh: Boolean = false) {
-        lock.withLock {
-            val servers = mcpServerDao.getEnabledServers()
-            Log.i(TAG, "connectAll enabledServers=${servers.size}")
-            if (!forceRefresh && isAlreadyConnectedLocked(servers)) {
-                _connectionState.value = _connectionState.value.copy(
-                    isConnecting = false,
+        try {
+            lock.withLock {
+                val servers = mcpServerDao.getEnabledServers()
+                Log.i(TAG, "connectAll enabledServers=${servers.size}")
+                if (!forceRefresh && isAlreadyConnectedLocked(servers)) {
+                    _connectionState.value = _connectionState.value.copy(
+                        isConnecting = false,
+                        totalServers = servers.size,
+                        attemptedServers = servers.size,
+                        connectedServers = servers.size,
+                        failedServers = 0
+                    )
+                    Log.i(TAG, "connectAll skipped: already connected")
+                    return
+                }
+
+                val enabledServerIds = servers.map { it.id }.toSet()
+                val staleServerIds = connections.keys.filterNot { it in enabledServerIds }
+                staleServerIds.forEach { staleId ->
+                    connections.remove(staleId)?.let { staleConnection ->
+                        runCatching { staleConnection.client.close() }
+                    }
+                    removeServerToolsLocked(staleId)
+                }
+                _connectionState.value = ConnectionState(
+                    isConnecting = true,
+                    connectingCount = servers.size,
                     totalServers = servers.size,
-                    attemptedServers = servers.size,
-                    connectedServers = servers.size,
+                    attemptedServers = 0,
+                    connectedServers = 0,
                     failedServers = 0
                 )
-                Log.i(TAG, "connectAll skipped: already connected")
-                return
-            }
-
-            val enabledServerIds = servers.map { it.id }.toSet()
-            val staleServerIds = connections.keys.filterNot { it in enabledServerIds }
-            staleServerIds.forEach { staleId ->
-                connections.remove(staleId)?.let { staleConnection ->
-                    runCatching { staleConnection.client.close() }
+                servers.forEach { config ->
+                    runCatching { connectInternal(config) }
+                        .onSuccess {
+                            _connectionState.value = _connectionState.value.copy(
+                                attemptedServers = _connectionState.value.attemptedServers + 1,
+                                connectedServers = connections.size,
+                                connectingCount = maxOf(0, _connectionState.value.connectingCount - 1)
+                            )
+                        }
+                        .onFailure { throwable ->
+                            val errorMap = _connectionState.value.serverErrors.toMutableMap()
+                            if (throwable !is CancellationException) {
+                                errorMap[config.id] = throwable.message ?: "Connection failed"
+                                Log.e(TAG, "connectAll failed serverId=${config.id} name=${config.name}", throwable)
+                            }
+                            _connectionState.value = _connectionState.value.copy(
+                                attemptedServers = _connectionState.value.attemptedServers + 1,
+                                failedServers = _connectionState.value.failedServers + 1,
+                                connectingCount = maxOf(0, _connectionState.value.connectingCount - 1),
+                                serverErrors = errorMap
+                            )
+                        }
                 }
-                removeServerToolsLocked(staleId)
+                refreshToolListLocked()
+                _connectionState.value = _connectionState.value.copy(
+                    isConnecting = false,
+                    connectingCount = 0,
+                    connectedServers = connections.size
+                )
+                Log.i(TAG, "connectAll complete availableMcpTools=${_availableTools.value.size} names=${_availableTools.value.joinToString { it.name }}")
             }
-            _connectionState.value = ConnectionState(
-                isConnecting = true,
-                totalServers = servers.size,
-                attemptedServers = 0,
-                connectedServers = 0,
-                failedServers = 0
-            )
-            servers.forEach { config ->
-                runCatching { connectInternal(config) }
-                    .onSuccess {
-                        _connectionState.value = _connectionState.value.copy(
-                            attemptedServers = _connectionState.value.attemptedServers + 1,
-                            connectedServers = connections.size
-                        )
-                    }
-                    .onFailure { throwable ->
-                        _connectionState.value = _connectionState.value.copy(
-                            attemptedServers = _connectionState.value.attemptedServers + 1,
-                            failedServers = _connectionState.value.failedServers + 1,
-                            lastError = throwable.message
-                        )
-                        Log.e(TAG, "connectAll failed serverId=${config.id} name=${config.name}", throwable)
-                    }
-            }
-            refreshToolListLocked()
+        } catch (e: CancellationException) {
+            // Connection was cancelled - clear connecting state
+            Log.w(TAG, "connectAll cancelled - clearing state", e)
             _connectionState.value = _connectionState.value.copy(
                 isConnecting = false,
-                connectedServers = connections.size
+                connectingCount = 0
             )
-            Log.i(TAG, "connectAll complete availableMcpTools=${_availableTools.value.size} names=${_availableTools.value.joinToString { it.name }}")
+            Log.i(TAG, "connectAll cancelled")
         }
     }
 
-    suspend fun connect(config: McpServerConfig): Result<Unit> = runCatching {
-        lock.withLock {
-            connectInternal(config)
-            refreshServerToolsLocked(config.id)
+    suspend fun connect(config: McpServerConfig): Result<Unit> {
+        Log.d(TAG, "connect start serverId=${config.id} name=${config.name} currentState=$_connectionState.value")
+        // Clear any previous error for this server and set connecting state
+        val currentErrors = _connectionState.value.serverErrors.toMutableMap()
+        currentErrors.remove(config.id)
+        _connectionState.value = _connectionState.value.copy(
+            isConnecting = true,
+            connectingCount = _connectionState.value.connectingCount + 1,
+            serverErrors = currentErrors
+        )
+        Log.d(TAG, "connect state updated serverId=${config.id} connectingCount=${_connectionState.value.connectingCount}")
+        
+        return try {
+            Log.d(TAG, "connect acquiring lock serverId=${config.id}")
+            lock.withLock {
+                Log.d(TAG, "connect locked, calling connectInternal serverId=${config.id}")
+                connectInternal(config)
+                Log.d(TAG, "connectInternal done, calling refreshServerTools serverId=${config.id}")
+                refreshServerToolsLocked(config.id)
+                val updatedErrors = _connectionState.value.serverErrors.toMutableMap()
+                updatedErrors.remove(config.id)
+                val newConnectingCount = maxOf(0, _connectionState.value.connectingCount - 1)
+                _connectionState.value = _connectionState.value.copy(
+                    connectedServers = connections.size,
+                    totalServers = maxOf(_connectionState.value.totalServers, connections.size),
+                    connectingCount = newConnectingCount,
+                    isConnecting = newConnectingCount > 0,
+                    serverErrors = updatedErrors
+                )
+                Log.d(TAG, "connect success serverId=${config.id} newConnectingCount=$newConnectingCount")
+            }
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            Log.w(TAG, "connect cancelled serverId=${config.id}", e)
+            val newConnectingCount = maxOf(0, _connectionState.value.connectingCount - 1)
             _connectionState.value = _connectionState.value.copy(
-                connectedServers = connections.size,
-                totalServers = maxOf(_connectionState.value.totalServers, connections.size),
-                isConnecting = false
+                connectingCount = newConnectingCount,
+                isConnecting = newConnectingCount > 0
             )
+            Log.d(TAG, "connect after cancel serverId=${config.id} newConnectingCount=$newConnectingCount")
+            Result.failure(e)
+        } catch (e: Exception) {
+            val errorMap = _connectionState.value.serverErrors.toMutableMap()
+            errorMap[config.id] = e.message ?: "Connection failed"
+            _connectionState.value = _connectionState.value.copy(
+                connectingCount = maxOf(0, _connectionState.value.connectingCount - 1),
+                isConnecting = _connectionState.value.connectingCount > 1,
+                serverErrors = errorMap
+            )
+            Result.failure(e)
         }
-    }.onSuccess {
-        Log.i(TAG, "connect success serverId=${config.id} name=${config.name} toolsNow=${_availableTools.value.size}")
-    }.onFailure { throwable ->
-        Log.e(TAG, "connect failed serverId=${config.id} name=${config.name}", throwable)
     }
 
     suspend fun refreshTools() {
@@ -233,23 +289,31 @@ class McpManager @Inject constructor(
     }
 
     private suspend fun connectInternal(config: McpServerConfig) {
+        Log.d(TAG, "connectInternal start serverId=${config.id} name=${config.name} enabled=${config.enabled}")
         if (!config.enabled) {
+            Log.d(TAG, "connectInternal skipped - not enabled serverId=${config.id}")
             return
         }
 
         connections.remove(config.id)?.let { previous ->
+            Log.d(TAG, "connectInternal closing previous connection serverId=${config.id}")
             runCatching { previous.client.close() }
         }
 
+        Log.d(TAG, "connectInternal creating transport serverId=${config.id}")
         val transport = createTransport(config)
+        Log.d(TAG, "connectInternal creating client serverId=${config.id}")
         val client = Client(
             clientInfo = Implementation(
                 name = "GPTMobile",
                 version = "0.7.1"
             )
         )
+        Log.d(TAG, "connectInternal calling client.connect serverId=${config.id}")
         client.connect(transport)
+        Log.d(TAG, "connectInternal storing connection serverId=${config.id}")
         connections[config.id] = McpConnection(client = client, config = config)
+        Log.d(TAG, "connectInternal done serverId=${config.id}")
     }
 
     private fun isAlreadyConnectedLocked(servers: List<McpServerConfig>): Boolean {
@@ -269,9 +333,11 @@ class McpManager @Inject constructor(
     }
 
     private fun createTransport(config: McpServerConfig): Transport {
+        Log.d(TAG, "createTransport type=${config.type} url=${config.url} serverId=${config.id}")
         return when (config.type) {
             McpTransportType.WEBSOCKET -> {
                 val url = requireNotNull(config.url) { "WebSocket MCP server requires URL" }
+                Log.d(TAG, "createTransport WS url=$url serverId=${config.id}")
                 WebSocketClientTransport(httpClient, url) {
                     config.headers.forEach { (key, value) ->
                         header(key, value)
@@ -280,6 +346,7 @@ class McpManager @Inject constructor(
             }
             McpTransportType.STREAMABLE_HTTP -> {
                 val url = requireNotNull(config.url) { "HTTP MCP server requires URL" }
+                Log.d(TAG, "createTransport HTTP url=$url serverId=${config.id}")
                 StreamableHttpClientTransport(httpClient, url) {
                     config.headers.forEach { (key, value) ->
                         header(key, value)
@@ -428,11 +495,13 @@ class McpManager @Inject constructor(
 
     data class ConnectionState(
         val isConnecting: Boolean = false,
+        val connectingCount: Int = 0,
         val totalServers: Int = 0,
         val attemptedServers: Int = 0,
         val connectedServers: Int = 0,
         val failedServers: Int = 0,
-        val lastError: String? = null
+        val lastError: String? = null,
+        val serverErrors: Map<Int, String> = emptyMap()
     )
 
     companion object {

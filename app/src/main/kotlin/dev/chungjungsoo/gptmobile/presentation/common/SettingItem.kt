@@ -25,7 +25,8 @@ fun SettingItem(
     onItemClick: () -> Unit,
     showTrailingIcon: Boolean,
     showLeadingIcon: Boolean,
-    leadingIcon: @Composable () -> Unit? = {}
+    leadingIcon: @Composable () -> Unit? = {},
+    trailingIcon: @Composable (() -> Unit)? = null
 ) {
     val clickableModifier = if (enabled) {
         modifier
@@ -48,11 +49,14 @@ fun SettingItem(
             },
             leadingContent = { leadingIcon() },
             trailingContent = {
-                if (showTrailingIcon) {
-                    Icon(
-                        ImageVector.vectorResource(id = R.drawable.ic_round_arrow_right),
-                        contentDescription = stringResource(R.string.arrow_icon)
-                    )
+                when {
+                    showTrailingIcon -> {
+                        Icon(
+                            ImageVector.vectorResource(id = R.drawable.ic_round_arrow_right),
+                            contentDescription = stringResource(R.string.arrow_icon)
+                        )
+                    }
+                    trailingIcon != null -> trailingIcon()
                 }
             },
             colors = ListItemDefaults.colors(
@@ -69,11 +73,14 @@ fun SettingItem(
                 description?.let { Text(it) }
             },
             trailingContent = {
-                if (showTrailingIcon) {
-                    Icon(
-                        ImageVector.vectorResource(id = R.drawable.ic_round_arrow_right),
-                        contentDescription = stringResource(R.string.arrow_icon)
-                    )
+                when {
+                    showTrailingIcon -> {
+                        Icon(
+                            ImageVector.vectorResource(id = R.drawable.ic_round_arrow_right),
+                            contentDescription = stringResource(R.string.arrow_icon)
+                        )
+                    }
+                    trailingIcon != null -> trailingIcon()
                 }
             },
             colors = ListItemDefaults.colors(
