@@ -86,6 +86,8 @@ class McpManager @Inject constructor(
             }
             _connectionState.value = ConnectionState(
                 isConnecting = true,
+                connectingCount = servers.size,
+                connectingServers = servers.map { it.id }.toSet(),
                 totalServers = servers.size,
                 attemptedServers = 0,
                 connectedServers = 0,
@@ -94,15 +96,23 @@ class McpManager @Inject constructor(
             servers.forEach { config ->
                 runCatching { connectInternal(config) }
                     .onSuccess {
+                        val updatedConnecting = _connectionState.value.connectingServers.toMutableSet()
+                        updatedConnecting.remove(config.id)
                         _connectionState.value = _connectionState.value.copy(
                             attemptedServers = _connectionState.value.attemptedServers + 1,
-                            connectedServers = connections.size
+                            connectedServers = connections.size,
+                            connectingCount = maxOf(0, _connectionState.value.connectingCount - 1),
+                            connectingServers = updatedConnecting
                         )
                     }
                     .onFailure { throwable ->
+                        val updatedConnecting = _connectionState.value.connectingServers.toMutableSet()
+                        updatedConnecting.remove(config.id)
                         _connectionState.value = _connectionState.value.copy(
                             attemptedServers = _connectionState.value.attemptedServers + 1,
                             failedServers = _connectionState.value.failedServers + 1,
+                            connectingCount = maxOf(0, _connectionState.value.connectingCount - 1),
+                            connectingServers = updatedConnecting,
                             lastError = throwable.message
                         )
                         Log.e(TAG, "connectAll failed serverId=${config.id} name=${config.name}", throwable)
@@ -111,6 +121,8 @@ class McpManager @Inject constructor(
             refreshToolListLocked()
             _connectionState.value = _connectionState.value.copy(
                 isConnecting = false,
+                connectingCount = 0,
+                connectingServers = emptySet(),
                 connectedServers = connections.size
             )
             Log.i(TAG, "connectAll complete availableMcpTools=${_availableTools.value.size} names=${_availableTools.value.joinToString { it.name }}")
