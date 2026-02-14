@@ -14,6 +14,7 @@ import dev.chungjungsoo.gptmobile.data.database.ChatDatabaseV2
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomDao
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.McpServerDao
+import dev.chungjungsoo.gptmobile.data.database.dao.McpToolEventDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.PlatformV2Dao
@@ -44,6 +45,9 @@ object DatabaseModule {
     fun provideMcpServerDao(chatDatabaseV2: ChatDatabaseV2): McpServerDao = chatDatabaseV2.mcpServerDao()
 
     @Provides
+    fun provideMcpToolEventDao(chatDatabaseV2: ChatDatabaseV2): McpToolEventDao = chatDatabaseV2.mcpToolEventDao()
+
+    @Provides
     @Singleton
     fun provideChatDatabase(@ApplicationContext appContext: Context): ChatDatabase = Room.databaseBuilder(
         appContext,
@@ -58,7 +62,7 @@ object DatabaseModule {
         ChatDatabaseV2::class.java,
         DB_NAME_V2
     )
-        .addMigrations(MIGRATION_1_2_V2)
+        .addMigrations(MIGRATION_1_2_V2, MIGRATION_2_3_V2)
         .build()
 
     private val MIGRATION_1_2_V2 = object : Migration(1, 2) {
@@ -79,6 +83,29 @@ object DatabaseModule {
                 )
                 """.trimIndent()
             )
+        }
+    }
+
+    private val MIGRATION_2_3_V2 = object : Migration(2, 3) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS mcp_tool_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    chat_id INTEGER NOT NULL,
+                    message_index INTEGER NOT NULL,
+                    platform_index INTEGER NOT NULL,
+                    call_id TEXT NOT NULL,
+                    tool_name TEXT NOT NULL,
+                    request TEXT NOT NULL,
+                    output TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    is_error INTEGER NOT NULL,
+                    FOREIGN KEY (chat_id) REFERENCES chats_v2(chat_id) ON DELETE CASCADE
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_mcp_tool_events_chat_id ON mcp_tool_events(chat_id)")
         }
     }
 }

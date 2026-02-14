@@ -102,7 +102,7 @@ class ChatViewModel @Inject constructor(
     val loadingStates = _loadingStates.asStateFlow()
 
     // MCP tool call events keyed by "<messageIndex>:<platformIndex>"
-    private val _mcpToolEvents = MutableStateFlow<Map<String, List<McpToolEvent>>>(mcpToolEventStore.get(chatRoomId))
+    private val _mcpToolEvents = MutableStateFlow<Map<String, List<McpToolEvent>>>(emptyMap())
     val mcpToolEvents = _mcpToolEvents.asStateFlow()
 
     // Used for passing user question to Edit User Message Dialog
@@ -122,8 +122,13 @@ class ChatViewModel @Inject constructor(
         Log.d("ViewModel", "$enabledPlatformsInChat")
         fetchChatRoom()
         viewModelScope.launch { fetchMessages() }
+        viewModelScope.launch { loadMcpToolEvents() }
         fetchEnabledPlatformsInApp()
         observeStateChanges()
+    }
+
+    private suspend fun loadMcpToolEvents() {
+        _mcpToolEvents.value = mcpToolEventStore.get(chatRoomId)
     }
 
     fun addMessage(userMessage: MessageV2) {
@@ -378,7 +383,8 @@ class ChatViewModel @Inject constructor(
     private fun clearMcpToolEvents(messageIndex: Int, platformIndex: Int) {
         val key = messagePlatformKey(messageIndex, platformIndex)
         _mcpToolEvents.update { current -> current - key }
-        mcpToolEventStore.put(chatRoomId, _mcpToolEvents.value)
+        val effectiveChatId = _chatRoom.value.id.takeIf { it > 0 } ?: chatRoomId
+        viewModelScope.launch { mcpToolEventStore.put(effectiveChatId, _mcpToolEvents.value) }
     }
 
     private fun updateMcpToolEvents(messageIndex: Int, platformIndex: Int, apiState: ApiState) {
@@ -434,7 +440,8 @@ class ChatViewModel @Inject constructor(
                 current + (key to existing)
             }
         }
-        mcpToolEventStore.put(chatRoomId, _mcpToolEvents.value)
+        val effectiveChatId = _chatRoom.value.id.takeIf { it > 0 } ?: chatRoomId
+        viewModelScope.launch { mcpToolEventStore.put(effectiveChatId, _mcpToolEvents.value) }
     }
 
     private fun applyToolResults(existing: MutableList<McpToolEvent>, results: List<ToolResult>) {
@@ -556,8 +563,14 @@ class ChatViewModel @Inject constructor(
                 ) {
                     Log.d("ChatViewModel", "GroupMessage: ${_groupedMessages.value}")
 
+                    val oldChatId = _chatRoom.value.id
                     // Save the chat & chat room
                     _chatRoom.update { chatRepository.saveChat(_chatRoom.value, ungroupedMessages()) }
+
+                    // Persist MCP events now that chat has a valid ID
+                    if (oldChatId == 0 && _chatRoom.value.id > 0 && _mcpToolEvents.value.isNotEmpty()) {
+                        mcpToolEventStore.put(_chatRoom.value.id, _mcpToolEvents.value)
+                    }
 
                     // Sync message ids
                     fetchMessages()
