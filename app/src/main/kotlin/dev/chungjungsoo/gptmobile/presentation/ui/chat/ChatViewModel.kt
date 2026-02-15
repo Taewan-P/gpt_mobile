@@ -313,7 +313,10 @@ class ChatViewModel @Inject constructor(
                 appendLine()
 
                 _groupedMessages.value.assistantMessages[i].forEach { message ->
-                    appendLine("**Assistant (${_platformsInApp.value.getPlatformName(message.platformType!!)}):**")
+                    val platformName = message.platformType
+                        ?.let { _platformsInApp.value.getPlatformName(it) }
+                        ?: "Unknown"
+                    appendLine("**Assistant ($platformName):**")
                     appendLine(message.content)
                     appendLine()
                 }

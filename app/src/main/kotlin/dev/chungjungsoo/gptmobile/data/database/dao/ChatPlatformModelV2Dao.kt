@@ -16,4 +16,7 @@ interface ChatPlatformModelV2Dao {
 
     @Query("DELETE FROM chat_platform_model_v2 WHERE chat_id = :chatId")
     suspend fun deleteByChatId(chatId: Int)
+
+    @Query("DELETE FROM chat_platform_model_v2 WHERE platform_uid = :platformUid")
+    suspend fun deleteByPlatformUid(platformUid: String)
 }

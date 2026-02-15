@@ -156,4 +156,8 @@
     <string name="not_set">설정되지 않음</string>
     <string name="export_chat">채팅 내보내기</string>
     <string name="migration_assistant">마이그레이션 도구</string>
+    <string name="chat_models">Chat Models</string>
+    <string name="chat_models_description">Set model identifiers for each provider in this chat only.</string>
+    <string name="chat_model_for_platform">Model for %1$s</string>
+    <string name="update_chat_models">Update Models</string>
 </resources>

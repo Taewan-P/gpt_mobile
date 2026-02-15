@@ -152,4 +152,8 @@
     <string name="token_input_warning">குறிப்பு: ஓப்பனாய் மற்றும் ஆந்த்ரிக் ப்ரீபெய்ட் பில்லிங்கைப் பயன்படுத்துகின்றன, எனவே நீங்கள் ஒவ்வொரு கணக்குகளிலும் அவற்றைப் பயன்படுத்துவதற்கு முன்பு வரவுகளை வசூலிக்க வேண்டும். இல்லையெனில், பதில் பிழையைத் தரும்.</string>
     <string name="edit_question">பயனர் செய்தியைத் திருத்தவும்</string>
     <string name="user_message">பயனர் செய்தி</string>
+    <string name="chat_models">Chat Models</string>
+    <string name="chat_models_description">Set model identifiers for each provider in this chat only.</string>
+    <string name="chat_model_for_platform">Model for %1$s</string>
+    <string name="update_chat_models">Update Models</string>
 </resources>
