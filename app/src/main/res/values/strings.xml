@@ -178,6 +178,10 @@
     <string name="groq_api_key">Groq API Key</string>
     <string name="groq_api_help" translatable="false">https://console.groq.com/keys</string>
     <string name="options">Options</string>
+    <string name="chat_models">Chat Models</string>
+    <string name="chat_models_description">Set model identifiers for each provider in this chat only.</string>
+    <string name="chat_model_for_platform">Model for %1$s</string>
+    <string name="update_chat_models">Update Models</string>
     <string name="update_chat_title">Update chat title</string>
     <string name="chat_title">Chat Title</string>
     <string name="chat_title_dialog_description">AI generated title is only available with AICore supported devices.</string>

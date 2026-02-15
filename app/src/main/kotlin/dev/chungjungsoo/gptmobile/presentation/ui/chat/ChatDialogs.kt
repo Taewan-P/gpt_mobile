@@ -27,6 +27,74 @@ import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 
 @Composable
+fun ChatModelDialog(
+    platformOrder: List<String>,
+    initialModels: Map<String, String>,
+    platformNames: Map<String, String>,
+    onDismissRequest: () -> Unit,
+    onConfirmRequest: (Map<String, String>) -> Unit
+) {
+    val configuration = LocalWindowInfo.current
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
+    val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
+    var models by rememberSaveable(platformOrder, initialModels) {
+        mutableStateOf(platformOrder.associateWith { uid -> initialModels[uid].orEmpty() })
+    }
+
+    AlertDialog(
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier
+            .widthIn(max = screenWidth - 40.dp)
+            .heightIn(max = screenHeight - 80.dp),
+        title = { Text(text = stringResource(R.string.chat_models)) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text(
+                    text = stringResource(R.string.chat_models_description),
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+                platformOrder.forEach { platformUid ->
+                    val platformName = platformNames[platformUid] ?: stringResource(R.string.unknown)
+                    OutlinedTextField(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 8.dp),
+                        value = models[platformUid].orEmpty(),
+                        onValueChange = { value ->
+                            models = models.toMutableMap().apply { put(platformUid, value) }
+                        },
+                        singleLine = true,
+                        label = { Text(text = stringResource(R.string.chat_model_for_platform, platformName)) },
+                        supportingText = {
+                            Text(stringResource(R.string.model_supporting))
+                        }
+                    )
+                }
+            }
+        },
+        onDismissRequest = onDismissRequest,
+        confirmButton = {
+            val hasBlank = platformOrder.any { models[it].orEmpty().trim().isBlank() }
+            TextButton(
+                enabled = !hasBlank,
+                onClick = {
+                    onConfirmRequest(
+                        models.mapValues { (_, model) -> model.trim() }
+                    )
+                }
+            ) {
+                Text(stringResource(R.string.update_chat_models))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
+@Composable
 fun ChatTitleDialog(
     initialTitle: String,
     onDefaultTitleMode: () -> String?,

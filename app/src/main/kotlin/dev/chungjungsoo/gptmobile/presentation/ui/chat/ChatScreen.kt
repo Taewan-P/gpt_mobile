@@ -112,12 +112,15 @@ fun ChatScreen(
     val indexStates by chatViewModel.indexStates.collectAsStateWithLifecycle()
     val loadingStates by chatViewModel.loadingStates.collectAsStateWithLifecycle()
     val isChatTitleDialogOpen by chatViewModel.isChatTitleDialogOpen.collectAsStateWithLifecycle()
+    val isChatModelDialogOpen by chatViewModel.isChatModelDialogOpen.collectAsStateWithLifecycle()
     val isEditQuestionDialogOpen by chatViewModel.isEditQuestionDialogOpen.collectAsStateWithLifecycle()
     val isSelectTextSheetOpen by chatViewModel.isSelectTextSheetOpen.collectAsStateWithLifecycle()
     val isLoaded by chatViewModel.isLoaded.collectAsStateWithLifecycle()
     val question by chatViewModel.question.collectAsStateWithLifecycle()
     val selectedFiles by chatViewModel.selectedFiles.collectAsStateWithLifecycle()
     val appEnabledPlatforms by chatViewModel.enabledPlatformsInApp.collectAsStateWithLifecycle()
+    val appAllPlatforms by chatViewModel.platformsInApp.collectAsStateWithLifecycle()
+    val chatPlatformModels by chatViewModel.chatPlatformModels.collectAsStateWithLifecycle()
     val canUseChat = (chatViewModel.enabledPlatformsInChat.toSet() - appEnabledPlatforms.map { it.uid }.toSet()).isEmpty()
     val isIdle = loadingStates.all { it == ChatViewModel.LoadingState.Idle }
     val context = LocalContext.current
@@ -152,9 +155,11 @@ fun ChatScreen(
             ChatTopBar(
                 chatRoom.title,
                 chatRoom.id > 0,
+                chatViewModel.enabledPlatformsInChat.isNotEmpty(),
                 onBackAction,
                 scrollBehavior,
                 chatViewModel::openChatTitleDialog,
+                chatViewModel::openChatModelDialog,
                 onExportChatItemClick = { exportChat(context, chatViewModel) }
             )
         }
@@ -299,6 +304,22 @@ fun ChatScreen(
             )
         }
 
+        if (isChatModelDialogOpen) {
+            val platformNames = chatViewModel.enabledPlatformsInChat.associateWith { uid ->
+                appAllPlatforms.find { it.uid == uid }?.name ?: stringResource(R.string.unknown)
+            }
+            ChatModelDialog(
+                platformOrder = chatViewModel.enabledPlatformsInChat,
+                initialModels = chatPlatformModels,
+                platformNames = platformNames,
+                onDismissRequest = chatViewModel::closeChatModelDialog,
+                onConfirmRequest = { models ->
+                    chatViewModel.updateChatPlatformModels(models)
+                    chatViewModel.closeChatModelDialog()
+                }
+            )
+        }
+
         if (isEditQuestionDialogOpen) {
             val editedQuestion by chatViewModel.editedQuestion.collectAsStateWithLifecycle()
             ChatQuestionEditDialog(
@@ -332,9 +353,11 @@ fun ChatScreen(
 private fun ChatTopBar(
     title: String,
     isMenuItemEnabled: Boolean,
+    isModelItemEnabled: Boolean,
     onBackAction: () -> Unit,
     scrollBehavior: TopAppBarScrollBehavior,
     onChatTitleItemClick: () -> Unit,
+    onChatModelItemClick: () -> Unit,
     onExportChatItemClick: () -> Unit
 ) {
     var isDropDownMenuExpanded by remember { mutableStateOf(false) }
@@ -349,6 +372,15 @@ private fun ChatTopBar(
             }
         },
         actions = {
+            IconButton(
+                enabled = isModelItemEnabled,
+                onClick = onChatModelItemClick
+            ) {
+                Icon(
+                    imageVector = ImageVector.vectorResource(id = R.drawable.ic_model),
+                    contentDescription = stringResource(R.string.chat_models)
+                )
+            }
             IconButton(
                 onClick = { isDropDownMenuExpanded = isDropDownMenuExpanded.not() }
             ) {
