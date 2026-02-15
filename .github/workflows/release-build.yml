@@ -2,6 +2,9 @@ name: Generate Release Version
 
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - "*"
 
 jobs:
   build:
