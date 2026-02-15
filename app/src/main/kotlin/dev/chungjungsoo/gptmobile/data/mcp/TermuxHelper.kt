@@ -52,24 +52,14 @@ object TermuxHelper {
             )
         }
 
-        Log.i(TAG, "Termux IS installed, checking bin directory...")
-        val binDir = File(TERMUX_BIN)
-        Log.d(TAG, "BIN dir exists=${binDir.exists()}, canRead=${binDir.canRead()}, path=$TERMUX_BIN")
-        
-        if (!binDir.exists() || !binDir.canRead()) {
-            Log.w(TAG, "Cannot access Termux bin directory")
-            return TermuxStatus(
-                isInstalled = true,
-                hasNodeJs = false,
-                hasNpx = false,
-                hasPython = false,
-                hasPython3 = false,
-                hasUv = false,
-                hasUvx = false,
-                errorMessage = "Cannot access Termux files. Please run Termux at least once."
-            )
-        }
+        Log.i(TAG, "Termux IS installed, skipping bin dir check (Android sandbox prevents access)")
+        Log.i(TAG, "Note: Will assume executables exist - let JNI exec() handle errors if wrong")
 
+        // Android sandbox prevents us from checking files in /data/data/com.termux/
+        // But our JNI native code CAN execute processes there
+        // So we assume executables exist - if wrong, subprocess will fail with clear error
+        
+        // Just return expected paths - execution will prove they work
         val nodePath = findExecutable("node")
         val npxPath = findExecutable("npx")
         val pythonPath = findExecutable("python")
@@ -77,7 +67,7 @@ object TermuxHelper {
         val uvPath = findExecutable("uv")
         val uvxPath = findExecutable("uvx")
 
-        Log.i(TAG, "=== TermuxStatus Result ===")
+        Log.i(TAG, "=== TermuxStatus Result (assumed) ===")
         Log.i(TAG, "nodePath=$nodePath, npxPath=$npxPath")
         Log.i(TAG, "pythonPath=$pythonPath, python3Path=$python3Path")
         Log.i(TAG, "uvPath=$uvPath, uvxPath=$uvxPath")
@@ -127,19 +117,18 @@ object TermuxHelper {
     }
 
     fun findExecutable(name: String): String? {
+        // Note: Due to Android's sandbox, we CANNOT access /data/data/com.termux/files/usr/bin
+        // from a regular app. However, our JNI native process CAN spawn processes there.
+        // So we just return the expected path - if it's wrong, the subprocess will fail with a clear error.
         val path = "$TERMUX_BIN/$name"
-        val file = File(path)
-        val exists = file.exists()
-        val canExecute = if (exists) file.canExecute() else false
-        Log.d(TAG, "findExecutable($name): path=$path, exists=$exists, canExecute=$canExecute")
         
-        return if (exists && canExecute) {
-            Log.i(TAG, "Found executable: $path")
-            path
-        } else {
-            Log.w(TAG, "NOT found or not executable: $path")
-            null
-        }
+        // Don't check file existence - just return expected path
+        // The actual execution will fail if it's wrong
+        Log.d(TAG, "findExecutable($name): returning path=$path (sandbox prevents checking)")
+        Log.d(TAG, "NOTE: Cannot verify existence due to Android sandbox - will exec and let it fail if wrong")
+        
+        // Return the expected path - let JNI handle execution
+        return path
     }
 
     fun getTermuxEnvironment(): Map<String, String> {
