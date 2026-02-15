@@ -100,12 +100,30 @@ object TermuxHelper {
     }
 
     fun isTermuxInstalled(context: Context): Boolean {
-        return try {
+        Log.d(TAG, "isTermuxInstalled check #1: trying package manager...")
+        
+        // First try: check package manager for Termux package
+        try {
             context.packageManager.getPackageInfo(TERMUX_PACKAGE, 0)
-            true
+            Log.d(TAG, "isTermuxInstalled: found via package manager!")
+            return true
         } catch (e: PackageManager.NameNotFoundException) {
-            false
+            Log.d(TAG, "isTermuxInstalled: NOT found via package manager")
         }
+        
+        // Fallback: check if Termux files directory exists
+        // This can detect Termux even if package detection fails due to permissions
+        Log.d(TAG, "isTermuxInstalled check #2: trying files directory...")
+        val termuxFiles = File(TERMUX_FILES_DIR)
+        val filesDirExists = termuxFiles.exists() && termuxFiles.isDirectory
+        Log.d(TAG, "isTermuxInstalled: files dir exists=$filesDirExists, path=$TERMUX_FILES_DIR")
+        
+        if (filesDirExists) {
+            val usrDir = File(TERMUX_PREFIX)
+            Log.d(TAG, "isTermuxInstalled: usr dir exists=${usrDir.exists()}")
+        }
+        
+        return filesDirExists
     }
 
     fun findExecutable(name: String): String? {
