@@ -16,10 +16,12 @@ interface ChatRepository {
     suspend fun searchChatsV2(query: String): List<ChatRoomV2>
     suspend fun fetchMessages(chatId: Int): List<Message>
     suspend fun fetchMessagesV2(chatId: Int): List<MessageV2>
+    suspend fun fetchChatPlatformModels(chatId: Int): Map<String, String>
+    suspend fun saveChatPlatformModels(chatId: Int, models: Map<String, String>)
     suspend fun migrateToChatRoomV2MessageV2()
     fun generateDefaultChatTitle(messages: List<MessageV2>): String?
     suspend fun updateChatTitle(chatRoom: ChatRoomV2, title: String)
-    suspend fun saveChat(chatRoom: ChatRoomV2, messages: List<MessageV2>): ChatRoomV2
+    suspend fun saveChat(chatRoom: ChatRoomV2, messages: List<MessageV2>, chatPlatformModels: Map<String, String>): ChatRoomV2
     suspend fun deleteChats(chatRooms: List<ChatRoom>)
     suspend fun deleteChatsV2(chatRooms: List<ChatRoomV2>)
 }

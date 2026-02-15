@@ -6,6 +6,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import dev.chungjungsoo.gptmobile.data.database.dao.ChatPlatformModelV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomDao
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageDao
@@ -30,6 +31,7 @@ object ChatRepositoryModule {
         messageDao: MessageDao,
         chatRoomV2Dao: ChatRoomV2Dao,
         messageV2Dao: MessageV2Dao,
+        chatPlatformModelV2Dao: ChatPlatformModelV2Dao,
         settingRepository: SettingRepository,
         openAIAPI: OpenAIAPI,
         anthropicAPI: AnthropicAPI,
@@ -40,6 +42,7 @@ object ChatRepositoryModule {
         messageDao,
         chatRoomV2Dao,
         messageV2Dao,
+        chatPlatformModelV2Dao,
         settingRepository,
         openAIAPI,
         anthropicAPI,
