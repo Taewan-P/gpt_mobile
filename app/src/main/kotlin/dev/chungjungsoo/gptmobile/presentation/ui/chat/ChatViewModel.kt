@@ -54,6 +54,16 @@ class ChatViewModel @Inject constructor(
     private val _isSelectTextSheetOpen = MutableStateFlow(false)
     val isSelectTextSheetOpen = _isSelectTextSheetOpen.asStateFlow()
 
+    private val _isChatModelDialogOpen = MutableStateFlow(false)
+    val isChatModelDialogOpen = _isChatModelDialogOpen.asStateFlow()
+
+    private val _chatPlatformModels = MutableStateFlow<Map<String, String>>(emptyMap())
+    val chatPlatformModels = _chatPlatformModels.asStateFlow()
+
+    // All platforms configured in app (including disabled)
+    private val _platformsInApp = MutableStateFlow(listOf<PlatformV2>())
+    val platformsInApp = _platformsInApp.asStateFlow()
+
     // Enabled platforms list in app
     private val _enabledPlatformsInApp = MutableStateFlow(listOf<PlatformV2>())
     val enabledPlatformsInApp = _enabledPlatformsInApp.asStateFlow()
@@ -138,7 +148,10 @@ class ChatViewModel @Inject constructor(
         _selectedText.update { "" }
     }
 
+    fun closeChatModelDialog() = _isChatModelDialogOpen.update { false }
+
     fun openChatTitleDialog() = _isChatTitleDialogOpen.update { true }
+    fun openChatModelDialog() = _isChatModelDialogOpen.update { true }
 
     fun openEditQuestionDialog(question: MessageV2) {
         _editedQuestion.update { question }
@@ -152,14 +165,29 @@ class ChatViewModel @Inject constructor(
 
     fun generateDefaultChatTitle(): String? = chatRepository.generateDefaultChatTitle(_groupedMessages.value.userMessages)
 
+    fun updateChatPlatformModels(models: Map<String, String>) {
+        val sanitizedModels = models
+            .filterKeys { it in enabledPlatformsInChat }
+            .mapValues { (_, model) -> model.trim() }
+
+        _chatPlatformModels.update { it + sanitizedModels }
+
+        if (_chatRoom.value.id > 0) {
+            viewModelScope.launch {
+                chatRepository.saveChatPlatformModels(_chatRoom.value.id, _chatPlatformModels.value)
+            }
+        }
+    }
+
     fun retryChat(platformIndex: Int) {
         if (platformIndex >= enabledPlatformsInChat.size || platformIndex < 0) return
         val platform = _enabledPlatformsInApp.value.firstOrNull { it.uid == enabledPlatformsInChat[platformIndex] } ?: return
+        val platformWithChatModel = resolvePlatformModel(platform)
         _loadingStates.update { it.toMutableList().apply { this[platformIndex] = LoadingState.Loading } }
         _groupedMessages.update {
             val updatedAssistantMessages = it.assistantMessages.toMutableList()
             updatedAssistantMessages[it.assistantMessages.lastIndex] = updatedAssistantMessages[it.assistantMessages.lastIndex].toMutableList().apply {
-                this[platformIndex] = MessageV2(chatId = chatRoomId, content = "", platformType = platform.uid)
+                this[platformIndex] = MessageV2(chatId = chatRoomId, content = "", platformType = platformWithChatModel.uid)
             }
             it.copy(assistantMessages = updatedAssistantMessages)
         }
@@ -168,7 +196,7 @@ class ChatViewModel @Inject constructor(
             chatRepository.completeChat(
                 _groupedMessages.value.userMessages,
                 _groupedMessages.value.assistantMessages,
-                platform
+                platformWithChatModel
             ).handleStates(
                 messageFlow = _groupedMessages,
                 platformIdx = platformIndex,
@@ -285,7 +313,10 @@ class ChatViewModel @Inject constructor(
                 appendLine()
 
                 _groupedMessages.value.assistantMessages[i].forEach { message ->
-                    appendLine("**Assistant (${_enabledPlatformsInApp.value.getPlatformName(message.platformType!!)}):**")
+                    val platformName = message.platformType
+                        ?.let { _platformsInApp.value.getPlatformName(it) }
+                        ?: "Unknown"
+                    appendLine("**Assistant ($platformName):**")
                     appendLine(message.content)
                     appendLine()
                 }
@@ -304,11 +335,12 @@ class ChatViewModel @Inject constructor(
         // Send chat completion requests
         enabledPlatformsInChat.forEachIndexed { idx, platformUid ->
             val platform = _enabledPlatformsInApp.value.firstOrNull { it.uid == platformUid } ?: return@forEachIndexed
+            val platformWithChatModel = resolvePlatformModel(platform)
             viewModelScope.launch {
                 chatRepository.completeChat(
                     _groupedMessages.value.userMessages,
                     _groupedMessages.value.assistantMessages,
-                    platform
+                    platformWithChatModel
                 ).handleStates(
                     messageFlow = _groupedMessages,
                     platformIdx = idx,
@@ -388,8 +420,31 @@ class ChatViewModel @Inject constructor(
 
     private fun fetchEnabledPlatformsInApp() {
         viewModelScope.launch {
-            val filtered = settingRepository.fetchPlatformV2s().filter { it.enabled }
-            _enabledPlatformsInApp.update { filtered }
+            val allPlatforms = settingRepository.fetchPlatformV2s()
+            _platformsInApp.update { allPlatforms }
+            _enabledPlatformsInApp.update { allPlatforms.filter { it.enabled } }
+            initializeChatPlatformModels(allPlatforms)
+        }
+    }
+
+    private suspend fun initializeChatPlatformModels(platforms: List<PlatformV2>) {
+        val defaultModels = enabledPlatformsInChat.associateWith { uid ->
+            platforms.firstOrNull { it.uid == uid }?.model ?: ""
+        }
+        val persistedModels = if (chatRoomId != 0) {
+            chatRepository.fetchChatPlatformModels(chatRoomId)
+        } else {
+            emptyMap()
+        }
+
+        val mergedModels = defaultModels.mapValues { (uid, defaultModel) ->
+            persistedModels[uid]?.takeIf { it.isNotBlank() } ?: defaultModel
+        }
+
+        _chatPlatformModels.update { mergedModels }
+
+        if (chatRoomId != 0 && mergedModels != persistedModels) {
+            chatRepository.saveChatPlatformModels(chatRoomId, mergedModels)
         }
     }
 
@@ -404,13 +459,26 @@ class ChatViewModel @Inject constructor(
                     Log.d("ChatViewModel", "GroupMessage: ${_groupedMessages.value}")
 
                     // Save the chat & chat room
-                    _chatRoom.update { chatRepository.saveChat(_chatRoom.value, ungroupedMessages()) }
+                    _chatRoom.update {
+                        chatRepository.saveChat(
+                            chatRoom = _chatRoom.value,
+                            messages = ungroupedMessages(),
+                            chatPlatformModels = _chatPlatformModels.value
+                        )
+                    }
 
                     // Sync message ids
                     fetchMessages()
                 }
             }
         }
+    }
+
+    private fun resolvePlatformModel(platform: PlatformV2): PlatformV2 {
+        val chatModel = _chatPlatformModels.value[platform.uid]?.trim().orEmpty()
+        if (chatModel.isBlank() || chatModel == platform.model) return platform
+
+        return platform.copy(model = chatModel)
     }
 
     private fun ungroupedMessages(): List<MessageV2> {

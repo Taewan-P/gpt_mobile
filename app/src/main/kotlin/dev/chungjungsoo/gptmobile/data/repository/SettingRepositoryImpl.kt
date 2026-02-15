@@ -1,6 +1,7 @@
 package dev.chungjungsoo.gptmobile.data.repository
 
 import dev.chungjungsoo.gptmobile.data.ModelConstants
+import dev.chungjungsoo.gptmobile.data.database.dao.ChatPlatformModelV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.PlatformV2Dao
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.datastore.SettingDataSource
@@ -14,7 +15,8 @@ import javax.inject.Inject
 
 class SettingRepositoryImpl @Inject constructor(
     private val settingDataSource: SettingDataSource,
-    private val platformV2Dao: PlatformV2Dao
+    private val platformV2Dao: PlatformV2Dao,
+    private val chatPlatformModelV2Dao: ChatPlatformModelV2Dao
 ) : SettingRepository {
 
     override suspend fun fetchPlatforms(): List<Platform> = ApiType.entries.map { apiType ->
@@ -128,6 +130,7 @@ class SettingRepositoryImpl @Inject constructor(
     }
 
     override suspend fun deletePlatformV2(platform: PlatformV2) {
+        chatPlatformModelV2Dao.deleteByPlatformUid(platform.uid)
         platformV2Dao.deletePlatform(platform)
     }
 

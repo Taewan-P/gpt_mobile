@@ -2,10 +2,12 @@ package dev.chungjungsoo.gptmobile.data.repository
 
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.chungjungsoo.gptmobile.data.database.dao.ChatPlatformModelV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomDao
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageV2Dao
+import dev.chungjungsoo.gptmobile.data.database.entity.ChatPlatformModelV2
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoom
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
 import dev.chungjungsoo.gptmobile.data.database.entity.Message
@@ -61,6 +63,7 @@ class ChatRepositoryImpl @Inject constructor(
     private val messageDao: MessageDao,
     private val chatRoomV2Dao: ChatRoomV2Dao,
     private val messageV2Dao: MessageV2Dao,
+    private val chatPlatformModelV2Dao: ChatPlatformModelV2Dao,
     private val settingRepository: SettingRepository,
     private val openAIAPI: OpenAIAPI,
     private val anthropicAPI: AnthropicAPI,
@@ -592,15 +595,38 @@ class ChatRepositoryImpl @Inject constructor(
 
     override suspend fun fetchMessagesV2(chatId: Int): List<MessageV2> = messageV2Dao.loadMessages(chatId)
 
+    override suspend fun fetchChatPlatformModels(chatId: Int): Map<String, String> = chatPlatformModelV2Dao.getByChatId(chatId).associate {
+        it.platformUid to it.model
+    }
+
+    override suspend fun saveChatPlatformModels(chatId: Int, models: Map<String, String>) {
+        val rows = models
+            .filterKeys { it.isNotBlank() }
+            .map { (platformUid, model) ->
+                ChatPlatformModelV2(
+                    chatId = chatId,
+                    platformUid = platformUid,
+                    model = model.trim()
+                )
+            }
+
+        if (rows.isNotEmpty()) {
+            chatPlatformModelV2Dao.upsertAll(*rows.toTypedArray())
+        }
+    }
+
     override suspend fun migrateToChatRoomV2MessageV2() {
         val leftOverChatRoomV2s = chatRoomV2Dao.getChatRooms()
+        leftOverChatRoomV2s.forEach { chatPlatformModelV2Dao.deleteByChatId(it.id) }
         chatRoomV2Dao.deleteChatRooms(*leftOverChatRoomV2s.toTypedArray())
 
         val chatList = fetchChatList()
         val platforms = settingRepository.fetchPlatformV2s()
         val apiTypeMap = mutableMapOf<ApiType, String>()
+        val modelByPlatformUid = mutableMapOf<String, String>()
 
         platforms.forEach { platform ->
+            modelByPlatformUid[platform.uid] = platform.model
             when (platform.name) {
                 "OpenAI" -> apiTypeMap[ApiType.OPENAI] = platform.uid
                 "Anthropic" -> apiTypeMap[ApiType.ANTHROPIC] = platform.uid
@@ -624,15 +650,28 @@ class ChatRepositoryImpl @Inject constructor(
                 )
             }
 
+            val enabledPlatformUids = chatRoom.enabledPlatform.mapNotNull { apiTypeMap[it] }.filter { it.isNotBlank() }
             chatRoomV2Dao.addChatRoom(
                 ChatRoomV2(
                     id = chatRoom.id,
                     title = chatRoom.title,
-                    enabledPlatform = chatRoom.enabledPlatform.map { apiTypeMap[it] ?: "" },
+                    enabledPlatform = enabledPlatformUids,
                     createdAt = chatRoom.createdAt,
                     updatedAt = chatRoom.createdAt
                 )
             )
+
+            val modelRows = enabledPlatformUids.map { platformUid ->
+                ChatPlatformModelV2(
+                    chatId = chatRoom.id,
+                    platformUid = platformUid,
+                    model = modelByPlatformUid[platformUid] ?: ""
+                )
+            }
+
+            if (modelRows.isNotEmpty()) {
+                chatPlatformModelV2Dao.upsertAll(*modelRows.toTypedArray())
+            }
 
             messageV2Dao.addMessages(*messages.toTypedArray())
         }
@@ -644,12 +683,16 @@ class ChatRepositoryImpl @Inject constructor(
         chatRoomV2Dao.editChatRoom(chatRoom.copy(title = title.replace('\n', ' ').take(50)))
     }
 
-    override suspend fun saveChat(chatRoom: ChatRoomV2, messages: List<MessageV2>): ChatRoomV2 {
+    override suspend fun saveChat(chatRoom: ChatRoomV2, messages: List<MessageV2>, chatPlatformModels: Map<String, String>): ChatRoomV2 {
         if (chatRoom.id == 0) {
             // New Chat
             val chatId = chatRoomV2Dao.addChatRoom(chatRoom)
             val updatedMessages = messages.map { it.copy(chatId = chatId.toInt()) }
             messageV2Dao.addMessages(*updatedMessages.toTypedArray())
+            saveChatPlatformModels(
+                chatId = chatId.toInt(),
+                models = chatPlatformModels.filterKeys { it in chatRoom.enabledPlatform }
+            )
 
             val savedChatRoom = chatRoom.copy(id = chatId.toInt())
             updateChatTitle(savedChatRoom, updatedMessages[0].content)
@@ -674,6 +717,10 @@ class ChatRepositoryImpl @Inject constructor(
         messageV2Dao.deleteMessages(*shouldBeDeleted.toTypedArray())
         messageV2Dao.editMessages(*shouldBeUpdated.toTypedArray())
         messageV2Dao.addMessages(*shouldBeAdded.toTypedArray())
+        saveChatPlatformModels(
+            chatId = chatRoom.id,
+            models = chatPlatformModels.filterKeys { it in chatRoom.enabledPlatform }
+        )
 
         return chatRoom
     }
