@@ -74,21 +74,36 @@ class StdioMcpTransport(
         val actualCommand: String
         val actualEnv: Map<String, String>
         val actualWorkingDir: String
+        val finalArgs: List<String>
 
         if (resolvedCommand != null) {
             Log.i(TAG, "Resolved command: ${resolvedCommand.executable}, useTermuxEnv=${resolvedCommand.useTermuxEnv}")
-            actualCommand = resolvedCommand.executable
+            
+            if (resolvedCommand.useTermuxEnv) {
+                // Use bash as the command, passing the actual npx/node command as -c argument
+                // This helps with environment setup that Termux binaries need
+                actualCommand = "/data/data/com.termux/files/usr/bin/bash"
+                val fullCmd = if (args.isNotEmpty()) {
+                    "$command ${args.joinToString(" ")}"
+                } else {
+                    command
+                }
+                finalArgs = listOf("-c", fullCmd)
+                Log.i(TAG, "Using bash wrapper: $actualCommand with args: ${finalArgs.joinToString(" ")}")
+            } else {
+                actualCommand = resolvedCommand.executable
+                finalArgs = args.toList()
+            }
+            
             actualEnv = if (resolvedCommand.useTermuxEnv) {
                 TermuxHelper.getTermuxEnvironment() + env
             } else {
                 env
             }
-            actualWorkingDir = workingDir ?: if (resolvedCommand.useTermuxEnv) {
-                TermuxHelper.TERMUX_HOME
-            } else {
-                "/data/local/tmp"
-            }
-            Log.i(TAG, "Resolved command via Termux: $actualCommand (useTermuxEnv=${resolvedCommand.useTermuxEnv})")
+            // Use /data/local/tmp as working dir since Termux home may not exist yet
+            actualWorkingDir = workingDir ?: "/data/local/tmp"
+            
+            Log.i(TAG, "Resolved command via Termux: $actualCommand (useTermuxEnv=${resolvedCommand.useTermuxEnv}), workingDir=$actualWorkingDir")
         } else {
             Log.w(TAG, "resolvedCommand is NULL!")
             Log.d(TAG, "termuxStatus=$termuxStatus, command='$command', startsWith('/'=${command.startsWith("/")}")
@@ -102,13 +117,14 @@ class StdioMcpTransport(
             actualCommand = command
             actualEnv = env
             actualWorkingDir = workingDir ?: "/data/local/tmp"
+            finalArgs = args.toList()
         }
 
         val envArray = actualEnv.map { "${it.key}=${it.value}" }.toTypedArray()
-        val argsArray = (listOf(actualCommand) + args).toTypedArray()
+        val argsArray = finalArgs.toTypedArray()
 
         Log.i(TAG, "Spawning process: $actualCommand")
-        Log.i(TAG, "Args: ${args.joinToString(", ")}")
+        Log.i(TAG, "Args: ${finalArgs.joinToString(", ")}")
         Log.i(TAG, "Working dir: $actualWorkingDir")
         Log.d(TAG, "Environment: ${actualEnv.keys.joinToString(", ")}")
 
