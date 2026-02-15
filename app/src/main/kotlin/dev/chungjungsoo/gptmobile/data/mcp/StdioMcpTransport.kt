@@ -80,13 +80,12 @@ class StdioMcpTransport(
             Log.i(TAG, "Resolved command: ${resolvedCommand.executable}, useTermuxEnv=${resolvedCommand.useTermuxEnv}")
             
             if (resolvedCommand.useTermuxEnv) {
-                // DEBUG TEST: Simplest possible command - just run ls /system/bin
-                // If this works, we can exec anything. If not, JNI is blocked.
+                // Now that we know JNI exec works, test the actual Termux command
+                // Use sh with -c to run npx - this should stay alive as an MCP server
+                actualCommand = "/system/bin/sh"
+                finalArgs = listOf("-c", "npx -y @upstash/context7-mcp --api-key ctx7sk-c53b84e8-8d23-421e-8703-85017989d09a")
                 
-                actualCommand = "/system/bin/ls"
-                finalArgs = listOf("/system/bin")
-                
-                Log.i(TAG, "DEBUG SIMPLE TEST: /system/bin/ls /system/bin")
+                Log.i(TAG, "TESTING: sh -c npx with Termux PATH")
             } else {
                 actualCommand = resolvedCommand.executable
                 finalArgs = args.toList()
