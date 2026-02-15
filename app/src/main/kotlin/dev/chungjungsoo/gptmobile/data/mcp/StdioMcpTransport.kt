@@ -80,16 +80,21 @@ class StdioMcpTransport(
             Log.i(TAG, "Resolved command: ${resolvedCommand.executable}, useTermuxEnv=${resolvedCommand.useTermuxEnv}")
             
             if (resolvedCommand.useTermuxEnv) {
-                // Use bash as the command, passing the actual npx/node command as -c argument
-                // This helps with environment setup that Termux binaries need
-                actualCommand = "/data/data/com.termux/files/usr/bin/bash"
-                val fullCmd = if (args.isNotEmpty()) {
-                    "$command ${args.joinToString(" ")}"
-                } else {
-                    command
-                }
-                finalArgs = listOf("-c", fullCmd)
-                Log.i(TAG, "Using bash wrapper: $actualCommand with args: ${finalArgs.joinToString(" ")}")
+                // DEBUG TEST: Try a simple system binary first to see if execution works at all
+                // This helps diagnose whether the issue is specific to Termux or general
+                
+                // Test 1: Try /system/bin/ls - should work
+                // Test 2: Try /system/bin/cat /proc/version - system info
+                // Test 3: Try echo - basic shell built-in
+                
+                // For now, let's just test with a simple echo command
+                val testCommand = "echo 'DEBUG: Testing shell execution' && ls -la /system/bin/ | head -5 && echo '--- Done debug test ---'"
+                
+                actualCommand = "/system/bin/sh"
+                finalArgs = listOf("-c", testCommand)
+                
+                Log.i(TAG, "DEBUG TEST: Running simple command to verify execution works")
+                Log.i(TAG, "Command: $testCommand")
             } else {
                 actualCommand = resolvedCommand.executable
                 finalArgs = args.toList()
