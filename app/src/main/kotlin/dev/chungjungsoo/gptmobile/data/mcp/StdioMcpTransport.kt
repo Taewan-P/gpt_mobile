@@ -76,7 +76,52 @@ class StdioMcpTransport(
         val actualWorkingDir: String
         val finalArgs: List<String>
 
-        if (resolvedCommand != null) {
+        // Get the bundled node from native library directory
+        val bundledNodePath = context?.applicationInfo?.nativeLibraryDir?.let { "$it/libnode.so" }
+        Log.d(TAG, "Bundled node path: $bundledNodePath")
+        
+        // Check if using bundled node
+        val useBundledNode = bundledNodePath != null && (
+            command.startsWith("npx") || 
+            command.startsWith("node") || 
+            command.startsWith("npm")
+        )
+        
+        if (useBundledNode) {
+            Log.i(TAG, "Using BUNDLED node from: $bundledNodePath")
+            
+            // Parse command to get the actual subcommand (npx, npm, node)
+            val parts = command.split(" ")
+            val subCommand = parts[0]  // "npx" or "npm" or "node"
+            val subArgs = if (parts.size > 1) parts.drop(1) else emptyList()
+            
+            // Combine with user-provided args
+            val allArgs = subArgs + args
+            
+            // Use sh -c to run the full command string
+            // This is needed because npx/npm are shell scripts that need shell interpretation
+            val fullCmd = buildString {
+                append("$subCommand ")
+                append(allArgs.joinToString(" "))
+            }
+            finalArgs = listOf("-c", fullCmd)
+            
+            // Use /system/bin/sh to interpret the shell command
+            actualCommand = "/system/bin/sh"
+            
+            // Set up environment for bundled node
+            actualEnv = mapOf(
+                "HOME" to "/data/data/dev.chungjungsoo.gptmobile/files",
+                "TMPDIR" to "/data/data/dev.chungjungsoo.gptmobile/files/tmp",
+                "TERM" to "xterm-256color"
+            ) + env
+            
+            actualWorkingDir = workingDir ?: "/data/data/dev.chungjungsoo.gptmobile/files"
+            
+            Log.i(TAG, "Executing via bundled node: sh -c '$fullCmd'")
+            Log.i(TAG, "Working dir: $actualWorkingDir")
+        }
+        else if (resolvedCommand != null) {
             Log.i(TAG, "Resolved command: ${resolvedCommand.executable}, useTermuxEnv=${resolvedCommand.useTermuxEnv}")
             
             if (resolvedCommand.useTermuxEnv) {
