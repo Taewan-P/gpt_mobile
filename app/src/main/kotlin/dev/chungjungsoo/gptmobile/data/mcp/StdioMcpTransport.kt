@@ -80,21 +80,13 @@ class StdioMcpTransport(
             Log.i(TAG, "Resolved command: ${resolvedCommand.executable}, useTermuxEnv=${resolvedCommand.useTermuxEnv}")
             
             if (resolvedCommand.useTermuxEnv) {
-                // DEBUG TEST: Try a simple system binary first to see if execution works at all
-                // This helps diagnose whether the issue is specific to Termux or general
+                // DEBUG TEST: Simplest possible command - just run ls /system/bin
+                // If this works, we can exec anything. If not, JNI is blocked.
                 
-                // Test 1: Try /system/bin/ls - should work
-                // Test 2: Try /system/bin/cat /proc/version - system info
-                // Test 3: Try echo - basic shell built-in
+                actualCommand = "/system/bin/ls"
+                finalArgs = listOf("/system/bin")
                 
-                // For now, let's just test with a simple echo command
-                val testCommand = "echo 'DEBUG: Testing shell execution' && ls -la /system/bin/ | head -5 && echo '--- Done debug test ---'"
-                
-                actualCommand = "/system/bin/sh"
-                finalArgs = listOf("-c", testCommand)
-                
-                Log.i(TAG, "DEBUG TEST: Running simple command to verify execution works")
-                Log.i(TAG, "Command: $testCommand")
+                Log.i(TAG, "DEBUG SIMPLE TEST: /system/bin/ls /system/bin")
             } else {
                 actualCommand = resolvedCommand.executable
                 finalArgs = args.toList()
