@@ -33,8 +33,13 @@ object TermuxHelper {
     )
 
     fun checkTermuxStatus(context: Context): TermuxStatus {
+        Log.d(TAG, "=== TermuxHelper.checkTermuxStatus START ===")
+        
         val isInstalled = isTermuxInstalled(context)
+        Log.d(TAG, "isTermuxInstalled=$isInstalled")
+        
         if (!isInstalled) {
+            Log.w(TAG, "Termux NOT installed - returning error state")
             return TermuxStatus(
                 isInstalled = false,
                 hasNodeJs = false,
@@ -47,8 +52,12 @@ object TermuxHelper {
             )
         }
 
+        Log.i(TAG, "Termux IS installed, checking bin directory...")
         val binDir = File(TERMUX_BIN)
+        Log.d(TAG, "BIN dir exists=${binDir.exists()}, canRead=${binDir.canRead()}, path=$TERMUX_BIN")
+        
         if (!binDir.exists() || !binDir.canRead()) {
+            Log.w(TAG, "Cannot access Termux bin directory")
             return TermuxStatus(
                 isInstalled = true,
                 hasNodeJs = false,
@@ -68,6 +77,11 @@ object TermuxHelper {
         val uvPath = findExecutable("uv")
         val uvxPath = findExecutable("uvx")
 
+        Log.i(TAG, "=== TermuxStatus Result ===")
+        Log.i(TAG, "nodePath=$nodePath, npxPath=$npxPath")
+        Log.i(TAG, "pythonPath=$pythonPath, python3Path=$python3Path")
+        Log.i(TAG, "uvPath=$uvPath, uvxPath=$uvxPath")
+        
         return TermuxStatus(
             isInstalled = true,
             hasNodeJs = nodePath != null,
@@ -97,9 +111,15 @@ object TermuxHelper {
     fun findExecutable(name: String): String? {
         val path = "$TERMUX_BIN/$name"
         val file = File(path)
-        return if (file.exists() && file.canExecute()) {
+        val exists = file.exists()
+        val canExecute = if (exists) file.canExecute() else false
+        Log.d(TAG, "findExecutable($name): path=$path, exists=$exists, canExecute=$canExecute")
+        
+        return if (exists && canExecute) {
+            Log.i(TAG, "Found executable: $path")
             path
         } else {
+            Log.w(TAG, "NOT found or not executable: $path")
             null
         }
     }
@@ -118,31 +138,45 @@ object TermuxHelper {
     }
 
     fun resolveCommand(command: String, status: TermuxStatus): ResolvedCommand? {
+        Log.d(TAG, "=== resolveCommand START ===")
+        Log.d(TAG, "command='$command'")
+        Log.d(TAG, "status.isInstalled=${status.isInstalled}, status.hasNpx=${status.hasNpx}, status.hasNodeJs=${status.hasNodeJs}")
+        Log.d(TAG, "status.errorMessage=${status.errorMessage}")
+        
         val lowerCommand = command.lowercase().trim()
+        Log.d(TAG, "lowerCommand='$lowerCommand'")
 
         return when {
             lowerCommand == "npx" || lowerCommand.startsWith("npx ") -> {
+                Log.d(TAG, "Checking for npx... status.hasNpx=${status.hasNpx}, npxPath=${status.npxPath}")
                 if (status.hasNpx) {
+                    Log.i(TAG, "Resolved to npx: ${status.npxPath}")
                     ResolvedCommand(
                         executable = status.npxPath!!,
                         useTermuxEnv = true
                     )
                 } else {
+                    Log.w(TAG, "npx not found in Termux")
                     null
                 }
             }
             lowerCommand == "node" || lowerCommand.startsWith("node ") -> {
+                Log.d(TAG, "Checking for node... status.hasNodeJs=${status.hasNodeJs}, nodePath=${status.nodePath}")
                 if (status.hasNodeJs) {
+                    Log.i(TAG, "Resolved to node: ${status.nodePath}")
                     ResolvedCommand(
                         executable = status.nodePath!!,
                         useTermuxEnv = true
                     )
                 } else {
+                    Log.w(TAG, "node not found in Termux")
                     null
                 }
             }
             lowerCommand == "python" || lowerCommand.startsWith("python ") -> {
+                Log.d(TAG, "Checking for python... status.hasPython=${status.hasPython}, pythonPath=${status.pythonPath}")
                 if (status.hasPython) {
+                    Log.i(TAG, "Resolved to python: ${status.pythonPath}")
                     ResolvedCommand(
                         executable = status.pythonPath!!,
                         useTermuxEnv = true

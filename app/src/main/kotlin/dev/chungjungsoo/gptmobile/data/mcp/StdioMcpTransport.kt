@@ -52,16 +52,31 @@ class StdioMcpTransport(
     }
 
     override suspend fun start() {
-        Log.i(TAG, "Starting STDIO transport: $command ${args.joinToString(" ")}")
+        Log.i(TAG, "=== StdioMcpTransport.start START ===")
+        Log.i(TAG, "STDIO transport: command='$command' args='${args.joinToString(", ")}'")
+        
+        val termuxStatus = context?.let { 
+            Log.d(TAG, "Checking Termux status...")
+            TermuxHelper.checkTermuxStatus(it).also { status ->
+                Log.d(TAG, "TermuxStatus: isInstalled=${status.isInstalled}, error=${status.errorMessage}")
+            }
+        }
+        Log.d(TAG, "termuxStatus is null?=${termuxStatus == null}")
+        
+        val resolvedCommand = termuxStatus?.let { 
+            TermuxHelper.resolveCommand(command, it).also { resolved ->
+                Log.d(TAG, "resolvedCommand is null?=${resolved == null}")
+            }
+        }
 
-        val termuxStatus = context?.let { TermuxHelper.checkTermuxStatus(it) }
-        val resolvedCommand = termuxStatus?.let { TermuxHelper.resolveCommand(command, it) }
+        Log.d(TAG, "resolvedCommand=$resolvedCommand")
 
         val actualCommand: String
         val actualEnv: Map<String, String>
         val actualWorkingDir: String
 
         if (resolvedCommand != null) {
+            Log.i(TAG, "Resolved command: ${resolvedCommand.executable}, useTermuxEnv=${resolvedCommand.useTermuxEnv}")
             actualCommand = resolvedCommand.executable
             actualEnv = if (resolvedCommand.useTermuxEnv) {
                 TermuxHelper.getTermuxEnvironment() + env
@@ -75,11 +90,15 @@ class StdioMcpTransport(
             }
             Log.i(TAG, "Resolved command via Termux: $actualCommand (useTermuxEnv=${resolvedCommand.useTermuxEnv})")
         } else {
+            Log.w(TAG, "resolvedCommand is NULL!")
+            Log.d(TAG, "termuxStatus=$termuxStatus, command='$command', startsWith('/'=${command.startsWith("/")}")
+            
             if (termuxStatus != null && !command.startsWith("/")) {
                 val errorMsg = TermuxHelper.getMissingDependencyMessage(command, termuxStatus)
-                Log.e(TAG, errorMsg)
+                Log.e(TAG, "ERROR: $errorMsg")
                 throw RuntimeException(errorMsg)
             }
+            Log.i(TAG, "Using raw command without Termux resolution")
             actualCommand = command
             actualEnv = env
             actualWorkingDir = workingDir ?: "/data/local/tmp"
