@@ -181,7 +181,7 @@ class SetupViewModelV2 @Inject constructor(
         ClientType.GOOGLE -> ModelConstants.GOOGLE_API_URL
         ClientType.GROQ -> ModelConstants.GROQ_API_URL
         ClientType.OLLAMA -> "http://localhost:11434/"
-        ClientType.OPENROUTER -> "https://openrouter.ai/api/v1/"
+        ClientType.OPENROUTER -> ModelConstants.OPENROUTER_API_URL
         ClientType.CUSTOM -> ""
     }
 
