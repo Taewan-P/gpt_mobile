@@ -153,8 +153,4 @@
     <string name="api_address_description">אנא הזן את כתובת ה-API של Ollama שלך כולל מספר הפורט. האפליקציה תשתמש בנקודת קצה v1/chat/completions, אז אנא הזן רק את החלק הקדמי של הכתובת המלאה. הכתובת חייבת להסתיים ב-\'/\'. למשל) http://192.168.1.100:11434/</string>
     <string name="select_groq_model_description">אנא בחר את מודל הצ\'אט של Groq. אם אתה רוצה דגמים שאינם ברשימה, בדוק את אתר התיעוד של Groq API והזן שם של מודל זמין.</string>
     <string name="default_mode">ברירת מחדל</string>
-    <string name="chat_models">Chat Models</string>
-    <string name="chat_models_description">Set model identifiers for each provider in this chat only.</string>
-    <string name="chat_model_for_platform">Model for %1$s</string>
-    <string name="update_chat_models">Update Models</string>
 </resources>

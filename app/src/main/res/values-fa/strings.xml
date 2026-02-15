@@ -3,8 +3,4 @@
     <string name="app_name">جی‌پی‌تی موبایل</string>
     <string name="gpt_mobile_introduction_logo">لوگوی معرفی جی‌پی‌تی موبایل</string>
     <string name="welcome_title">بهترین دستیار هوش‌مصنوعی\nشما میتونید ان را در\nتفلن همراه خود داشته باشید</string>
-    <string name="chat_models">Chat Models</string>
-    <string name="chat_models_description">Set model identifiers for each provider in this chat only.</string>
-    <string name="chat_model_for_platform">Model for %1$s</string>
-    <string name="update_chat_models">Update Models</string>
 </resources>

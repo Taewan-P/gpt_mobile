@@ -226,8 +226,4 @@
     <string name="platform_added_successfully">提供商添加成功</string>
     <string name="at_least_one_platform_required">请至少启用一个提供商</string>
     <string name="remove">移除</string>
-    <string name="chat_models">Chat Models</string>
-    <string name="chat_models_description">Set model identifiers for each provider in this chat only.</string>
-    <string name="chat_model_for_platform">Model for %1$s</string>
-    <string name="update_chat_models">Update Models</string>
 </resources>

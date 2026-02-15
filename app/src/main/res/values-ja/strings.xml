@@ -153,8 +153,4 @@
     <string name="user_message">ユーザーメッセージ</string>
     <string name="export_chat">チャットのエクスポート</string>
     <string name="top_p_setting_description">nucleus samplingでは、確率順に減少させ、この値で指定された特定の確率に達すると、その後のトークンの全オプションに累積分布を計算します。\nほとんどのモデルでは、通常この値または温度のどちらかを変更することをお勧めしますが、両方を同時に変更することは推奨しません。</string>
-    <string name="chat_models">Chat Models</string>
-    <string name="chat_models_description">Set model identifiers for each provider in this chat only.</string>
-    <string name="chat_model_for_platform">Model for %1$s</string>
-    <string name="update_chat_models">Update Models</string>
 </resources>

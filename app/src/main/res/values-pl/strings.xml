@@ -153,8 +153,4 @@
     <string name="openai_description">Twórca Chata GPT.</string>
     <string name="enter_api_key">Podaj klucz API</string>
     <string name="token_input_description">Wprowadź klucz API wybranej przez Ciebie platformy. Nasza aplikacja nie zbiera tych danych. Klucze API i historia czatów są zapisywane tylko na Twoim urządzeniu, i nie zostaną nigdzie wysłane, z wyjątkiem serwerów odbiorczych API.</string>
-    <string name="chat_models">Chat Models</string>
-    <string name="chat_models_description">Set model identifiers for each provider in this chat only.</string>
-    <string name="chat_model_for_platform">Model for %1$s</string>
-    <string name="update_chat_models">Update Models</string>
 </resources>

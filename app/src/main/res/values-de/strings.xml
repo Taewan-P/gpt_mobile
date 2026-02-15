@@ -83,8 +83,4 @@
     <string name="retry">Wiederholen</string>
     <string name="ask_a_question">Stelle eine Frage…</string>
     <string name="some_platforms_disabled">Einige APIs sind deaktiviert</string>
-    <string name="chat_models">Chat Models</string>
-    <string name="chat_models_description">Set model identifiers for each provider in this chat only.</string>
-    <string name="chat_model_for_platform">Model for %1$s</string>
-    <string name="update_chat_models">Update Models</string>
 </resources>

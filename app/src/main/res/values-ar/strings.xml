@@ -153,8 +153,4 @@
     <string name="select_groq_model">حدد نموذج دردشة Groq</string>
     <string name="select_groq_model_description">يرجى تحديد نموذج دردشة Groq. إذا كنت تريد نماذج غير موجودة في القائمة، فراجع موقع وثائق Groq API وشاهد ما هو متاح.</string>
     <string name="export_chat">تصدير الدردشة</string>
-    <string name="chat_models">Chat Models</string>
-    <string name="chat_models_description">Set model identifiers for each provider in this chat only.</string>
-    <string name="chat_model_for_platform">Model for %1$s</string>
-    <string name="update_chat_models">Update Models</string>
 </resources>
