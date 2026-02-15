@@ -98,27 +98,24 @@ class StdioMcpTransport(
             // Combine with user-provided args
             val allArgs = subArgs + args
             
-            // Use sh -c to run the full command string
-            // This is needed because npx/npm are shell scripts that need shell interpretation
-            val fullCmd = buildString {
-                append("$subCommand ")
-                append(allArgs.joinToString(" "))
-            }
-            finalArgs = listOf("-c", fullCmd)
-            
-            // Use /system/bin/sh to interpret the shell command
-            actualCommand = "/system/bin/sh"
+            // Use the bundled node directly!
+            actualCommand = bundledNodePath!!
+            finalArgs = allArgs
             
             // Set up environment for bundled node
+            // PATH needs to include where node_modules can be found
+            val appFilesDir = "/data/data/dev.chungjungsoo.gptmobile/files"
             actualEnv = mapOf(
-                "HOME" to "/data/data/dev.chungjungsoo.gptmobile/files",
-                "TMPDIR" to "/data/data/dev.chungjungsoo.gptmobile/files/tmp",
-                "TERM" to "xterm-256color"
+                "HOME" to appFilesDir,
+                "TMPDIR" to "$appFilesDir/tmp",
+                "TERM" to "xterm-256color",
+                "PATH" to "$appFilesDir/bin:$appFilesDir/node_modules/.bin:/system/bin:/system/xbin"
             ) + env
             
-            actualWorkingDir = workingDir ?: "/data/data/dev.chungjungsoo.gptmobile/files"
+            actualWorkingDir = workingDir ?: appFilesDir
             
-            Log.i(TAG, "Executing via bundled node: sh -c '$fullCmd'")
+            Log.i(TAG, "Executing BUNDLED node: $actualCommand")
+            Log.i(TAG, "Args: ${finalArgs.joinToString(" ")}")
             Log.i(TAG, "Working dir: $actualWorkingDir")
         }
         else if (resolvedCommand != null) {
