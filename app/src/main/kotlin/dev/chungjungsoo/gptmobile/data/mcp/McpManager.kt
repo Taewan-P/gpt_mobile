@@ -30,9 +30,13 @@ import io.modelcontextprotocol.kotlin.sdk.types.TextContent
 import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonArray
@@ -51,6 +55,7 @@ class McpManager @Inject constructor(
     private val connections = mutableMapOf<Int, McpConnection>()
     private val toolToServer = mutableMapOf<String, Int>()
     private val lock = Mutex()
+    private val managerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val httpClient = HttpClient {
         expectSuccess = false
@@ -62,6 +67,24 @@ class McpManager @Inject constructor(
     val availableTools = _availableTools.asStateFlow()
     private val _connectionState = MutableStateFlow(ConnectionState())
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
+
+    fun connectAllAsync(forceRefresh: Boolean = false) {
+        managerScope.launch {
+            runCatching { connectAll(forceRefresh) }
+                .onFailure { throwable ->
+                    Log.e(TAG, "connectAllAsync failed", throwable)
+                }
+        }
+    }
+
+    fun connectAsync(config: McpServerConfig) {
+        managerScope.launch {
+            runCatching { connect(config).getOrThrow() }
+                .onFailure { throwable ->
+                    Log.e(TAG, "connectAsync failed serverId=${config.id} name=${config.name}", throwable)
+                }
+        }
+    }
 
     suspend fun connectAll(forceRefresh: Boolean = false) {
         lock.withLock {

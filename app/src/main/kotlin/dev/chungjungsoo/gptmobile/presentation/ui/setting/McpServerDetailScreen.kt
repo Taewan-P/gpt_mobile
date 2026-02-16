@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -53,13 +54,18 @@ fun McpServerDetailScreen(
         }
     }
 
+    val handleNavigation: () -> Unit = {
+        viewModel.commitPending()
+        onNavigationClick()
+    }
+
     Scaffold(
         modifier = modifier,
         topBar = {
             LargeTopAppBar(
                 title = { Text(server?.name ?: stringResource(R.string.mcp_server_detail)) },
                 navigationIcon = {
-                    IconButton(onClick = onNavigationClick) {
+                    IconButton(onClick = handleNavigation) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.go_back)
@@ -73,6 +79,7 @@ fun McpServerDetailScreen(
             modifier = Modifier
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
+                .imePadding()
         ) {
             if (server == null) {
                 Text(
@@ -100,7 +107,12 @@ fun McpServerDetailScreen(
             if (server.type == McpTransportType.STDIO) {
                 ArgsSection(
                     args = server.args,
-                    onAddArg = viewModel::addArg,
+                    pendingArg = uiState.pendingArg,
+                    onPendingArgChange = viewModel::updatePendingArg,
+                    onAddArg = { arg ->
+                        viewModel.addArg(arg)
+                        viewModel.updatePendingArg("")
+                    },
                     onRemoveArg = viewModel::removeArg,
                     onUpdateArg = viewModel::updateArg
                 )
@@ -109,7 +121,15 @@ fun McpServerDetailScreen(
             if (server.type != McpTransportType.STDIO) {
                 HeadersSection(
                     headers = server.headers,
-                    onAddHeader = viewModel::addHeader,
+                    pendingHeaderKey = uiState.pendingHeaderKey,
+                    pendingHeaderValue = uiState.pendingHeaderValue,
+                    onPendingHeaderKeyChange = viewModel::updatePendingHeaderKey,
+                    onPendingHeaderValueChange = viewModel::updatePendingHeaderValue,
+                    onAddHeader = { key, value ->
+                        viewModel.addHeader(key, value)
+                        viewModel.updatePendingHeaderKey("")
+                        viewModel.updatePendingHeaderValue("")
+                    },
                     onRemoveHeader = viewModel::removeHeader,
                     onUpdateHeader = viewModel::updateHeader
                 )

@@ -9,7 +9,6 @@ import dev.chungjungsoo.gptmobile.data.mcp.McpManager
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import dev.chungjungsoo.gptmobile.data.tool.BuiltInTool
 import javax.inject.Inject
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -48,17 +47,11 @@ class McpSettingsViewModel @Inject constructor(
     }
 
     fun connectAll() {
-        // Use GlobalScope to prevent cancellation when user navigates away from MCP Settings
-        GlobalScope.launch {
-            mcpManager.connectAll()
-        }
+        mcpManager.connectAllAsync()
     }
 
     fun reconnectServer(serverId: Int) {
-        // Use GlobalScope to prevent cancellation when user navigates away from MCP Settings
-        GlobalScope.launch {
-            val server = _servers.value.find { it.id == serverId } ?: return@launch
-            mcpManager.connect(server)
-        }
+        val server = _servers.value.find { it.id == serverId } ?: return
+        mcpManager.connectAsync(server)
     }
 }

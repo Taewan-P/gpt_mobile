@@ -39,7 +39,7 @@ class AddMcpServerViewModelTest {
     }
 
     @Test
-    fun uiState_stdioRequiresCommandAndCannotTestInPhaseThree() {
+    fun uiState_stdioRequiresCommandAndIsTestable() {
         val missingCommand = AddMcpServerViewModel.UiState(
             name = "Local",
             type = McpTransportType.STDIO,
@@ -54,7 +54,7 @@ class AddMcpServerViewModelTest {
         assertFalse(missingCommand.isValid)
         assertFalse(missingCommand.canTest)
         assertTrue(withCommand.isValid)
-        assertFalse(withCommand.canTest)
+        assertTrue(withCommand.canTest)
     }
 
     @Test

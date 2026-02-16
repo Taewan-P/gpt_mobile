@@ -10,7 +10,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
@@ -30,8 +29,8 @@ class StdioMcpTransport(
     private var processHandle: ProcessHandle? = null
     private var readerJob: Job? = null
     private var scope: CoroutineScope? = null
-    private val outputChannel = Channel<String>(Channel.UNLIMITED)
     private var nodejsExtracted = false
+    private var closeNotified = false
 
     private fun ensureNodejsExtracted(appFilesDir: String) {
         if (nodejsExtracted || context == null) return
@@ -56,7 +55,7 @@ class StdioMcpTransport(
             copyAssetFolder("nodejs", nodejsDir)
             
             // Write version file
-            java.io.File(nodejsDir, ".version").writeText("2")
+            java.io.File(nodejsDir, ".version").writeText(expectedVersion)
             
             nodejsExtracted = true
             Log.i(TAG, "Extracted bundled nodejs successfully")
@@ -158,9 +157,12 @@ class StdioMcpTransport(
         // Close file descriptors
         NativeProcess.closeFd(stdinFd)
         NativeProcess.closeFd(stdoutFd)
-        
-        // Wait a bit for process to finish
-        Thread.sleep(500)
+
+        val exitCode = NativeProcess.waitFor(pid)
+        if (exitCode != 0) {
+            Log.e(TAG, "npm install failed with exitCode=$exitCode")
+            return null
+        }
         
         // Now find the package's bin entry
         return resolvePackageBinEntry(packageName, nodeModulesDir)
@@ -251,7 +253,11 @@ class StdioMcpTransport(
     override suspend fun start() {
         Log.i(TAG, "=== StdioMcpTransport.start START ===")
         Log.i(TAG, "STDIO transport: command='$command' args='${args.joinToString(", ")}'")
-        
+        closeNotified = false
+
+        val (baseCommand, inlineArgs) = splitCommandWithInlineArgs(command)
+        val providedArgs = inlineArgs + args
+
         // Setup bundled nodejs directory if needed
         val appFilesDir = context?.filesDir?.absolutePath ?: "/data/data/dev.chungjungsoo.gptmobile/files"
         ensureNodejsExtracted(appFilesDir)
@@ -265,7 +271,7 @@ class StdioMcpTransport(
         Log.d(TAG, "termuxStatus is null?=${termuxStatus == null}")
         
         val resolvedCommand = termuxStatus?.let { 
-            TermuxHelper.resolveCommand(command, it).also { resolved ->
+            TermuxHelper.resolveCommand(baseCommand, it).also { resolved ->
                 Log.d(TAG, "resolvedCommand is null?=${resolved == null}")
             }
         }
@@ -283,21 +289,18 @@ class StdioMcpTransport(
         
         // Use bundled node for npm/npx commands
         val useBundledNode = bundledNodePath != null && (
-            command.startsWith("npx") || 
-            command.startsWith("node") || 
-            command.startsWith("npm")
+            baseCommand == "npx" ||
+                baseCommand == "node" ||
+                baseCommand == "npm" ||
+                baseCommand == "npx.exe" ||
+                baseCommand == "npm.exe"
         )
         
         if (useBundledNode) {
             Log.i(TAG, "Using BUNDLED node from: $bundledNodePath")
-            
-            // Parse command to get the actual subcommand (npx, npm, node)
-            val parts = command.split(" ")
-            val subCommand = parts[0]  // "npx" or "npm" or "node"
-            val subArgs = if (parts.size > 1) parts.drop(1) else emptyList()
-            
-            // Combine with user-provided args
-            val allArgs = subArgs + args
+
+            val subCommand = baseCommand
+            val allArgs = providedArgs
             
             // Use the bundled node to run corepack-based npm/npx
             actualCommand = bundledNodePath!!
@@ -388,18 +391,9 @@ class StdioMcpTransport(
         }
         else if (resolvedCommand != null) {
             Log.i(TAG, "Resolved command: ${resolvedCommand.executable}, useTermuxEnv=${resolvedCommand.useTermuxEnv}")
-            
-            if (resolvedCommand.useTermuxEnv) {
-                // Now that we know JNI exec works, test the actual Termux command
-                // Use sh with -c to run npx - this should stay alive as an MCP server
-                actualCommand = "/system/bin/sh"
-                finalArgs = listOf("-c", "npx -y @upstash/context7-mcp --api-key ctx7sk-c53b84e8-8d23-421e-8703-85017989d09a")
-                
-                Log.i(TAG, "TESTING: sh -c npx with Termux PATH")
-            } else {
-                actualCommand = resolvedCommand.executable
-                finalArgs = args.toList()
-            }
+
+            actualCommand = resolvedCommand.executable
+            finalArgs = providedArgs
             
             actualEnv = if (resolvedCommand.useTermuxEnv) {
                 TermuxHelper.getTermuxEnvironment() + env
@@ -413,17 +407,19 @@ class StdioMcpTransport(
         } else {
             Log.w(TAG, "resolvedCommand is NULL!")
             Log.d(TAG, "termuxStatus=$termuxStatus, command='$command', startsWith('/'=${command.startsWith("/")}")
-            
-            if (termuxStatus != null && !command.startsWith("/")) {
-                val errorMsg = TermuxHelper.getMissingDependencyMessage(command, termuxStatus)
+
+            val termuxOnlyCommands = setOf("python", "python3", "uv", "uvx")
+            val needsTermux = baseCommand in termuxOnlyCommands
+            if (needsTermux && termuxStatus != null && !termuxStatus.isInstalled) {
+                val errorMsg = TermuxHelper.getMissingDependencyMessage(baseCommand, termuxStatus)
                 Log.e(TAG, "ERROR: $errorMsg")
                 throw RuntimeException(errorMsg)
             }
             Log.i(TAG, "Using raw command without Termux resolution")
-            actualCommand = command
+            actualCommand = baseCommand
             actualEnv = env
             actualWorkingDir = workingDir ?: "/data/local/tmp"
-            finalArgs = args.toList()
+            finalArgs = providedArgs
         }
 
         val envArray = actualEnv.map { "${it.key}=${it.value}" }.toTypedArray()
@@ -493,7 +489,7 @@ class StdioMcpTransport(
                 _onError?.invoke(e)
             } finally {
                 Log.i(TAG, "Reader coroutine finished")
-                _onClose?.invoke()
+                notifyCloseOnce()
             }
         }
     }
@@ -531,7 +527,24 @@ class StdioMcpTransport(
         scope?.cancel()
         scope = null
 
-        outputChannel.close()
+        notifyCloseOnce()
+    }
+
+    private fun splitCommandWithInlineArgs(rawCommand: String): Pair<String, List<String>> {
+        val parts = rawCommand.trim().split("\\s+".toRegex()).filter { it.isNotBlank() }
+        return if (parts.isEmpty()) {
+            rawCommand to emptyList()
+        } else {
+            parts.first() to parts.drop(1)
+        }
+    }
+
+    @Synchronized
+    private fun notifyCloseOnce() {
+        if (closeNotified) {
+            return
+        }
+        closeNotified = true
         _onClose?.invoke()
     }
 

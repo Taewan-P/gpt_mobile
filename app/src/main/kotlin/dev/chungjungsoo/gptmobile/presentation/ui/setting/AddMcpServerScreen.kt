@@ -257,12 +257,20 @@ private fun transportTypeDescription(type: McpTransportType): String = when (typ
 @Composable
 internal fun HeadersSection(
     headers: Map<String, String>,
+    pendingHeaderKey: String? = null,
+    pendingHeaderValue: String? = null,
+    onPendingHeaderKeyChange: ((String) -> Unit)? = null,
+    onPendingHeaderValueChange: ((String) -> Unit)? = null,
     onAddHeader: (String, String) -> Unit,
     onRemoveHeader: (String) -> Unit,
     onUpdateHeader: (String, String, String) -> Unit
 ) {
-    var newHeaderKey by remember { mutableStateOf("") }
-    var newHeaderValue by remember { mutableStateOf("") }
+    val useLocalState = pendingHeaderKey == null
+    var localPendingKey by remember { mutableStateOf("") }
+    var localPendingValue by remember { mutableStateOf("") }
+
+    val currentKey = if (useLocalState) localPendingKey else pendingHeaderKey ?: ""
+    val currentValue = if (useLocalState) localPendingValue else pendingHeaderValue ?: ""
 
     Text(
         text = stringResource(R.string.mcp_headers),
@@ -295,16 +303,28 @@ internal fun HeadersSection(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         OutlinedTextField(
-            value = newHeaderKey,
-            onValueChange = { newHeaderKey = it },
+            value = currentKey,
+            onValueChange = {
+                if (useLocalState) {
+                    localPendingKey = it
+                } else {
+                    onPendingHeaderKeyChange?.invoke(it)
+                }
+            },
             label = { Text(stringResource(R.string.mcp_header_name)) },
             placeholder = { Text(stringResource(R.string.mcp_header_name_hint)) },
             modifier = Modifier.weight(1f),
             singleLine = true
         )
         OutlinedTextField(
-            value = newHeaderValue,
-            onValueChange = { newHeaderValue = it },
+            value = currentValue,
+            onValueChange = {
+                if (useLocalState) {
+                    localPendingValue = it
+                } else {
+                    onPendingHeaderValueChange?.invoke(it)
+                }
+            },
             label = { Text(stringResource(R.string.mcp_header_value)) },
             placeholder = { Text(stringResource(R.string.mcp_header_value_hint)) },
             modifier = Modifier.weight(1f),
@@ -312,10 +332,15 @@ internal fun HeadersSection(
         )
         IconButton(
             onClick = {
-                if (newHeaderKey.isNotBlank()) {
-                    onAddHeader(newHeaderKey, newHeaderValue)
-                    newHeaderKey = ""
-                    newHeaderValue = ""
+                if (currentKey.isNotBlank()) {
+                    onAddHeader(currentKey, currentValue)
+                    if (useLocalState) {
+                        localPendingKey = ""
+                        localPendingValue = ""
+                    } else {
+                        onPendingHeaderKeyChange?.invoke("")
+                        onPendingHeaderValueChange?.invoke("")
+                    }
                 }
             }
         ) {
@@ -334,8 +359,14 @@ internal fun HeaderRow(
     onUpdate: (String, String) -> Unit,
     onRemove: () -> Unit
 ) {
-    var editKey by remember(headerKey) { mutableStateOf(headerKey) }
-    var editValue by remember(headerValue) { mutableStateOf(headerValue) }
+    var localKey by remember { mutableStateOf(headerKey) }
+    var localValue by remember { mutableStateOf(headerValue) }
+
+    LaunchedEffect(localKey, localValue) {
+        if (localKey.isNotBlank() && (localKey != headerKey || localValue != headerValue)) {
+            onUpdate(localKey, localValue)
+        }
+    }
 
     Row(
         modifier = Modifier
@@ -344,15 +375,15 @@ internal fun HeaderRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         OutlinedTextField(
-            value = editKey,
-            onValueChange = { editKey = it },
+            value = localKey,
+            onValueChange = { localKey = it },
             label = { Text(stringResource(R.string.mcp_header_name)) },
             modifier = Modifier.weight(1f),
             singleLine = true
         )
         OutlinedTextField(
-            value = editValue,
-            onValueChange = { editValue = it },
+            value = localValue,
+            onValueChange = { localValue = it },
             label = { Text(stringResource(R.string.mcp_header_value)) },
             modifier = Modifier.weight(1f),
             singleLine = true
@@ -364,30 +395,29 @@ internal fun HeaderRow(
             )
         }
     }
-
-    LaunchedEffect(editKey, editValue) {
-        if (editKey != headerKey || editValue != headerValue) {
-            onUpdate(editKey, editValue)
-        }
-    }
 }
 
 @Composable
 internal fun ArgsSection(
     args: List<String>,
-    pendingArg: String = "",
-    onPendingArgChange: (String) -> Unit = {},
+    pendingArg: String? = null,
+    onPendingArgChange: ((String) -> Unit)? = null,
     onAddArg: (String) -> Unit,
     onRemoveArg: (Int) -> Unit,
     onUpdateArg: (Int, String) -> Unit
 ) {
+    val useLocalState = pendingArg == null
+    var localPendingArg by remember { mutableStateOf("") }
+
+    val currentArg = if (useLocalState) localPendingArg else pendingArg ?: ""
     Text(
         text = stringResource(R.string.mcp_args),
         style = MaterialTheme.typography.titleMedium,
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
     )
 
-    if (args.isEmpty() && pendingArg.isBlank()) {
+    val isEmpty = args.isEmpty() && currentArg.isBlank()
+    if (isEmpty) {
         Text(
             text = stringResource(R.string.no_args),
             style = MaterialTheme.typography.bodySmall,
@@ -411,8 +441,14 @@ internal fun ArgsSection(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         OutlinedTextField(
-            value = pendingArg,
-            onValueChange = onPendingArgChange,
+            value = currentArg,
+            onValueChange = {
+                if (useLocalState) {
+                    localPendingArg = it
+                } else {
+                    onPendingArgChange?.invoke(it)
+                }
+            },
             label = { Text(stringResource(R.string.mcp_arg)) },
             placeholder = { Text(stringResource(R.string.mcp_arg_hint)) },
             modifier = Modifier.weight(1f),
@@ -420,8 +456,13 @@ internal fun ArgsSection(
         )
         IconButton(
             onClick = {
-                if (pendingArg.isNotBlank()) {
-                    onAddArg(pendingArg)
+                if (currentArg.isNotBlank()) {
+                    onAddArg(currentArg)
+                    if (useLocalState) {
+                        localPendingArg = ""
+                    } else {
+                        onPendingArgChange?.invoke("")
+                    }
                 }
             }
         ) {
@@ -439,8 +480,6 @@ internal fun ArgRow(
     onUpdate: (String) -> Unit,
     onRemove: () -> Unit
 ) {
-    var editValue by remember(arg) { mutableStateOf(arg) }
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -448,8 +487,8 @@ internal fun ArgRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         OutlinedTextField(
-            value = editValue,
-            onValueChange = { editValue = it },
+            value = arg,
+            onValueChange = onUpdate,
             label = { Text(stringResource(R.string.mcp_arg)) },
             modifier = Modifier.weight(1f),
             singleLine = true
@@ -459,12 +498,6 @@ internal fun ArgRow(
                 imageVector = Icons.Default.Delete,
                 contentDescription = stringResource(R.string.remove_arg)
             )
-        }
-    }
-
-    LaunchedEffect(editValue) {
-        if (editValue != arg) {
-            onUpdate(editValue)
         }
     }
 }
