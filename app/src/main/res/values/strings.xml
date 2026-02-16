@@ -287,7 +287,7 @@
     <string name="stdio_termux_hint">Requires Termux with Node.js/Python installed. Commands like npx, node, python are auto-resolved.</string>
     <string name="mcp_args">Arguments</string>
     <string name="mcp_arg">Argument</string>
-    <string name="mcp_arg_hint">-y</string>
+    <string name="mcp_arg_hint">e.g. -y, @upstash/context7-mcp</string>
     <string name="add_arg">Add Argument</string>
     <string name="remove_arg">Remove Argument</string>
     <string name="no_args">No arguments configured</string>
@@ -295,7 +295,7 @@
     <string name="delete_server">Delete Server</string>
     <string name="delete_server_confirmation">Delete this MCP server? This action cannot be undone.</string>
     <string name="command">Command</string>
-    <string name="command_hint">npx @modelcontextprotocol/server-filesystem .</string>
+    <string name="command_hint">npx</string>
 
     <!-- Transport Types -->
     <string name="transport_websocket">WebSocket</string>

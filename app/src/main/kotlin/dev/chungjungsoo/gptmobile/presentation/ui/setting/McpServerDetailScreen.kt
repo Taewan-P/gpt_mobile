@@ -16,6 +16,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -33,7 +34,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.McpServerConfig
 import dev.chungjungsoo.gptmobile.data.database.entity.McpTransportType
-import dev.chungjungsoo.gptmobile.presentation.common.SettingItem
+import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,7 +89,22 @@ fun McpServerDetailScreen(
                 onClick = { viewModel.toggleEnabled(!server.enabled) }
             )
 
-            ServerDetails(server)
+            ServerDetails(
+                server = server,
+                onNameChange = viewModel::updateName,
+                onTypeChange = viewModel::updateType,
+                onUrlChange = viewModel::updateUrl,
+                onCommandChange = viewModel::updateCommand
+            )
+
+            if (server.type == McpTransportType.STDIO) {
+                ArgsSection(
+                    args = server.args,
+                    onAddArg = viewModel::addArg,
+                    onRemoveArg = viewModel::removeArg,
+                    onUpdateArg = viewModel::updateArg
+                )
+            }
 
             if (server.type != McpTransportType.STDIO) {
                 HeadersSection(
@@ -164,41 +180,107 @@ fun McpServerDetailScreen(
 }
 
 @Composable
-private fun ServerDetails(server: McpServerConfig) {
-    SettingItem(
-        title = stringResource(R.string.server_name),
-        description = server.name,
-        enabled = false,
-        onItemClick = {},
-        showTrailingIcon = false,
-        showLeadingIcon = false
+private fun ServerDetails(
+    server: McpServerConfig,
+    onNameChange: (String) -> Unit,
+    onTypeChange: (McpTransportType) -> Unit,
+    onUrlChange: (String) -> Unit,
+    onCommandChange: (String) -> Unit
+) {
+    var editName by remember(server.name) { mutableStateOf(server.name) }
+    var editUrl by remember(server.url) { mutableStateOf(server.url ?: "") }
+    var editCommand by remember(server.command) { mutableStateOf(server.command ?: "") }
+
+    OutlinedTextField(
+        value = editName,
+        onValueChange = { editName = it },
+        label = { Text(stringResource(R.string.server_name)) },
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        singleLine = true
     )
-    SettingItem(
-        title = stringResource(R.string.transport_type),
-        description = server.type.name,
-        enabled = false,
-        onItemClick = {},
-        showTrailingIcon = false,
-        showLeadingIcon = false
+
+    LaunchedEffect(editName) {
+        if (editName != server.name && editName.isNotBlank()) {
+            onNameChange(editName)
+        }
+    }
+
+    Text(
+        text = stringResource(R.string.transport_type),
+        style = MaterialTheme.typography.titleMedium,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
     )
-    server.url?.let {
-        SettingItem(
-            title = stringResource(R.string.server_url),
-            description = it,
-            enabled = false,
-            onItemClick = {},
-            showTrailingIcon = false,
-            showLeadingIcon = false
+
+    McpTransportType.entries.forEach { type ->
+        RadioItem(
+            title = transportTypeTitle(type),
+            description = transportTypeDescription(type),
+            value = type.name,
+            selected = server.type == type,
+            onSelected = { onTypeChange(type) }
         )
     }
-    server.command?.let {
-        SettingItem(
-            title = stringResource(R.string.command),
-            description = it,
-            enabled = false,
-            onItemClick = {},
-            showTrailingIcon = false,
-            showLeadingIcon = false
+
+    if (server.type != McpTransportType.STDIO) {
+        OutlinedTextField(
+            value = editUrl,
+            onValueChange = { editUrl = it },
+            label = { Text(stringResource(R.string.server_url)) },
+            placeholder = { Text(stringResource(R.string.server_url_hint)) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            singleLine = true
         )
+
+        LaunchedEffect(editUrl) {
+            if (editUrl != (server.url ?: "")) {
+                onUrlChange(editUrl)
+            }
+        }
     }
+
+    if (server.type == McpTransportType.STDIO) {
+        OutlinedTextField(
+            value = editCommand,
+            onValueChange = { editCommand = it },
+            label = { Text(stringResource(R.string.command)) },
+            placeholder = { Text(stringResource(R.string.command_hint)) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            singleLine = true
+        )
+
+        Text(
+            text = stringResource(R.string.stdio_termux_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
+
+        LaunchedEffect(editCommand) {
+            if (editCommand != (server.command ?: "")) {
+                onCommandChange(editCommand)
+            }
+        }
+    }
+}
+
+@Composable
+private fun transportTypeTitle(type: McpTransportType): String = when (type) {
+    McpTransportType.WEBSOCKET -> stringResource(R.string.transport_websocket)
+    McpTransportType.STREAMABLE_HTTP -> stringResource(R.string.transport_http)
+    McpTransportType.SSE -> stringResource(R.string.transport_sse)
+    McpTransportType.STDIO -> stringResource(R.string.transport_stdio)
+}
+
+@Composable
+private fun transportTypeDescription(type: McpTransportType): String = when (type) {
+    McpTransportType.WEBSOCKET -> stringResource(R.string.transport_websocket_desc)
+    McpTransportType.STREAMABLE_HTTP -> stringResource(R.string.transport_http_desc)
+    McpTransportType.SSE -> stringResource(R.string.transport_sse_desc)
+    McpTransportType.STDIO -> stringResource(R.string.transport_stdio_desc)
 }

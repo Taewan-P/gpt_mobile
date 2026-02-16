@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.chungjungsoo.gptmobile.data.database.entity.McpServerConfig
+import dev.chungjungsoo.gptmobile.data.database.entity.McpTransportType
 import dev.chungjungsoo.gptmobile.data.mcp.McpManager
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import javax.inject.Inject
@@ -55,6 +56,75 @@ class McpServerDetailViewModel @Inject constructor(
             } else {
                 mcpManager.disconnect(updated.id)
             }
+        }
+    }
+
+    fun updateName(name: String) {
+        val currentServer = _uiState.value.server ?: return
+        if (name.isBlank()) return
+        viewModelScope.launch {
+            val updated = currentServer.copy(name = name)
+            settingRepository.updateMcpServer(updated)
+            _uiState.update { it.copy(server = updated) }
+        }
+    }
+
+    fun updateType(type: McpTransportType) {
+        val currentServer = _uiState.value.server ?: return
+        viewModelScope.launch {
+            val updated = currentServer.copy(type = type)
+            settingRepository.updateMcpServer(updated)
+            _uiState.update { it.copy(server = updated) }
+        }
+    }
+
+    fun updateUrl(url: String) {
+        val currentServer = _uiState.value.server ?: return
+        viewModelScope.launch {
+            val updated = currentServer.copy(url = url.ifBlank { null })
+            settingRepository.updateMcpServer(updated)
+            _uiState.update { it.copy(server = updated) }
+        }
+    }
+
+    fun updateCommand(command: String) {
+        val currentServer = _uiState.value.server ?: return
+        viewModelScope.launch {
+            val updated = currentServer.copy(command = command.ifBlank { null })
+            settingRepository.updateMcpServer(updated)
+            _uiState.update { it.copy(server = updated) }
+        }
+    }
+
+    fun addArg(arg: String) {
+        if (arg.isBlank()) return
+        val currentServer = _uiState.value.server ?: return
+        viewModelScope.launch {
+            val updated = currentServer.copy(args = currentServer.args + arg)
+            settingRepository.updateMcpServer(updated)
+            _uiState.update { it.copy(server = updated) }
+        }
+    }
+
+    fun removeArg(index: Int) {
+        val currentServer = _uiState.value.server ?: return
+        if (index < 0 || index >= currentServer.args.size) return
+        viewModelScope.launch {
+            val updated = currentServer.copy(args = currentServer.args.toMutableList().apply { removeAt(index) })
+            settingRepository.updateMcpServer(updated)
+            _uiState.update { it.copy(server = updated) }
+        }
+    }
+
+    fun updateArg(index: Int, value: String) {
+        val currentServer = _uiState.value.server ?: return
+        if (index < 0 || index >= currentServer.args.size) return
+        viewModelScope.launch {
+            val updated = currentServer.copy(
+                args = currentServer.args.toMutableList().apply { set(index, value) }
+            )
+            settingRepository.updateMcpServer(updated)
+            _uiState.update { it.copy(server = updated) }
         }
     }
 

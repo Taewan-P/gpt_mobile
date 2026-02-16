@@ -172,7 +172,11 @@ fun AddMcpServerScreen(
 
                 ArgsSection(
                     args = uiState.args,
-                    onAddArg = viewModel::addArg,
+                    pendingArg = uiState.pendingArg,
+                    onPendingArgChange = viewModel::updatePendingArg,
+                    onAddArg = {
+                        viewModel.commitPendingArg()
+                    },
                     onRemoveArg = viewModel::removeArg,
                     onUpdateArg = viewModel::updateArg
                 )
@@ -371,19 +375,19 @@ internal fun HeaderRow(
 @Composable
 internal fun ArgsSection(
     args: List<String>,
+    pendingArg: String = "",
+    onPendingArgChange: (String) -> Unit = {},
     onAddArg: (String) -> Unit,
     onRemoveArg: (Int) -> Unit,
     onUpdateArg: (Int, String) -> Unit
 ) {
-    var newArg by remember { mutableStateOf("") }
-
     Text(
         text = stringResource(R.string.mcp_args),
         style = MaterialTheme.typography.titleMedium,
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
     )
 
-    if (args.isEmpty()) {
+    if (args.isEmpty() && pendingArg.isBlank()) {
         Text(
             text = stringResource(R.string.no_args),
             style = MaterialTheme.typography.bodySmall,
@@ -407,8 +411,8 @@ internal fun ArgsSection(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         OutlinedTextField(
-            value = newArg,
-            onValueChange = { newArg = it },
+            value = pendingArg,
+            onValueChange = onPendingArgChange,
             label = { Text(stringResource(R.string.mcp_arg)) },
             placeholder = { Text(stringResource(R.string.mcp_arg_hint)) },
             modifier = Modifier.weight(1f),
@@ -416,9 +420,8 @@ internal fun ArgsSection(
         )
         IconButton(
             onClick = {
-                if (newArg.isNotBlank()) {
-                    onAddArg(newArg)
-                    newArg = ""
+                if (pendingArg.isNotBlank()) {
+                    onAddArg(pendingArg)
                 }
             }
         ) {

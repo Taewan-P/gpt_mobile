@@ -79,6 +79,17 @@ class AddMcpServerViewModel @Inject constructor(
         }
     }
 
+    fun updatePendingArg(value: String) {
+        _uiState.update { it.copy(pendingArg = value) }
+    }
+
+    fun commitPendingArg() {
+        val pending = _uiState.value.pendingArg.trim()
+        if (pending.isNotBlank()) {
+            _uiState.update { it.copy(args = it.args + pending, pendingArg = "") }
+        }
+    }
+
     fun updateInstallJson(installJson: String) {
         _uiState.update { it.copy(installJson = installJson) }
     }
@@ -231,16 +242,24 @@ class AddMcpServerViewModel @Inject constructor(
         }
     }
 
-    private fun buildServerConfig(id: Int, enabled: Boolean): McpServerConfig = McpServerConfig(
-        id = id,
-        name = _uiState.value.name.trim(),
-        type = _uiState.value.type,
-        url = _uiState.value.url.trim().takeIf { it.isNotBlank() },
-        command = _uiState.value.command.trim().takeIf { it.isNotBlank() },
-        args = _uiState.value.args,
-        headers = _uiState.value.headers,
-        enabled = enabled
-    )
+    private fun buildServerConfig(id: Int, enabled: Boolean): McpServerConfig {
+        val state = _uiState.value
+        val finalArgs = if (state.pendingArg.isNotBlank()) {
+            state.args + state.pendingArg.trim()
+        } else {
+            state.args
+        }
+        return McpServerConfig(
+            id = id,
+            name = state.name.trim(),
+            type = state.type,
+            url = state.url.trim().takeIf { it.isNotBlank() },
+            command = state.command.trim().takeIf { it.isNotBlank() },
+            args = finalArgs,
+            headers = state.headers,
+            enabled = enabled
+        )
+    }
 
     private fun parseInstallJson(rawJson: String): ImportedServer {
         val root = Json.parseToJsonElement(rawJson).jsonObject
@@ -309,6 +328,7 @@ class AddMcpServerViewModel @Inject constructor(
         val url: String = "",
         val command: String = "",
         val args: List<String> = emptyList(),
+        val pendingArg: String = "",
         val installJson: String = "",
         val headers: Map<String, String> = emptyMap(),
         val isSaving: Boolean = false,
