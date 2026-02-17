@@ -10,5 +10,6 @@ import kotlinx.serialization.json.JsonObject
 data class ToolCall(
     val id: String,
     val name: String,
-    val arguments: JsonObject
+    val arguments: JsonObject,
+    val thoughtSignature: String? = null
 )

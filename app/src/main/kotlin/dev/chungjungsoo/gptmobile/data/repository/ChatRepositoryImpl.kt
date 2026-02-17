@@ -1,7 +1,7 @@
 package dev.chungjungsoo.gptmobile.data.repository
 
-import android.util.Log
 import android.content.Context
+import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomDao
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomV2Dao
@@ -29,9 +29,12 @@ import dev.chungjungsoo.gptmobile.data.dto.google.common.Content
 import dev.chungjungsoo.gptmobile.data.dto.google.common.FunctionCall
 import dev.chungjungsoo.gptmobile.data.dto.google.common.Part
 import dev.chungjungsoo.gptmobile.data.dto.google.common.Role as GoogleRole
+import dev.chungjungsoo.gptmobile.data.dto.google.request.FunctionCallingConfig
 import dev.chungjungsoo.gptmobile.data.dto.google.request.GenerateContentRequest
 import dev.chungjungsoo.gptmobile.data.dto.google.request.GenerationConfig
 import dev.chungjungsoo.gptmobile.data.dto.google.request.GoogleTool
+import dev.chungjungsoo.gptmobile.data.dto.google.request.ThinkingConfig
+import dev.chungjungsoo.gptmobile.data.dto.google.request.ToolConfig
 import dev.chungjungsoo.gptmobile.data.dto.openai.common.ImageContent as OpenAIImageContent
 import dev.chungjungsoo.gptmobile.data.dto.openai.common.ImageUrl
 import dev.chungjungsoo.gptmobile.data.dto.openai.common.MessageContent as OpenAIMessageContent
@@ -701,7 +704,7 @@ class ChatRepositoryImpl @Inject constructor(
                         temperature = platform.temperature,
                         topP = platform.topP,
                         thinkingConfig = if (platform.reasoning) {
-                            dev.chungjungsoo.gptmobile.data.dto.google.request.ThinkingConfig(
+                            ThinkingConfig(
                                 includeThoughts = true
                             )
                         } else {
@@ -711,7 +714,16 @@ class ChatRepositoryImpl @Inject constructor(
                     systemInstruction = platform.systemPrompt?.takeIf { it.isNotBlank() }?.let {
                         Content(parts = listOf(Part.text(it)))
                     },
-                    tools = googleTools
+                    tools = googleTools,
+                    toolConfig = if (!googleTools.isNullOrEmpty()) {
+                        ToolConfig(
+                            functionCallingConfig = FunctionCallingConfig(
+                                mode = "AUTO"
+                            )
+                        )
+                    } else {
+                        null
+                    }
                 )
 
                 val toolCalls = mutableListOf<ToolCall>()
@@ -740,7 +752,8 @@ class ChatRepositoryImpl @Inject constructor(
                                         ToolCall(
                                             id = "google_${functionCall.name}_${toolCalls.size}",
                                             name = functionCall.name,
-                                            arguments = functionCall.args
+                                            arguments = functionCall.args,
+                                            thoughtSignature = part.thoughtSignature
                                         )
                                     )
                                 }
@@ -774,8 +787,14 @@ class ChatRepositoryImpl @Inject constructor(
                 contents.add(
                     Content(
                         role = GoogleRole.MODEL,
-                        parts = toolCalls.map {
-                            Part(functionCall = FunctionCall(name = it.name, args = it.arguments))
+                        parts = toolCalls.map { toolCall ->
+                            Part(
+                                functionCall = FunctionCall(
+                                    name = toolCall.name,
+                                    args = toolCall.arguments
+                                ),
+                                thoughtSignature = toolCall.thoughtSignature
+                            )
                         }
                     )
                 )

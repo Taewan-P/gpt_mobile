@@ -34,7 +34,10 @@ data class Part(
     val functionCall: FunctionCall? = null,
 
     @SerialName("functionResponse")
-    val functionResponse: FunctionResponse? = null
+    val functionResponse: FunctionResponse? = null,
+
+    @SerialName("thoughtSignature")
+    val thoughtSignature: String? = null
 ) {
     companion object {
         fun text(text: String) = Part(text = text)

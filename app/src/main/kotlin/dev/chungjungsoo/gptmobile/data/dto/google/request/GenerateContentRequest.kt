@@ -22,7 +22,26 @@ data class GenerateContentRequest(
 
     @SerialName("tools")
     @EncodeDefault(EncodeDefault.Mode.NEVER)
-    val tools: List<GoogleTool>? = null
+    val tools: List<GoogleTool>? = null,
+
+    @SerialName("toolConfig")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val toolConfig: ToolConfig? = null
+)
+
+@OptIn(ExperimentalSerializationApi::class)
+@Serializable
+data class ToolConfig(
+    @SerialName("functionCallingConfig")
+    val functionCallingConfig: FunctionCallingConfig
+)
+
+@OptIn(ExperimentalSerializationApi::class)
+@Serializable
+data class FunctionCallingConfig(
+    @SerialName("mode")
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
+    val mode: String = "AUTO"
 )
 
 @OptIn(ExperimentalSerializationApi::class)
