@@ -19,7 +19,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.StringListConverter
 import dev.chungjungsoo.gptmobile.data.database.entity.StringMapConverter
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolCallStatusConverter
 
-@Database(entities = [ChatRoomV2::class, MessageV2::class, PlatformV2::class, McpServerConfig::class, McpToolEventEntity::class], version = 3, exportSchema = true)
+@Database(entities = [ChatRoomV2::class, MessageV2::class, PlatformV2::class, McpServerConfig::class, McpToolEventEntity::class], version = 4, exportSchema = true)
 @TypeConverters(StringListConverter::class, NullableStringListConverter::class, StringMapConverter::class, McpTransportTypeConverter::class, ToolCallStatusConverter::class)
 abstract class ChatDatabaseV2 : RoomDatabase() {
 

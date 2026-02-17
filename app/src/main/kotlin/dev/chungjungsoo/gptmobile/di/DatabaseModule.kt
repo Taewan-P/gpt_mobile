@@ -62,7 +62,7 @@ object DatabaseModule {
         ChatDatabaseV2::class.java,
         DB_NAME_V2
     )
-        .addMigrations(MIGRATION_1_2_V2, MIGRATION_2_3_V2)
+        .addMigrations(MIGRATION_1_2_V2, MIGRATION_2_3_V2, MIGRATION_3_4_V2)
         .build()
 
     private val MIGRATION_1_2_V2 = object : Migration(1, 2) {
@@ -88,10 +88,6 @@ object DatabaseModule {
 
     private val MIGRATION_2_3_V2 = object : Migration(2, 3) {
         override fun migrate(db: SupportSQLiteDatabase) {
-            if (!hasColumn(db, "mcp_servers", "max_tool_call_iterations")) {
-                db.execSQL("ALTER TABLE mcp_servers ADD COLUMN max_tool_call_iterations INTEGER NOT NULL DEFAULT 20")
-            }
-
             db.execSQL(
                 """
                 CREATE TABLE IF NOT EXISTS mcp_tool_events (
@@ -110,6 +106,14 @@ object DatabaseModule {
                 """.trimIndent()
             )
             db.execSQL("CREATE INDEX IF NOT EXISTS index_mcp_tool_events_chat_id ON mcp_tool_events(chat_id)")
+        }
+    }
+
+    private val MIGRATION_3_4_V2 = object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            if (!hasColumn(db, "mcp_servers", "max_tool_call_iterations")) {
+                db.execSQL("ALTER TABLE mcp_servers ADD COLUMN max_tool_call_iterations INTEGER NOT NULL DEFAULT 20")
+            }
         }
     }
 
