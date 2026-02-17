@@ -3,6 +3,7 @@ package dev.chungjungsoo.gptmobile.presentation.ui.setting
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.chungjungsoo.gptmobile.data.database.entity.DEFAULT_MAX_TOOL_CALL_ITERATIONS
 import dev.chungjungsoo.gptmobile.data.database.entity.McpServerConfig
 import dev.chungjungsoo.gptmobile.data.database.entity.McpTransportType
 import dev.chungjungsoo.gptmobile.data.mcp.McpManager
@@ -88,6 +89,10 @@ class AddMcpServerViewModel @Inject constructor(
         if (pending.isNotBlank()) {
             _uiState.update { it.copy(args = it.args + pending, pendingArg = "") }
         }
+    }
+
+    fun updateMaxToolCallIterations(maxIterations: Int) {
+        _uiState.update { it.copy(maxToolCallIterations = maxIterations) }
     }
 
     fun updateInstallJson(installJson: String) {
@@ -257,6 +262,7 @@ class AddMcpServerViewModel @Inject constructor(
             command = state.command.trim().takeIf { it.isNotBlank() },
             args = finalArgs,
             headers = state.headers,
+            maxToolCallIterations = state.maxToolCallIterations,
             enabled = enabled
         )
     }
@@ -331,6 +337,7 @@ class AddMcpServerViewModel @Inject constructor(
         val pendingArg: String = "",
         val installJson: String = "",
         val headers: Map<String, String> = emptyMap(),
+        val maxToolCallIterations: Int = DEFAULT_MAX_TOOL_CALL_ITERATIONS,
         val isSaving: Boolean = false,
         val isTesting: Boolean = false,
         val connectionMessage: String? = null,

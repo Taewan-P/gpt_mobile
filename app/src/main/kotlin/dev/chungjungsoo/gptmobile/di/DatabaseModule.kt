@@ -88,6 +88,10 @@ object DatabaseModule {
 
     private val MIGRATION_2_3_V2 = object : Migration(2, 3) {
         override fun migrate(db: SupportSQLiteDatabase) {
+            if (!hasColumn(db, "mcp_servers", "max_tool_call_iterations")) {
+                db.execSQL("ALTER TABLE mcp_servers ADD COLUMN max_tool_call_iterations INTEGER NOT NULL DEFAULT 20")
+            }
+
             db.execSQL(
                 """
                 CREATE TABLE IF NOT EXISTS mcp_tool_events (
@@ -107,5 +111,17 @@ object DatabaseModule {
             )
             db.execSQL("CREATE INDEX IF NOT EXISTS index_mcp_tool_events_chat_id ON mcp_tool_events(chat_id)")
         }
+    }
+
+    private fun hasColumn(db: SupportSQLiteDatabase, tableName: String, columnName: String): Boolean {
+        db.query("PRAGMA table_info(`$tableName`)").use { cursor ->
+            val nameIndex = cursor.getColumnIndex("name")
+            while (cursor.moveToNext()) {
+                if (nameIndex >= 0 && cursor.getString(nameIndex) == columnName) {
+                    return true
+                }
+            }
+        }
+        return false
     }
 }

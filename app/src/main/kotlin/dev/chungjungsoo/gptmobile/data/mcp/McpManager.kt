@@ -208,11 +208,11 @@ class McpManager @Inject constructor(
     }
 
     suspend fun callTool(toolCall: ToolCall): ToolResult {
-        lock.withLock {
-            val serverId = toolToServer[toolCall.name] ?: return noToolResult(toolCall)
-            val connection = connections[serverId] ?: return disconnectedResult(toolCall)
+        val result = lock.withLock {
+            val serverId = toolToServer[toolCall.name] ?: return@withLock noToolResult(toolCall)
+            val connection = connections[serverId] ?: return@withLock disconnectedResult(toolCall)
 
-            return try {
+            return@withLock try {
                 val result = connection.client.callTool(
                     name = toolCall.name,
                     arguments = toolCall.arguments.toKotlinMap()
@@ -225,6 +225,7 @@ class McpManager @Inject constructor(
                     isError = result.isError == true
                 )
             } catch (e: Exception) {
+                Log.e(TAG, "Failed to call tool ${toolCall.name}", e)
                 ToolResult(
                     callId = toolCall.id,
                     name = toolCall.name,
@@ -233,6 +234,7 @@ class McpManager @Inject constructor(
                 )
             }
         }
+        return result
     }
 
     suspend fun disconnectAll() {

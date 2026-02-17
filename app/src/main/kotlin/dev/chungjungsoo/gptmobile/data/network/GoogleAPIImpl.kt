@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.network
 
+import android.util.Log
 import dev.chungjungsoo.gptmobile.data.dto.google.request.GenerateContentRequest
 import dev.chungjungsoo.gptmobile.data.dto.google.response.ErrorDetail
 import dev.chungjungsoo.gptmobile.data.dto.google.response.GenerateContentResponse
@@ -21,6 +22,10 @@ import kotlinx.serialization.json.encodeToJsonElement
 class GoogleAPIImpl @Inject constructor(
     private val networkClient: NetworkClient
 ) : GoogleAPI {
+
+    private companion object {
+        private const val TAG = "GoogleAPIImpl"
+    }
 
     private var token: String? = null
     private var apiUrl: String = "https://generativelanguage.googleapis.com"
@@ -83,13 +88,19 @@ class GoogleAPIImpl @Inject constructor(
 
                     if (line.startsWith("data: ")) {
                         val data = line.removePrefix("data: ").trim()
+                        if (Log.isLoggable(TAG, Log.DEBUG)) {
+                            Log.d(TAG, "SSE event len=${data.length}")
+                        }
                         try {
                             val chunk = NetworkClient.json.decodeFromString<GenerateContentResponse>(data)
                             emit(chunk)
-                        } catch (_: Exception) {
-                            // Skip malformed chunks
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to parse chunk (len=${data.length})", e)
                         }
                     }
+                }
+                if (Log.isLoggable(TAG, Log.DEBUG)) {
+                    Log.d(TAG, "SSE stream ended")
                 }
             }
         } catch (e: Exception) {

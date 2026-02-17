@@ -227,6 +227,11 @@ fun AddMcpServerScreen(
                 )
             }
 
+            MaxToolCallIterationsSection(
+                maxIterations = uiState.maxToolCallIterations,
+                onMaxIterationsChange = viewModel::updateMaxToolCallIterations
+            )
+
             Spacer(modifier = Modifier.height(8.dp))
 
             PrimaryLongButton(
@@ -501,3 +506,4 @@ internal fun ArgRow(
         }
     }
 }
+

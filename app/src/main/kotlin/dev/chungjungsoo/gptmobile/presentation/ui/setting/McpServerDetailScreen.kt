@@ -135,6 +135,11 @@ fun McpServerDetailScreen(
                 )
             }
 
+            MaxToolCallIterationsSection(
+                maxIterations = server.maxToolCallIterations,
+                onMaxIterationsChange = viewModel::updateMaxToolCallIterations
+            )
+
             Button(
                 onClick = viewModel::testConnection,
                 enabled = !uiState.isTesting,

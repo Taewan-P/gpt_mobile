@@ -185,13 +185,29 @@ class ChatViewModel @Inject constructor(
 
     fun retryChat(platformIndex: Int) {
         if (platformIndex >= enabledPlatformsInChat.size || platformIndex < 0) return
+        // Safety check: ensure there are assistant messages to retry
+        val assistantMessages = _groupedMessages.value.assistantMessages
+        if (assistantMessages.isEmpty()) return
+        val lastInnerList = assistantMessages.getOrNull(assistantMessages.lastIndex)
+        // Return if no list exists, or if index is out of bounds for a non-empty list
+        if (lastInnerList == null || (platformIndex >= lastInnerList.size && lastInnerList.isNotEmpty())) return
+
         val platform = _enabledPlatformsInApp.value.firstOrNull { it.uid == enabledPlatformsInChat[platformIndex] } ?: return
         _loadingStates.update { it.toMutableList().apply { this[platformIndex] = LoadingState.Loading } }
         _groupedMessages.update {
             val updatedAssistantMessages = it.assistantMessages.toMutableList()
-            updatedAssistantMessages[it.assistantMessages.lastIndex] = updatedAssistantMessages[it.assistantMessages.lastIndex].toMutableList().apply {
-                this[platformIndex] = MessageV2(chatId = chatRoomId, content = "", platformType = platform.uid)
+            val lastIdx = it.assistantMessages.lastIndex
+            if (lastIdx < 0) return@update it
+
+            val currentInnerList = updatedAssistantMessages[lastIdx].toMutableList()
+            // Pad the list to have enough elements for all platforms
+            while (currentInnerList.size < enabledPlatformsInChat.size) {
+                val idx = currentInnerList.size
+                currentInnerList.add(MessageV2(chatId = chatRoomId, content = "", platformType = enabledPlatformsInChat[idx]))
             }
+            currentInnerList[platformIndex] = MessageV2(chatId = chatRoomId, content = "", platformType = platform.uid)
+            updatedAssistantMessages[lastIdx] = currentInnerList
+
             it.copy(assistantMessages = updatedAssistantMessages)
         }
 
@@ -397,15 +413,15 @@ class ChatViewModel @Inject constructor(
                     if (!toolManager.isMcpTool(toolCall.name)) {
                         return@forEach
                     }
-                    val existingIndex = existing.indexOfFirst { it.callId == toolCall.id }
+                    val index = existing.indexOfFirst { it.callId == toolCall.id }
                     val event = McpToolEvent(
                         callId = toolCall.id,
                         toolName = toolCall.name,
                         request = toolCall.arguments.toString(),
                         status = ToolCallStatus.REQUESTED
                     )
-                    if (existingIndex >= 0) {
-                        existing[existingIndex] = event
+                    if (index >= 0) {
+                        existing[index] = event
                     } else {
                         existing.add(event)
                     }
@@ -416,18 +432,48 @@ class ChatViewModel @Inject constructor(
                 if (!toolManager.isMcpTool(apiState.toolName)) {
                     return
                 }
-                val targetIndex = existing.indexOfLast {
-                    it.toolName == apiState.toolName &&
-                        it.status != ToolCallStatus.COMPLETED &&
-                        it.status != ToolCallStatus.FAILED
-                }
-                if (targetIndex >= 0) {
-                    existing[targetIndex] = existing[targetIndex].copy(status = ToolCallStatus.EXECUTING)
+                val index = existing.indexOfFirst { it.callId == apiState.callId }
+                if (index >= 0) {
+                    existing[index] = existing[index].copy(status = ToolCallStatus.EXECUTING)
+                } else {
+                    // Fall back to a best-effort entry if REQUESTED event was not observed.
+                    existing.add(
+                        McpToolEvent(
+                            callId = apiState.callId,
+                            toolName = apiState.toolName,
+                            request = "{}",
+                            status = ToolCallStatus.EXECUTING
+                        )
+                    )
                 }
             }
 
             is ApiState.ToolResultReceived -> {
-                applyToolResults(existing, apiState.results)
+                apiState.results.forEach { result ->
+                    if (!toolManager.isMcpTool(result.name)) {
+                        return@forEach
+                    }
+                    val status = if (result.isError) ToolCallStatus.FAILED else ToolCallStatus.COMPLETED
+                    val index = existing.indexOfFirst { it.callId == result.callId }
+                    if (index >= 0) {
+                        existing[index] = existing[index].copy(
+                            output = result.output,
+                            status = status,
+                            isError = result.isError
+                        )
+                    } else {
+                        existing.add(
+                            McpToolEvent(
+                                callId = result.callId,
+                                toolName = result.name,
+                                request = "{}",
+                                output = result.output,
+                                status = status,
+                                isError = result.isError
+                            )
+                        )
+                    }
+                }
             }
 
             else -> Unit
@@ -442,34 +488,6 @@ class ChatViewModel @Inject constructor(
         }
         val effectiveChatId = _chatRoom.value.id.takeIf { it > 0 } ?: chatRoomId
         viewModelScope.launch { mcpToolEventStore.put(effectiveChatId, _mcpToolEvents.value) }
-    }
-
-    private fun applyToolResults(existing: MutableList<McpToolEvent>, results: List<ToolResult>) {
-        results.forEach { result ->
-            if (!toolManager.isMcpTool(result.name)) {
-                return@forEach
-            }
-            val index = existing.indexOfFirst { it.callId == result.callId }
-            val status = if (result.isError) ToolCallStatus.FAILED else ToolCallStatus.COMPLETED
-            if (index >= 0) {
-                existing[index] = existing[index].copy(
-                    output = result.output,
-                    status = status,
-                    isError = result.isError
-                )
-            } else {
-                existing.add(
-                    McpToolEvent(
-                        callId = result.callId,
-                        toolName = result.name,
-                        request = "{}",
-                        output = result.output,
-                        status = status,
-                        isError = result.isError
-                    )
-                )
-            }
-        }
     }
 
     private fun messagePlatformKey(messageIndex: Int, platformIndex: Int): String =
@@ -515,9 +533,17 @@ class ChatViewModel @Inject constructor(
         messages.forEach { message ->
             if (message.platformType == null) {
                 userMessages.add(message)
-                assistantMessages.add(mutableListOf())
+                // Initialize with empty slots for all platforms
+                assistantMessages.add(
+                    enabledPlatformsInChat.map { p ->
+                        MessageV2(chatId = chatId, content = "", platformType = p)
+                    }.toMutableList()
+                )
             } else {
-                assistantMessages.last().add(message)
+                val platformIdx = platformOrderMap[message.platformType]
+                if (platformIdx != null && assistantMessages.isNotEmpty()) {
+                    assistantMessages.last()[platformIdx] = message
+                }
             }
         }
 

@@ -11,6 +11,6 @@ sealed class ApiState {
     data object Done : ApiState()
 
     data class ToolCallRequested(val toolCalls: List<ToolCall>) : ApiState()
-    data class ToolExecuting(val toolName: String) : ApiState()
+    data class ToolExecuting(val toolName: String, val callId: String) : ApiState()
     data class ToolResultReceived(val results: List<ToolResult>) : ApiState()
 }

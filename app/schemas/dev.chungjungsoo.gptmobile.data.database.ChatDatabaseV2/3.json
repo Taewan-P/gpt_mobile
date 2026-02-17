@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 3,
-    "identityHash": "a87057306dc2039dc8304c90f48f6a70",
+    "identityHash": "ff35da29965710fe360627740d2ad8d2",
     "entities": [
       {
         "tableName": "chats_v2",
@@ -229,7 +229,7 @@
       },
       {
         "tableName": "mcp_servers",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `type` TEXT NOT NULL, `url` TEXT, `command` TEXT, `args` TEXT NOT NULL, `env` TEXT NOT NULL, `headers` TEXT NOT NULL, `enabled` INTEGER NOT NULL, `allowed_tools` TEXT)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `type` TEXT NOT NULL, `url` TEXT, `command` TEXT, `args` TEXT NOT NULL, `env` TEXT NOT NULL, `headers` TEXT NOT NULL, `enabled` INTEGER NOT NULL, `allowed_tools` TEXT, `max_tool_call_iterations` INTEGER NOT NULL DEFAULT 20)",
         "fields": [
           {
             "fieldPath": "id",
@@ -287,6 +287,13 @@
             "fieldPath": "allowedTools",
             "columnName": "allowed_tools",
             "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "maxToolCallIterations",
+            "columnName": "max_tool_call_iterations",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "20"
           }
         ],
         "primaryKey": {
@@ -395,7 +402,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'a87057306dc2039dc8304c90f48f6a70')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'ff35da29965710fe360627740d2ad8d2')"
     ]
   }
 }

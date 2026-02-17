@@ -1,7 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.repository
 
 import android.content.Context
-import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomDao
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomV2Dao
@@ -9,6 +8,7 @@ import dev.chungjungsoo.gptmobile.data.database.dao.MessageDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageV2Dao
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoom
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
+import dev.chungjungsoo.gptmobile.data.database.entity.DEFAULT_MAX_TOOL_CALL_ITERATIONS
 import dev.chungjungsoo.gptmobile.data.database.entity.Message
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
@@ -95,7 +95,23 @@ class ChatRepositoryImpl @Inject constructor(
         explicitNulls = false
     }
 
-    private val maxToolIterations = 10
+    private suspend fun getMaxToolIterations(): Int {
+        return try {
+            val enabledServers = settingRepository.fetchEnabledMcpServers()
+            if (enabledServers.isEmpty()) {
+                DEFAULT_MAX_TOOL_CALL_ITERATIONS
+            } else {
+                enabledServers
+                    .map { normalizeMaxToolIterations(it.maxToolCallIterations) }
+                    .minOrNull() ?: DEFAULT_MAX_TOOL_CALL_ITERATIONS
+            }
+        } catch (e: Exception) {
+            DEFAULT_MAX_TOOL_CALL_ITERATIONS
+        }
+    }
+
+    private fun normalizeMaxToolIterations(value: Int): Int =
+        value.coerceIn(MIN_TOOL_CALL_ITERATIONS, MAX_TOOL_CALL_ITERATIONS)
 
     private fun isImageFile(extension: String): Boolean = extension in setOf("jpg", "jpeg", "png", "gif", "bmp", "webp", "tiff", "svg")
 
@@ -140,7 +156,7 @@ class ChatRepositoryImpl @Inject constructor(
         tools: List<Tool>?
     ): Flow<ApiState> {
         val providerTools = tools?.let { ToolConverter.convertToolsForProvider(it, platform.compatibleType) }
-        
+
         return when (platform.compatibleType) {
             ClientType.OPENAI -> {
                 completeChatWithOpenAIResponses(userMessages, assistantMessages, platform, providerTools)
@@ -174,9 +190,9 @@ class ChatRepositoryImpl @Inject constructor(
 
             val openAITools = (providerTools as? ProviderTools.OpenAI)?.tools
             val inputMessages = buildInitialResponsesInput(userMessages, assistantMessages, platform)
-            var unproductiveToolIterations = 0
+            val maxIterations = getMaxToolIterations()
 
-            repeat(maxToolIterations) {
+            repeat(maxIterations) {
                 val request = ResponsesRequest(
                     model = platform.model,
                     input = inputMessages,
@@ -240,11 +256,6 @@ class ChatRepositoryImpl @Inject constructor(
                     emit(ApiState.Error(it))
                     return@flow
                 }
-                unproductiveToolIterations = updateUnproductiveIterations(unproductiveToolIterations, results)
-                if (unproductiveToolIterations >= MAX_UNPRODUCTIVE_TOOL_ITERATIONS) {
-                    emit(ApiState.Error("Tool loop detected. No useful tool output was returned."))
-                    return@flow
-                }
 
                 inputMessages.add(
                     ResponseInputMessage(
@@ -284,7 +295,64 @@ class ChatRepositoryImpl @Inject constructor(
                 )
             }
 
-            emit(ApiState.Error("Too many tool call iterations"))
+            // Max iterations reached - add wrap-up message and get final response
+            inputMessages.add(
+                ResponseInputMessage(
+                    role = "user",
+                    content = ResponseInputContent.parts(
+                        listOf(
+                            ResponseContentPart(
+                                type = "text",
+                                text = TOOL_ITERATIONS_WRAP_UP_MESSAGE
+                            )
+                        )
+                    )
+                )
+            )
+
+            // Make final API call to get wrap-up response
+            val finalRequest = ResponsesRequest(
+                model = platform.model,
+                input = inputMessages,
+                stream = true,
+                instructions = platform.systemPrompt?.takeIf { it.isNotBlank() },
+                temperature = if (platform.reasoning) null else platform.temperature,
+                topP = if (platform.reasoning) null else platform.topP,
+                reasoning = if (platform.reasoning) {
+                    ReasoningConfig(
+                        effort = "medium",
+                        summary = "auto"
+                    )
+                } else {
+                    null
+                },
+                tools = null,
+                toolChoice = null
+            )
+
+            var finalHasError = false
+            openAIAPI.streamResponses(finalRequest).collect { event ->
+                when (event) {
+                    is ReasoningSummaryTextDeltaEvent -> emit(ApiState.Thinking(event.delta))
+                    is OutputTextDeltaEvent -> {
+                        emit(ApiState.Success(event.delta))
+                    }
+                    is ResponseFailedEvent -> {
+                        finalHasError = true
+                        emit(ApiState.Error(event.response.error?.message ?: "Response failed"))
+                    }
+                    is ResponseErrorEvent -> {
+                        finalHasError = true
+                        emit(ApiState.Error(event.message))
+                    }
+                    else -> {}
+                }
+            }
+
+            if (finalHasError) {
+                return@flow
+            }
+            emit(ApiState.Done)
         } catch (e: Exception) {
             emit(ApiState.Error(e.message ?: "Failed to complete chat"))
         }
@@ -304,9 +372,9 @@ class ChatRepositoryImpl @Inject constructor(
 
             val messages = buildInitialChatMessages(userMessages, assistantMessages, platform)
             val openAITools = (providerTools as? ProviderTools.OpenAI)?.tools
-            var unproductiveToolIterations = 0
+            val maxIterations = getMaxToolIterations()
 
-            repeat(maxToolIterations) {
+            repeat(maxIterations) {
                 val request = ChatCompletionRequest(
                     model = platform.model,
                     messages = messages,
@@ -344,12 +412,8 @@ class ChatRepositoryImpl @Inject constructor(
                         val builder = toolCallBuilders.getOrPut(delta.index) { MutableOpenAIToolCall() }
                         delta.id?.let { builder.id = it }
                         delta.function?.name?.let { builder.name = it }
-                        delta.function?.arguments?.let { chunk ->
-                            builder.arguments.append(chunk)
-                            Log.i(
-                                TAG,
-                                "toolCallDelta index=${delta.index} id=${builder.id} name=${builder.name} chunkLen=${chunk.length} totalLen=${builder.arguments.length}"
-                            )
+                        delta.function?.arguments?.let { argumentsChunk: String ->
+                            builder.arguments.append(argumentsChunk)
                         }
                         val callId = builder.id
                         val toolName = builder.name
@@ -381,14 +445,6 @@ class ChatRepositoryImpl @Inject constructor(
 
                 val toolCalls = toolCallBuilders.values.mapNotNull { it.toToolCallWithLog() }
                 if (toolCalls.isEmpty()) {
-                    Log.w(
-                        TAG,
-                        "Failed to parse tool calls. builders=${
-                            toolCallBuilders.values.joinToString { builder ->
-                                "id=${builder.id},name=${builder.name},argsLen=${builder.arguments.length},args=${builder.arguments.toString().take(MAX_LOGGED_ARGUMENT_CHARS)}"
-                            }
-                        }"
-                    )
                     emit(ApiState.Error("Failed to parse tool calls"))
                     return@flow
                 }
@@ -398,11 +454,6 @@ class ChatRepositoryImpl @Inject constructor(
                 emit(ApiState.ToolResultReceived(results))
                 terminalToolError(results)?.let {
                     emit(ApiState.Error(it))
-                    return@flow
-                }
-                unproductiveToolIterations = updateUnproductiveIterations(unproductiveToolIterations, results)
-                if (unproductiveToolIterations >= MAX_UNPRODUCTIVE_TOOL_ITERATIONS) {
-                    emit(ApiState.Error("Tool loop detected. No useful tool output was returned."))
                     return@flow
                 }
 
@@ -433,7 +484,36 @@ class ChatRepositoryImpl @Inject constructor(
                 }
             }
 
-            emit(ApiState.Error("Too many tool call iterations"))
+            // Max iterations reached - add wrap-up message and get final response
+            messages.add(
+                ChatMessage(
+                    role = OpenAIRole.USER,
+                    content = listOf(OpenAITextContent(text = TOOL_ITERATIONS_WRAP_UP_MESSAGE))
+                )
+            )
+
+            // Make final API call to get wrap-up response
+            val finalRequest = ChatCompletionRequest(
+                model = platform.model,
+                messages = messages,
+                stream = platform.stream,
+                temperature = platform.temperature,
+                topP = platform.topP,
+                tools = null,
+                toolChoice = null
+            )
+
+            openAIAPI.streamChatCompletion(finalRequest).collect { chunk ->
+                if (chunk.error != null) {
+                    emit(ApiState.Error(chunk.error.message))
+                    return@collect
+                }
+                chunk.choices?.firstOrNull()?.delta?.content?.let { content ->
+                    emit(ApiState.Success(content))
+                }
+            }
+
+            emit(ApiState.Done)
         } catch (e: Exception) {
             emit(ApiState.Error(e.message ?: "Failed to complete chat"))
         }
@@ -522,9 +602,9 @@ class ChatRepositoryImpl @Inject constructor(
 
             val messages = buildInitialAnthropicMessages(userMessages, assistantMessages, platform)
             val anthropicTools = (providerTools as? ProviderTools.Anthropic)?.tools
-            var unproductiveToolIterations = 0
+            val maxIterations = getMaxToolIterations()
 
-            repeat(maxToolIterations) {
+            repeat(maxIterations) {
                 val request = MessageRequest(
                     model = platform.model,
                     messages = messages,
@@ -605,11 +685,6 @@ class ChatRepositoryImpl @Inject constructor(
                     emit(ApiState.Error(it))
                     return@flow
                 }
-                unproductiveToolIterations = updateUnproductiveIterations(unproductiveToolIterations, results)
-                if (unproductiveToolIterations >= MAX_UNPRODUCTIVE_TOOL_ITERATIONS) {
-                    emit(ApiState.Error("Tool loop detected. No useful tool output was returned."))
-                    return@flow
-                }
 
                 messages.add(
                     InputMessage(
@@ -637,7 +712,49 @@ class ChatRepositoryImpl @Inject constructor(
                 )
             }
 
-            emit(ApiState.Error("Too many tool call iterations"))
+            // Max iterations reached - add wrap-up message and get final response
+            messages.add(
+                InputMessage(
+                    role = MessageRole.USER,
+                    content = listOf(AnthropicTextContent(text = TOOL_ITERATIONS_WRAP_UP_MESSAGE))
+                )
+            )
+
+            // Make final API call to get wrap-up response
+            val finalRequest = MessageRequest(
+                model = platform.model,
+                messages = messages,
+                maxTokens = if (platform.reasoning) 16000 else 4096,
+                stream = platform.stream,
+                systemPrompt = platform.systemPrompt,
+                temperature = if (platform.reasoning) null else platform.temperature,
+                topP = if (platform.reasoning) null else platform.topP,
+                tools = null
+            )
+
+            anthropicAPI.streamChatMessage(finalRequest).collect { chunk ->
+                when (chunk) {
+                    is dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ContentStartResponseChunk -> {}
+                    is dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ContentDeltaResponseChunk -> {
+                        when (chunk.delta.type) {
+                            dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ContentBlockType.THINKING_DELTA -> {
+                                chunk.delta.thinking?.let { emit(ApiState.Thinking(it)) }
+                            }
+                            dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ContentBlockType.DELTA -> {
+                                chunk.delta.text?.let { emit(ApiState.Success(it)) }
+                            }
+                            else -> {}
+                        }
+                    }
+                    is dev.chungjungsoo.gptmobile.data.dto.anthropic.response.MessageStopResponseChunk -> {
+                        emit(ApiState.Done)
+                    }
+                    is dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ErrorResponseChunk -> {
+                        emit(ApiState.Error(chunk.error.message))
+                    }
+                    else -> {}
+                }
+            }
         } catch (e: Exception) {
             emit(ApiState.Error(e.message ?: "Failed to complete chat"))
         }
@@ -695,9 +812,9 @@ class ChatRepositoryImpl @Inject constructor(
 
             val contents = buildInitialGoogleContents(userMessages, assistantMessages, platform)
             val googleTools = (providerTools as? ProviderTools.Google)?.tools
-            var unproductiveToolIterations = 0
+            val maxIterations = getMaxToolIterations()
 
-            repeat(maxToolIterations) {
+            repeat(maxIterations) {
                 val request = GenerateContentRequest(
                     contents = contents,
                     generationConfig = GenerationConfig(
@@ -778,11 +895,6 @@ class ChatRepositoryImpl @Inject constructor(
                     emit(ApiState.Error(it))
                     return@flow
                 }
-                unproductiveToolIterations = updateUnproductiveIterations(unproductiveToolIterations, results)
-                if (unproductiveToolIterations >= MAX_UNPRODUCTIVE_TOOL_ITERATIONS) {
-                    emit(ApiState.Error("Tool loop detected. No useful tool output was returned."))
-                    return@flow
-                }
 
                 contents.add(
                     Content(
@@ -814,7 +926,60 @@ class ChatRepositoryImpl @Inject constructor(
                 )
             }
 
-            emit(ApiState.Error("Too many tool call iterations"))
+            // Max iterations reached - add wrap-up message and get final response
+            contents.add(
+                Content(
+                    role = GoogleRole.USER,
+                    parts = listOf(Part.text(TOOL_ITERATIONS_WRAP_UP_MESSAGE))
+                )
+            )
+
+            // Make final API call to get wrap-up response
+            val finalRequest = GenerateContentRequest(
+                contents = contents,
+                generationConfig = GenerationConfig(
+                    temperature = platform.temperature,
+                    topP = platform.topP,
+                    thinkingConfig = if (platform.reasoning) {
+                        ThinkingConfig(
+                            includeThoughts = true
+                        )
+                    } else {
+                        null
+                    }
+                ),
+                systemInstruction = platform.systemPrompt?.takeIf { it.isNotBlank() }?.let {
+                    Content(parts = listOf(Part.text(it)))
+                },
+                tools = null
+            )
+
+            var finalHasError = false
+            googleAPI.streamGenerateContent(finalRequest, platform.model).collect { response ->
+                when {
+                    response.error != null -> {
+                        finalHasError = true
+                        emit(ApiState.Error(response.error.message))
+                    }
+                    response.candidates?.firstOrNull()?.content?.parts != null -> {
+                        val parts = response.candidates.first().content.parts
+                        parts.forEach { part ->
+                            part.text?.let { text ->
+                                if (part.thought == true) {
+                                    emit(ApiState.Thinking(text))
+                                } else {
+                                    emit(ApiState.Success(text))
+                                }
+                            }
+                        }
+                    }
+                    else -> {}
+                }
+            }
+            if (finalHasError) {
+                return@flow
+            }
+            emit(ApiState.Done)
         } catch (e: Exception) {
             emit(ApiState.Error(e.message ?: "Failed to complete chat"))
         }
@@ -863,7 +1028,7 @@ class ChatRepositoryImpl @Inject constructor(
 
             if (index < assistantMessages.size) {
                 assistantMessages[index]
-                    .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
+                    .firstOrNull { it.content.isNotBlank() && !it.content.startsWith("Error:") && it.platformType == platform.uid }
                     ?.let { assistantMsg ->
                         messages.add(transformMessageV2ToChatMessage(assistantMsg, isUser = false))
                     }
@@ -884,7 +1049,7 @@ class ChatRepositoryImpl @Inject constructor(
             inputMessages.add(transformMessageV2ToResponsesInput(userMsg, isUser = true))
             if (index < assistantMessages.size) {
                 assistantMessages[index]
-                    .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
+                    .firstOrNull { it.content.isNotBlank() && !it.content.startsWith("Error:") && it.platformType == platform.uid }
                     ?.let { assistantMsg ->
                         inputMessages.add(transformMessageV2ToResponsesInput(assistantMsg, isUser = false))
                     }
@@ -905,7 +1070,7 @@ class ChatRepositoryImpl @Inject constructor(
 
             if (index < assistantMessages.size) {
                 assistantMessages[index]
-                    .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
+                    .firstOrNull { it.content.isNotBlank() && !it.content.startsWith("Error:") && it.platformType == platform.uid }
                     ?.let { assistantMsg ->
                         messages.add(transformMessageV2ToAnthropic(assistantMsg, MessageRole.ASSISTANT))
                     }
@@ -925,7 +1090,7 @@ class ChatRepositoryImpl @Inject constructor(
 
             if (index < assistantMessages.size) {
                 assistantMessages[index]
-                    .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
+                    .firstOrNull { it.content.isNotBlank() && !it.content.startsWith("Error:") && it.platformType == platform.uid }
                     ?.let { assistantMsg ->
                         contents.add(transformMessageV2ToGoogle(assistantMsg, GoogleRole.MODEL))
                     }
@@ -941,17 +1106,10 @@ class ChatRepositoryImpl @Inject constructor(
     ): List<ToolResult> {
         val results = mutableListOf<ToolResult>()
         toolCalls.forEach { toolCall ->
-            emitState(ApiState.ToolExecuting(toolCall.name))
+            emitState(ApiState.ToolExecuting(toolCall.name, toolCall.id))
             results.add(toolExecutor.execute(toolCall))
         }
         return results
-    }
-
-    private fun updateUnproductiveIterations(current: Int, results: List<ToolResult>): Int {
-        if (results.isEmpty()) {
-            return current
-        }
-        return if (results.all { isUnproductiveToolResult(it) }) current + 1 else 0
     }
 
     private fun terminalToolError(results: List<ToolResult>): String? {
@@ -961,20 +1119,6 @@ class ChatRepositoryImpl @Inject constructor(
                 "Context7 API key is missing or invalid. Add a valid key (ctx7sk...) in MCP server headers."
             else -> null
         }
-    }
-
-    private fun isUnproductiveToolResult(result: ToolResult): Boolean {
-        if (result.isError) {
-            return true
-        }
-        val normalized = result.output.lowercase()
-        return normalized.isBlank() ||
-            normalized.contains("\"results\":[]") ||
-            normalized.contains("\"results\": []") ||
-            normalized.contains("\"error\"") ||
-            normalized.contains("mcp error") ||
-            normalized.contains("input validation error") ||
-            normalized.contains("invalid api key")
     }
 
     private fun toToolCall(id: String?, name: String?, arguments: String?): ToolCall? {
@@ -1013,12 +1157,7 @@ class ChatRepositoryImpl @Inject constructor(
             val toolName = name ?: return null
             val args = try {
                 Json.parseToJsonElement(arguments.toString()).jsonObject
-            } catch (e: Exception) {
-                Log.w(
-                    TAG,
-                    "toolCallParseFailed id=$callId name=$toolName argsRaw=${arguments.toString().take(MAX_LOGGED_ARGUMENT_CHARS)}",
-                    e
-                )
+            } catch (_: Exception) {
                 buildJsonObject {}
             }
 
@@ -1054,9 +1193,9 @@ class ChatRepositoryImpl @Inject constructor(
     }
 
     companion object {
-        private const val MAX_UNPRODUCTIVE_TOOL_ITERATIONS = 3
-        private const val TAG = "ChatRepositoryImpl"
-        private const val MAX_LOGGED_ARGUMENT_CHARS = 600
+        private const val TOOL_ITERATIONS_WRAP_UP_MESSAGE = "Maximum tool call iterations reached. Please provide your final response based on the tool results received so far."
+        private const val MIN_TOOL_CALL_ITERATIONS = 1
+        private const val MAX_TOOL_CALL_ITERATIONS = 100
     }
 
     override suspend fun fetchChatList(): List<ChatRoom> = chatRoomDao.getChatRooms()

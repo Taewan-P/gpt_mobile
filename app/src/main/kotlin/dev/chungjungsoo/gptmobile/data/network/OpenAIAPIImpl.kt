@@ -148,16 +148,27 @@ class OpenAIAPIImpl @Inject constructor(
 
                     if (line.startsWith("data: ")) {
                         val data = line.removePrefix("data: ").trim()
-                        if (data == "[DONE]") break
+                        if (data == "[DONE]") {
+                            if (Log.isLoggable(TAG, Log.DEBUG)) {
+                                Log.d(TAG, "SSE [DONE]")
+                            }
+                            break
+                        }
 
+                        if (Log.isLoggable(TAG, Log.DEBUG)) {
+                            Log.d(TAG, "SSE event len=${data.length}")
+                        }
                         try {
                             val streamEvent = NetworkClient.openAIJson.decodeFromString<ResponsesStreamEvent>(data)
                             emit(streamEvent)
                         } catch (e: Exception) {
-                            Log.w(TAG, "Failed to parse responses stream event: ${data.take(MAX_LOGGED_CHUNK_CHARS)}", e)
+                            Log.w(TAG, "Failed to parse responses stream event (len=${data.length})", e)
                             emit(UnknownEvent)
                         }
                     }
+                }
+                if (Log.isLoggable(TAG, Log.DEBUG)) {
+                    Log.d(TAG, "SSE stream ended")
                 }
             }
         } catch (e: Exception) {

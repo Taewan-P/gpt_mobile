@@ -294,6 +294,8 @@
     <string name="enable_server">Enable Server</string>
     <string name="delete_server">Delete Server</string>
     <string name="delete_server_confirmation">Delete this MCP server? This action cannot be undone.</string>
+    <string name="max_tool_call_iterations">Max Tool Call Iterations</string>
+    <string name="max_tool_call_iterations_description">Maximum number of consecutive tool calls before stopping (prevents infinite loops)</string>
     <string name="command">Command</string>
     <string name="command_hint">npx</string>
 
@@ -326,6 +328,7 @@
     <string name="reconnect">Reconnect</string>
     <string name="mcp_tool_call">MCP Tool Call</string>
     <string name="mcp_tool_calls">MCP Tool Calls</string>
+    <string name="collapse_tool_calls">Collapse</string>
     <string name="tool_request">Request</string>
     <string name="tool_output">Output</string>
     <string name="testing">Testing...</string>

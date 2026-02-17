@@ -40,7 +40,10 @@ data class McpServerConfig(
     val enabled: Boolean = true,
 
     @ColumnInfo("allowed_tools")
-    val allowedTools: List<String>? = null
+    val allowedTools: List<String>? = null,
+
+    @ColumnInfo(name = "max_tool_call_iterations", defaultValue = "20")
+    val maxToolCallIterations: Int = DEFAULT_MAX_TOOL_CALL_ITERATIONS
 )
 
 enum class McpTransportType {
@@ -88,3 +91,5 @@ class NullableStringListConverter {
         }
     }
 }
+
+const val DEFAULT_MAX_TOOL_CALL_ITERATIONS = 20

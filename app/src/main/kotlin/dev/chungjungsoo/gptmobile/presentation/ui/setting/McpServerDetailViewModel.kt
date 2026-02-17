@@ -104,6 +104,14 @@ class McpServerDetailViewModel @Inject constructor(
         schedulePersist()
     }
 
+    fun updateMaxToolCallIterations(maxIterations: Int) {
+        _uiState.update { state ->
+            val current = state.server ?: return@update state
+            state.copy(server = current.copy(maxToolCallIterations = maxIterations))
+        }
+        schedulePersist()
+    }
+
     fun addArg(arg: String) {
         if (arg.isBlank()) return
         _uiState.update { state ->
