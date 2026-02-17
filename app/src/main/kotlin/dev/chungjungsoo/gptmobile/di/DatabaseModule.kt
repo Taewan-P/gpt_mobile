@@ -111,21 +111,32 @@ object DatabaseModule {
 
     private val MIGRATION_3_4_V2 = object : Migration(3, 4) {
         override fun migrate(db: SupportSQLiteDatabase) {
-            if (!hasColumn(db, "mcp_servers", "max_tool_call_iterations")) {
-                db.execSQL("ALTER TABLE mcp_servers ADD COLUMN max_tool_call_iterations INTEGER NOT NULL DEFAULT 20")
-            }
+            // Recreate the table with proper default value (ALTER TABLE doesn't set defaultValue properly for Room)
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS mcp_servers_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    name TEXT NOT NULL,
+                    type TEXT NOT NULL,
+                    url TEXT,
+                    command TEXT,
+                    args TEXT NOT NULL,
+                    env TEXT NOT NULL,
+                    headers TEXT NOT NULL,
+                    enabled INTEGER NOT NULL,
+                    allowed_tools TEXT,
+                    max_tool_call_iterations INTEGER NOT NULL DEFAULT 20
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                """
+                INSERT INTO mcp_servers_new (id, name, type, url, command, args, env, headers, enabled, allowed_tools, max_tool_call_iterations)
+                SELECT id, name, type, url, command, args, env, headers, enabled, allowed_tools, 20 FROM mcp_servers
+                """.trimIndent()
+            )
+            db.execSQL("DROP TABLE mcp_servers")
+            db.execSQL("ALTER TABLE mcp_servers_new RENAME TO mcp_servers")
         }
-    }
-
-    private fun hasColumn(db: SupportSQLiteDatabase, tableName: String, columnName: String): Boolean {
-        db.query("PRAGMA table_info(`$tableName`)").use { cursor ->
-            val nameIndex = cursor.getColumnIndex("name")
-            while (cursor.moveToNext()) {
-                if (nameIndex >= 0 && cursor.getString(nameIndex) == columnName) {
-                    return true
-                }
-            }
-        }
-        return false
     }
 }

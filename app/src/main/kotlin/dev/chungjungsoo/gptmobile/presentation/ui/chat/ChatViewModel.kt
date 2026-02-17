@@ -403,6 +403,9 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch { mcpToolEventStore.put(effectiveChatId, _mcpToolEvents.value) }
     }
 
+    // Append-only counter for unique event IDs
+    private var mcpEventCounter = 0
+
     private fun updateMcpToolEvents(messageIndex: Int, platformIndex: Int, apiState: ApiState) {
         val key = messagePlatformKey(messageIndex, platformIndex)
         val existing = _mcpToolEvents.value[key].orEmpty().toMutableList()
@@ -413,18 +416,15 @@ class ChatViewModel @Inject constructor(
                     if (!toolManager.isMcpTool(toolCall.name)) {
                         return@forEach
                     }
-                    val index = existing.indexOfFirst { it.callId == toolCall.id }
-                    val event = McpToolEvent(
-                        callId = toolCall.id,
-                        toolName = toolCall.name,
-                        request = toolCall.arguments.toString(),
-                        status = ToolCallStatus.REQUESTED
+                    val eventId = mcpEventCounter++
+                    existing.add(
+                        McpToolEvent(
+                            callId = "${toolCall.id}_$eventId",
+                            toolName = toolCall.name,
+                            request = toolCall.arguments.toString(),
+                            status = ToolCallStatus.REQUESTED
+                        )
                     )
-                    if (index >= 0) {
-                        existing[index] = event
-                    } else {
-                        existing.add(event)
-                    }
                 }
             }
 
@@ -432,19 +432,11 @@ class ChatViewModel @Inject constructor(
                 if (!toolManager.isMcpTool(apiState.toolName)) {
                     return
                 }
-                val index = existing.indexOfFirst { it.callId == apiState.callId }
-                if (index >= 0) {
-                    existing[index] = existing[index].copy(status = ToolCallStatus.EXECUTING)
-                } else {
-                    // Fall back to a best-effort entry if REQUESTED event was not observed.
-                    existing.add(
-                        McpToolEvent(
-                            callId = apiState.callId,
-                            toolName = apiState.toolName,
-                            request = "{}",
-                            status = ToolCallStatus.EXECUTING
-                        )
-                    )
+                val targetIndex = existing.indexOfLast {
+                    it.toolName == apiState.toolName && it.status == ToolCallStatus.REQUESTED
+                }
+                if (targetIndex >= 0) {
+                    existing[targetIndex] = existing[targetIndex].copy(status = ToolCallStatus.EXECUTING)
                 }
             }
 
@@ -454,17 +446,21 @@ class ChatViewModel @Inject constructor(
                         return@forEach
                     }
                     val status = if (result.isError) ToolCallStatus.FAILED else ToolCallStatus.COMPLETED
-                    val index = existing.indexOfFirst { it.callId == result.callId }
-                    if (index >= 0) {
-                        existing[index] = existing[index].copy(
+                    val targetIndex = existing.indexOfLast {
+                        it.toolName == result.name &&
+                            (it.status == ToolCallStatus.REQUESTED || it.status == ToolCallStatus.EXECUTING)
+                    }
+                    if (targetIndex >= 0) {
+                        existing[targetIndex] = existing[targetIndex].copy(
                             output = result.output,
                             status = status,
                             isError = result.isError
                         )
                     } else {
+                        val eventId = mcpEventCounter++
                         existing.add(
                             McpToolEvent(
-                                callId = result.callId,
+                                callId = "${result.callId}_$eventId",
                                 toolName = result.name,
                                 request = "{}",
                                 output = result.output,
