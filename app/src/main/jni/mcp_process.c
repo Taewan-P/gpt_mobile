@@ -125,6 +125,13 @@ JNIEXPORT jintArray JNICALL Java_dev_chungjungsoo_gptmobile_data_mcp_NativeProce
                 return NULL;
             }
             argv[i] = strdup(arg_utf8);
+            if (!argv[i]) {
+                (*env)->ReleaseStringUTFChars(env, arg_java_string, arg_utf8);
+                for (int j = 0; j < i; ++j) free(argv[j]);
+                free(argv);
+                throw_runtime_exception(env, "strdup() failed for argv");
+                return NULL;
+            }
             (*env)->ReleaseStringUTFChars(env, arg_java_string, arg_utf8);
         }
         argv[size] = NULL;
@@ -156,6 +163,17 @@ JNIEXPORT jintArray JNICALL Java_dev_chungjungsoo_gptmobile_data_mcp_NativeProce
                 return NULL;
             }
             envp[i] = strdup(env_utf8);
+            if (!envp[i]) {
+                (*env)->ReleaseStringUTFChars(env, env_java_string, env_utf8);
+                for (int j = 0; j < i; ++j) free(envp[j]);
+                free(envp);
+                if (argv) {
+                    for (char** tmp = argv; *tmp; ++tmp) free(*tmp);
+                    free(argv);
+                }
+                throw_runtime_exception(env, "strdup() failed for envp");
+                return NULL;
+            }
             (*env)->ReleaseStringUTFChars(env, env_java_string, env_utf8);
         }
         envp[size] = NULL;
@@ -166,6 +184,21 @@ JNIEXPORT jintArray JNICALL Java_dev_chungjungsoo_gptmobile_data_mcp_NativeProce
     int stdoutFd = -1;
     char const* cmd_cwd = (*env)->GetStringUTFChars(env, cwd, NULL);
     char const* cmd_utf8 = (*env)->GetStringUTFChars(env, cmd, NULL);
+
+    if (!cmd_utf8 || !cmd_cwd) {
+        if (argv) {
+            for (char** tmp = argv; *tmp; ++tmp) free(*tmp);
+            free(argv);
+        }
+        if (envp) {
+            for (char** tmp = envp; *tmp; ++tmp) free(*tmp);
+            free(envp);
+        }
+        throw_runtime_exception(env, "GetStringUTFChars() failed for cmd or cwd");
+        if (cmd_utf8) (*env)->ReleaseStringUTFChars(env, cmd, cmd_utf8);
+        if (cmd_cwd) (*env)->ReleaseStringUTFChars(env, cwd, cmd_cwd);
+        return NULL;
+    }
 
     int result = create_subprocess(env, cmd_utf8, cmd_cwd, argv, envp, &procId, &stdinFd, &stdoutFd);
 

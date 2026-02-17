@@ -158,23 +158,22 @@ class McpManager @Inject constructor(
     }
 
     suspend fun connect(config: McpServerConfig): Result<Unit> = runCatching {
-        // Mark this server as connecting
-        val currentConnecting = _connectionState.value.connectingServers.toMutableSet()
-        currentConnecting.add(config.id)
-        _connectionState.value = _connectionState.value.copy(
-            isConnecting = true,
-            connectingCount = _connectionState.value.connectingCount + 1,
-            connectingServers = currentConnecting
-        )
-        
+        // Mark this server as connecting inside the lock to avoid race conditions
         lock.withLock {
+            val currentConnecting = _connectionState.value.connectingServers.toMutableSet()
+            currentConnecting.add(config.id)
+            _connectionState.value = _connectionState.value.copy(
+                isConnecting = true,
+                connectingCount = _connectionState.value.connectingCount + 1,
+                connectingServers = currentConnecting
+            )
+
             connectInternal(config)
             refreshServerToolsLocked(config.id)
-            
+
             // Remove from connecting set
             val updatedConnecting = _connectionState.value.connectingServers.toMutableSet()
             updatedConnecting.remove(config.id)
-            
             _connectionState.value = _connectionState.value.copy(
                 connectedServers = connections.size,
                 totalServers = maxOf(_connectionState.value.totalServers, connections.size),
@@ -186,18 +185,19 @@ class McpManager @Inject constructor(
     }.onSuccess {
         Log.i(TAG, "connect success serverId=${config.id} name=${config.name} toolsNow=${_availableTools.value.size}")
     }.onFailure { throwable ->
-        // Remove from connecting set on failure
-        val updatedConnecting = _connectionState.value.connectingServers.toMutableSet()
-        updatedConnecting.remove(config.id)
-        
-        val errorMap = _connectionState.value.serverErrors.toMutableMap()
-        errorMap[config.id] = throwable.message ?: "Connection failed"
-        _connectionState.value = _connectionState.value.copy(
-            connectingCount = maxOf(0, _connectionState.value.connectingCount - 1),
-            connectingServers = updatedConnecting,
-            isConnecting = updatedConnecting.isNotEmpty(),
-            serverErrors = errorMap
-        )
+        // Remove from connecting set on failure - also inside lock to avoid race
+        lock.withLock {
+            val updatedConnecting = _connectionState.value.connectingServers.toMutableSet()
+            updatedConnecting.remove(config.id)
+            val errorMap = _connectionState.value.serverErrors.toMutableMap()
+            errorMap[config.id] = throwable.message ?: "Connection failed"
+            _connectionState.value = _connectionState.value.copy(
+                connectingCount = maxOf(0, _connectionState.value.connectingCount - 1),
+                connectingServers = updatedConnecting,
+                isConnecting = updatedConnecting.isNotEmpty(),
+                serverErrors = errorMap
+            )
+        }
         Log.e(TAG, "connect failed serverId=${config.id} name=${config.name}", throwable)
     }
 
