@@ -88,7 +88,7 @@
     <string name="model_icon">Model Icon</string>
     <string name="send">Send</string>
     <string name="copy_text">Copy Text</string>
-    <string name="copy_code">copy code</string>
+    <string name="copy_code">Copy Code</string>
     <string name="code">Code</string>
     <string name="retry">Retry</string>
     <string name="ask_a_question">Ask a question…</string>

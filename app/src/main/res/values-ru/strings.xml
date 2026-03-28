@@ -191,7 +191,7 @@
     <string name="model">Модель</string>
     <string name="model_supporting">Введите идентификатор модели точно так, как указано API</string>
     <string name="save">Сохранить</string>
-    <string name="enabled">Включить</string>
+    <string name="enabled">Включено</string>
     <string name="disabled">Выключено</string>
     <string name="delete_platform">Удалить платформу</string>
     <string name="delete_platform_confirmation">Вы уверены, что хотите удалить эту платформу? Это действие необратимо.</string>
@@ -230,4 +230,13 @@
     <string name="client_type_openai_desc">API для получения ответов OpenAI</string>
     <string name="thinking_in_progress">Рассуждения…</string>
     <string name="extended_thinking">Расширенные рассуждения</string>
+    <string name="copy_code">Копировать код</string>
+    <string name="code">Код</string>
+    <string name="duplicate">Дубликат</string>
+    <string name="duplicated_chat">Дубликат чата.</string>
+    <string name="timeout">Тайм-аут</string>
+    <string name="timeout_icon">Значок тайм-аута</string>
+    <string name="timeout_seconds_label">Таймаут (сек.)</string>
+    <string name="timeout_setting_description">Максимальное время простоя между фрагментами потоковых данных ответа. Установите значение 0, чтобы отключить тайм-аут.</string>
+    <string name="timeout_invalid">Введите 0 или положительное число в секундах.</string>
 </resources>
