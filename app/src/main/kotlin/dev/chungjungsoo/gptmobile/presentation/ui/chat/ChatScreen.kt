@@ -360,7 +360,7 @@ private fun ChatMessagePair(
     onCopyText: (String) -> Unit,
     onPlatformClick: (Int, Int) -> Unit,
     onSelectText: (String) -> Unit,
-    onRetry: (Int) -> Unit
+    onRetry: (Int, Int) -> Unit
 ) {
     val assistantContent = assistantMessages.getOrNull(platformIndexState)?.content ?: ""
     val assistantThoughts = assistantMessages.getOrNull(platformIndexState)?.thoughts ?: ""
@@ -436,7 +436,7 @@ private fun ChatMessagePair(
                 contentIdentity = "$messageIndex:$selectedPlatformUid",
                 onCopyClick = { onCopyText(assistantContent) },
                 onSelectClick = { onSelectText(assistantContent) },
-                onRetryClick = { onRetry(platformIndexState) }
+                onRetryClick = { onRetry(messageIndex, platformIndexState) }
             )
         }
     }

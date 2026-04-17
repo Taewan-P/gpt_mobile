@@ -203,17 +203,20 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    fun retryChat(platformIndex: Int) {
+    fun retryChat(turnIndex: Int, platformIndex: Int) {
+        if (turnIndex !in _groupedMessages.value.assistantMessages.indices) return
         if (platformIndex >= enabledPlatformsInChat.size || platformIndex < 0) return
         val platform = _enabledPlatformsInApp.value.firstOrNull { it.uid == enabledPlatformsInChat[platformIndex] } ?: return
         val platformWithChatModel = resolvePlatformModel(platform)
         _loadingStates.update { it.toMutableList().apply { this[platformIndex] = LoadingState.Loading } }
         _groupedMessages.update {
-            val updatedAssistantMessages = it.assistantMessages.toMutableList()
-            updatedAssistantMessages[it.assistantMessages.lastIndex] = updatedAssistantMessages[it.assistantMessages.lastIndex].toMutableList().apply {
-                this[platformIndex] = MessageV2(chatId = chatRoomId, content = "", platformType = platformWithChatModel.uid)
+            updateAssistantSlot(
+                groupedMessages = it,
+                turnIndex = turnIndex,
+                platformIndex = platformIndex
+            ) {
+                createEmptyAssistantMessage(chatRoomId, platformWithChatModel.uid)
             }
-            it.copy(assistantMessages = updatedAssistantMessages)
         }
 
         viewModelScope.launch {
@@ -223,6 +226,7 @@ class ChatViewModel @Inject constructor(
                 platformWithChatModel
             ).handleStates(
                 messageFlow = _groupedMessages,
+                turnIndex = turnIndex,
                 platformIdx = platformIndex,
                 onLoadingComplete = {
                     _loadingStates.update { it.toMutableList().apply { this[platformIndex] = LoadingState.Idle } }
@@ -365,6 +369,7 @@ class ChatViewModel @Inject constructor(
     private fun completeChat() {
         // Update all the platform loading states to Loading
         _loadingStates.update { List(enabledPlatformsInChat.size) { LoadingState.Loading } }
+        val turnIndex = _groupedMessages.value.assistantMessages.lastIndex
 
         // Send chat completion requests
         enabledPlatformsInChat.forEachIndexed { idx, platformUid ->
@@ -377,6 +382,7 @@ class ChatViewModel @Inject constructor(
                     platformWithChatModel
                 ).handleStates(
                     messageFlow = _groupedMessages,
+                    turnIndex = turnIndex,
                     platformIdx = idx,
                     onLoadingComplete = {
                         _loadingStates.update { it.toMutableList().apply { this[idx] = LoadingState.Idle } }
@@ -554,7 +560,6 @@ class ChatViewModel @Inject constructor(
 
     private suspend fun fetchGroupedMessages(chatId: Int): GroupedMessages {
         val messages = chatRepository.fetchMessagesV2(chatId).sortedBy { it.createdAt }
-        val platformOrderMap = enabledPlatformsInChat.withIndex().associate { (idx, uuid) -> uuid to idx }
 
         val userMessages = mutableListOf<MessageV2>()
         val assistantMessages = mutableListOf<MutableList<MessageV2>>()
@@ -568,16 +573,15 @@ class ChatViewModel @Inject constructor(
             }
         }
 
-        val sortedAssistantMessages = assistantMessages.map { assistantMessage ->
-            assistantMessage.sortedWith(
-                compareBy(
-                    { platformOrderMap[it.platformType] ?: Int.MAX_VALUE },
-                    { it.platformType }
-                )
+        val normalizedAssistantMessages = assistantMessages.map { assistantMessage ->
+            normalizeAssistantRow(
+                assistantMessages = assistantMessage,
+                enabledPlatformsInChat = enabledPlatformsInChat,
+                chatId = chatId
             )
         }
 
-        return GroupedMessages(userMessages, sortedAssistantMessages)
+        return GroupedMessages(userMessages, normalizedAssistantMessages)
     }
 
     private fun fetchChatRoom() {
@@ -658,4 +662,57 @@ class ChatViewModel @Inject constructor(
         val merged = _groupedMessages.value.userMessages + _groupedMessages.value.assistantMessages.flatten()
         return merged.filter { it.content.isNotBlank() }.sortedBy { it.createdAt }
     }
+}
+
+internal fun createEmptyAssistantMessage(chatId: Int, platformUid: String): MessageV2 = MessageV2(
+    chatId = chatId,
+    content = "",
+    platformType = platformUid
+)
+
+internal fun normalizeAssistantRow(
+    assistantMessages: List<MessageV2>,
+    enabledPlatformsInChat: List<String>,
+    chatId: Int
+): List<MessageV2> {
+    if (enabledPlatformsInChat.isEmpty()) return assistantMessages
+
+    val consumedIndexes = mutableSetOf<Int>()
+    val normalizedMessages = enabledPlatformsInChat.map { platformUid ->
+        val matchedIndex = assistantMessages.indices.firstOrNull { index ->
+            index !in consumedIndexes && assistantMessages[index].platformType == platformUid
+        }
+
+        if (matchedIndex == null) {
+            createEmptyAssistantMessage(chatId, platformUid)
+        } else {
+            consumedIndexes += matchedIndex
+            assistantMessages[matchedIndex]
+        }
+    }
+    val overflowMessages = assistantMessages.filterIndexed { index, _ -> index !in consumedIndexes }
+
+    return normalizedMessages + overflowMessages
+}
+
+internal fun updateAssistantSlot(
+    groupedMessages: ChatViewModel.GroupedMessages,
+    turnIndex: Int,
+    platformIndex: Int,
+    transform: (MessageV2) -> MessageV2
+): ChatViewModel.GroupedMessages {
+    if (turnIndex !in groupedMessages.assistantMessages.indices) return groupedMessages
+
+    val currentTurnMessages = groupedMessages.assistantMessages[turnIndex]
+    if (platformIndex !in currentTurnMessages.indices) return groupedMessages
+
+    val updatedTurnMessages = currentTurnMessages.toMutableList()
+    val updatedMessage = transform(updatedTurnMessages[platformIndex])
+    if (updatedMessage == updatedTurnMessages[platformIndex]) return groupedMessages
+
+    updatedTurnMessages[platformIndex] = updatedMessage
+    val assistantMessages = groupedMessages.assistantMessages.toMutableList()
+    assistantMessages[turnIndex] = updatedTurnMessages
+
+    return groupedMessages.copy(assistantMessages = assistantMessages)
 }
