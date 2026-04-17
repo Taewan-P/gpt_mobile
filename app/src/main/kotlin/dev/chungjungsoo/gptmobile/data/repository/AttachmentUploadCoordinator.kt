@@ -1,6 +1,7 @@
 package dev.chungjungsoo.gptmobile.data.repository
 
 import android.content.Context
+import dev.chungjungsoo.gptmobile.data.context.ConversationTurn
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.model.AttachmentProviderRef
@@ -48,9 +49,17 @@ class AttachmentUploadCoordinator @Inject constructor(
         return if (updatedAttachments == message.attachments) message else message.copy(attachments = updatedAttachments)
     }
 
-    suspend fun validateInlineAttachmentBudget(messages: List<MessageV2>, maxInlineBytes: Long = MAX_SAFE_INLINE_BYTES) {
-        val totalPreparedBytes = messages
-            .flatMap { it.attachments }
+    suspend fun validateInlineAttachmentBudget(
+        contextTurns: List<ConversationTurn>,
+        maxInlineBytes: Long = MAX_SAFE_INLINE_BYTES
+    ) {
+        val totalPreparedBytes = contextTurns
+            .flatMap { turn ->
+                buildList {
+                    addAll(turn.userMessage.attachments)
+                    turn.assistantMessage?.let { addAll(it.attachments) }
+                }
+            }
             .sumOf { attachment ->
                 val file = File(resolveUploadFilePath(attachment))
                 when {

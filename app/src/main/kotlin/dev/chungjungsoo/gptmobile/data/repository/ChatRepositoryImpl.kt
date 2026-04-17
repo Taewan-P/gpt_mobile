@@ -2,6 +2,9 @@ package dev.chungjungsoo.gptmobile.data.repository
 
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.chungjungsoo.gptmobile.data.context.ContextBuilder
+import dev.chungjungsoo.gptmobile.data.context.ConversationTurn
+import dev.chungjungsoo.gptmobile.data.context.ProviderContextPolicy
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatPlatformModelV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomDao
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomV2Dao
@@ -75,7 +78,8 @@ class ChatRepositoryImpl @Inject constructor(
     private val groqAPI: GroqAPI,
     private val anthropicAPI: AnthropicAPI,
     private val googleAPI: GoogleAPI,
-    private val attachmentUploadCoordinator: AttachmentUploadCoordinator
+    private val attachmentUploadCoordinator: AttachmentUploadCoordinator,
+    private val contextBuilder: ContextBuilder
 ) : ChatRepository {
 
     private fun isImageFile(extension: String): Boolean = extension in setOf("jpg", "jpeg", "png", "gif", "bmp", "webp", "tiff", "svg")
@@ -152,20 +156,8 @@ class ChatRepositoryImpl @Inject constructor(
 
         streamPreparedApiState(
             prepare = {
-                val preparedUserMessages = prepareMessagesForPlatform(userMessages, platform)
-                val inputMessages = mutableListOf<ResponseInputMessage>()
-
-                preparedUserMessages.forEachIndexed { index, userMsg ->
-                    inputMessages.add(transformMessageV2ToResponsesInput(userMsg, isUser = true, platformUid = platform.uid))
-
-                    if (index < assistantMessages.size) {
-                        assistantMessages[index]
-                            .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
-                            ?.let { assistantMsg ->
-                                inputMessages.add(transformMessageV2ToResponsesInput(assistantMsg, isUser = false, platformUid = platform.uid))
-                            }
-                    }
-                }
+                val contextTurns = buildContextTurns(userMessages, assistantMessages, platform)
+                val inputMessages = buildResponsesInputMessages(contextTurns, platform.uid)
 
                 ResponsesRequest(
                     model = platform.model,
@@ -220,29 +212,9 @@ class ChatRepositoryImpl @Inject constructor(
     ): Flow<ApiState> = try {
         streamPreparedApiState(
             prepare = {
-                attachmentUploadCoordinator.validateInlineAttachmentBudget(userMessages + assistantMessages.flatten())
-                val messages = mutableListOf<ChatMessage>()
-
-                platform.systemPrompt?.takeIf { it.isNotBlank() }?.let { systemPrompt ->
-                    messages.add(
-                        ChatMessage(
-                            role = OpenAIRole.SYSTEM,
-                            content = listOf(OpenAITextContent(text = systemPrompt))
-                        )
-                    )
-                }
-
-                userMessages.forEachIndexed { index, userMsg ->
-                    messages.add(transformMessageV2ToChatMessage(userMsg, isUser = true))
-
-                    if (index < assistantMessages.size) {
-                        assistantMessages[index]
-                            .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
-                            ?.let { assistantMsg ->
-                                messages.add(transformMessageV2ToChatMessage(assistantMsg, isUser = false))
-                            }
-                    }
-                }
+                val contextTurns = buildContextTurns(userMessages, assistantMessages, platform)
+                validateInlineBudgetIfNeeded(contextTurns, platform)
+                val messages = buildOpenAIChatMessages(contextTurns, platform.systemPrompt)
 
                 createGroqChatCompletionRequest(messages, platform)
             },
@@ -290,29 +262,9 @@ class ChatRepositoryImpl @Inject constructor(
 
         streamPreparedApiState(
             prepare = {
-                attachmentUploadCoordinator.validateInlineAttachmentBudget(userMessages + assistantMessages.flatten())
-                val messages = mutableListOf<ChatMessage>()
-
-                platform.systemPrompt?.takeIf { it.isNotBlank() }?.let { systemPrompt ->
-                    messages.add(
-                        ChatMessage(
-                            role = OpenAIRole.SYSTEM,
-                            content = listOf(OpenAITextContent(text = systemPrompt))
-                        )
-                    )
-                }
-
-                userMessages.forEachIndexed { index, userMsg ->
-                    messages.add(transformMessageV2ToChatMessage(userMsg, isUser = true))
-
-                    if (index < assistantMessages.size) {
-                        assistantMessages[index]
-                            .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
-                            ?.let { assistantMsg ->
-                                messages.add(transformMessageV2ToChatMessage(assistantMsg, isUser = false))
-                            }
-                    }
-                }
+                val contextTurns = buildContextTurns(userMessages, assistantMessages, platform)
+                validateInlineBudgetIfNeeded(contextTurns, platform)
+                val messages = buildOpenAIChatMessages(contextTurns, platform.systemPrompt)
 
                 ChatCompletionRequest(
                     model = platform.model,
@@ -342,6 +294,136 @@ class ChatRepositoryImpl @Inject constructor(
         }
     } catch (e: Exception) {
         flowOf(ApiState.Error(e.message ?: "Failed to complete chat"))
+    }
+
+    private suspend fun buildContextTurns(
+        userMessages: List<MessageV2>,
+        assistantMessages: List<List<MessageV2>>,
+        platform: PlatformV2
+    ): List<ConversationTurn> {
+        val policy = ProviderContextPolicy.forClientType(platform.compatibleType)
+        val contextTurns = contextBuilder.build(userMessages, assistantMessages, platform, policy)
+        if (!policy.preferProviderFileRefs || contextTurns.isEmpty()) {
+            return contextTurns
+        }
+
+        return ensureProviderReferencesForTurns(contextTurns, platform)
+    }
+
+    private suspend fun ensureProviderReferencesForTurns(
+        turns: List<ConversationTurn>,
+        platform: PlatformV2
+    ): List<ConversationTurn> {
+        val preparedUserMessages = prepareMessagesForPlatform(turns.map { it.userMessage }, platform)
+        return turns.mapIndexed { index, turn ->
+            turn.copy(userMessage = preparedUserMessages[index])
+        }
+    }
+
+    private suspend fun validateInlineBudgetIfNeeded(
+        contextTurns: List<ConversationTurn>,
+        platform: PlatformV2
+    ) {
+        val maxInlineBytes = ProviderContextPolicy.forClientType(platform.compatibleType).maxInlineAttachmentBytes ?: return
+        attachmentUploadCoordinator.validateInlineAttachmentBudget(contextTurns, maxInlineBytes)
+    }
+
+    private suspend fun buildOpenAIChatMessages(
+        contextTurns: List<ConversationTurn>,
+        systemPrompt: String?
+    ): List<ChatMessage> {
+        val messages = mutableListOf<ChatMessage>()
+
+        systemPrompt?.takeIf { it.isNotBlank() }?.let { prompt ->
+            messages.add(
+                ChatMessage(
+                    role = OpenAIRole.SYSTEM,
+                    content = listOf(OpenAITextContent(text = prompt))
+                )
+            )
+        }
+
+        contextTurns.forEach { turn ->
+            if (hasRenderableMessageContent(turn.userMessage, isUser = true)) {
+                messages.add(transformMessageV2ToChatMessage(turn.userMessage, isUser = true))
+            }
+            turn.assistantMessage?.takeIf { hasRenderableMessageContent(it, isUser = false) }?.let { assistantMessage ->
+                messages.add(transformMessageV2ToChatMessage(assistantMessage, isUser = false))
+            }
+        }
+
+        return messages
+    }
+
+    private suspend fun buildResponsesInputMessages(
+        contextTurns: List<ConversationTurn>,
+        platformUid: String
+    ): List<ResponseInputMessage> {
+        val inputMessages = mutableListOf<ResponseInputMessage>()
+
+        contextTurns.forEach { turn ->
+            if (hasRenderableMessageContent(turn.userMessage, isUser = true)) {
+                inputMessages.add(
+                    transformMessageV2ToResponsesInput(
+                        turn.userMessage,
+                        isUser = true,
+                        platformUid = platformUid
+                    )
+                )
+            }
+            turn.assistantMessage?.takeIf { hasRenderableMessageContent(it, isUser = false) }?.let { assistantMessage ->
+                inputMessages.add(
+                    transformMessageV2ToResponsesInput(
+                        assistantMessage,
+                        isUser = false,
+                        platformUid = platformUid
+                    )
+                )
+            }
+        }
+
+        return inputMessages
+    }
+
+    private suspend fun buildAnthropicInputMessages(
+        contextTurns: List<ConversationTurn>,
+        platformUid: String
+    ): List<InputMessage> {
+        val messages = mutableListOf<InputMessage>()
+
+        contextTurns.forEach { turn ->
+            if (hasRenderableMessageContent(turn.userMessage, isUser = true)) {
+                messages.add(transformMessageV2ToAnthropic(turn.userMessage, MessageRole.USER, platformUid))
+            }
+            turn.assistantMessage?.takeIf { hasRenderableMessageContent(it, isUser = false) }?.let { assistantMessage ->
+                messages.add(transformMessageV2ToAnthropic(assistantMessage, MessageRole.ASSISTANT, platformUid))
+            }
+        }
+
+        return messages
+    }
+
+    private suspend fun buildGoogleContents(
+        contextTurns: List<ConversationTurn>,
+        platformUid: String
+    ): List<Content> {
+        val contents = mutableListOf<Content>()
+
+        contextTurns.forEach { turn ->
+            if (hasRenderableMessageContent(turn.userMessage, isUser = true)) {
+                contents.add(transformMessageV2ToGoogle(turn.userMessage, GoogleRole.USER, platformUid))
+            }
+            turn.assistantMessage?.takeIf { hasRenderableMessageContent(it, isUser = false) }?.let { assistantMessage ->
+                contents.add(transformMessageV2ToGoogle(assistantMessage, GoogleRole.MODEL, platformUid))
+            }
+        }
+
+        return contents
+    }
+
+    private fun hasRenderableMessageContent(message: MessageV2, isUser: Boolean): Boolean {
+        val messageContent = if (isUser) message.content else stripAssistantErrorNote(message.content)
+        return messageContent.isNotBlank() || message.attachments.isNotEmpty()
     }
 
     private suspend fun transformMessageV2ToChatMessage(message: MessageV2, isUser: Boolean): ChatMessage {
@@ -437,20 +519,8 @@ class ChatRepositoryImpl @Inject constructor(
 
         streamPreparedApiState(
             prepare = {
-                val preparedUserMessages = prepareMessagesForPlatform(userMessages, platform)
-                val messages = mutableListOf<InputMessage>()
-
-                preparedUserMessages.forEachIndexed { index, userMsg ->
-                    messages.add(transformMessageV2ToAnthropic(userMsg, MessageRole.USER, platform.uid))
-
-                    if (index < assistantMessages.size) {
-                        assistantMessages[index]
-                            .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
-                            ?.let { assistantMsg ->
-                                messages.add(transformMessageV2ToAnthropic(assistantMsg, MessageRole.ASSISTANT, platform.uid))
-                            }
-                    }
-                }
+                val contextTurns = buildContextTurns(userMessages, assistantMessages, platform)
+                val messages = buildAnthropicInputMessages(contextTurns, platform.uid)
 
                 MessageRequest(
                     model = platform.model,
@@ -555,20 +625,8 @@ class ChatRepositoryImpl @Inject constructor(
 
         streamPreparedApiState(
             prepare = {
-                val preparedUserMessages = prepareMessagesForPlatform(userMessages, platform)
-                val contents = mutableListOf<Content>()
-
-                preparedUserMessages.forEachIndexed { index, userMsg ->
-                    contents.add(transformMessageV2ToGoogle(userMsg, GoogleRole.USER, platform.uid))
-
-                    if (index < assistantMessages.size) {
-                        assistantMessages[index]
-                            .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
-                            ?.let { assistantMsg ->
-                                contents.add(transformMessageV2ToGoogle(assistantMsg, GoogleRole.MODEL, platform.uid))
-                            }
-                    }
-                }
+                val contextTurns = buildContextTurns(userMessages, assistantMessages, platform)
+                val contents = buildGoogleContents(contextTurns, platform.uid)
 
                 GenerateContentRequest(
                     contents = contents,

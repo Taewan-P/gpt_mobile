@@ -111,4 +111,11 @@ class ApiStateFlowExtensionsTest {
 
         assertEquals("Partial answer", stripAssistantErrorNote(content))
     }
+
+    @Test
+    fun `isAssistantErrorMessage detects explicit error marker`() {
+        assertTrue(isAssistantErrorMessage("Error: Request timed out."))
+        assertTrue(isAssistantErrorMessage("  Error: Network unavailable."))
+        assertTrue(!isAssistantErrorMessage("Partial answer\n\n[Response stopped: Request timed out.]"))
+    }
 }
