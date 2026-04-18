@@ -16,7 +16,7 @@ class ContextBuilder @Inject constructor() {
 
         val rawTurns = userMessages.mapIndexed { index, userMessage ->
             val assistantMessage = assistantMessages.getOrNull(index)
-                ?.firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
+                ?.firstOrNull { (it.content.isNotBlank() || it.attachments.isNotEmpty())&& it.platformType == platform.uid }
 
             RawConversationTurn(
                 userMessage = userMessage,

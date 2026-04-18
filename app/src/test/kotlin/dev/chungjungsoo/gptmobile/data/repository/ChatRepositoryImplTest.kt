@@ -24,8 +24,10 @@ import dev.chungjungsoo.gptmobile.data.network.GoogleAPI
 import dev.chungjungsoo.gptmobile.data.network.GroqAPI
 import dev.chungjungsoo.gptmobile.data.network.OpenAIAPI
 import dev.chungjungsoo.gptmobile.data.network.UploadedProviderFile
+import java.io.File
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Proxy
+import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
@@ -33,6 +35,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -183,9 +186,17 @@ class ChatRepositoryImplTest {
     fun `failed historical turn is excluded from subsequent inline budget checks`() = runBlocking {
         val openAIAPI = RecordingOpenAIAPI()
         val repository = createRepository(openAIAPI = openAIAPI)
+        val tempDir = kotlin.io.path.createTempDirectory("context-inline-budget").toFile().apply {
+            deleteOnExit()
+        }
+        val missingAttachmentFile = File(tempDir, "oversized-${UUID.randomUUID()}.png")
+        if (missingAttachmentFile.exists()) {
+            missingAttachmentFile.delete()
+        }
+        assertFalse(missingAttachmentFile.exists())
         val failedTurnAttachment = ChatAttachment(
-            localFilePath = "Z:/missing/oversized.png",
-            preparedFilePath = "Z:/missing/oversized.png",
+            localFilePath = missingAttachmentFile.absolutePath,
+            preparedFilePath = missingAttachmentFile.absolutePath,
             displayName = "oversized.png",
             mimeType = "image/png",
             sizeBytes = 13L * 1024 * 1024

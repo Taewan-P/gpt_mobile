@@ -14,14 +14,6 @@ import org.junit.Test
 class ApiStateFlowExtensionsTest {
 
     @Test
-    fun `buildAssistantErrorContent returns plain error when no content exists`() {
-        assertEquals(
-            "Error: Request timed out.",
-            buildAssistantErrorContent("", "Request timed out.")
-        )
-    }
-
-    @Test
     fun `handleStates keeps partial content and appends failure note`() = runBlocking {
         val messageFlow = MutableStateFlow(
             ChatViewModel.GroupedMessages(
@@ -105,17 +97,4 @@ class ApiStateFlowExtensionsTest {
         assertEquals(1, loadingCompleteCalls)
     }
 
-    @Test
-    fun `stripAssistantErrorNote removes appended stop note from assistant history`() {
-        val content = "Partial answer\n\n[Response stopped: Request timed out.]"
-
-        assertEquals("Partial answer", stripAssistantErrorNote(content))
-    }
-
-    @Test
-    fun `isAssistantErrorMessage detects explicit error marker`() {
-        assertTrue(isAssistantErrorMessage("Error: Request timed out."))
-        assertTrue(isAssistantErrorMessage("  Error: Network unavailable."))
-        assertTrue(!isAssistantErrorMessage("Partial answer\n\n[Response stopped: Request timed out.]"))
-    }
 }
