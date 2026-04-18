@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -183,7 +184,8 @@ class ApiStateFlowExtensionsTest {
         )
 
         assertEquals(untouchedTimestamp, messageFlow.value.assistantMessages[0][0].createdAt)
-        assertTrue(messageFlow.value.assistantMessages[0][1].createdAt >= originalTimestamp)
+        assertNotEquals(originalTimestamp, messageFlow.value.assistantMessages[0][1].createdAt)
+        assertEquals(untouchedTimestamp, messageFlow.value.assistantMessages[1][0].createdAt)
         assertEquals(untouchedTimestamp, messageFlow.value.assistantMessages[1][1].createdAt)
     }
 }
