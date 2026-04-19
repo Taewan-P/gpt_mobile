@@ -1,6 +1,12 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
+import dev.chungjungsoo.gptmobile.data.database.entity.ACTIVE_REVISION_LATEST
+import dev.chungjungsoo.gptmobile.data.database.entity.AssistantRevision
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
+import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
+import dev.chungjungsoo.gptmobile.data.database.entity.effectiveThoughts
+import dev.chungjungsoo.gptmobile.data.database.entity.resetActiveRevision
+import dev.chungjungsoo.gptmobile.data.database.entity.selectRevision
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -83,5 +89,43 @@ class ChatViewModelRetryTest {
         assertEquals("Primary answer", normalizedRow[0].content)
         assertEquals("Second platform", normalizedRow[1].content)
         assertTrue(normalizedRow.drop(2).any { it.content == "Duplicate answer" })
+    }
+
+    @Test
+    fun `effective assistant content follows selected revision`() {
+        val assistantMessage = MessageV2(
+            chatId = 3,
+            content = "Latest answer",
+            thoughts = "Latest thoughts",
+            revisions = listOf(
+                AssistantRevision(
+                    content = "Previous answer",
+                    thoughts = "Previous thoughts",
+                    createdAt = 100L
+                )
+            ),
+            activeRevisionIndex = 0,
+            platformType = "platform-1"
+        )
+
+        assertEquals("Previous answer", assistantMessage.effectiveContent())
+        assertEquals("Previous thoughts", assistantMessage.effectiveThoughts())
+        assertEquals("Latest answer", assistantMessage.resetActiveRevision().effectiveContent())
+        assertEquals(ACTIVE_REVISION_LATEST, assistantMessage.resetActiveRevision().activeRevisionIndex)
+    }
+
+    @Test
+    fun `selectRevision falls back to latest when index is invalid`() {
+        val assistantMessage = MessageV2(
+            chatId = 5,
+            content = "Latest",
+            revisions = listOf(
+                AssistantRevision(content = "Older", createdAt = 10L)
+            ),
+            platformType = "platform-1"
+        )
+
+        assertEquals(0, assistantMessage.selectRevision(0).activeRevisionIndex)
+        assertEquals(ACTIVE_REVISION_LATEST, assistantMessage.selectRevision(9).activeRevisionIndex)
     }
 }
