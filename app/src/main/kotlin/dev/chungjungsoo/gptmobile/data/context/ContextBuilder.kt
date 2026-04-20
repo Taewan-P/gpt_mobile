@@ -3,6 +3,7 @@ package dev.chungjungsoo.gptmobile.data.context
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.util.isAssistantErrorMessage
+import dev.chungjungsoo.gptmobile.util.stripAssistantErrorNote
 import javax.inject.Inject
 
 class ContextBuilder @Inject constructor() {
@@ -16,7 +17,8 @@ class ContextBuilder @Inject constructor() {
 
         val rawTurns = userMessages.mapIndexed { index, userMessage ->
             val assistantMessage = assistantMessages.getOrNull(index)
-                ?.firstOrNull { (it.content.isNotBlank() || it.attachments.isNotEmpty())&& it.platformType == platform.uid }
+                ?.firstOrNull { (it.content.isNotBlank() || it.attachments.isNotEmpty()) && it.platformType == platform.uid }
+                ?.let(::sanitizeAssistantMessageForContext)
 
             RawConversationTurn(
                 userMessage = userMessage,
@@ -29,6 +31,7 @@ class ContextBuilder @Inject constructor() {
             when {
                 turn.isCurrentTurn -> true
                 turn.assistantMessage == null -> false
+                turn.assistantMessage.content.isBlank() && turn.assistantMessage.attachments.isEmpty() -> false
                 isAssistantErrorMessage(turn.assistantMessage.content) -> false
                 else -> true
             }
@@ -77,6 +80,15 @@ class ContextBuilder @Inject constructor() {
                 assistantMessage = assistantMessage,
                 isCurrentTurn = turn.isCurrentTurn
             )
+        }
+    }
+
+    private fun sanitizeAssistantMessageForContext(message: MessageV2): MessageV2 {
+        val sanitizedContent = stripAssistantErrorNote(message.content).trimEnd()
+        return if (sanitizedContent == message.content) {
+            message
+        } else {
+            message.copy(content = sanitizedContent)
         }
     }
 }
