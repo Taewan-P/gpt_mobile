@@ -1,5 +1,7 @@
 package dev.chungjungsoo.gptmobile.util
 
+import dev.chungjungsoo.gptmobile.data.database.entity.AssistantRevision
+import dev.chungjungsoo.gptmobile.data.database.entity.resetActiveRevision
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
 import dev.chungjungsoo.gptmobile.presentation.ui.chat.ChatViewModel
 import dev.chungjungsoo.gptmobile.presentation.ui.chat.updateAssistantSlot
@@ -15,7 +17,9 @@ suspend fun Flow<ApiState>.handleStates(
     turnIndex: Int,
     platformIdx: Int,
     onLoadingComplete: () -> Unit,
-    nanoTimeProvider: () -> Long = System::nanoTime
+    nanoTimeProvider: () -> Long = System::nanoTime,
+    currentTimeProvider: () -> Long = { System.currentTimeMillis() / 1000 },
+    revisionToAppendOnSuccess: AssistantRevision? = null
 ) {
     val buffer = StreamingMessageBuffer(nanoTimeProvider = nanoTimeProvider)
     var isCompletedSuccessfully = false
@@ -48,8 +52,20 @@ suspend fun Flow<ApiState>.handleStates(
     } finally {
         buffer.flush(messageFlow, turnIndex, platformIdx)
         when {
-            terminalError != null -> messageFlow.setErrorMessage(turnIndex, platformIdx, terminalError)
-            isCompletedSuccessfully -> messageFlow.setTimestamp(turnIndex, platformIdx)
+            terminalError != null -> messageFlow.setErrorMessage(
+                turnIndex = turnIndex,
+                platformIdx = platformIdx,
+                error = terminalError,
+                currentTimeProvider = currentTimeProvider,
+                revisionToAppend = revisionToAppendOnSuccess
+            )
+
+            isCompletedSuccessfully -> messageFlow.setTimestamp(
+                turnIndex = turnIndex,
+                platformIdx = platformIdx,
+                currentTimeProvider = currentTimeProvider,
+                revisionToAppend = revisionToAppendOnSuccess
+            )
         }
         onLoadingComplete()
     }
@@ -147,7 +163,9 @@ private fun MutableStateFlow<ChatViewModel.GroupedMessages>.setBufferedText(
 private fun MutableStateFlow<ChatViewModel.GroupedMessages>.setErrorMessage(
     turnIndex: Int,
     platformIdx: Int,
-    error: String
+    error: String,
+    currentTimeProvider: () -> Long,
+    revisionToAppend: AssistantRevision?
 ) {
     update { groupedMessages ->
         updateAssistantSlot(
@@ -157,7 +175,10 @@ private fun MutableStateFlow<ChatViewModel.GroupedMessages>.setErrorMessage(
         ) { currentMessage ->
             currentMessage.copy(
                 content = buildAssistantErrorContent(currentMessage.content, error),
-                createdAt = System.currentTimeMillis() / 1000
+                createdAt = currentTimeProvider(),
+                revisions = revisionToAppend
+                    ?.let { listOf(it) + currentMessage.revisions }
+                    ?: currentMessage.revisions
             )
         }
     }
@@ -177,14 +198,24 @@ internal fun stripAssistantErrorNote(content: String): String {
     }
 }
 
-private fun MutableStateFlow<ChatViewModel.GroupedMessages>.setTimestamp(turnIndex: Int, platformIdx: Int) {
+private fun MutableStateFlow<ChatViewModel.GroupedMessages>.setTimestamp(
+    turnIndex: Int,
+    platformIdx: Int,
+    currentTimeProvider: () -> Long,
+    revisionToAppend: AssistantRevision?
+) {
     update { groupedMessages ->
         updateAssistantSlot(
             groupedMessages = groupedMessages,
             turnIndex = turnIndex,
             platformIndex = platformIdx
         ) { currentMessage ->
-            currentMessage.copy(createdAt = System.currentTimeMillis() / 1000)
+            currentMessage.copy(
+                createdAt = currentTimeProvider(),
+                revisions = revisionToAppend
+                    ?.let { listOf(it) + currentMessage.revisions }
+                    ?: currentMessage.revisions
+            ).resetActiveRevision()
         }
     }
 }

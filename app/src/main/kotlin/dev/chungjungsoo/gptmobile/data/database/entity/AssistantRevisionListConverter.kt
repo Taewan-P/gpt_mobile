@@ -1,6 +1,7 @@
 package dev.chungjungsoo.gptmobile.data.database.entity
 
 import androidx.room.TypeConverter
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 
 class AssistantRevisionListConverter {
@@ -13,7 +14,11 @@ class AssistantRevisionListConverter {
     fun fromString(value: String): List<AssistantRevision> = if (value.isBlank()) {
         emptyList()
     } else {
-        json.decodeFromString(value)
+        try {
+            json.decodeFromString(value)
+        } catch (e: SerializationException) {
+            emptyList()
+        }
     }
 
     @TypeConverter

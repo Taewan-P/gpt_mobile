@@ -96,8 +96,10 @@ import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveThoughts
 import java.io.File
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -482,15 +484,18 @@ private fun ChatMessagePair(
                 attachments = selectedAssistantMessage?.attachments.orEmpty().map { it.filePathForDisplay },
                 contentIdentity = "$messageIndex:$selectedPlatformUid",
                 revisionIndexLabel = selectedAssistantMessage?.let { assistantMessage ->
-                    if (assistantMessage.revisions.isEmpty()) {
-                        null
-                    } else if (assistantMessage.activeRevisionIndex == ACTIVE_REVISION_LATEST) {
-                        stringResource(R.string.latest_revision)
+                    val totalRevisions = assistantMessage.revisions.size + 1
+                    if (assistantMessage.activeRevisionIndex == ACTIVE_REVISION_LATEST) {
+                        stringResource(
+                            R.string.revision_counter,
+                            totalRevisions,
+                            totalRevisions
+                        )
                     } else {
                         stringResource(
                             R.string.revision_counter,
-                            assistantMessage.activeRevisionIndex + 1,
-                            assistantMessage.revisions.size
+                            assistantMessage.revisions.size - assistantMessage.activeRevisionIndex,
+                            totalRevisions
                         )
                     }
                 },
@@ -679,6 +684,7 @@ fun ChatInputBox(
     val localStyle = LocalTextStyle.current
     val mergedStyle = localStyle.merge(TextStyle(color = LocalContentColor.current))
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val chatInputLineLimits = TextFieldLineLimits.MultiLine(maxHeightInLines = 5)
     val hasQuestionText = inputState.text.isNotEmpty()
 
@@ -686,8 +692,12 @@ fun ChatInputBox(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
         uri?.let {
-            val filePath = copyFileToAppDirectory(context, it)
-            filePath?.let { path -> onFileSelected(path) }
+            scope.launch {
+                val filePath = withContext(Dispatchers.IO) {
+                    copyFileToAppDirectory(context, it)
+                }
+                filePath?.let { path -> onFileSelected(path) }
+            }
         }
     }
 
@@ -720,7 +730,7 @@ fun ChatInputBox(
                 ) {
                     IconButton(
                         enabled = chatEnabled,
-                        onClick = { filePickerLauncher.launch("*/*") }
+                        onClick = { filePickerLauncher.launch("image/*") }
                     ) {
                         Icon(
                             imageVector = ImageVector.vectorResource(R.drawable.ic_attach_file),
@@ -755,7 +765,7 @@ fun ChatInputBox(
 }
 
 @Composable
-fun FileThumbnailRow(
+internal fun FileThumbnailRow(
     selectedAttachments: List<ChatAttachmentDraft>,
     onFileRemoved: (String) -> Unit
 ) {
@@ -776,7 +786,7 @@ fun FileThumbnailRow(
 }
 
 @Composable
-fun FileThumbnail(
+internal fun FileThumbnail(
     attachment: ChatAttachmentDraft,
     onRemove: () -> Unit
 ) {
@@ -879,9 +889,9 @@ fun FileThumbnail(
     }
 }
 
-fun copyFileToAppDirectory(context: Context, uri: android.net.Uri): String? {
+internal fun copyFileToAppDirectory(context: Context, uri: android.net.Uri): String? {
     return try {
-        val inputStream = context.contentResolver.openInputStream(uri)
+        val inputStream = context.contentResolver.openInputStream(uri) ?: return null
         val rawFileName = getFileName(context, uri)
         val sanitizedFileName = sanitizeFileName(rawFileName)
 
@@ -911,7 +921,7 @@ fun copyFileToAppDirectory(context: Context, uri: android.net.Uri): String? {
             return null
         }
 
-        inputStream?.use { input ->
+        inputStream.use { input ->
             targetFile.outputStream().use { output ->
                 input.copyTo(output)
             }

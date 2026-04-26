@@ -75,6 +75,29 @@ class ChatViewModelRetryTest {
     }
 
     @Test
+    fun `retry assistant replacement preserves historical revisions`() {
+        val currentMessage = MessageV2(
+            chatId = 7,
+            content = "Current answer",
+            revisions = listOf(
+                AssistantRevision(content = "Older answer", createdAt = 100L)
+            ),
+            platformType = "platform-1"
+        )
+
+        val retryMessage = createRetryAssistantMessage(
+            currentMessage = currentMessage,
+            chatId = 7,
+            platformUid = "platform-1"
+        )
+
+        assertEquals("", retryMessage.content)
+        assertEquals("", retryMessage.thoughts)
+        assertEquals(listOf(AssistantRevision(content = "Older answer", createdAt = 100L)), retryMessage.revisions)
+        assertEquals(ACTIVE_REVISION_LATEST, retryMessage.activeRevisionIndex)
+    }
+
+    @Test
     fun `normalizeAssistantRow keeps known slots addressable when duplicates exist`() {
         val rebuiltRow = listOf(
             MessageV2(chatId = 9, content = "Primary answer", platformType = "platform-1"),
@@ -114,6 +137,64 @@ class ChatViewModelRetryTest {
         assertEquals("Previous thoughts", assistantMessage.effectiveThoughts())
         assertEquals("Latest answer", assistantMessage.resetActiveRevision().effectiveContent())
         assertEquals(ACTIVE_REVISION_LATEST, assistantMessage.resetActiveRevision().activeRevisionIndex)
+    }
+
+    @Test
+    fun `retry context trims future turns`() {
+        val groupedMessages = ChatViewModel.GroupedMessages(
+            userMessages = listOf(
+                MessageV2(chatId = 7, content = "First", platformType = null),
+                MessageV2(chatId = 7, content = "Second", platformType = null),
+                MessageV2(chatId = 7, content = "Future", platformType = null)
+            ),
+            assistantMessages = listOf(
+                listOf(MessageV2(chatId = 7, content = "First answer", platformType = "platform-1")),
+                listOf(MessageV2(chatId = 7, content = "", platformType = "platform-1")),
+                listOf(MessageV2(chatId = 7, content = "Future answer", platformType = "platform-1"))
+            )
+        )
+
+        val retryContext = groupedMessagesThroughTurn(groupedMessages, turnIndex = 1)
+
+        assertEquals(listOf("First", "Second"), retryContext.userMessages.map { it.content })
+        assertEquals(2, retryContext.assistantMessages.size)
+        assertEquals("", retryContext.assistantMessages[1][0].content)
+    }
+
+    @Test
+    fun `persistable messages keep thought only assistant messages`() {
+        val groupedMessages = ChatViewModel.GroupedMessages(
+            userMessages = listOf(MessageV2(chatId = 7, content = "Question", platformType = null, createdAt = 1L)),
+            assistantMessages = listOf(
+                listOf(
+                    MessageV2(chatId = 7, content = "", thoughts = "Internal reasoning", platformType = "platform-1", createdAt = 2L),
+                    MessageV2(
+                        chatId = 7,
+                        content = "",
+                        thoughts = "",
+                        attachments = listOf(
+                            ChatAttachment(
+                                localFilePath = "/tmp/a.png",
+                                preparedFilePath = "/tmp/a.png",
+                                displayName = "a.png",
+                                mimeType = "image/png",
+                                sizeBytes = 1L
+                            )
+                        ),
+                        platformType = "platform-2",
+                        createdAt = 3L
+                    ),
+                    MessageV2(chatId = 7, content = "", thoughts = "", platformType = "platform-2", createdAt = 3L)
+                )
+            )
+        )
+
+        val messages = persistableMessages(groupedMessages)
+
+        assertEquals(3, messages.size)
+        assertEquals("Question", messages[0].content)
+        assertEquals("Internal reasoning", messages[1].thoughts)
+        assertEquals(1, messages[2].attachments.size)
     }
 
     @Test

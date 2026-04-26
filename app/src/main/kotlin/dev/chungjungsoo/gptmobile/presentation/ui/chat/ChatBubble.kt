@@ -76,7 +76,10 @@ fun UserChatBubble(
                 modifier = Modifier.padding(16.dp)
             )
         }
-        MessageFileThumbnailRow(files = files)
+        MessageFileThumbnailRow(
+            files = files,
+            modifier = Modifier.padding(top = 8.dp)
+        )
     }
 }
 
@@ -166,7 +169,7 @@ fun OpponentChatBubble(
 
                 revisionIndexLabel?.let { label ->
                     Row(
-                        modifier = Modifier.padding(start = 16.dp),
+                        modifier = Modifier.padding(start = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(
@@ -180,7 +183,8 @@ fun OpponentChatBubble(
                         }
                         Text(
                             text = label,
-                            style = MaterialTheme.typography.labelMedium
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         IconButton(
                             enabled = canShowNextRevision,
@@ -329,6 +333,7 @@ fun OpponentChatBubblePreview() {
             text = sampleText,
             canRetry = true,
             isLoading = false,
+            revisionIndexLabel = "Revision 1/1",
             onCopyClick = {},
             onRetryClick = {}
         )
@@ -336,10 +341,10 @@ fun OpponentChatBubblePreview() {
 }
 
 @Composable
-fun MessageFileThumbnailRow(
+internal fun MessageFileThumbnailRow(
     files: List<String>,
-    usePrimaryColors: Boolean = true,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    usePrimaryColors: Boolean = true
 ) {
     // Filter out empty strings and check if we have valid files
     val validFiles = files.filter { it.isNotEmpty() && it.isNotBlank() }
@@ -350,7 +355,6 @@ fun MessageFileThumbnailRow(
 
     Row(
         modifier = modifier
-            .padding(top = 8.dp)
             .wrapContentHeight()
             .horizontalScroll(rememberScrollState()),
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
