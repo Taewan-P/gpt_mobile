@@ -169,6 +169,7 @@ fun UserMessageEditDialog(
     initialQuestion: MessageV2,
     attachments: List<ChatAttachmentDraft>,
     onFileSelected: (String) -> Unit,
+    onCopyFailed: () -> Unit,
     onFileRemoved: (String) -> Unit,
     onDismissRequest: () -> Unit,
     onConfirmRequest: (MessageV2) -> Unit
@@ -183,7 +184,12 @@ fun UserMessageEditDialog(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
         uri?.let {
-            copyFileToAppDirectory(context, it)?.let(onFileSelected)
+            val filePath = copyFileToAppDirectory(context, it)
+            if (filePath != null) {
+                onFileSelected(filePath)
+            } else {
+                onCopyFailed()
+            }
         }
     }
 
@@ -215,8 +221,10 @@ fun UserMessageEditDialog(
         },
         onDismissRequest = onDismissRequest,
         confirmButton = {
+            val hasPendingOrFailedAttachments = attachments.any { it.status != ChatAttachmentDraft.Status.Ready }
             TextButton(
-                enabled = question.isNotBlank() &&
+                enabled = !hasPendingOrFailedAttachments &&
+                    question.isNotBlank() &&
                     (question != initialQuestion.content || attachments.mapNotNull { it.attachment } != initialQuestion.attachments),
                 onClick = { onConfirmRequest(initialQuestion.copy(content = question)) }
             ) {
@@ -238,6 +246,7 @@ fun AssistantMessageEditDialog(
     initialMessage: MessageV2,
     attachments: List<ChatAttachmentDraft>,
     onFileSelected: (String) -> Unit,
+    onCopyFailed: () -> Unit,
     onFileRemoved: (String) -> Unit,
     onDismissRequest: () -> Unit,
     onConfirmRequest: (MessageV2, String) -> Unit
@@ -252,7 +261,12 @@ fun AssistantMessageEditDialog(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
         uri?.let {
-            copyFileToAppDirectory(context, it)?.let(onFileSelected)
+            val filePath = copyFileToAppDirectory(context, it)
+            if (filePath != null) {
+                onFileSelected(filePath)
+            } else {
+                onCopyFailed()
+            }
         }
     }
 
@@ -295,8 +309,10 @@ fun AssistantMessageEditDialog(
         },
         onDismissRequest = onDismissRequest,
         confirmButton = {
+            val hasPendingOrFailedAttachments = attachments.any { it.status != ChatAttachmentDraft.Status.Ready }
             TextButton(
-                enabled = responseText.isNotBlank() &&
+                enabled = !hasPendingOrFailedAttachments &&
+                    responseText.isNotBlank() &&
                     (
                         responseText != initialMessage.effectiveContent() ||
                             thoughtsText != initialMessage.effectiveThoughts() ||

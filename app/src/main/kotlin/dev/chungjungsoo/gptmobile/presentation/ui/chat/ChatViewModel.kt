@@ -14,7 +14,6 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
-import dev.chungjungsoo.gptmobile.data.database.entity.effectiveThoughts
 import dev.chungjungsoo.gptmobile.data.database.entity.resetActiveRevision
 import dev.chungjungsoo.gptmobile.data.database.entity.selectRevision
 import dev.chungjungsoo.gptmobile.data.database.entity.snapshotLatestAssistantRevision
@@ -324,7 +323,8 @@ class ChatViewModel @Inject constructor(
         addDraftFile(
             currentAttachments = { _messageEditSession.value?.attachments.orEmpty() },
             updateAttachments = ::updateMessageEditAttachments,
-            filePath = filePath
+            filePath = filePath,
+            onNotice = { notice -> _attachmentNotice.update { notice } }
         )
     }
 
@@ -347,16 +347,25 @@ class ChatViewModel @Inject constructor(
         _attachmentNotice.update { null }
     }
 
+    fun notifyAttachmentCopyFailed() {
+        _attachmentNotice.update { "Failed to copy attachment." }
+    }
+
     fun saveUserMessageEdit(
         editedMessage: MessageV2,
         attachments: List<ChatAttachmentDraft>
-    ) {
+    ): Boolean {
+        if (attachments.any { it.status != ChatAttachmentDraft.Status.Ready }) {
+            _attachmentNotice.update { "Wait for attachments to finish processing before saving." }
+            return false
+        }
+
         val userMessages = _groupedMessages.value.userMessages
         val assistantMessages = _groupedMessages.value.assistantMessages
 
         // Find the index of the message being edited
         val messageIndex = userMessages.indexOfFirst { it.id == editedMessage.id }
-        if (messageIndex == -1) return
+        if (messageIndex == -1) return false
 
         // Update the message content
         val updatedUserMessages = userMessages.toMutableList()
@@ -396,20 +405,26 @@ class ChatViewModel @Inject constructor(
 
         // Start new conversation from the edited question
         completeChat()
+        return true
     }
 
     fun saveAssistantMessageEdit(
         editedMessage: MessageV2,
         thoughts: String,
         attachments: List<ChatAttachmentDraft>
-    ) {
-        val session = _messageEditSession.value ?: return
-        val turnIndex = session.turnIndex ?: return
-        val platformIndex = session.platformIndex ?: return
+    ): Boolean {
+        if (attachments.any { it.status != ChatAttachmentDraft.Status.Ready }) {
+            _attachmentNotice.update { "Wait for attachments to finish processing before saving." }
+            return false
+        }
+
+        val session = _messageEditSession.value ?: return false
+        val turnIndex = session.turnIndex ?: return false
+        val platformIndex = session.platformIndex ?: return false
         val currentMessage = _groupedMessages.value.assistantMessages
             .getOrNull(turnIndex)
             ?.getOrNull(platformIndex)
-            ?: return
+            ?: return false
 
         val updatedContent = editedMessage.content
         val updatedThoughts = thoughts
@@ -439,6 +454,7 @@ class ChatViewModel @Inject constructor(
                 ).resetActiveRevision()
             }
         }
+        return true
     }
 
     fun showPreviousAssistantRevision(turnIndex: Int, platformIndex: Int) {

@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.ButtonDefaults
@@ -90,6 +92,8 @@ fun OpponentChatBubble(
     contentIdentity: Any = text,
     canEdit: Boolean = false,
     revisionIndexLabel: String? = null,
+    canShowPreviousRevision: Boolean = false,
+    canShowNextRevision: Boolean = false,
     onCopyClick: () -> Unit = {},
     onSelectClick: () -> Unit = {},
     onRetryClick: () -> Unit = {},
@@ -165,15 +169,27 @@ fun OpponentChatBubble(
                         modifier = Modifier.padding(start = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        TextButton(onClick = onShowPreviousRevision) {
-                            Text("<")
+                        IconButton(
+                            enabled = canShowPreviousRevision,
+                            onClick = onShowPreviousRevision
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                                contentDescription = stringResource(R.string.previous_revision)
+                            )
                         }
                         Text(
                             text = label,
                             style = MaterialTheme.typography.labelMedium
                         )
-                        TextButton(onClick = onShowNextRevision) {
-                            Text(">")
+                        IconButton(
+                            enabled = canShowNextRevision,
+                            onClick = onShowNextRevision
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = stringResource(R.string.next_revision)
+                            )
                         }
                     }
                 }

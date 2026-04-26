@@ -7,6 +7,8 @@ import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveThoughts
 import dev.chungjungsoo.gptmobile.data.database.entity.resetActiveRevision
 import dev.chungjungsoo.gptmobile.data.database.entity.selectRevision
+import dev.chungjungsoo.gptmobile.data.model.ChatAttachment
+import dev.chungjungsoo.gptmobile.data.repository.hasSendableAssistantPayload
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -127,5 +129,37 @@ class ChatViewModelRetryTest {
 
         assertEquals(0, assistantMessage.selectRevision(0).activeRevisionIndex)
         assertEquals(ACTIVE_REVISION_LATEST, assistantMessage.selectRevision(9).activeRevisionIndex)
+    }
+
+    @Test
+    fun `sendable assistant payload ignores synthetic error only content`() {
+        val errorOnlyMessage = MessageV2(
+            chatId = 5,
+            content = "Error: Request timed out.",
+            platformType = "platform-1"
+        )
+        val partialErrorMessage = MessageV2(
+            chatId = 5,
+            content = "Partial answer\n\n[Response stopped: Request timed out.]",
+            platformType = "platform-1"
+        )
+        val attachmentOnlyMessage = MessageV2(
+            chatId = 5,
+            content = "Error: Request timed out.",
+            attachments = listOf(
+                ChatAttachment(
+                    localFilePath = "/tmp/image.png",
+                    preparedFilePath = "/tmp/image.png",
+                    displayName = "image.png",
+                    mimeType = "image/png",
+                    sizeBytes = 12L
+                )
+            ),
+            platformType = "platform-1"
+        )
+
+        assertEquals(false, errorOnlyMessage.hasSendableAssistantPayload())
+        assertEquals(true, partialErrorMessage.hasSendableAssistantPayload())
+        assertEquals(true, attachmentOnlyMessage.hasSendableAssistantPayload())
     }
 }

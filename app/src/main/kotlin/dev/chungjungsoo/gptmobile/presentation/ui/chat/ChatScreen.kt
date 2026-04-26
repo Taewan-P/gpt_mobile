@@ -330,11 +330,13 @@ fun ChatScreen(
                         initialQuestion = session.message,
                         attachments = session.attachments,
                         onFileSelected = chatViewModel::addMessageEditFile,
+                        onCopyFailed = chatViewModel::notifyAttachmentCopyFailed,
                         onFileRemoved = chatViewModel::removeMessageEditFile,
                         onDismissRequest = chatViewModel::discardMessageEditDialog,
                         onConfirmRequest = { question ->
-                            chatViewModel.saveUserMessageEdit(question, session.attachments)
-                            chatViewModel.finishMessageEditDialog()
+                            if (chatViewModel.saveUserMessageEdit(question, session.attachments)) {
+                                chatViewModel.finishMessageEditDialog()
+                            }
                         }
                     )
                 }
@@ -344,11 +346,13 @@ fun ChatScreen(
                         initialMessage = session.message,
                         attachments = session.attachments,
                         onFileSelected = chatViewModel::addMessageEditFile,
+                        onCopyFailed = chatViewModel::notifyAttachmentCopyFailed,
                         onFileRemoved = chatViewModel::removeMessageEditFile,
                         onDismissRequest = chatViewModel::discardMessageEditDialog,
                         onConfirmRequest = { message, thoughts ->
-                            chatViewModel.saveAssistantMessageEdit(message, thoughts, session.attachments)
-                            chatViewModel.finishMessageEditDialog()
+                            if (chatViewModel.saveAssistantMessageEdit(message, thoughts, session.attachments)) {
+                                chatViewModel.finishMessageEditDialog()
+                            }
                         }
                     )
                 }
@@ -397,6 +401,14 @@ private fun ChatMessagePair(
     val selectedAssistantMessage = assistantMessages.getOrNull(platformIndexState)
     val assistantContent = selectedAssistantMessage?.effectiveContent() ?: ""
     val assistantThoughts = selectedAssistantMessage?.effectiveThoughts() ?: ""
+    val canShowPreviousRevision = selectedAssistantMessage?.let { assistantMessage ->
+        assistantMessage.revisions.isNotEmpty() &&
+            assistantMessage.activeRevisionIndex < assistantMessage.revisions.lastIndex
+    } ?: false
+    val canShowNextRevision = selectedAssistantMessage?.let { assistantMessage ->
+        assistantMessage.revisions.isNotEmpty() &&
+            assistantMessage.activeRevisionIndex != ACTIVE_REVISION_LATEST
+    } ?: false
     val selectedPlatformUid = enabledPlatformsInChat.getOrElse(platformIndexState) { "" }
     val isCurrentPlatformLoading =
         loadingStates.getOrElse(platformIndexState) { ChatViewModel.LoadingState.Idle } == ChatViewModel.LoadingState.Loading
@@ -482,6 +494,8 @@ private fun ChatMessagePair(
                         )
                     }
                 },
+                canShowPreviousRevision = canShowPreviousRevision,
+                canShowNextRevision = canShowNextRevision,
                 onCopyClick = { onCopyText(assistantContent) },
                 onSelectClick = { onSelectText(assistantContent) },
                 onRetryClick = { onRetry(messageIndex, platformIndexState) },
