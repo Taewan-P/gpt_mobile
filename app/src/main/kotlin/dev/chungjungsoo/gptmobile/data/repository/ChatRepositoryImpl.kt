@@ -13,6 +13,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
 import dev.chungjungsoo.gptmobile.data.database.entity.Message
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
+import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.ImageContent as AnthropicImageContent
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.ImageSource
@@ -160,7 +161,7 @@ class ChatRepositoryImpl @Inject constructor(
 
                     if (index < assistantMessages.size) {
                         assistantMessages[index]
-                            .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
+                            .firstOrNull { it.platformType == platform.uid && it.hasSendableAssistantPayload() }
                             ?.let { assistantMsg ->
                                 inputMessages.add(transformMessageV2ToResponsesInput(assistantMsg, isUser = false, platformUid = platform.uid))
                             }
@@ -237,7 +238,7 @@ class ChatRepositoryImpl @Inject constructor(
 
                     if (index < assistantMessages.size) {
                         assistantMessages[index]
-                            .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
+                            .firstOrNull { it.platformType == platform.uid && it.hasSendableAssistantPayload() }
                             ?.let { assistantMsg ->
                                 messages.add(transformMessageV2ToChatMessage(assistantMsg, isUser = false))
                             }
@@ -307,7 +308,7 @@ class ChatRepositoryImpl @Inject constructor(
 
                     if (index < assistantMessages.size) {
                         assistantMessages[index]
-                            .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
+                            .firstOrNull { it.platformType == platform.uid && it.hasSendableAssistantPayload() }
                             ?.let { assistantMsg ->
                                 messages.add(transformMessageV2ToChatMessage(assistantMsg, isUser = false))
                             }
@@ -346,7 +347,7 @@ class ChatRepositoryImpl @Inject constructor(
 
     private suspend fun transformMessageV2ToChatMessage(message: MessageV2, isUser: Boolean): ChatMessage {
         val content = mutableListOf<OpenAIMessageContent>()
-        val messageContent = if (isUser) message.content else stripAssistantErrorNote(message.content)
+        val messageContent = if (isUser) message.content else message.sendableAssistantContent()
 
         // Add text content
         if (messageContent.isNotBlank()) {
@@ -375,7 +376,7 @@ class ChatRepositoryImpl @Inject constructor(
 
     private suspend fun transformMessageV2ToResponsesInput(message: MessageV2, isUser: Boolean, platformUid: String): ResponseInputMessage {
         val role = if (isUser) "user" else "assistant"
-        val messageContent = if (isUser) message.content else stripAssistantErrorNote(message.content)
+        val messageContent = if (isUser) message.content else message.sendableAssistantContent()
 
         // Check if there are any image files
         val imageAttachments = message.attachments.filter { attachment ->
@@ -445,7 +446,7 @@ class ChatRepositoryImpl @Inject constructor(
 
                     if (index < assistantMessages.size) {
                         assistantMessages[index]
-                            .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
+                            .firstOrNull { it.platformType == platform.uid && it.hasSendableAssistantPayload() }
                             ?.let { assistantMsg ->
                                 messages.add(transformMessageV2ToAnthropic(assistantMsg, MessageRole.ASSISTANT, platform.uid))
                             }
@@ -508,7 +509,7 @@ class ChatRepositoryImpl @Inject constructor(
 
     private suspend fun transformMessageV2ToAnthropic(message: MessageV2, role: MessageRole, platformUid: String): InputMessage {
         val content = mutableListOf<AnthropicMessageContent>()
-        val messageContent = if (role == MessageRole.USER) message.content else stripAssistantErrorNote(message.content)
+        val messageContent = if (role == MessageRole.USER) message.content else message.sendableAssistantContent()
 
         // Add text content
         if (messageContent.isNotBlank()) {
@@ -563,7 +564,7 @@ class ChatRepositoryImpl @Inject constructor(
 
                     if (index < assistantMessages.size) {
                         assistantMessages[index]
-                            .firstOrNull { it.content.isNotBlank() && it.platformType == platform.uid }
+                            .firstOrNull { it.platformType == platform.uid && it.hasSendableAssistantPayload() }
                             ?.let { assistantMsg ->
                                 contents.add(transformMessageV2ToGoogle(assistantMsg, GoogleRole.MODEL, platform.uid))
                             }
@@ -623,7 +624,7 @@ class ChatRepositoryImpl @Inject constructor(
 
     private suspend fun transformMessageV2ToGoogle(message: MessageV2, role: GoogleRole, platformUid: String): Content {
         val parts = mutableListOf<Part>()
-        val messageContent = if (role == GoogleRole.USER) message.content else stripAssistantErrorNote(message.content)
+        val messageContent = if (role == GoogleRole.USER) message.content else message.sendableAssistantContent()
 
         // Add text content
         if (messageContent.isNotBlank()) {
@@ -901,6 +902,13 @@ internal fun createGroqChatCompletionRequest(
 }
 
 internal fun isGroqGptOssModel(model: String): Boolean = model.contains("gpt-oss", ignoreCase = true)
+
+internal fun MessageV2.sendableAssistantContent(): String {
+    val strippedContent = stripAssistantErrorNote(effectiveContent()).trim()
+    return if (strippedContent.startsWith("Error: ")) "" else strippedContent
+}
+
+internal fun MessageV2.hasSendableAssistantPayload(): Boolean = sendableAssistantContent().isNotBlank() || attachments.isNotEmpty()
 
 internal fun validateResponseInputPartsOrThrow(messageContent: String, partCount: Int, messageId: Int) {
     if (messageContent.isBlank() && partCount == 0) {

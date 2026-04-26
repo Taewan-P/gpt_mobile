@@ -90,8 +90,11 @@ import androidx.core.content.FileProvider.getUriForFile
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
+import dev.chungjungsoo.gptmobile.data.database.entity.ACTIVE_REVISION_LATEST
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
+import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
+import dev.chungjungsoo.gptmobile.data.database.entity.effectiveThoughts
 import java.io.File
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -118,7 +121,7 @@ fun ChatScreen(
     val loadingStates by chatViewModel.loadingStates.collectAsStateWithLifecycle()
     val isChatTitleDialogOpen by chatViewModel.isChatTitleDialogOpen.collectAsStateWithLifecycle()
     val isChatModelDialogOpen by chatViewModel.isChatModelDialogOpen.collectAsStateWithLifecycle()
-    val isEditQuestionDialogOpen by chatViewModel.isEditQuestionDialogOpen.collectAsStateWithLifecycle()
+    val messageEditSession by chatViewModel.messageEditSession.collectAsStateWithLifecycle()
     val isSelectTextSheetOpen by chatViewModel.isSelectTextSheetOpen.collectAsStateWithLifecycle()
     val isLoaded by chatViewModel.isLoaded.collectAsStateWithLifecycle()
     val selectedAttachments by chatViewModel.selectedAttachments.collectAsStateWithLifecycle()
@@ -219,7 +222,8 @@ fun ChatScreen(
                             isActiveMessage = false,
                             maximumUserChatBubbleWidth = maximumUserChatBubbleWidth,
                             maximumOpponentChatBubbleWidth = maximumOpponentChatBubbleWidth,
-                            onEditQuestion = chatViewModel::openEditQuestionDialog,
+                            onEditQuestion = chatViewModel::openUserMessageEditDialog,
+                            onEditAssistant = chatViewModel::openAssistantMessageEditDialog,
                             onCopyText = { copiedText ->
                                 scope.launch {
                                     clipboardManager.setClipEntry(ClipEntry(ClipData.newPlainText(copiedText, copiedText)))
@@ -227,7 +231,9 @@ fun ChatScreen(
                             },
                             onPlatformClick = chatViewModel::updateChatPlatformIndex,
                             onSelectText = chatViewModel::openSelectTextSheet,
-                            onRetry = chatViewModel::retryChat
+                            onRetry = chatViewModel::retryChat,
+                            onShowPreviousRevision = chatViewModel::showPreviousAssistantRevision,
+                            onShowNextRevision = chatViewModel::showNextAssistantRevision
                         )
                     }
 
@@ -246,7 +252,8 @@ fun ChatScreen(
                                 isActiveMessage = true,
                                 maximumUserChatBubbleWidth = maximumUserChatBubbleWidth,
                                 maximumOpponentChatBubbleWidth = maximumOpponentChatBubbleWidth,
-                                onEditQuestion = chatViewModel::openEditQuestionDialog,
+                                onEditQuestion = chatViewModel::openUserMessageEditDialog,
+                                onEditAssistant = chatViewModel::openAssistantMessageEditDialog,
                                 onCopyText = { copiedText ->
                                     scope.launch {
                                         clipboardManager.setClipEntry(ClipEntry(ClipData.newPlainText(copiedText, copiedText)))
@@ -254,7 +261,9 @@ fun ChatScreen(
                                 },
                                 onPlatformClick = chatViewModel::updateChatPlatformIndex,
                                 onSelectText = chatViewModel::openSelectTextSheet,
-                                onRetry = chatViewModel::retryChat
+                                onRetry = chatViewModel::retryChat,
+                                onShowPreviousRevision = chatViewModel::showPreviousAssistantRevision,
+                                onShowNextRevision = chatViewModel::showNextAssistantRevision
                             )
                         }
                     }
@@ -314,16 +323,40 @@ fun ChatScreen(
             )
         }
 
-        if (isEditQuestionDialogOpen) {
-            val editedQuestion by chatViewModel.editedQuestion.collectAsStateWithLifecycle()
-            ChatQuestionEditDialog(
-                initialQuestion = editedQuestion,
-                onDismissRequest = chatViewModel::closeEditQuestionDialog,
-                onConfirmRequest = { question ->
-                    chatViewModel.editQuestion(question)
-                    chatViewModel.closeEditQuestionDialog()
+        messageEditSession?.let { session ->
+            when (session.role) {
+                ChatViewModel.MessageEditRole.USER -> {
+                    UserMessageEditDialog(
+                        initialQuestion = session.message,
+                        attachments = session.attachments,
+                        onFileSelected = chatViewModel::addMessageEditFile,
+                        onCopyFailed = chatViewModel::notifyAttachmentCopyFailed,
+                        onFileRemoved = chatViewModel::removeMessageEditFile,
+                        onDismissRequest = chatViewModel::discardMessageEditDialog,
+                        onConfirmRequest = { question ->
+                            if (chatViewModel.saveUserMessageEdit(question, session.attachments)) {
+                                chatViewModel.finishMessageEditDialog()
+                            }
+                        }
+                    )
                 }
-            )
+
+                ChatViewModel.MessageEditRole.ASSISTANT -> {
+                    AssistantMessageEditDialog(
+                        initialMessage = session.message,
+                        attachments = session.attachments,
+                        onFileSelected = chatViewModel::addMessageEditFile,
+                        onCopyFailed = chatViewModel::notifyAttachmentCopyFailed,
+                        onFileRemoved = chatViewModel::removeMessageEditFile,
+                        onDismissRequest = chatViewModel::discardMessageEditDialog,
+                        onConfirmRequest = { message, thoughts ->
+                            if (chatViewModel.saveAssistantMessageEdit(message, thoughts, session.attachments)) {
+                                chatViewModel.finishMessageEditDialog()
+                            }
+                        }
+                    )
+                }
+            }
         }
 
         if (isSelectTextSheetOpen) {
@@ -357,13 +390,25 @@ private fun ChatMessagePair(
     maximumUserChatBubbleWidth: Dp,
     maximumOpponentChatBubbleWidth: Dp,
     onEditQuestion: (MessageV2) -> Unit,
+    onEditAssistant: (Int, Int) -> Unit,
     onCopyText: (String) -> Unit,
     onPlatformClick: (Int, Int) -> Unit,
     onSelectText: (String) -> Unit,
-    onRetry: (Int) -> Unit
+    onRetry: (Int, Int) -> Unit,
+    onShowPreviousRevision: (Int, Int) -> Unit,
+    onShowNextRevision: (Int, Int) -> Unit
 ) {
-    val assistantContent = assistantMessages.getOrNull(platformIndexState)?.content ?: ""
-    val assistantThoughts = assistantMessages.getOrNull(platformIndexState)?.thoughts ?: ""
+    val selectedAssistantMessage = assistantMessages.getOrNull(platformIndexState)
+    val assistantContent = selectedAssistantMessage?.effectiveContent() ?: ""
+    val assistantThoughts = selectedAssistantMessage?.effectiveThoughts() ?: ""
+    val canShowPreviousRevision = selectedAssistantMessage?.let { assistantMessage ->
+        assistantMessage.revisions.isNotEmpty() &&
+            assistantMessage.activeRevisionIndex < assistantMessage.revisions.lastIndex
+    } ?: false
+    val canShowNextRevision = selectedAssistantMessage?.let { assistantMessage ->
+        assistantMessage.revisions.isNotEmpty() &&
+            assistantMessage.activeRevisionIndex != ACTIVE_REVISION_LATEST
+    } ?: false
     val selectedPlatformUid = enabledPlatformsInChat.getOrElse(platformIndexState) { "" }
     val isCurrentPlatformLoading =
         loadingStates.getOrElse(platformIndexState) { ChatViewModel.LoadingState.Idle } == ChatViewModel.LoadingState.Loading
@@ -429,14 +474,34 @@ private fun ChatMessagePair(
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp)
                     .widthIn(max = maximumOpponentChatBubbleWidth),
+                canEdit = canUseChat && isIdle,
                 canRetry = canUseChat && isActiveMessage && !isCurrentPlatformLoading,
                 isLoading = isActiveMessage && isCurrentPlatformLoading,
                 text = assistantContent,
                 thoughts = assistantThoughts,
+                attachments = selectedAssistantMessage?.attachments.orEmpty().map { it.filePathForDisplay },
                 contentIdentity = "$messageIndex:$selectedPlatformUid",
+                revisionIndexLabel = selectedAssistantMessage?.let { assistantMessage ->
+                    if (assistantMessage.revisions.isEmpty()) {
+                        null
+                    } else if (assistantMessage.activeRevisionIndex == ACTIVE_REVISION_LATEST) {
+                        stringResource(R.string.latest_revision)
+                    } else {
+                        stringResource(
+                            R.string.revision_counter,
+                            assistantMessage.activeRevisionIndex + 1,
+                            assistantMessage.revisions.size
+                        )
+                    }
+                },
+                canShowPreviousRevision = canShowPreviousRevision,
+                canShowNextRevision = canShowNextRevision,
                 onCopyClick = { onCopyText(assistantContent) },
                 onSelectClick = { onSelectText(assistantContent) },
-                onRetryClick = { onRetry(platformIndexState) }
+                onRetryClick = { onRetry(messageIndex, platformIndexState) },
+                onEditClick = { onEditAssistant(messageIndex, platformIndexState) },
+                onShowPreviousRevision = { onShowPreviousRevision(messageIndex, platformIndexState) },
+                onShowNextRevision = { onShowNextRevision(messageIndex, platformIndexState) }
             )
         }
     }
@@ -690,7 +755,7 @@ fun ChatInputBox(
 }
 
 @Composable
-private fun FileThumbnailRow(
+fun FileThumbnailRow(
     selectedAttachments: List<ChatAttachmentDraft>,
     onFileRemoved: (String) -> Unit
 ) {
@@ -711,7 +776,7 @@ private fun FileThumbnailRow(
 }
 
 @Composable
-private fun FileThumbnail(
+fun FileThumbnail(
     attachment: ChatAttachmentDraft,
     onRemove: () -> Unit
 ) {
@@ -814,7 +879,7 @@ private fun FileThumbnail(
     }
 }
 
-private fun copyFileToAppDirectory(context: Context, uri: android.net.Uri): String? {
+fun copyFileToAppDirectory(context: Context, uri: android.net.Uri): String? {
     return try {
         val inputStream = context.contentResolver.openInputStream(uri)
         val rawFileName = getFileName(context, uri)

@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -37,6 +38,7 @@ class ApiStateFlowExtensionsTest {
             ApiState.Error("Request timed out.")
         ).handleStates(
             messageFlow = messageFlow,
+            turnIndex = 0,
             platformIdx = 0,
             onLoadingComplete = {}
         )
@@ -63,6 +65,7 @@ class ApiStateFlowExtensionsTest {
             ApiState.Success("answer")
         ).handleStates(
             messageFlow = messageFlow,
+            turnIndex = 0,
             platformIdx = 0,
             onLoadingComplete = { loadingCompleteCalls += 1 },
             nanoTimeProvider = { 1L }
@@ -92,6 +95,7 @@ class ApiStateFlowExtensionsTest {
                 throw IllegalStateException("boom")
             }.handleStates(
                 messageFlow = messageFlow,
+                turnIndex = 0,
                 platformIdx = 0,
                 onLoadingComplete = { loadingCompleteCalls += 1 },
                 nanoTimeProvider = { 1L }
@@ -110,5 +114,78 @@ class ApiStateFlowExtensionsTest {
         val content = "Partial answer\n\n[Response stopped: Request timed out.]"
 
         assertEquals("Partial answer", stripAssistantErrorNote(content))
+    }
+
+    @Test
+    fun `handleStates updates only the requested turn and platform`() = runBlocking {
+        val untouchedTurn = listOf(
+            MessageV2(content = "Other platform", platformType = "platform-1"),
+            MessageV2(content = "Other turn", platformType = "platform-2")
+        )
+        val messageFlow = MutableStateFlow(
+            ChatViewModel.GroupedMessages(
+                userMessages = listOf(
+                    MessageV2(content = "Hello", platformType = null),
+                    MessageV2(content = "Again", platformType = null)
+                ),
+                assistantMessages = listOf(
+                    listOf(
+                        MessageV2(content = "Keep me", platformType = "platform-1"),
+                        MessageV2(content = "", platformType = "platform-2")
+                    ),
+                    untouchedTurn
+                )
+            )
+        )
+
+        flowOf(
+            ApiState.Success("Partial answer"),
+            ApiState.Error("Request timed out.")
+        ).handleStates(
+            messageFlow = messageFlow,
+            turnIndex = 0,
+            platformIdx = 1,
+            onLoadingComplete = {}
+        )
+
+        assertEquals("Keep me", messageFlow.value.assistantMessages[0][0].content)
+        assertTrue(messageFlow.value.assistantMessages[0][1].content.contains("Partial answer"))
+        assertEquals(untouchedTurn, messageFlow.value.assistantMessages[1])
+    }
+
+    @Test
+    fun `handleStates completion timestamps only the requested turn and platform`() = runBlocking {
+        val originalTimestamp = 10L
+        val untouchedTimestamp = 20L
+        val messageFlow = MutableStateFlow(
+            ChatViewModel.GroupedMessages(
+                userMessages = listOf(
+                    MessageV2(content = "Hello", platformType = null),
+                    MessageV2(content = "Again", platformType = null)
+                ),
+                assistantMessages = listOf(
+                    listOf(
+                        MessageV2(content = "Keep me", platformType = "platform-1", createdAt = untouchedTimestamp),
+                        MessageV2(content = "Stamp me", platformType = "platform-2", createdAt = originalTimestamp)
+                    ),
+                    listOf(
+                        MessageV2(content = "Other turn", platformType = "platform-1", createdAt = untouchedTimestamp),
+                        MessageV2(content = "Leave me", platformType = "platform-2", createdAt = untouchedTimestamp)
+                    )
+                )
+            )
+        )
+
+        flowOf(ApiState.Done).handleStates(
+            messageFlow = messageFlow,
+            turnIndex = 0,
+            platformIdx = 1,
+            onLoadingComplete = {}
+        )
+
+        assertEquals(untouchedTimestamp, messageFlow.value.assistantMessages[0][0].createdAt)
+        assertNotEquals(originalTimestamp, messageFlow.value.assistantMessages[0][1].createdAt)
+        assertEquals(untouchedTimestamp, messageFlow.value.assistantMessages[1][0].createdAt)
+        assertEquals(untouchedTimestamp, messageFlow.value.assistantMessages[1][1].createdAt)
     }
 }

@@ -18,6 +18,9 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -73,7 +76,7 @@ fun UserChatBubble(
                 modifier = Modifier.padding(16.dp)
             )
         }
-        UserFileThumbnailRow(files = files)
+        MessageFileThumbnailRow(files = files)
     }
 }
 
@@ -85,10 +88,18 @@ fun OpponentChatBubble(
     isError: Boolean = false,
     text: String,
     thoughts: String = "",
+    attachments: List<String> = emptyList(),
     contentIdentity: Any = text,
+    canEdit: Boolean = false,
+    revisionIndexLabel: String? = null,
+    canShowPreviousRevision: Boolean = false,
+    canShowNextRevision: Boolean = false,
     onCopyClick: () -> Unit = {},
     onSelectClick: () -> Unit = {},
-    onRetryClick: () -> Unit = {}
+    onRetryClick: () -> Unit = {},
+    onEditClick: () -> Unit = {},
+    onShowPreviousRevision: () -> Unit = {},
+    onShowNextRevision: () -> Unit = {}
 ) {
     val cardColor = CardColors(
         containerColor = MaterialTheme.colorScheme.background,
@@ -116,14 +127,22 @@ fun OpponentChatBubble(
                 shape = RoundedCornerShape(0.dp),
                 colors = cardColor
             ) {
-                val displayText = if (isLoading) text + "●" else text
+                Column {
+                    val displayText = if (isLoading) text + "●" else text
 
-                ChatMarkdown(
-                    content = displayText,
-                    contentIdentity = contentIdentity,
-                    modifier = Modifier
-                        .padding(16.dp)
-                )
+                    ChatMarkdown(
+                        content = displayText,
+                        contentIdentity = contentIdentity,
+                        modifier = Modifier
+                            .padding(16.dp)
+                    )
+
+                    MessageFileThumbnailRow(
+                        files = attachments,
+                        usePrimaryColors = false,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
             }
 
             if (!isLoading) {
@@ -134,10 +153,44 @@ fun OpponentChatBubble(
                         CopyTextIcon(onCopyClick)
                         Spacer(modifier = Modifier.width(8.dp))
                         SelectTextIcon(onSelectClick)
+                        if (canEdit) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            EditTextIcon(onEditClick)
+                        }
                     }
                     if (canRetry) {
                         Spacer(modifier = Modifier.width(8.dp))
                         RetryIcon(onRetryClick)
+                    }
+                }
+
+                revisionIndexLabel?.let { label ->
+                    Row(
+                        modifier = Modifier.padding(start = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            enabled = canShowPreviousRevision,
+                            onClick = onShowPreviousRevision
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                                contentDescription = stringResource(R.string.previous_revision)
+                            )
+                        }
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                        IconButton(
+                            enabled = canShowNextRevision,
+                            onClick = onShowNextRevision
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = stringResource(R.string.next_revision)
+                            )
+                        }
                     }
                 }
             }
@@ -231,6 +284,16 @@ private fun RetryIcon(onRetryClick: () -> Unit) {
     }
 }
 
+@Composable
+private fun EditTextIcon(onEditClick: () -> Unit) {
+    IconButton(onClick = onEditClick) {
+        Icon(
+            imageVector = Icons.Outlined.Edit,
+            contentDescription = stringResource(R.string.edit)
+        )
+    }
+}
+
 @Preview
 @Composable
 fun UserChatBubblePreview() {
@@ -273,7 +336,11 @@ fun OpponentChatBubblePreview() {
 }
 
 @Composable
-private fun UserFileThumbnailRow(files: List<String>) {
+fun MessageFileThumbnailRow(
+    files: List<String>,
+    usePrimaryColors: Boolean = true,
+    modifier: Modifier = Modifier
+) {
     // Filter out empty strings and check if we have valid files
     val validFiles = files.filter { it.isNotEmpty() && it.isNotBlank() }
 
@@ -282,22 +349,38 @@ private fun UserFileThumbnailRow(files: List<String>) {
     }
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .padding(top = 8.dp)
             .wrapContentHeight()
             .horizontalScroll(rememberScrollState()),
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
     ) {
         validFiles.forEach { filePath ->
-            UserFileThumbnail(filePath = filePath)
+            MessageFileThumbnail(
+                filePath = filePath,
+                usePrimaryColors = usePrimaryColors
+            )
         }
     }
 }
 
 @Composable
-private fun UserFileThumbnail(filePath: String) {
+private fun MessageFileThumbnail(
+    filePath: String,
+    usePrimaryColors: Boolean
+) {
     val file = File(filePath)
     val isImage = isImageFile(file.extension)
+    val containerColor = if (usePrimaryColors) {
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+    val contentColor = if (usePrimaryColors) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
 
     Column(
         modifier = Modifier.width(56.dp),
@@ -307,7 +390,7 @@ private fun UserFileThumbnail(filePath: String) {
             modifier = Modifier
                 .size(48.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f))
+                .background(containerColor)
         ) {
             if (isImage) {
                 Icon(
@@ -316,7 +399,7 @@ private fun UserFileThumbnail(filePath: String) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(8.dp),
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    tint = contentColor
                 )
             } else {
                 Icon(
@@ -325,7 +408,7 @@ private fun UserFileThumbnail(filePath: String) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(8.dp),
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    tint = contentColor
                 )
             }
         }
@@ -333,7 +416,7 @@ private fun UserFileThumbnail(filePath: String) {
         Text(
             text = file.name,
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onPrimaryContainer,
+            color = contentColor,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,

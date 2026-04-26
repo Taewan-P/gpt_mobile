@@ -2,6 +2,9 @@ package dev.chungjungsoo.gptmobile.data.database
 
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import dev.chungjungsoo.gptmobile.data.database.entity.ACTIVE_REVISION_LATEST
+import dev.chungjungsoo.gptmobile.data.database.entity.AssistantRevision
+import dev.chungjungsoo.gptmobile.data.database.entity.AssistantRevisionListConverter
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatAttachmentListConverter
 import dev.chungjungsoo.gptmobile.data.model.ChatAttachment
 import java.io.File
@@ -124,6 +127,92 @@ object ChatDatabaseV2Migrations {
         }
     }
 
+    val MIGRATION_3_4 = object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `messages_v2_new` (
+                    `message_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `chat_id` INTEGER NOT NULL,
+                    `thoughts` TEXT NOT NULL,
+                    `content` TEXT NOT NULL,
+                    `attachments` TEXT NOT NULL,
+                    `revisions` TEXT NOT NULL,
+                    `active_revision_index` INTEGER NOT NULL,
+                    `linked_message_id` INTEGER NOT NULL,
+                    `platform_type` TEXT,
+                    `created_at` INTEGER NOT NULL,
+                    FOREIGN KEY(`chat_id`) REFERENCES `chats_v2`(`chat_id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                """.trimIndent()
+            )
+
+            db.query(
+                """
+                SELECT
+                    `message_id`,
+                    `chat_id`,
+                    `thoughts`,
+                    `content`,
+                    `attachments`,
+                    `revisions`,
+                    `linked_message_id`,
+                    `platform_type`,
+                    `created_at`
+                FROM `messages_v2`
+                """.trimIndent()
+            ).use { cursor ->
+                val idIndex = cursor.getColumnIndexOrThrow("message_id")
+                val chatIdIndex = cursor.getColumnIndexOrThrow("chat_id")
+                val thoughtsIndex = cursor.getColumnIndexOrThrow("thoughts")
+                val contentIndex = cursor.getColumnIndexOrThrow("content")
+                val attachmentsIndex = cursor.getColumnIndexOrThrow("attachments")
+                val revisionsIndex = cursor.getColumnIndexOrThrow("revisions")
+                val linkedMessageIdIndex = cursor.getColumnIndexOrThrow("linked_message_id")
+                val platformTypeIndex = cursor.getColumnIndexOrThrow("platform_type")
+                val createdAtIndex = cursor.getColumnIndexOrThrow("created_at")
+
+                while (cursor.moveToNext()) {
+                    db.execSQL(
+                        """
+                        INSERT INTO `messages_v2_new` (
+                            `message_id`,
+                            `chat_id`,
+                            `thoughts`,
+                            `content`,
+                            `attachments`,
+                            `revisions`,
+                            `active_revision_index`,
+                            `linked_message_id`,
+                            `platform_type`,
+                            `created_at`
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """.trimIndent(),
+                        arrayOf(
+                            cursor.getInt(idIndex),
+                            cursor.getInt(chatIdIndex),
+                            cursor.getString(thoughtsIndex) ?: "",
+                            cursor.getString(contentIndex) ?: "",
+                            cursor.getString(attachmentsIndex) ?: "",
+                            legacyRevisionsToStructuredJson(
+                                revisionsValue = cursor.getString(revisionsIndex).orEmpty(),
+                                createdAt = cursor.getLong(createdAtIndex)
+                            ),
+                            ACTIVE_REVISION_LATEST,
+                            cursor.getInt(linkedMessageIdIndex),
+                            cursor.getString(platformTypeIndex),
+                            cursor.getLong(createdAtIndex)
+                        )
+                    )
+                }
+            }
+
+            db.execSQL("DROP TABLE `messages_v2`")
+            db.execSQL("ALTER TABLE `messages_v2_new` RENAME TO `messages_v2`")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_messages_v2_chat_id` ON `messages_v2` (`chat_id`)")
+        }
+    }
+
     internal fun legacyFilesToAttachmentsJson(filesValue: String): String {
         val attachments = filesValue
             .split(",")
@@ -140,5 +229,18 @@ object ChatDatabaseV2Migrations {
             }
 
         return ChatAttachmentListConverter().fromList(attachments)
+    }
+
+    internal fun legacyRevisionsToStructuredJson(
+        revisionsValue: String,
+        createdAt: Long
+    ): String {
+        val revisions = revisionsValue
+            .split(",")
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .map { AssistantRevision(content = it, thoughts = "", createdAt = createdAt) }
+
+        return AssistantRevisionListConverter().fromList(revisions)
     }
 }

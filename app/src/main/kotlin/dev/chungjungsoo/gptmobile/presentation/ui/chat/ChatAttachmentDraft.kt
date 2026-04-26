@@ -9,6 +9,7 @@ data class ChatAttachmentDraft(
     val attachment: ChatAttachment? = null,
     val mimeType: String = "",
     val status: Status = Status.Preparing,
+    val cleanupOnDiscard: Boolean = true,
     val notice: String? = null,
     val errorMessage: String? = null
 ) {
@@ -19,5 +20,16 @@ data class ChatAttachmentDraft(
         Preparing,
         Ready,
         Failed
+    }
+
+    companion object {
+        fun fromAttachment(attachment: ChatAttachment): ChatAttachmentDraft = ChatAttachmentDraft(
+            sourceFilePath = attachment.localFilePath,
+            preparedFilePath = attachment.preparedFilePath,
+            attachment = attachment,
+            mimeType = attachment.mimeType,
+            status = Status.Ready,
+            cleanupOnDiscard = false
+        )
     }
 }
