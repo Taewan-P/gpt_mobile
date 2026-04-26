@@ -35,5 +35,41 @@ class ChatDatabaseV2MigrationsTest {
         assertEquals("", revisions[0].thoughts)
         assertEquals(1234L, revisions[0].createdAt)
         assertEquals("second revision", revisions[1].content)
+        assertEquals(1234L, revisions[1].createdAt)
+    }
+
+    @Test
+    fun `blank legacy revision list migrates to empty structured revisions`() {
+        val json = ChatDatabaseV2Migrations.legacyRevisionsToStructuredJson(
+            revisionsValue = "",
+            createdAt = 1234L
+        )
+
+        val revisions = AssistantRevisionListConverter().fromString(json)
+
+        assertTrue(revisions.isEmpty())
+    }
+
+    @Test
+    fun `legacy revision migration filters blank segments and applies timestamp`() {
+        val json = ChatDatabaseV2Migrations.legacyRevisionsToStructuredJson(
+            revisionsValue = "a, ,b",
+            createdAt = 1234L
+        )
+
+        val revisions = AssistantRevisionListConverter().fromString(json)
+
+        assertEquals(2, revisions.size)
+        assertEquals("a", revisions[0].content)
+        assertEquals(1234L, revisions[0].createdAt)
+        assertEquals("b", revisions[1].content)
+        assertEquals(1234L, revisions[1].createdAt)
+    }
+
+    @Test
+    fun `corrupt assistant revision json decodes to empty list`() {
+        val revisions = AssistantRevisionListConverter().fromString("[")
+
+        assertTrue(revisions.isEmpty())
     }
 }

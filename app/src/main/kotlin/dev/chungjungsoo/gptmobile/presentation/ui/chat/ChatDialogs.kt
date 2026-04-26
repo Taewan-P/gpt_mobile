@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -30,6 +31,9 @@ import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveThoughts
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun ChatModelDialog(
@@ -178,17 +182,22 @@ fun UserMessageEditDialog(
     val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
     val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var question by remember { mutableStateOf(initialQuestion.content) }
     val questionFieldMaxLines = 8
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
         uri?.let {
-            val filePath = copyFileToAppDirectory(context, it)
-            if (filePath != null) {
-                onFileSelected(filePath)
-            } else {
-                onCopyFailed()
+            scope.launch {
+                val filePath = withContext(Dispatchers.IO) {
+                    copyFileToAppDirectory(context, it)
+                }
+                if (filePath != null) {
+                    onFileSelected(filePath)
+                } else {
+                    onCopyFailed()
+                }
             }
         }
     }
@@ -214,7 +223,7 @@ fun UserMessageEditDialog(
                 )
                 AttachmentEditorSection(
                     attachments = attachments,
-                    onAttachFileClick = { filePickerLauncher.launch("*/*") },
+                    onAttachFileClick = { filePickerLauncher.launch("image/*") },
                     onFileRemoved = onFileRemoved
                 )
             }
@@ -224,7 +233,7 @@ fun UserMessageEditDialog(
             val hasPendingOrFailedAttachments = attachments.any { it.status != ChatAttachmentDraft.Status.Ready }
             TextButton(
                 enabled = !hasPendingOrFailedAttachments &&
-                    question.isNotBlank() &&
+                    (question.isNotBlank() || attachments.isNotEmpty()) &&
                     (question != initialQuestion.content || attachments.mapNotNull { it.attachment } != initialQuestion.attachments),
                 onClick = { onConfirmRequest(initialQuestion.copy(content = question)) }
             ) {
@@ -255,17 +264,22 @@ fun AssistantMessageEditDialog(
     val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
     val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var responseText by remember { mutableStateOf(initialMessage.effectiveContent()) }
     var thoughtsText by remember { mutableStateOf(initialMessage.effectiveThoughts()) }
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
         uri?.let {
-            val filePath = copyFileToAppDirectory(context, it)
-            if (filePath != null) {
-                onFileSelected(filePath)
-            } else {
-                onCopyFailed()
+            scope.launch {
+                val filePath = withContext(Dispatchers.IO) {
+                    copyFileToAppDirectory(context, it)
+                }
+                if (filePath != null) {
+                    onFileSelected(filePath)
+                } else {
+                    onCopyFailed()
+                }
             }
         }
     }
@@ -302,7 +316,7 @@ fun AssistantMessageEditDialog(
                 )
                 AttachmentEditorSection(
                     attachments = attachments,
-                    onAttachFileClick = { filePickerLauncher.launch("*/*") },
+                    onAttachFileClick = { filePickerLauncher.launch("image/*") },
                     onFileRemoved = onFileRemoved
                 )
             }
@@ -312,7 +326,7 @@ fun AssistantMessageEditDialog(
             val hasPendingOrFailedAttachments = attachments.any { it.status != ChatAttachmentDraft.Status.Ready }
             TextButton(
                 enabled = !hasPendingOrFailedAttachments &&
-                    responseText.isNotBlank() &&
+                    (responseText.isNotBlank() || thoughtsText.isNotBlank() || attachments.isNotEmpty()) &&
                     (
                         responseText != initialMessage.effectiveContent() ||
                             thoughtsText != initialMessage.effectiveThoughts() ||

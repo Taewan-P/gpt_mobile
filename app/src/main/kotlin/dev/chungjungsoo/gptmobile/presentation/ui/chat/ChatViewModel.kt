@@ -14,6 +14,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
+import dev.chungjungsoo.gptmobile.data.database.entity.effectiveThoughts
 import dev.chungjungsoo.gptmobile.data.database.entity.resetActiveRevision
 import dev.chungjungsoo.gptmobile.data.database.entity.selectRevision
 import dev.chungjungsoo.gptmobile.data.database.entity.snapshotLatestAssistantRevision
@@ -252,21 +253,30 @@ class ChatViewModel @Inject constructor(
         if (platformIndex >= enabledPlatformsInChat.size || platformIndex < 0) return
         val platform = _enabledPlatformsInApp.value.firstOrNull { it.uid == enabledPlatformsInChat[platformIndex] } ?: return
         val platformWithChatModel = resolvePlatformModel(platform)
+        val revisionToAppendOnSuccess = _groupedMessages.value.assistantMessages
+            .getOrNull(turnIndex)
+            ?.getOrNull(platformIndex)
+            ?.snapshotLatestAssistantRevision(currentTimeStamp)
         _loadingStates.update { it.toMutableList().apply { this[platformIndex] = LoadingState.Loading } }
         _groupedMessages.update {
             updateAssistantSlot(
                 groupedMessages = it,
                 turnIndex = turnIndex,
                 platformIndex = platformIndex
-            ) {
-                createEmptyAssistantMessage(chatRoomId, platformWithChatModel.uid)
+            ) { currentMessage ->
+                createRetryAssistantMessage(
+                    currentMessage = currentMessage,
+                    chatId = chatRoomId,
+                    platformUid = platformWithChatModel.uid
+                )
             }
         }
 
         viewModelScope.launch {
+            val retryContext = groupedMessagesThroughTurn(_groupedMessages.value, turnIndex)
             chatRepository.completeChat(
-                _groupedMessages.value.userMessages,
-                _groupedMessages.value.assistantMessages,
+                retryContext.userMessages,
+                retryContext.assistantMessages,
                 platformWithChatModel
             ).handleStates(
                 messageFlow = _groupedMessages,
@@ -274,7 +284,8 @@ class ChatViewModel @Inject constructor(
                 platformIdx = platformIndex,
                 onLoadingComplete = {
                     _loadingStates.update { it.toMutableList().apply { this[platformIndex] = LoadingState.Idle } }
-                }
+                },
+                revisionToAppendOnSuccess = revisionToAppendOnSuccess
             )
         }
     }
@@ -454,6 +465,7 @@ class ChatViewModel @Inject constructor(
                 ).resetActiveRevision()
             }
         }
+        persistCurrentChatSnapshot()
         return true
     }
 
@@ -740,6 +752,10 @@ class ChatViewModel @Inject constructor(
             ?.let { java.io.File(it).delete() }
     }
 
+    /**
+     * Assistant revisions are stored newest-first: revisions[0] is the newest
+     * saved answer, and ACTIVE_REVISION_LATEST points at the live content.
+     */
     private fun updateAssistantRevisionSelection(
         turnIndex: Int,
         platformIndex: Int,
@@ -754,6 +770,7 @@ class ChatViewModel @Inject constructor(
                 message.selectRevision(nextIndex(message))
             }
         }
+        persistCurrentChatSnapshot()
     }
 
     private fun formatCurrentDateTime(): String {
@@ -857,13 +874,23 @@ class ChatViewModel @Inject constructor(
                     (_groupedMessages.value.userMessages.isNotEmpty() && _groupedMessages.value.assistantMessages.isNotEmpty()) &&
                     (_groupedMessages.value.userMessages.size == _groupedMessages.value.assistantMessages.size)
                 ) {
-                    // Save the chat & chat room
-                    _chatRoom.update {
+                    val chatRoom = _chatRoom.value
+                    val groupedMessages = _groupedMessages.value
+                    val chatPlatformModels = _chatPlatformModels.value
+
+                    val savedChatRoom = withContext(Dispatchers.IO) {
                         chatRepository.saveChat(
-                            chatRoom = _chatRoom.value,
-                            messages = ungroupedMessages(),
-                            chatPlatformModels = _chatPlatformModels.value
+                            chatRoom = chatRoom,
+                            messages = persistableMessages(groupedMessages),
+                            chatPlatformModels = chatPlatformModels
                         )
+                    }
+                    _chatRoom.update { currentChatRoom ->
+                        if (currentChatRoom.id == chatRoom.id && chatRoom.id == 0) {
+                            savedChatRoom
+                        } else {
+                            currentChatRoom
+                        }
                     }
 
                     // Sync message ids
@@ -880,17 +907,56 @@ class ChatViewModel @Inject constructor(
         return platform.copy(model = chatModel)
     }
 
-    private fun ungroupedMessages(): List<MessageV2> {
-        // Flatten the grouped messages into a single list
-        val merged = _groupedMessages.value.userMessages + _groupedMessages.value.assistantMessages.flatten()
-        return merged.filter { it.effectiveContent().isNotBlank() || it.attachments.isNotEmpty() }.sortedBy { it.createdAt }
+    private fun persistCurrentChatSnapshot() {
+        viewModelScope.launch {
+            val chatRoom = _chatRoom.value
+            val groupedMessages = _groupedMessages.value
+            if (chatRoom.id <= 0) return@launch
+            if (groupedMessages.userMessages.isEmpty()) return@launch
+            if (groupedMessages.userMessages.size != groupedMessages.assistantMessages.size) return@launch
+
+            withContext(Dispatchers.IO) {
+                chatRepository.saveChat(
+                    chatRoom = chatRoom,
+                    messages = persistableMessages(groupedMessages),
+                    chatPlatformModels = _chatPlatformModels.value
+                )
+            }
+        }
     }
+}
+
+internal fun groupedMessagesThroughTurn(
+    groupedMessages: ChatViewModel.GroupedMessages,
+    turnIndex: Int
+): ChatViewModel.GroupedMessages = groupedMessages.copy(
+    userMessages = groupedMessages.userMessages.take(turnIndex + 1),
+    assistantMessages = groupedMessages.assistantMessages.take(turnIndex + 1)
+)
+
+internal fun persistableMessages(groupedMessages: ChatViewModel.GroupedMessages): List<MessageV2> {
+    val merged = groupedMessages.userMessages + groupedMessages.assistantMessages.flatten()
+    return merged
+        .filter {
+            it.effectiveContent().isNotBlank() ||
+                it.effectiveThoughts().isNotBlank() ||
+                it.attachments.isNotEmpty()
+        }
+        .sortedBy { it.createdAt }
 }
 
 internal fun createEmptyAssistantMessage(chatId: Int, platformUid: String): MessageV2 = MessageV2(
     chatId = chatId,
     content = "",
     platformType = platformUid
+)
+
+internal fun createRetryAssistantMessage(
+    currentMessage: MessageV2,
+    chatId: Int,
+    platformUid: String
+): MessageV2 = createEmptyAssistantMessage(chatId, platformUid).copy(
+    revisions = currentMessage.revisions
 )
 
 internal fun normalizeAssistantRow(

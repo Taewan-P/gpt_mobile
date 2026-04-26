@@ -1,5 +1,7 @@
 package dev.chungjungsoo.gptmobile.util
 
+import dev.chungjungsoo.gptmobile.data.database.entity.ACTIVE_REVISION_LATEST
+import dev.chungjungsoo.gptmobile.data.database.entity.AssistantRevision
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
 import dev.chungjungsoo.gptmobile.presentation.ui.chat.ChatViewModel
@@ -8,7 +10,6 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -180,12 +181,87 @@ class ApiStateFlowExtensionsTest {
             messageFlow = messageFlow,
             turnIndex = 0,
             platformIdx = 1,
-            onLoadingComplete = {}
+            onLoadingComplete = {},
+            currentTimeProvider = { 1234L }
         )
 
         assertEquals(untouchedTimestamp, messageFlow.value.assistantMessages[0][0].createdAt)
-        assertNotEquals(originalTimestamp, messageFlow.value.assistantMessages[0][1].createdAt)
+        assertEquals(1234L, messageFlow.value.assistantMessages[0][1].createdAt)
         assertEquals(untouchedTimestamp, messageFlow.value.assistantMessages[1][0].createdAt)
         assertEquals(untouchedTimestamp, messageFlow.value.assistantMessages[1][1].createdAt)
+    }
+
+    @Test
+    fun `handleStates appends retry revision only when stream succeeds`() = runBlocking {
+        val messageFlow = MutableStateFlow(
+            ChatViewModel.GroupedMessages(
+                userMessages = listOf(MessageV2(content = "Hello", platformType = null)),
+                assistantMessages = listOf(
+                    listOf(
+                        MessageV2(
+                            content = "",
+                            revisions = listOf(AssistantRevision(content = "Older answer", createdAt = 5L)),
+                            platformType = "platform-1"
+                        )
+                    )
+                )
+            )
+        )
+
+        flowOf(
+            ApiState.Success("New answer"),
+            ApiState.Done
+        ).handleStates(
+            messageFlow = messageFlow,
+            turnIndex = 0,
+            platformIdx = 0,
+            onLoadingComplete = {},
+            nanoTimeProvider = { 1L },
+            currentTimeProvider = { 1234L },
+            revisionToAppendOnSuccess = AssistantRevision(content = "Previous answer", thoughts = "Previous thoughts", createdAt = 100L)
+        )
+
+        val assistantMessage = messageFlow.value.assistantMessages[0][0]
+        assertEquals("New answer", assistantMessage.content)
+        assertEquals(ACTIVE_REVISION_LATEST, assistantMessage.activeRevisionIndex)
+        assertEquals(2, assistantMessage.revisions.size)
+        assertEquals("Previous answer", assistantMessage.revisions[0].content)
+        assertEquals("Previous thoughts", assistantMessage.revisions[0].thoughts)
+        assertEquals("Older answer", assistantMessage.revisions[1].content)
+    }
+
+    @Test
+    fun `handleStates preserves previous retry revision when stream errors`() = runBlocking {
+        val messageFlow = MutableStateFlow(
+            ChatViewModel.GroupedMessages(
+                userMessages = listOf(MessageV2(content = "Hello", platformType = null)),
+                assistantMessages = listOf(
+                    listOf(
+                        MessageV2(
+                            content = "",
+                            revisions = listOf(AssistantRevision(content = "Older answer", createdAt = 5L)),
+                            platformType = "platform-1"
+                        )
+                    )
+                )
+            )
+        )
+
+        flowOf(
+            ApiState.Success("Partial answer"),
+            ApiState.Error("Request timed out.")
+        ).handleStates(
+            messageFlow = messageFlow,
+            turnIndex = 0,
+            platformIdx = 0,
+            onLoadingComplete = {},
+            revisionToAppendOnSuccess = AssistantRevision(content = "Previous answer", createdAt = 100L)
+        )
+
+        val assistantMessage = messageFlow.value.assistantMessages[0][0]
+        assertTrue(assistantMessage.content.contains("Partial answer"))
+        assertEquals(2, assistantMessage.revisions.size)
+        assertEquals("Previous answer", assistantMessage.revisions[0].content)
+        assertEquals("Older answer", assistantMessage.revisions[1].content)
     }
 }
