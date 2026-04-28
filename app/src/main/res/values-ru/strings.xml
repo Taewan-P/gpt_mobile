@@ -23,7 +23,7 @@
     <string name="select_openai_model_description">Выберите модель чата OpenAI. Даже если выбранная модель мультимодальна, в настоящее время приложение поддерживает только текстовые запросы. Поддержка может быть добавлена в будущем.</string>
     <string name="gpt_4o_description">Самая быстрая и доступная флагманская модель.</string>
     <string name="gpt_4o_mini_description">Доступная и интеллектуальная компактная модель для быстрых и несложных задач</string>
-    <string name="gpt_4_turbo_description">Приемлемая надежность, в 3 раза дешевле, чем GPT-4.</string>
+    <string name="gpt_4_turbo_description">Приемлемая надёжность, в 3 раза дешевле, чем GPT-4.</string>
     <string name="gpt_4_description">Лучше всего справляется с решением абстрактных задач.</string>
     <string name="select_anthropic_model">Выберите модель чата Anthropic</string>
     <string name="select_anthropic_model_description">Пожалуйста, выберите модель чата Anthropic. В настоящее время мы поддерживаем семейство моделей Claude 3, работающее только с текстовыми входными данными.</string>
@@ -51,7 +51,7 @@
     <string name="confirm">Подтвердить</string>
     <string name="cancel">Отмена</string>
     <string name="go_back">Назад</string>
-    <string name="arrow_icon">Стрелка (значок )</string>
+    <string name="arrow_icon">Стрелка (значок)</string>
     <string name="on">Вкл.</string>
     <string name="off">Выкл.</string>
     <string name="system_default">Системные настройки по умолчанию</string>
@@ -93,7 +93,7 @@
     <string name="temperature_setting">Настройка температуры</string>
     <string name="temperature_setting_description">Температура - это величина, определяющая степень случайности в генерируемом ответе. По умолчанию - 1.0.\nНизкая температура делает ответы более точными и предсказуемыми, высокая - более случайными.</string>
     <string name="top_p_setting">Настройка ядерной выборки</string>
-    <string name="top_p_setting_description">При ядерном сэмплировании (nucleus sampling) мы вычисляем кумулятивное распределение по всем вариантам для каждого последующего токена в порядке убывания вероятности и отсекаем его, как только оно достигает определенного значения вероятности, заданного этим параметром.\nБольшинство моделей обычно рекомендуют изменять либо этот параметр, либо температуру (temperature), но не оба сразу.</string>
+    <string name="top_p_setting_description">При ядерном сэмплировании (nucleus sampling) мы вычисляем кумулятивное распределение по всем вариантам для каждого последующего токена в порядке убывания вероятности и отсекаем его, как только оно достигает определённого значения вероятности, заданного этим параметром.\nБольшинство моделей обычно рекомендуют изменять либо этот параметр, либо температуру (temperature), но не оба сразу.</string>
     <string name="about">О приложении</string>
     <string name="about_description">Версия, Лицензия, Обратная связь</string>
     <string name="version">Версия</string>
@@ -127,9 +127,9 @@
     <string name="api_url_cautions">URL должен заканчиваться символом \'/\'.</string>
     <string name="bug_report">Отчёт об ошибке</string>
     <string name="bug_report_description">Что-то работает неправильно?</string>
-    <string name="bug_report_icon">Значок отчета об ошибке</string>
+    <string name="bug_report_icon">Значок отчёта об ошибке</string>
     <string name="scroll_to_bottom_icon">Значок перехода вниз</string>
-    <string name="llama_3_2_description">Новейшая легкая языковая модель с открытым исходным кодом от Meta.</string>
+    <string name="llama_3_2_description">Новейшая лёгкая языковая модель с открытым исходным кодом от Meta.</string>
     <string name="llama_3_1_description">Передовая мультиязычная открытая большая языковая модель от Meta.</string>
     <string name="gemma2_description">Малая языковая модель, выпущенная Google.</string>
     <string name="select_groq_model">Выберите модель чата Groq</string>
@@ -137,7 +137,7 @@
     <string name="groq_setting">Настройки Groq</string>
     <string name="chat_title_dialog_description">Генерация заголовка с помощью ИИ доступна только на устройствах с поддержкой AICore.</string>
     <string name="edit_question">Редактировать сообщение пользователя</string>
-    <string name="token_input_warning">ПРИМЕЧАНИЕ: OpenAI и Anthropic используют систему предоплаты, поэтому перед использованием необходимо ПОПОЛНИТЬ БАЛАНС на каждом аккаунте. В противном случае запрос вернет ошибку.</string>
+    <string name="token_input_warning">ПРИМЕЧАНИЕ: OpenAI и Anthropic используют систему предоплаты, поэтому перед использованием необходимо ПОПОЛНИТЬ БАЛАНС на каждом аккаунте. В противном случае запрос вернёт ошибку.</string>
     <string name="groq_api_key">API-ключ Groq</string>
     <string name="groq_description">Быстрый инференс ИИ для открытых моделей.</string>
     <string name="options">Настройки</string>
@@ -159,7 +159,7 @@
     <string name="chat_model_for_platform">Модель для %1$s</string>
     <string name="update_chat_models">Обновить модели</string>
     <string name="migration_assistant">Помощник по переносу данных</string>
-    <string name="migration_description">Мастер миграции поможет вам безболезненно перейти на обновленную базу данных и новые структуры данных в новой версии приложения. Пожалуйста, выполните следующие действия.</string>
+    <string name="migration_description">Мастер миграции поможет вам безболезненно перейти на обновлённую базу данных и новые структуры данных в новой версии приложения. Пожалуйста, выполните следующие действия.</string>
     <string name="migrate_chat">Перенести чаты</string>
     <string name="enabled_platform_numbers">Доступные платформы: %1s</string>
     <string name="existing_chats">Существующие чаты: %1s</string>
@@ -201,7 +201,7 @@
     <string name="collapse">Свернуть</string>
     <string name="extended_thinking_description">Включить для моделей с рассуждением (o1, o3, Claude с функцией thinking, Gemini thinking)</string>
     <string name="your_platforms">Ваши платформы</string>
-    <string name="no_platforms_yet">Платформы еще не добавлены</string>
+    <string name="no_platforms_yet">Платформы ещё не добавлены</string>
     <string name="add_your_first_platform">Добавьте первую ИИ-платформу, чтобы начать работу</string>
     <string name="add_another_platform">Добавить другую платформу</string>
     <string name="choose_platform_type">Выберите тип платформы</string>
