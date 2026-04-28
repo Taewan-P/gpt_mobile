@@ -19,8 +19,7 @@ class ContextBuilder @Inject constructor() {
 
         val rawTurns = userMessages.mapIndexed { index, userMessage ->
             val assistantMessage = assistantMessages.getOrNull(index)
-                ?.firstOrNull { (it.effectiveContent().isNotBlank() || it.attachments.isNotEmpty()) && it.platformType == platform.uid }
-                ?.let(::sanitizeAssistantMessageForContext)
+                ?.firstValidAssistantCandidate(platform.uid)
 
             RawConversationTurn(
                 userMessage = userMessage,
@@ -34,7 +33,6 @@ class ContextBuilder @Inject constructor() {
                 turn.isCurrentTurn -> true
                 turn.assistantMessage == null -> false
                 turn.assistantMessage.effectiveContent().isBlank() && turn.assistantMessage.attachments.isEmpty() -> false
-                isAssistantErrorMessage(turn.assistantMessage.content) -> false
                 else -> true
             }
         }
@@ -52,6 +50,17 @@ class ContextBuilder @Inject constructor() {
         }
 
         return applyAttachmentWindow(selectedTurns, policy)
+    }
+
+    private fun List<MessageV2>.firstValidAssistantCandidate(platformUid: String): MessageV2? = firstNotNullOfOrNull { message ->
+        if (message.platformType != platformUid) return@firstNotNullOfOrNull null
+
+        val sanitizedMessage = sanitizeAssistantMessageForContext(message)
+        when {
+            sanitizedMessage.effectiveContent().isBlank() && sanitizedMessage.attachments.isEmpty() -> null
+            isAssistantErrorMessage(sanitizedMessage.content) -> null
+            else -> sanitizedMessage
+        }
     }
 
     private fun applyAttachmentWindow(
