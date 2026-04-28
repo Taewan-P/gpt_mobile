@@ -1,18 +1,25 @@
 package dev.chungjungsoo.gptmobile.util
 
+import dev.chungjungsoo.gptmobile.data.database.entity.AssistantRevision
+import dev.chungjungsoo.gptmobile.data.database.entity.resetActiveRevision
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
 import dev.chungjungsoo.gptmobile.presentation.ui.chat.ChatViewModel
+import dev.chungjungsoo.gptmobile.presentation.ui.chat.updateAssistantSlot
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 
+private const val RESPONSE_STOPPED_PREFIX = "\n\n[Response stopped: "
 private const val STREAM_PUBLISH_INTERVAL_MILLIS = 50L
 
 suspend fun Flow<ApiState>.handleStates(
     messageFlow: MutableStateFlow<ChatViewModel.GroupedMessages>,
+    turnIndex: Int,
     platformIdx: Int,
     onLoadingComplete: () -> Unit,
-    nanoTimeProvider: () -> Long = System::nanoTime
+    nanoTimeProvider: () -> Long = System::nanoTime,
+    currentTimeProvider: () -> Long = { System.currentTimeMillis() / 1000 },
+    revisionToAppendOnSuccess: AssistantRevision? = null
 ) {
     val buffer = StreamingMessageBuffer(nanoTimeProvider = nanoTimeProvider)
     var isCompletedSuccessfully = false
@@ -23,12 +30,12 @@ suspend fun Flow<ApiState>.handleStates(
             when (chunk) {
                 is ApiState.Thinking -> {
                     buffer.appendThought(chunk.thinkingChunk)
-                    buffer.publishIfDue(messageFlow, platformIdx)
+                    buffer.publishIfDue(messageFlow, turnIndex, platformIdx)
                 }
 
                 is ApiState.Success -> {
                     buffer.appendContent(chunk.textChunk)
-                    buffer.publishIfDue(messageFlow, platformIdx)
+                    buffer.publishIfDue(messageFlow, turnIndex, platformIdx)
                 }
 
                 ApiState.Done -> {
@@ -43,10 +50,22 @@ suspend fun Flow<ApiState>.handleStates(
             }
         }
     } finally {
-        buffer.flush(messageFlow, platformIdx)
+        buffer.flush(messageFlow, turnIndex, platformIdx)
         when {
-            terminalError != null -> messageFlow.setErrorMessage(platformIdx, terminalError)
-            isCompletedSuccessfully -> messageFlow.setTimestamp(platformIdx)
+            terminalError != null -> messageFlow.setErrorMessage(
+                turnIndex = turnIndex,
+                platformIdx = platformIdx,
+                error = terminalError,
+                currentTimeProvider = currentTimeProvider,
+                revisionToAppend = revisionToAppendOnSuccess
+            )
+
+            isCompletedSuccessfully -> messageFlow.setTimestamp(
+                turnIndex = turnIndex,
+                platformIdx = platformIdx,
+                currentTimeProvider = currentTimeProvider,
+                revisionToAppend = revisionToAppendOnSuccess
+            )
         }
         onLoadingComplete()
     }
@@ -75,6 +94,7 @@ private class StreamingMessageBuffer(
 
     fun publishIfDue(
         messageFlow: MutableStateFlow<ChatViewModel.GroupedMessages>,
+        turnIndex: Int,
         platformIdx: Int
     ) {
         if (!hasPendingChanges()) return
@@ -83,24 +103,27 @@ private class StreamingMessageBuffer(
         if (lastPublishedAtNanos == 0L ||
             now - lastPublishedAtNanos >= STREAM_PUBLISH_INTERVAL_MILLIS * 1_000_000
         ) {
-            publish(messageFlow, platformIdx, now)
+            publish(messageFlow, turnIndex, platformIdx, now)
         }
     }
 
     fun flush(
         messageFlow: MutableStateFlow<ChatViewModel.GroupedMessages>,
+        turnIndex: Int,
         platformIdx: Int
     ) {
         if (!hasPendingChanges()) return
-        publish(messageFlow, platformIdx, nanoTimeProvider())
+        publish(messageFlow, turnIndex, platformIdx, nanoTimeProvider())
     }
 
     private fun publish(
         messageFlow: MutableStateFlow<ChatViewModel.GroupedMessages>,
+        turnIndex: Int,
         platformIdx: Int,
         publishedAtNanos: Long
     ) {
         messageFlow.setBufferedText(
+            turnIndex = turnIndex,
             platformIdx = platformIdx,
             content = content.toString(),
             thoughts = thoughts.toString()
@@ -114,50 +137,85 @@ private class StreamingMessageBuffer(
 }
 
 private fun MutableStateFlow<ChatViewModel.GroupedMessages>.setBufferedText(
+    turnIndex: Int,
     platformIdx: Int,
     content: String,
     thoughts: String
 ) {
     update { groupedMessages ->
-        val updatedMessages = groupedMessages.assistantMessages.last().toMutableList()
-        val currentMessage = updatedMessages[platformIdx]
-        if (currentMessage.content == content && currentMessage.thoughts == thoughts) {
-            return@update groupedMessages
+        updateAssistantSlot(
+            groupedMessages = groupedMessages,
+            turnIndex = turnIndex,
+            platformIndex = platformIdx
+        ) { currentMessage ->
+            if (currentMessage.content == content && currentMessage.thoughts == thoughts) {
+                currentMessage
+            } else {
+                currentMessage.copy(
+                    content = content,
+                    thoughts = thoughts
+                )
+            }
         }
-        updatedMessages[platformIdx] = currentMessage.copy(
-            content = content,
-            thoughts = thoughts
-        )
-        val assistantMessages = groupedMessages.assistantMessages.toMutableList()
-        assistantMessages[assistantMessages.lastIndex] = updatedMessages
-
-        groupedMessages.copy(assistantMessages = assistantMessages)
     }
 }
 
-private fun MutableStateFlow<ChatViewModel.GroupedMessages>.setErrorMessage(platformIdx: Int, error: String) {
+private fun MutableStateFlow<ChatViewModel.GroupedMessages>.setErrorMessage(
+    turnIndex: Int,
+    platformIdx: Int,
+    error: String,
+    currentTimeProvider: () -> Long,
+    revisionToAppend: AssistantRevision?
+) {
     update { groupedMessages ->
-        val updatedMessages = groupedMessages.assistantMessages.last().toMutableList()
-        updatedMessages[platformIdx] = updatedMessages[platformIdx].copy(
-            content = buildAssistantErrorContent(updatedMessages[platformIdx].content, error),
-            createdAt = System.currentTimeMillis() / 1000
-        )
-        val assistantMessages = groupedMessages.assistantMessages.toMutableList()
-        assistantMessages[assistantMessages.lastIndex] = updatedMessages
-
-        groupedMessages.copy(assistantMessages = assistantMessages)
+        updateAssistantSlot(
+            groupedMessages = groupedMessages,
+            turnIndex = turnIndex,
+            platformIndex = platformIdx
+        ) { currentMessage ->
+            currentMessage.copy(
+                content = buildAssistantErrorContent(currentMessage.content, error),
+                createdAt = currentTimeProvider(),
+                revisions = revisionToAppend
+                    ?.let { listOf(it) + currentMessage.revisions }
+                    ?: currentMessage.revisions
+            )
+        }
     }
 }
 
-private fun MutableStateFlow<ChatViewModel.GroupedMessages>.setTimestamp(platformIdx: Int) {
-    update { groupedMessages ->
-        val updatedMessages = groupedMessages.assistantMessages.last().toMutableList()
-        updatedMessages[platformIdx] = updatedMessages[platformIdx].copy(
-            createdAt = System.currentTimeMillis() / 1000
-        )
-        val assistantMessages = groupedMessages.assistantMessages.toMutableList()
-        assistantMessages[assistantMessages.lastIndex] = updatedMessages
+internal fun buildAssistantErrorContent(existingContent: String, error: String): String = when {
+    existingContent.isBlank() -> "Error: $error"
+    else -> "$existingContent$RESPONSE_STOPPED_PREFIX$error]"
+}
 
-        groupedMessages.copy(assistantMessages = assistantMessages)
+internal fun stripAssistantErrorNote(content: String): String {
+    val markerIndex = content.lastIndexOf(RESPONSE_STOPPED_PREFIX)
+    return if (markerIndex >= 0 && content.endsWith("]")) {
+        content.substring(0, markerIndex)
+    } else {
+        content
+    }
+}
+
+private fun MutableStateFlow<ChatViewModel.GroupedMessages>.setTimestamp(
+    turnIndex: Int,
+    platformIdx: Int,
+    currentTimeProvider: () -> Long,
+    revisionToAppend: AssistantRevision?
+) {
+    update { groupedMessages ->
+        updateAssistantSlot(
+            groupedMessages = groupedMessages,
+            turnIndex = turnIndex,
+            platformIndex = platformIdx
+        ) { currentMessage ->
+            currentMessage.copy(
+                createdAt = currentTimeProvider(),
+                revisions = revisionToAppend
+                    ?.let { listOf(it) + currentMessage.revisions }
+                    ?: currentMessage.revisions
+            ).resetActiveRevision()
+        }
     }
 }
