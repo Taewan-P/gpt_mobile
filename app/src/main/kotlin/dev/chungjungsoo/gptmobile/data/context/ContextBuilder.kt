@@ -1,7 +1,9 @@
 package dev.chungjungsoo.gptmobile.data.context
 
+import dev.chungjungsoo.gptmobile.data.database.entity.ACTIVE_REVISION_LATEST
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
+import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.util.isAssistantErrorMessage
 import dev.chungjungsoo.gptmobile.util.stripAssistantErrorNote
 import javax.inject.Inject
@@ -17,7 +19,7 @@ class ContextBuilder @Inject constructor() {
 
         val rawTurns = userMessages.mapIndexed { index, userMessage ->
             val assistantMessage = assistantMessages.getOrNull(index)
-                ?.firstOrNull { (it.content.isNotBlank() || it.attachments.isNotEmpty()) && it.platformType == platform.uid }
+                ?.firstOrNull { (it.effectiveContent().isNotBlank() || it.attachments.isNotEmpty()) && it.platformType == platform.uid }
                 ?.let(::sanitizeAssistantMessageForContext)
 
             RawConversationTurn(
@@ -31,7 +33,7 @@ class ContextBuilder @Inject constructor() {
             when {
                 turn.isCurrentTurn -> true
                 turn.assistantMessage == null -> false
-                turn.assistantMessage.content.isBlank() && turn.assistantMessage.attachments.isEmpty() -> false
+                turn.assistantMessage.effectiveContent().isBlank() && turn.assistantMessage.attachments.isEmpty() -> false
                 isAssistantErrorMessage(turn.assistantMessage.content) -> false
                 else -> true
             }
@@ -84,11 +86,14 @@ class ContextBuilder @Inject constructor() {
     }
 
     private fun sanitizeAssistantMessageForContext(message: MessageV2): MessageV2 {
-        val sanitizedContent = stripAssistantErrorNote(message.content).trimEnd()
-        return if (sanitizedContent == message.content) {
+        val sanitizedContent = stripAssistantErrorNote(message.effectiveContent()).trimEnd()
+        return if (sanitizedContent == message.content && message.activeRevisionIndex == ACTIVE_REVISION_LATEST) {
             message
         } else {
-            message.copy(content = sanitizedContent)
+            message.copy(
+                content = sanitizedContent,
+                activeRevisionIndex = ACTIVE_REVISION_LATEST
+            )
         }
     }
 }

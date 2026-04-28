@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 
-private const val RESPONSE_STOPPED_PREFIX = "\n\n[Response stopped: "
 private const val STREAM_PUBLISH_INTERVAL_MILLIS = 50L
 
 suspend fun Flow<ApiState>.handleStates(
@@ -181,20 +180,6 @@ private fun MutableStateFlow<ChatViewModel.GroupedMessages>.setErrorMessage(
                     ?: currentMessage.revisions
             )
         }
-    }
-}
-
-internal fun buildAssistantErrorContent(existingContent: String, error: String): String = when {
-    existingContent.isBlank() -> "Error: $error"
-    else -> "$existingContent$RESPONSE_STOPPED_PREFIX$error]"
-}
-
-internal fun stripAssistantErrorNote(content: String): String {
-    val markerIndex = content.lastIndexOf(RESPONSE_STOPPED_PREFIX)
-    return if (markerIndex >= 0 && content.endsWith("]")) {
-        content.substring(0, markerIndex)
-    } else {
-        content
     }
 }
 
