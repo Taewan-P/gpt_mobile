@@ -1,6 +1,7 @@
 package dev.chungjungsoo.gptmobile.data.repository
 
 import android.content.ContextWrapper
+import dev.chungjungsoo.gptmobile.data.context.ContextBuilder
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
@@ -16,14 +17,17 @@ import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatCompletionRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponsesRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ChatCompletionChunk
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponsesStreamEvent
+import dev.chungjungsoo.gptmobile.data.model.ChatAttachment
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.network.AnthropicAPI
 import dev.chungjungsoo.gptmobile.data.network.GoogleAPI
 import dev.chungjungsoo.gptmobile.data.network.GroqAPI
 import dev.chungjungsoo.gptmobile.data.network.OpenAIAPI
 import dev.chungjungsoo.gptmobile.data.network.UploadedProviderFile
+import java.io.File
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Proxy
+import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
@@ -32,6 +36,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -177,8 +182,66 @@ class ChatRepositoryImplTest {
         assertNull(request?.reasoningEffort)
     }
 
+    @Test
+    fun `failed historical turn is excluded from subsequent inline budget checks`() = runBlocking {
+        val openAIAPI = RecordingOpenAIAPI()
+        val repository = createRepository(openAIAPI = openAIAPI)
+        val tempDir = kotlin.io.path.createTempDirectory("context-inline-budget").toFile().apply {
+            deleteOnExit()
+        }
+        val missingAttachmentFile = File(tempDir, "oversized-${UUID.randomUUID()}.png")
+        if (missingAttachmentFile.exists()) {
+            missingAttachmentFile.delete()
+        }
+        assertFalse(missingAttachmentFile.exists())
+        val failedTurnAttachment = ChatAttachment(
+            localFilePath = missingAttachmentFile.absolutePath,
+            preparedFilePath = missingAttachmentFile.absolutePath,
+            displayName = "oversized.png",
+            mimeType = "image/png",
+            sizeBytes = 13L * 1024 * 1024
+        )
+        val customPlatform = customPlatform()
+
+        val states = repository.completeChat(
+            userMessages = listOf(
+                MessageV2(
+                    id = 1,
+                    content = "",
+                    platformType = null,
+                    attachments = listOf(failedTurnAttachment)
+                ),
+                MessageV2(
+                    id = 2,
+                    content = "Try again with text only",
+                    platformType = null
+                )
+            ),
+            assistantMessages = listOf(
+                listOf(
+                    MessageV2(
+                        id = 11,
+                        content = "Error: These images are too large to upload safely on this provider.",
+                        platformType = customPlatform.uid
+                    )
+                ),
+                listOf(
+                    MessageV2(
+                        id = 12,
+                        content = "",
+                        platformType = customPlatform.uid
+                    )
+                )
+            ),
+            platform = customPlatform
+        ).toList()
+
+        assertEquals(listOf(ApiState.Loading, ApiState.Done), states)
+        assertEquals(1, openAIAPI.streamChatCompletionCalls)
+    }
+
     private fun createRepository(
-        groqAPI: GroqAPI,
+        groqAPI: GroqAPI = FakeGroqAPI(emptyFlow()),
         openAIAPI: OpenAIAPI = RecordingOpenAIAPI()
     ): ChatRepositoryImpl = ChatRepositoryImpl(
         context = ContextWrapper(null),
@@ -196,7 +259,8 @@ class ChatRepositoryImplTest {
             openAIAPI,
             FakeAnthropicAPI(),
             FakeGoogleAPI()
-        )
+        ),
+        contextBuilder = ContextBuilder()
     )
 
     private fun groqPlatform(reasoning: Boolean, model: String) = PlatformV2(
@@ -206,6 +270,15 @@ class ChatRepositoryImplTest {
         apiUrl = "https://api.groq.com/openai/",
         model = model,
         reasoning = reasoning
+    )
+
+    private fun customPlatform() = PlatformV2(
+        uid = "custom-platform",
+        name = "Custom",
+        compatibleType = ClientType.CUSTOM,
+        apiUrl = "https://example.com",
+        model = "custom-model",
+        stream = true
     )
 
     @Suppress("UNCHECKED_CAST")

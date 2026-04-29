@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.repository
 
+import dev.chungjungsoo.gptmobile.data.context.ConversationTurn
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.request.MessageRequest
@@ -119,26 +120,30 @@ class AttachmentUploadCoordinatorTest {
         }
 
         coordinator.validateInlineAttachmentBudget(
-            messages = listOf(
-                MessageV2(
-                    content = "hi",
-                    platformType = null,
-                    attachments = listOf(
-                        ChatAttachment(
-                            localFilePath = first.absolutePath,
-                            preparedFilePath = first.absolutePath,
-                            displayName = first.name,
-                            mimeType = "image/png",
-                            sizeBytes = first.length()
-                        ),
-                        ChatAttachment(
-                            localFilePath = second.absolutePath,
-                            preparedFilePath = second.absolutePath,
-                            displayName = second.name,
-                            mimeType = "image/png",
-                            sizeBytes = second.length()
+            contextTurns = listOf(
+                ConversationTurn(
+                    userMessage = MessageV2(
+                        content = "hi",
+                        platformType = null,
+                        attachments = listOf(
+                            ChatAttachment(
+                                localFilePath = first.absolutePath,
+                                preparedFilePath = first.absolutePath,
+                                displayName = first.name,
+                                mimeType = "image/png",
+                                sizeBytes = first.length()
+                            ),
+                            ChatAttachment(
+                                localFilePath = second.absolutePath,
+                                preparedFilePath = second.absolutePath,
+                                displayName = second.name,
+                                mimeType = "image/png",
+                                sizeBytes = second.length()
+                            )
                         )
-                    )
+                    ),
+                    assistantMessage = null,
+                    isCurrentTurn = true
                 )
             )
         )

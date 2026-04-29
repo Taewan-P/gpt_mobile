@@ -6,6 +6,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import dev.chungjungsoo.gptmobile.data.context.ContextBuilder
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatPlatformModelV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomDao
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomV2Dao
@@ -38,7 +39,8 @@ object ChatRepositoryModule {
         groqAPI: GroqAPI,
         anthropicAPI: AnthropicAPI,
         googleAPI: GoogleAPI,
-        attachmentUploadCoordinator: dev.chungjungsoo.gptmobile.data.repository.AttachmentUploadCoordinator
+        attachmentUploadCoordinator: dev.chungjungsoo.gptmobile.data.repository.AttachmentUploadCoordinator,
+        contextBuilder: ContextBuilder
     ): ChatRepository = ChatRepositoryImpl(
         context,
         chatRoomDao,
@@ -51,6 +53,7 @@ object ChatRepositoryModule {
         groqAPI,
         anthropicAPI,
         googleAPI,
-        attachmentUploadCoordinator
+        attachmentUploadCoordinator,
+        contextBuilder
     )
 }
