@@ -95,6 +95,7 @@ dependencies {
     implementation(libs.ktor.client.cio)
     implementation(libs.ktor.logging)
     implementation(libs.ktor.serialization)
+    implementation(libs.jsoup)
 
     // License page UI
     implementation(libs.auto.license.core)
