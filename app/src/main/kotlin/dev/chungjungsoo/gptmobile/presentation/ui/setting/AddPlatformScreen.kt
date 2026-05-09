@@ -256,6 +256,7 @@ fun AddPlatformScreen(
                         systemPrompt = ModelConstants.DEFAULT_PROMPT,
                         stream = true,
                         reasoning = reasoningEnabled,
+                        toolCallsEnabled = selectedClientType in setOf(ClientType.OPENAI, ClientType.OPENROUTER, ClientType.CUSTOM),
                         timeout = 30
                     )
                     onSave(platform)

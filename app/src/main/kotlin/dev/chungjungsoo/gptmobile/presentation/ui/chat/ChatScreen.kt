@@ -121,6 +121,7 @@ fun ChatScreen(
     val groupedMessages by chatViewModel.groupedMessages.collectAsStateWithLifecycle()
     val indexStates by chatViewModel.indexStates.collectAsStateWithLifecycle()
     val loadingStates by chatViewModel.loadingStates.collectAsStateWithLifecycle()
+    val toolStatuses by chatViewModel.toolStatuses.collectAsStateWithLifecycle()
     val isChatTitleDialogOpen by chatViewModel.isChatTitleDialogOpen.collectAsStateWithLifecycle()
     val isChatModelDialogOpen by chatViewModel.isChatModelDialogOpen.collectAsStateWithLifecycle()
     val messageEditSession by chatViewModel.messageEditSession.collectAsStateWithLifecycle()
@@ -217,6 +218,7 @@ fun ChatScreen(
                             assistantMessages = groupedMessages.assistantMessages.getOrNull(index) ?: emptyList(),
                             platformIndexState = indexStates.getOrElse(index) { 0 },
                             loadingStates = loadingStates,
+                            toolStatuses = toolStatuses,
                             enabledPlatformsInChat = chatViewModel.enabledPlatformsInChat,
                             enabledPlatformLookup = enabledPlatformLookup,
                             canUseChat = canUseChat,
@@ -247,6 +249,7 @@ fun ChatScreen(
                                 assistantMessages = groupedMessages.assistantMessages.getOrNull(lastMessageIndex) ?: emptyList(),
                                 platformIndexState = indexStates.getOrElse(lastMessageIndex) { 0 },
                                 loadingStates = loadingStates,
+                                toolStatuses = toolStatuses,
                                 enabledPlatformsInChat = chatViewModel.enabledPlatformsInChat,
                                 enabledPlatformLookup = enabledPlatformLookup,
                                 canUseChat = canUseChat,
@@ -384,6 +387,7 @@ private fun ChatMessagePair(
     assistantMessages: List<MessageV2>,
     platformIndexState: Int,
     loadingStates: List<ChatViewModel.LoadingState>,
+    toolStatuses: Map<String, String>,
     enabledPlatformsInChat: List<String>,
     enabledPlatformLookup: Map<String, PlatformV2>,
     canUseChat: Boolean,
@@ -412,6 +416,7 @@ private fun ChatMessagePair(
             assistantMessage.activeRevisionIndex != ACTIVE_REVISION_LATEST
     } ?: false
     val selectedPlatformUid = enabledPlatformsInChat.getOrElse(platformIndexState) { "" }
+    val toolStatus = toolStatuses[toolStatusKey(messageIndex, platformIndexState)]
     val isCurrentPlatformLoading =
         loadingStates.getOrElse(platformIndexState) { ChatViewModel.LoadingState.Idle } == ChatViewModel.LoadingState.Loading
     var isDropDownMenuExpanded by remember { mutableStateOf(false) }
@@ -481,6 +486,7 @@ private fun ChatMessagePair(
                 isLoading = isActiveMessage && isCurrentPlatformLoading,
                 text = assistantContent,
                 thoughts = assistantThoughts,
+                toolStatus = toolStatus,
                 attachments = selectedAssistantMessage?.attachments.orEmpty().map { it.filePathForDisplay },
                 contentIdentity = "$messageIndex:$selectedPlatformUid",
                 revisionIndexLabel = selectedAssistantMessage?.let { assistantMessage ->

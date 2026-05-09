@@ -120,6 +120,9 @@ class ChatViewModel @Inject constructor(
     private val _loadingStates = MutableStateFlow(List<LoadingState>(enabledPlatformsInChat.size) { LoadingState.Idle })
     val loadingStates = _loadingStates.asStateFlow()
 
+    private val _toolStatuses = MutableStateFlow<Map<String, String>>(emptyMap())
+    val toolStatuses = _toolStatuses.asStateFlow()
+
     // Used for text data to show in SelectText Bottom Sheet
     private val _selectedText = MutableStateFlow("")
     val selectedText = _selectedText.asStateFlow()
@@ -285,6 +288,7 @@ class ChatViewModel @Inject constructor(
                 onLoadingComplete = {
                     _loadingStates.update { it.toMutableList().apply { this[platformIndex] = LoadingState.Idle } }
                 },
+                onToolStatusChange = { status -> updateToolStatus(turnIndex, platformIndex, status) },
                 revisionToAppendOnSuccess = revisionToAppendOnSuccess
             )
         }
@@ -542,8 +546,20 @@ class ChatViewModel @Inject constructor(
                     platformIdx = idx,
                     onLoadingComplete = {
                         _loadingStates.update { it.toMutableList().apply { this[idx] = LoadingState.Idle } }
-                    }
+                    },
+                    onToolStatusChange = { status -> updateToolStatus(turnIndex, idx, status) }
                 )
+            }
+        }
+    }
+
+    private fun updateToolStatus(turnIndex: Int, platformIndex: Int, status: String?) {
+        val key = toolStatusKey(turnIndex, platformIndex)
+        _toolStatuses.update { current ->
+            if (status.isNullOrBlank()) {
+                current - key
+            } else {
+                current + (key to status)
             }
         }
     }
@@ -958,6 +974,8 @@ internal fun createRetryAssistantMessage(
 ): MessageV2 = createEmptyAssistantMessage(chatId, platformUid).copy(
     revisions = currentMessage.revisions
 )
+
+internal fun toolStatusKey(turnIndex: Int, platformIndex: Int): String = "$turnIndex:$platformIndex"
 
 internal fun normalizeAssistantRow(
     assistantMessages: List<MessageV2>,

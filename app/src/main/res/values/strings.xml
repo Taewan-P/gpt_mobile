@@ -202,6 +202,8 @@
     <string name="apply_generated_title">Apply generated title</string>
     <string name="retry_ai_title">Retry AI generated title</string>
     <string name="token_input_warning">NOTE: OpenAI and Anthropic uses prepaid billing, so you MUST CHARGE CREDITS in each accounts before you use them. Otherwise, the response will return an error.</string>
+    <string name="tool_calls">Tool Calls</string>
+    <string name="tool_calls_description">Allow the model to search the web and open public web pages.</string>
     <string name="edit">Edit</string>
     <string name="edit_question">Edit User Message</string>
     <string name="edit_assistant_message">Edit Assistant Message</string>

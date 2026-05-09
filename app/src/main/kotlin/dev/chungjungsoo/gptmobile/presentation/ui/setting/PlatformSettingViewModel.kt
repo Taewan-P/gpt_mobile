@@ -54,6 +54,12 @@ class PlatformSettingViewModel @Inject constructor(
         }
     }
 
+    fun toggleToolCalls() {
+        _platformState.value?.let { platform ->
+            updatePlatform(platform.copy(toolCallsEnabled = !platform.toolCallsEnabled))
+        }
+    }
+
     fun updatePlatform(platform: PlatformV2) {
         viewModelScope.launch {
             settingRepository.updatePlatformV2(platform)

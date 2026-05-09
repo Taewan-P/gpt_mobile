@@ -232,6 +232,17 @@ fun PlatformSettingScreen(
                     isChecked = platformData.reasoning,
                     onCheckedChange = { settingViewModel.toggleReasoning() }
                 )
+                ToolCallsSwitch(
+                    modifier = Modifier.height(64.dp),
+                    enabled = platformData.enabled && platformData.compatibleType in setOf(
+                        ClientType.OPENAI,
+                        ClientType.OPENROUTER,
+                        ClientType.OLLAMA,
+                        ClientType.CUSTOM
+                    ),
+                    isChecked = platformData.toolCallsEnabled,
+                    onCheckedChange = { settingViewModel.toggleToolCalls() }
+                )
 
                 PlatformNameDialog(dialogState, platformData.name, settingViewModel)
                 APIUrlDialog(dialogState, platformData.apiUrl, settingViewModel)
@@ -339,6 +350,61 @@ fun ExtendedThinkingSwitch(
             Icon(
                 imageVector = ImageVector.vectorResource(id = R.drawable.ic_model),
                 contentDescription = stringResource(R.string.extended_thinking)
+            )
+        },
+        trailingContent = {
+            Switch(
+                checked = isChecked,
+                onCheckedChange = null,
+                enabled = enabled
+            )
+        },
+        colors = ListItemDefaults.colors(
+            headlineColor = if (enabled) colors.headlineColor else colors.disabledHeadlineColor,
+            supportingColor = if (enabled) colors.supportingTextColor else colors.disabledHeadlineColor,
+            leadingIconColor = if (enabled) colors.leadingIconColor else colors.disabledLeadingIconColor,
+            trailingIconColor = if (enabled) colors.trailingIconColor else colors.disabledTrailingIconColor
+        )
+    )
+}
+
+@Composable
+fun ToolCallsSwitch(
+    modifier: Modifier,
+    enabled: Boolean,
+    isChecked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    val clickableModifier = if (enabled) {
+        modifier
+            .fillMaxWidth()
+            .clickable(onClick = { onCheckedChange(!isChecked) })
+            .padding(horizontal = 8.dp)
+    } else {
+        modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp)
+    }
+    val colors = ListItemDefaults.colors()
+
+    ListItem(
+        modifier = clickableModifier,
+        headlineContent = {
+            Text(
+                text = stringResource(R.string.tool_calls),
+                overflow = TextOverflow.Ellipsis
+            )
+        },
+        supportingContent = {
+            Text(
+                text = stringResource(R.string.tool_calls_description),
+                overflow = TextOverflow.Ellipsis
+            )
+        },
+        leadingContent = {
+            Icon(
+                imageVector = ImageVector.vectorResource(id = R.drawable.ic_link),
+                contentDescription = stringResource(R.string.tool_calls)
             )
         },
         trailingContent = {
