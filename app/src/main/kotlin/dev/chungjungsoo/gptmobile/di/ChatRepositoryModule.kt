@@ -19,6 +19,9 @@ import dev.chungjungsoo.gptmobile.data.network.OpenAIAPI
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepositoryImpl
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
+import dev.chungjungsoo.gptmobile.data.repository.provider.OpenAICompatibleChatProviderAdapter
+import dev.chungjungsoo.gptmobile.data.repository.provider.OpenAIResponsesChatProviderAdapter
+import dev.chungjungsoo.gptmobile.data.tool.ToolExecutor
 import javax.inject.Singleton
 
 @Module
@@ -39,6 +42,9 @@ object ChatRepositoryModule {
         groqAPI: GroqAPI,
         anthropicAPI: AnthropicAPI,
         googleAPI: GoogleAPI,
+        openAIResponsesChatProviderAdapter: OpenAIResponsesChatProviderAdapter,
+        openAICompatibleChatProviderAdapter: OpenAICompatibleChatProviderAdapter,
+        toolExecutor: ToolExecutor,
         attachmentUploadCoordinator: dev.chungjungsoo.gptmobile.data.repository.AttachmentUploadCoordinator,
         contextBuilder: ContextBuilder
     ): ChatRepository = ChatRepositoryImpl(
@@ -53,6 +59,9 @@ object ChatRepositoryModule {
         groqAPI,
         anthropicAPI,
         googleAPI,
+        openAIResponsesChatProviderAdapter,
+        openAICompatibleChatProviderAdapter,
+        toolExecutor,
         attachmentUploadCoordinator,
         contextBuilder
     )

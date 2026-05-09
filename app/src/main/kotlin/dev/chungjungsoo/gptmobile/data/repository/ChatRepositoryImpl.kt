@@ -41,6 +41,7 @@ import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatCompletionRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatMessage
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ReasoningConfig
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseContentPart
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseInputItem
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseInputContent
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseInputMessage
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponsesRequest
@@ -54,6 +55,9 @@ import dev.chungjungsoo.gptmobile.data.network.AnthropicAPI
 import dev.chungjungsoo.gptmobile.data.network.GoogleAPI
 import dev.chungjungsoo.gptmobile.data.network.GroqAPI
 import dev.chungjungsoo.gptmobile.data.network.OpenAIAPI
+import dev.chungjungsoo.gptmobile.data.repository.provider.OpenAICompatibleChatProviderAdapter
+import dev.chungjungsoo.gptmobile.data.repository.provider.OpenAIResponsesChatProviderAdapter
+import dev.chungjungsoo.gptmobile.data.repository.provider.resolveWebSearchSystemPrompt
 import dev.chungjungsoo.gptmobile.util.AttachmentPayloadCache
 import dev.chungjungsoo.gptmobile.util.FileUtils
 import dev.chungjungsoo.gptmobile.util.stripAssistantErrorNote
@@ -79,6 +83,9 @@ class ChatRepositoryImpl @Inject constructor(
     private val groqAPI: GroqAPI,
     private val anthropicAPI: AnthropicAPI,
     private val googleAPI: GoogleAPI,
+    private val openAIResponsesChatProviderAdapter: OpenAIResponsesChatProviderAdapter,
+    private val openAICompatibleChatProviderAdapter: OpenAICompatibleChatProviderAdapter,
+    private val toolExecutor: dev.chungjungsoo.gptmobile.data.tool.ToolExecutor,
     private val attachmentUploadCoordinator: AttachmentUploadCoordinator,
     private val contextBuilder: ContextBuilder
 ) : ChatRepository {
@@ -124,28 +131,139 @@ class ChatRepositoryImpl @Inject constructor(
         assistantMessages: List<List<MessageV2>>,
         platform: PlatformV2
     ): Flow<ApiState> = when (platform.compatibleType) {
-        ClientType.OPENAI -> {
-            // Use Responses API for OpenAI (supports reasoning/thinking)
-            completeChatWithOpenAIResponses(userMessages, assistantMessages, platform)
-        }
-
-        ClientType.GROQ -> {
-            completeChatWithGroq(userMessages, assistantMessages, platform)
-        }
-
+        ClientType.OPENAI -> completeChatWithOpenAIProviderAdapter(userMessages, assistantMessages, platform)
+        ClientType.GROQ -> completeChatWithGroq(userMessages, assistantMessages, platform)
         ClientType.OLLAMA, ClientType.OPENROUTER, ClientType.CUSTOM -> {
-            // Use Chat Completions API for OpenAI-compatible services
-            completeChatWithOpenAIChatCompletions(userMessages, assistantMessages, platform)
+            if (platform.toolCallsEnabled) {
+                completeChatWithTools(
+                    primary = openAICompatibleChatProviderAdapter.completeChat(userMessages, assistantMessages, platform),
+                    fallback = {
+                        completeChatWithOpenAIChatCompletions(userMessages, assistantMessages, platform)
+                    }
+                )
+            } else {
+                completeChatWithOpenAIChatCompletions(userMessages, assistantMessages, platform)
+            }
+        }
+        ClientType.ANTHROPIC -> completeChatWithAnthropic(userMessages, assistantMessages, platform)
+        ClientType.GOOGLE -> completeChatWithGoogle(userMessages, assistantMessages, platform)
+    }
+
+    private suspend fun completeChatWithOpenAIProviderAdapter(
+        userMessages: List<MessageV2>,
+        assistantMessages: List<List<MessageV2>>,
+        platform: PlatformV2
+    ): Flow<ApiState> = if (platform.toolCallsEnabled) {
+        openAIResponsesChatProviderAdapter.completeChat(userMessages, assistantMessages, platform)
+    } else {
+        completeChatWithOpenAIAutoFallback(userMessages, assistantMessages, platform)
+    }
+
+    private suspend fun completeChatWithTools(
+        primary: Flow<ApiState>,
+        fallback: suspend () -> Flow<ApiState>
+    ): Flow<ApiState> = flow {
+        var sawContent = false
+        var shouldFallback = false
+
+        primary.collect { state ->
+            when (state) {
+                is ApiState.Success -> {
+                    sawContent = sawContent || state.textChunk.isNotBlank()
+                    emit(state)
+                }
+                is ApiState.Thinking -> {
+                    sawContent = sawContent || state.thinkingChunk.isNotBlank()
+                    emit(state)
+                }
+                is ApiState.Error -> {
+                    if (!sawContent) {
+                        shouldFallback = true
+                    } else {
+                        emit(state)
+                    }
+                }
+                is ApiState.Done -> {
+                    if (!shouldFallback) {
+                        emit(state)
+                    }
+                }
+                else -> emit(state)
+            }
         }
 
-        ClientType.ANTHROPIC -> {
-            completeChatWithAnthropic(userMessages, assistantMessages, platform)
-        }
-
-        ClientType.GOOGLE -> {
-            completeChatWithGoogle(userMessages, assistantMessages, platform)
+        if (shouldFallback) {
+            emitAll(fallback())
         }
     }
+
+    private suspend fun completeChatWithOpenAIAutoFallback(
+        userMessages: List<MessageV2>,
+        assistantMessages: List<List<MessageV2>>,
+        platform: PlatformV2
+    ): Flow<ApiState> = flow {
+        if (!shouldPreferResponsesEndpoint(platform.apiUrl)) {
+            emitAll(completeChatWithOpenAIChatCompletions(userMessages, assistantMessages, platform))
+            return@flow
+        }
+
+        var sawContent = false
+        var shouldFallback = false
+
+        completeChatWithOpenAIResponses(userMessages, assistantMessages, platform).collect { state ->
+            when (state) {
+                is ApiState.Success -> {
+                    sawContent = sawContent || state.textChunk.isNotBlank()
+                    emit(state)
+                }
+                is ApiState.Thinking -> {
+                    sawContent = sawContent || state.thinkingChunk.isNotBlank()
+                    emit(state)
+                }
+                is ApiState.Error -> {
+                    if (!sawContent && shouldFallbackToChatCompletions(state.message)) {
+                        shouldFallback = true
+                    } else {
+                        emit(state)
+                    }
+                }
+                is ApiState.Done -> {
+                    if (!shouldFallback) {
+                        emit(state)
+                    }
+                }
+                else -> emit(state)
+            }
+        }
+
+        if (shouldFallback) {
+            emitAll(completeChatWithOpenAIChatCompletions(userMessages, assistantMessages, platform))
+        }
+    }
+
+    private fun shouldPreferResponsesEndpoint(apiUrl: String): Boolean {
+        val normalized = apiUrl.lowercase()
+        return normalized.contains("api.openai.com")
+    }
+
+    private fun shouldFallbackToChatCompletions(message: String): Boolean {
+        val lowered = message.lowercase()
+        return lowered.contains("404") ||
+            lowered.contains("/v1/responses") ||
+            lowered.contains("not found") ||
+            lowered.contains("unsupported") ||
+            lowered.contains("only supported on responses websocket") ||
+            lowered.contains("previous_response_id")
+    }
+    private suspend fun resolveSystemPromptWithWebSearch(
+        baseSystemPrompt: String?,
+        userMessages: List<MessageV2>,
+        platform: PlatformV2
+    ): String? = resolveWebSearchSystemPrompt(
+        toolExecutor = toolExecutor,
+        baseSystemPrompt = baseSystemPrompt,
+        userMessages = userMessages
+    )
 
     private suspend fun completeChatWithOpenAIResponses(
         userMessages: List<MessageV2>,
@@ -154,6 +272,7 @@ class ChatRepositoryImpl @Inject constructor(
     ): Flow<ApiState> = try {
         openAIAPI.setToken(platform.token)
         openAIAPI.setAPIUrl(platform.apiUrl)
+        val systemPrompt = resolveSystemPromptWithWebSearch(platform.systemPrompt, userMessages, platform)
 
         streamPreparedApiState(
             prepare = {
@@ -164,7 +283,7 @@ class ChatRepositoryImpl @Inject constructor(
                     model = platform.model,
                     input = inputMessages,
                     stream = true,
-                    instructions = platform.systemPrompt?.takeIf { it.isNotBlank() },
+                    instructions = systemPrompt,
                     temperature = if (platform.reasoning) null else platform.temperature,
                     topP = if (platform.reasoning) null else platform.topP,
                     reasoning = if (platform.reasoning) {
@@ -215,7 +334,8 @@ class ChatRepositoryImpl @Inject constructor(
             prepare = {
                 val contextTurns = buildContextTurns(userMessages, assistantMessages, platform)
                 validateInlineBudgetIfNeeded(contextTurns, platform)
-                val messages = buildOpenAIChatMessages(contextTurns, platform.systemPrompt)
+                val systemPrompt = resolveSystemPromptWithWebSearch(platform.systemPrompt, userMessages, platform)
+                val messages = buildOpenAIChatMessages(contextTurns, systemPrompt)
 
                 createGroqChatCompletionRequest(messages, platform)
             },
@@ -260,12 +380,13 @@ class ChatRepositoryImpl @Inject constructor(
     ): Flow<ApiState> = try {
         openAIAPI.setToken(platform.token)
         openAIAPI.setAPIUrl(platform.apiUrl)
+        val systemPrompt = resolveSystemPromptWithWebSearch(platform.systemPrompt, userMessages, platform)
 
         streamPreparedApiState(
             prepare = {
                 val contextTurns = buildContextTurns(userMessages, assistantMessages, platform)
                 validateInlineBudgetIfNeeded(contextTurns, platform)
-                val messages = buildOpenAIChatMessages(contextTurns, platform.systemPrompt)
+                val messages = buildOpenAIChatMessages(contextTurns, systemPrompt)
 
                 ChatCompletionRequest(
                     model = platform.model,
@@ -281,8 +402,16 @@ class ChatRepositoryImpl @Inject constructor(
                         when {
                             chunk.error != null -> emit(ApiState.Error(chunk.error.message))
 
-                            chunk.choices?.firstOrNull()?.delta?.content != null -> {
-                                emit(ApiState.Success(chunk.choices.first().delta.content!!))
+                            else -> {
+                                val choice = chunk.choices?.firstOrNull()
+                                val content = choice?.delta?.content
+                                    ?: choice?.message?.content
+                                    ?: choice?.text
+                                    ?: choice?.delta?.reasoningContent
+                                    ?: choice?.message?.reasoningContent
+                                if (!content.isNullOrBlank()) {
+                                    emit(ApiState.Success(content))
+                                }
                             }
                         }
                     }
@@ -359,8 +488,8 @@ class ChatRepositoryImpl @Inject constructor(
     private suspend fun buildResponsesInputMessages(
         contextTurns: List<ConversationTurn>,
         platformUid: String
-    ): List<ResponseInputMessage> {
-        val inputMessages = mutableListOf<ResponseInputMessage>()
+    ): List<ResponseInputItem> {
+        val inputMessages = mutableListOf<ResponseInputItem>()
 
         contextTurns.forEach { turn ->
             if (hasRenderableMessageContent(turn.userMessage, isUser = true)) {
@@ -456,7 +585,7 @@ class ChatRepositoryImpl @Inject constructor(
         )
     }
 
-    private suspend fun transformMessageV2ToResponsesInput(message: MessageV2, isUser: Boolean, platformUid: String): ResponseInputMessage {
+    private suspend fun transformMessageV2ToResponsesInput(message: MessageV2, isUser: Boolean, platformUid: String): ResponseInputItem {
         val role = if (isUser) "user" else "assistant"
         val messageContent = if (isUser) message.content else message.sendableAssistantContent()
 
@@ -469,9 +598,11 @@ class ChatRepositoryImpl @Inject constructor(
 
         // If no images, use simple text content
         if (imageAttachments.isEmpty()) {
-            return ResponseInputMessage(
-                role = role,
-                content = ResponseInputContent.text(messageContent)
+            return ResponseInputItem.Message(
+                ResponseInputMessage(
+                    role = role,
+                    content = ResponseInputContent.text(messageContent)
+                )
             )
         }
 
@@ -504,9 +635,11 @@ class ChatRepositoryImpl @Inject constructor(
 
         validateResponseInputPartsOrThrow(messageContent, parts.size, message.id)
 
-        return ResponseInputMessage(
-            role = role,
-            content = ResponseInputContent.parts(parts)
+        return ResponseInputItem.Message(
+            ResponseInputMessage(
+                role = role,
+                content = ResponseInputContent.parts(parts)
+            )
         )
     }
 
@@ -517,6 +650,7 @@ class ChatRepositoryImpl @Inject constructor(
     ): Flow<ApiState> = try {
         anthropicAPI.setToken(platform.token)
         anthropicAPI.setAPIUrl(platform.apiUrl)
+        val systemPrompt = resolveSystemPromptWithWebSearch(platform.systemPrompt, userMessages, platform)
 
         streamPreparedApiState(
             prepare = {
@@ -528,7 +662,7 @@ class ChatRepositoryImpl @Inject constructor(
                     messages = messages,
                     maxTokens = if (platform.reasoning) 16000 else 4096,
                     stream = platform.stream,
-                    systemPrompt = platform.systemPrompt,
+                    systemPrompt = systemPrompt,
                     temperature = if (platform.reasoning) null else platform.temperature,
                     topP = if (platform.reasoning) null else platform.topP,
                     thinking = if (platform.reasoning) {
@@ -623,6 +757,7 @@ class ChatRepositoryImpl @Inject constructor(
     ): Flow<ApiState> = try {
         googleAPI.setToken(platform.token)
         googleAPI.setAPIUrl(platform.apiUrl)
+        val systemPrompt = resolveSystemPromptWithWebSearch(platform.systemPrompt, userMessages, platform)
 
         streamPreparedApiState(
             prepare = {
@@ -642,7 +777,7 @@ class ChatRepositoryImpl @Inject constructor(
                             null
                         }
                     ),
-                    systemInstruction = platform.systemPrompt?.takeIf { it.isNotBlank() }?.let {
+                    systemInstruction = systemPrompt?.let {
                         Content(
                             parts = listOf(Part.text(it))
                         )
@@ -933,52 +1068,3 @@ class ChatRepositoryImpl @Inject constructor(
     }
 }
 
-internal fun createGroqChatCompletionRequest(
-    messages: List<ChatMessage>,
-    platform: PlatformV2
-): GroqChatCompletionRequest {
-    val isGptOssModel = isGroqGptOssModel(platform.model)
-
-    return GroqChatCompletionRequest(
-        model = platform.model,
-        messages = messages,
-        stream = platform.stream,
-        temperature = platform.temperature,
-        topP = platform.topP,
-        reasoningEffort = if (platform.reasoning && isGptOssModel) "medium" else null,
-        reasoningFormat = when {
-            platform.reasoning && !isGptOssModel -> "parsed"
-            !platform.reasoning && !isGptOssModel -> "hidden"
-            else -> null
-        },
-        includeReasoning = when {
-            platform.reasoning && isGptOssModel -> true
-            !platform.reasoning && isGptOssModel -> false
-            else -> null
-        }
-    )
-}
-
-internal fun isGroqGptOssModel(model: String): Boolean = model.contains("gpt-oss", ignoreCase = true)
-
-internal fun MessageV2.sendableAssistantContent(): String {
-    val strippedContent = stripAssistantErrorNote(effectiveContent()).trim()
-    return if (strippedContent.startsWith("Error: ")) "" else strippedContent
-}
-
-internal fun MessageV2.hasSendableAssistantPayload(): Boolean = sendableAssistantContent().isNotBlank() || attachments.isNotEmpty()
-
-internal fun validateResponseInputPartsOrThrow(messageContent: String, partCount: Int, messageId: Int) {
-    if (messageContent.isBlank() && partCount == 0) {
-        throw IllegalStateException("No encodable message content for messageId=$messageId")
-    }
-}
-
-internal fun <T> streamPreparedApiState(
-    prepare: suspend () -> T,
-    stream: suspend (T) -> Flow<ApiState>
-): Flow<ApiState> = flow {
-    emit(ApiState.Loading)
-    val preparedRequest = withContext(Dispatchers.Default) { prepare() }
-    emitAll(stream(preparedRequest))
-}
