@@ -128,6 +128,38 @@ data class OutputTextDoneEvent(
 ) : ResponsesStreamEvent()
 
 /**
+ * Emitted when a delta is added to function call arguments.
+ */
+@Serializable
+@SerialName("response.function_call_arguments.delta")
+data class FunctionCallArgumentsDeltaEvent(
+    @SerialName("item_id")
+    val itemId: String,
+
+    @SerialName("output_index")
+    val outputIndex: Int,
+
+    @SerialName("delta")
+    val delta: String
+) : ResponsesStreamEvent()
+
+/**
+ * Emitted when function call arguments are complete.
+ */
+@Serializable
+@SerialName("response.function_call_arguments.done")
+data class FunctionCallArgumentsDoneEvent(
+    @SerialName("item_id")
+    val itemId: String,
+
+    @SerialName("output_index")
+    val outputIndex: Int,
+
+    @SerialName("arguments")
+    val arguments: String
+) : ResponsesStreamEvent()
+
+/**
  * Emitted when the response is completed.
  */
 @Serializable
@@ -262,8 +294,17 @@ data class ResponseObject(
     @SerialName("status")
     val status: String? = null,
 
+    @SerialName("conversation")
+    val conversation: ResponseConversation? = null,
+
     @SerialName("error")
     val error: ResponseError? = null
+)
+
+@Serializable
+data class ResponseConversation(
+    @SerialName("id")
+    val id: String
 )
 
 @Serializable
@@ -290,7 +331,19 @@ data class OutputItem(
     val type: String,
 
     @SerialName("id")
-    val id: String
+    val id: String,
+
+    @SerialName("call_id")
+    val callId: String? = null,
+
+    @SerialName("name")
+    val name: String? = null,
+
+    @SerialName("arguments")
+    val arguments: String? = null,
+
+    @SerialName("status")
+    val status: String? = null
 )
 
 @Serializable
