@@ -120,7 +120,7 @@
     <string name="model_custom_example">например, llama3.2, llava, llama3:latest, …</string>
     <string name="custom_model_warning">Обратите внимание, что имя модели должно поддерживаться API.</string>
     <string name="enter_api_address">Введите адрес API</string>
-    <string name="api_address_description">Введите адрес вашего Ollama API, включая номер порта. Приложение будет использовать эндпоинт v1/chat/completions, поэтому введите только начальную часть полного адреса. Адрес должен заканчиваться на \'/\'. например) http://192.168.1.100:11434/</string>
+    <string name="api_address_description">Введите адрес вашего Ollama API, включая номер порта. Приложение будет использовать эндпоинт chat/completions, поэтому введите только начальную часть полного адреса. Адрес должен заканчиваться на \'/\'. например) http://192.168.1.100:11434/v1/</string>
     <string name="ollama_api_address">Адрес Ollama API</string>
     <string name="reset">Сброс</string>
     <string name="ollama_api_key">API-ключ Ollama</string>

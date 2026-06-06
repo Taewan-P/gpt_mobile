@@ -134,7 +134,7 @@
     <string name="model_custom_example">contoh: llama3.2, llava, llama3:latest, …</string>
     <string name="custom_model_warning">Perhatikan bahwa nama model harus didukung oleh API.</string>
     <string name="enter_api_address">Masukkan alamat API</string>
-    <string name="api_address_description">Silakan masukkan alamat API Ollama Anda disertai portanya. Aplikasi akan menggunakan titik ujung v1/chat/completions, sehingga masukkan hanya bagian depan dari alamat lengkap. Alamat harus diakhiri dengan \'/\'. Contoh: http://192.168.1.100:11434/</string>
+    <string name="api_address_description">Silakan masukkan alamat API Ollama Anda disertai portanya. Aplikasi akan menggunakan titik ujung chat/completions, sehingga masukkan hanya bagian depan dari alamat lengkap. Alamat harus diakhiri dengan \'/\'. Contoh: http://192.168.1.100:11434/v1/</string>
     <string name="ollama_api_address">Alamat API Ollama</string>
     <string name="reset">Atur Ulang</string>
     <string name="ollama_api_key">Kunci API Ollama</string>

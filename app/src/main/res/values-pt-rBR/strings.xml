@@ -89,7 +89,7 @@
     <string name="model_custom_example">por exemplo lhama3.2, lhava, lhama3:mais recente,…</string>
     <string name="custom_model_warning">Observe que o nome do modelo deve ser suportado pela API.</string>
     <string name="enter_api_address">Insira o endereço da API</string>
-    <string name="api_address_description">Insira o endereço da sua API Ollama, incluindo o número da porta. O aplicativo usará o endpoint v1/chat/completions, portanto, insira apenas a parte frontal do endereço completo. O endereço deve terminar</string>
+    <string name="api_address_description">Insira o endereço da sua API Ollama, incluindo o número da porta. O aplicativo usará o endpoint chat/completions, portanto, insira apenas a parte frontal do endereço completo. O endereço deve terminar</string>
     <string name="api_url_cautions">A URL deve terminar com \'/\'.</string>
     <string name="bug_report_icon">Ícone de relatório de bug</string>
     <string name="llama_3_2_description">Último modelo de linguagem leve e de código aberto da Meta.</string>
