@@ -5,4 +5,3 @@ import kotlinx.serialization.json.JsonObject
 interface ToolExecutor {
     suspend fun execute(toolName: String, arguments: JsonObject): ToolExecutionResult
 }
-

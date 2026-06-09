@@ -16,7 +16,6 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
 import dev.chungjungsoo.gptmobile.data.database.entity.Message
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
-import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.ImageContent as AnthropicImageContent
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.ImageSource
@@ -31,7 +30,6 @@ import dev.chungjungsoo.gptmobile.data.dto.google.common.Part
 import dev.chungjungsoo.gptmobile.data.dto.google.common.Role as GoogleRole
 import dev.chungjungsoo.gptmobile.data.dto.google.request.GenerateContentRequest
 import dev.chungjungsoo.gptmobile.data.dto.google.request.GenerationConfig
-import dev.chungjungsoo.gptmobile.data.dto.groq.request.GroqChatCompletionRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.common.ImageContent as OpenAIImageContent
 import dev.chungjungsoo.gptmobile.data.dto.openai.common.ImageUrl
 import dev.chungjungsoo.gptmobile.data.dto.openai.common.MessageContent as OpenAIMessageContent
@@ -41,8 +39,8 @@ import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatCompletionRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatMessage
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ReasoningConfig
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseContentPart
-import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseInputItem
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseInputContent
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseInputItem
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseInputMessage
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponsesRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.OutputTextDeltaEvent
@@ -60,7 +58,6 @@ import dev.chungjungsoo.gptmobile.data.repository.provider.OpenAIResponsesChatPr
 import dev.chungjungsoo.gptmobile.data.repository.provider.resolveWebSearchSystemPrompt
 import dev.chungjungsoo.gptmobile.util.AttachmentPayloadCache
 import dev.chungjungsoo.gptmobile.util.FileUtils
-import dev.chungjungsoo.gptmobile.util.stripAssistantErrorNote
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -246,13 +243,14 @@ class ChatRepositoryImpl @Inject constructor(
 
     private fun shouldFallbackToChatCompletions(message: String): Boolean {
         val lowered = message.lowercase()
-        return lowered.contains("404") ||
-            lowered.contains("/v1/responses") ||
-            lowered.contains("not found") ||
-            lowered.contains("unsupported") ||
-            lowered.contains("only supported on responses websocket") ||
-            lowered.contains("previous_response_id")
+        return lowered.contains("404")
+            || lowered.contains("/v1/responses")
+            || lowered.contains("not found")
+            || lowered.contains("unsupported")
+            || lowered.contains("only supported on responses websocket")
+            || lowered.contains("previous_response_id")
     }
+
     private suspend fun resolveSystemPromptWithWebSearch(
         baseSystemPrompt: String?,
         userMessages: List<MessageV2>,
@@ -1069,4 +1067,3 @@ class ChatRepositoryImpl @Inject constructor(
         chatRoomV2Dao.deleteChatRooms(*chatRooms.toTypedArray())
     }
 }
-

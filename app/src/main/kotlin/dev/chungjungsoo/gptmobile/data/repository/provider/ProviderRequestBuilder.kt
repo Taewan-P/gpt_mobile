@@ -2,8 +2,8 @@ package dev.chungjungsoo.gptmobile.data.repository.provider
 
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
-import dev.chungjungsoo.gptmobile.data.context.ConversationTurn
 import dev.chungjungsoo.gptmobile.data.context.ContextBuilder
+import dev.chungjungsoo.gptmobile.data.context.ConversationTurn
 import dev.chungjungsoo.gptmobile.data.context.ProviderContextPolicy
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageV2Dao
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
@@ -18,33 +18,28 @@ import dev.chungjungsoo.gptmobile.data.dto.anthropic.request.InputMessage
 import dev.chungjungsoo.gptmobile.data.dto.google.common.Content
 import dev.chungjungsoo.gptmobile.data.dto.google.common.Part
 import dev.chungjungsoo.gptmobile.data.dto.google.common.Role as GoogleRole
-import dev.chungjungsoo.gptmobile.data.dto.google.request.GenerationConfig
 import dev.chungjungsoo.gptmobile.data.dto.openai.common.ImageContent as OpenAIImageContent
 import dev.chungjungsoo.gptmobile.data.dto.openai.common.ImageUrl
 import dev.chungjungsoo.gptmobile.data.dto.openai.common.MessageContent as OpenAIMessageContent
 import dev.chungjungsoo.gptmobile.data.dto.openai.common.Role as OpenAIRole
 import dev.chungjungsoo.gptmobile.data.dto.openai.common.TextContent as OpenAITextContent
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatMessage
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.ReasoningConfig
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseContentPart
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseInputContent
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseInputItem
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseInputMessage
-import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseInputContent
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseTool
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponsesRequest
-import dev.chungjungsoo.gptmobile.data.dto.openai.request.ReasoningConfig
-import dev.chungjungsoo.gptmobile.data.dto.google.request.GenerateContentRequest
 import dev.chungjungsoo.gptmobile.data.model.AttachmentRemoteType
+import dev.chungjungsoo.gptmobile.data.repository.sendableAssistantContent
+import dev.chungjungsoo.gptmobile.data.repository.validateResponseInputPartsOrThrow
 import dev.chungjungsoo.gptmobile.util.AttachmentPayloadCache
 import dev.chungjungsoo.gptmobile.util.FileUtils
-import dev.chungjungsoo.gptmobile.util.isAssistantErrorMessage
-import dev.chungjungsoo.gptmobile.util.stripAssistantErrorNote
 import java.io.File
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import dev.chungjungsoo.gptmobile.data.repository.sendableAssistantContent
-import dev.chungjungsoo.gptmobile.data.repository.validateResponseInputPartsOrThrow
-import dev.chungjungsoo.gptmobile.data.tool.ToolRegistry
 
 class ProviderRequestBuilder @Inject constructor(
     @param:ApplicationContext private val context: Context,

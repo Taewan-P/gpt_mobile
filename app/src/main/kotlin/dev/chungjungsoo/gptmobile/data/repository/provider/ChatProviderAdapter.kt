@@ -14,4 +14,3 @@ interface ChatProviderAdapter {
         platform: PlatformV2
     ): Flow<ApiState>
 }
-

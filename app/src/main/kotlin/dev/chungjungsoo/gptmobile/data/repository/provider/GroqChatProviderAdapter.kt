@@ -8,11 +8,11 @@ import dev.chungjungsoo.gptmobile.data.network.GroqAPI
 import dev.chungjungsoo.gptmobile.data.repository.GroqReasoningParser
 import dev.chungjungsoo.gptmobile.data.repository.createGroqChatCompletionRequest
 import dev.chungjungsoo.gptmobile.data.repository.streamPreparedApiState
+import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.onCompletion
-import javax.inject.Inject
 
 class GroqChatProviderAdapter @Inject constructor(
     private val groqAPI: GroqAPI,

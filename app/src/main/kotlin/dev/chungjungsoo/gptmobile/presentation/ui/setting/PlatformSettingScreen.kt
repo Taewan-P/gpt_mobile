@@ -232,14 +232,15 @@ fun PlatformSettingScreen(
                     isChecked = platformData.reasoning,
                     onCheckedChange = { settingViewModel.toggleReasoning() }
                 )
+                val supportsToolCalls = platformData.compatibleType in setOf(
+                    ClientType.OPENAI,
+                    ClientType.OPENROUTER,
+                    ClientType.OLLAMA,
+                    ClientType.CUSTOM
+                )
                 ToolCallsSwitch(
                     modifier = Modifier.height(64.dp),
-                    enabled = platformData.enabled && platformData.compatibleType in setOf(
-                        ClientType.OPENAI,
-                        ClientType.OPENROUTER,
-                        ClientType.OLLAMA,
-                        ClientType.CUSTOM
-                    ),
+                    enabled = platformData.enabled && supportsToolCalls,
                     isChecked = platformData.toolCallsEnabled,
                     onCheckedChange = { settingViewModel.toggleToolCalls() }
                 )

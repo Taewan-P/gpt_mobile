@@ -188,10 +188,10 @@ class OpenAIAPIImpl @Inject constructor(
                         if (eventBuffer.isNotEmpty()) eventBuffer.append('\n')
                         eventBuffer.append(line.removePrefix("data:").trimStart())
                     } else if (
-                        line.startsWith("event:") ||
-                        line.startsWith("id:") ||
-                        line.startsWith("retry:") ||
-                        line.startsWith(":")
+                        line.startsWith("event:")
+                            || line.startsWith("id:")
+                            || line.startsWith("retry:")
+                            || line.startsWith(":")
                     ) {
                         continue
                     } else if (line.isNotBlank()) {
@@ -305,10 +305,10 @@ class OpenAIAPIImpl @Inject constructor(
                         if (eventBuffer.isNotEmpty()) eventBuffer.append('\n')
                         eventBuffer.append(line.removePrefix("data:").trimStart())
                     } else if (
-                        line.startsWith("event:") ||
-                        line.startsWith("id:") ||
-                        line.startsWith("retry:") ||
-                        line.startsWith(":")
+                        line.startsWith("event:")
+                            || line.startsWith("id:")
+                            || line.startsWith("retry:")
+                            || line.startsWith(":")
                     ) {
                         continue
                     } else if (line.isNotBlank()) {

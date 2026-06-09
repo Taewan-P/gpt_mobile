@@ -33,4 +33,3 @@ data class WebPagePayload(
 data class ToolExecutionResult(
     val output: String
 )
-

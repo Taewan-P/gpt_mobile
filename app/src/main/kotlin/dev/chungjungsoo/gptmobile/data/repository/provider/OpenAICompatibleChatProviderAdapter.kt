@@ -166,9 +166,9 @@ class OpenAICompatibleChatProviderAdapter @Inject constructor(
             val error = terminalError
             if (error != null) {
                 if (
-                    toolModeEnabled &&
-                    !fallbackAttempted &&
-                    shouldRetryWithoutTools(error)
+                    toolModeEnabled
+                        && !fallbackAttempted
+                        && shouldRetryWithoutTools(error)
                 ) {
                     toolModeEnabled = false
                     fallbackAttempted = true
@@ -251,11 +251,11 @@ class OpenAICompatibleChatProviderAdapter @Inject constructor(
     private fun shouldRetryWithoutTools(errorMessage: String?): Boolean {
         val message = errorMessage?.lowercase().orEmpty()
         if (message.isBlank()) return false
-        return message.contains("tool") ||
-            message.contains("function call") ||
-            message.contains("function_call") ||
-            message.contains("unsupported") ||
-            message.contains("not support")
+        return message.contains("tool")
+            || message.contains("function call")
+            || message.contains("function_call")
+            || message.contains("unsupported")
+            || message.contains("not support")
     }
 
     private fun mergeToolArguments(current: StringBuilder, incomingRaw: String?): StringBuilder {
@@ -271,9 +271,10 @@ class OpenAICompatibleChatProviderAdapter @Inject constructor(
         return current
     }
 
-    private fun shouldUseStreaming(platform: PlatformV2): Boolean {
-        return platform.compatibleType == ClientType.OPENAI && platform.stream && !platform.toolCallsEnabled
-    }
+    private fun shouldUseStreaming(platform: PlatformV2): Boolean =
+        platform.compatibleType == ClientType.OPENAI
+            && platform.stream
+            && !platform.toolCallsEnabled
 }
 
 private const val MAX_TOOL_CALL_ROUNDS = 8
