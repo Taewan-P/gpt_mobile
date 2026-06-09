@@ -243,12 +243,14 @@ class ChatRepositoryImpl @Inject constructor(
 
     private fun shouldFallbackToChatCompletions(message: String): Boolean {
         val lowered = message.lowercase()
-        return lowered.contains("404")
-            || lowered.contains("/v1/responses")
-            || lowered.contains("not found")
-            || lowered.contains("unsupported")
-            || lowered.contains("only supported on responses websocket")
-            || lowered.contains("previous_response_id")
+        return listOf(
+            "404",
+            "/v1/responses",
+            "not found",
+            "unsupported",
+            "only supported on responses websocket",
+            "previous_response_id"
+        ).any { lowered.contains(it) }
     }
 
     private suspend fun resolveSystemPromptWithWebSearch(

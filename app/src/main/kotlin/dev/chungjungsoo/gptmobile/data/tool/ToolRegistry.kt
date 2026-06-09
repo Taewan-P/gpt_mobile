@@ -109,17 +109,22 @@ interface ToolRegistry {
 }
 
 class DefaultToolRegistry @Inject constructor() : ToolRegistry {
-    override fun toolsFor(platform: PlatformV2): List<ToolDefinition> = if (
-        platform.toolCallsEnabled
-            && platform.compatibleType in setOf(
-                ClientType.OPENAI,
-                ClientType.OPENROUTER,
-                ClientType.OLLAMA,
-                ClientType.CUSTOM
-            )
-    ) {
+    override fun toolsFor(platform: PlatformV2): List<ToolDefinition> = if (supportsToolCalls(platform)) {
         ToolRegistry.defaultTools()
     } else {
         emptyList()
     }
+
+    private fun supportsToolCalls(platform: PlatformV2): Boolean =
+        listOf(
+            platform.toolCallsEnabled,
+            platform.compatibleType in toolCallingClientTypes
+        ).all { it }
+
+    private val toolCallingClientTypes = setOf(
+        ClientType.OPENAI,
+        ClientType.OPENROUTER,
+        ClientType.OLLAMA,
+        ClientType.CUSTOM
+    )
 }

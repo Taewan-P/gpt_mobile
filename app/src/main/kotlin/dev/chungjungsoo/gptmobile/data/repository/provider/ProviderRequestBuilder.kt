@@ -36,7 +36,6 @@ import dev.chungjungsoo.gptmobile.data.repository.sendableAssistantContent
 import dev.chungjungsoo.gptmobile.data.repository.validateResponseInputPartsOrThrow
 import dev.chungjungsoo.gptmobile.util.AttachmentPayloadCache
 import dev.chungjungsoo.gptmobile.util.FileUtils
-import java.io.File
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

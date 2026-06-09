@@ -301,21 +301,24 @@ private fun extractReadableContent(document: org.jsoup.nodes.Document): String {
 
 private fun looksBlockedPage(html: String): Boolean {
     val lowered = html.lowercase()
-    return lowered.contains("captcha")
-        || lowered.contains("verify you are human")
-        || lowered.contains("access denied")
-        || lowered.contains("forbidden")
-        || lowered.contains("just a moment")
+    return listOf(
+        "captcha",
+        "verify you are human",
+        "access denied",
+        "forbidden",
+        "just a moment"
+    ).any { lowered.contains(it) }
 }
 
 private fun InetAddress.isBlockedAddress(): Boolean {
-    if (
-        isAnyLocalAddress
-            || isLoopbackAddress
-            || isSiteLocalAddress
-            || isLinkLocalAddress
-            || isMulticastAddress
-    ) {
+    val isBlockedByInetAddress = listOf(
+        isAnyLocalAddress,
+        isLoopbackAddress,
+        isSiteLocalAddress,
+        isLinkLocalAddress,
+        isMulticastAddress
+    ).any { it }
+    if (isBlockedByInetAddress) {
         return true
     }
 
@@ -339,18 +342,20 @@ private fun Inet4Address.isBlockedIpv4Address(): Boolean {
     val isBenchmark = first == 198 && second in setOf(18, 19)
     val isDocumentation198 = first == 198 && second == 51 && third == 100
     val isDocumentation203 = first == 203 && second == 0 && third == 113
-    return first == 0
-        || first == 10
-        || first == 127
-        || first >= 224
-        || isLinkLocal
-        || isPrivate172
-        || isPrivate192
-        || isCarrierGradeNat
-        || isDocumentation192
-        || isBenchmark
-        || isDocumentation198
-        || isDocumentation203
+    return listOf(
+        first == 0,
+        first == 10,
+        first == 127,
+        first >= 224,
+        isLinkLocal,
+        isPrivate172,
+        isPrivate192,
+        isCarrierGradeNat,
+        isDocumentation192,
+        isBenchmark,
+        isDocumentation198,
+        isDocumentation203
+    ).any { it }
 }
 
 private fun Inet6Address.isBlockedIpv6Address(): Boolean {
@@ -358,10 +363,12 @@ private fun Inet6Address.isBlockedIpv6Address(): Boolean {
     val isLoopback = bytes.dropLast(1).all { it == 0 } && bytes.last() == 1
     val isUniqueLocal = (bytes[0] and 0xfe) == 0xfc
     val isLinkLocal = bytes[0] == 0xfe && (bytes[1] and 0xc0) == 0x80
-    return bytes.all { it == 0 }
-        || isLoopback
-        || isUniqueLocal
-        || isLinkLocal
+    return listOf(
+        bytes.all { it == 0 },
+        isLoopback,
+        isUniqueLocal,
+        isLinkLocal
+    ).any { it }
 }
 
 private fun String?.normalizeWhitespace(): String = this.orEmpty().replace(Regex("\\s+"), " ").trim()

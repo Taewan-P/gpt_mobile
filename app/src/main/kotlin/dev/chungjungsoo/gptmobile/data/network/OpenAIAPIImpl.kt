@@ -187,12 +187,7 @@ class OpenAIAPIImpl @Inject constructor(
                     } else if (line.startsWith("data:")) {
                         if (eventBuffer.isNotEmpty()) eventBuffer.append('\n')
                         eventBuffer.append(line.removePrefix("data:").trimStart())
-                    } else if (
-                        line.startsWith("event:")
-                            || line.startsWith("id:")
-                            || line.startsWith("retry:")
-                            || line.startsWith(":")
-                    ) {
+                    } else if (line.isSseMetadataLine()) {
                         continue
                     } else if (line.isNotBlank()) {
                         rawResponseBuffer.append(line.trim())
@@ -304,12 +299,7 @@ class OpenAIAPIImpl @Inject constructor(
                     } else if (line.startsWith("data:")) {
                         if (eventBuffer.isNotEmpty()) eventBuffer.append('\n')
                         eventBuffer.append(line.removePrefix("data:").trimStart())
-                    } else if (
-                        line.startsWith("event:")
-                            || line.startsWith("id:")
-                            || line.startsWith("retry:")
-                            || line.startsWith(":")
-                    ) {
+                    } else if (line.isSseMetadataLine()) {
                         continue
                     } else if (line.isNotBlank()) {
                         rawResponseBuffer.append(line.trim())
@@ -400,3 +390,6 @@ private fun parseOpenAIHttpError(statusCode: Int, responseBody: String): String 
 
     return "HTTP $statusCode: ${trimmed.take(240)}"
 }
+
+private fun String.isSseMetadataLine(): Boolean =
+    listOf("event:", "id:", "retry:", ":").any { startsWith(it) }
