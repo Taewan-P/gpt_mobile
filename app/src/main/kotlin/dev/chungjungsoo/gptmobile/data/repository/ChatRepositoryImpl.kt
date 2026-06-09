@@ -169,11 +169,10 @@ class ChatRepositoryImpl @Inject constructor(
         primary.collect { state ->
             when (state) {
                 is ApiState.Success -> {
-                    sawContent = sawContent || state.textChunk.isNotBlank()
+                    sawContent = sawContent || state.textChunk.isNotEmpty()
                     emit(state)
                 }
                 is ApiState.Thinking -> {
-                    sawContent = sawContent || state.thinkingChunk.isNotBlank()
                     emit(state)
                 }
                 is ApiState.Error -> {
@@ -213,11 +212,10 @@ class ChatRepositoryImpl @Inject constructor(
         completeChatWithOpenAIResponses(userMessages, assistantMessages, platform).collect { state ->
             when (state) {
                 is ApiState.Success -> {
-                    sawContent = sawContent || state.textChunk.isNotBlank()
+                    sawContent = sawContent || state.textChunk.isNotEmpty()
                     emit(state)
                 }
                 is ApiState.Thinking -> {
-                    sawContent = sawContent || state.thinkingChunk.isNotBlank()
                     emit(state)
                 }
                 is ApiState.Error -> {
@@ -262,7 +260,8 @@ class ChatRepositoryImpl @Inject constructor(
     ): String? = resolveWebSearchSystemPrompt(
         toolExecutor = toolExecutor,
         baseSystemPrompt = baseSystemPrompt,
-        userMessages = userMessages
+        userMessages = userMessages,
+        toolCallsEnabled = platform.toolCallsEnabled
     )
 
     private suspend fun completeChatWithOpenAIResponses(
@@ -407,9 +406,12 @@ class ChatRepositoryImpl @Inject constructor(
                                 val content = choice?.delta?.content
                                     ?: choice?.message?.content
                                     ?: choice?.text
-                                    ?: choice?.delta?.reasoningContent
+                                val reasoning = choice?.delta?.reasoningContent
                                     ?: choice?.message?.reasoningContent
-                                if (!content.isNullOrBlank()) {
+                                if (!reasoning.isNullOrEmpty()) {
+                                    emit(ApiState.Thinking(reasoning))
+                                }
+                                if (!content.isNullOrEmpty()) {
                                     emit(ApiState.Success(content))
                                 }
                             }

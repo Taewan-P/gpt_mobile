@@ -159,27 +159,46 @@ class OpenAIAPIImpl @Inject constructor(
                 var sawStreamPayload = false
                 var parsedChunkCount = 0
                 var lastDataPayload: String? = null
+                val eventBuffer = StringBuilder()
+
+                suspend fun flushChatCompletionEvent(): Boolean {
+                    if (eventBuffer.isEmpty()) return false
+                    sawStreamPayload = true
+                    val data = eventBuffer.toString().trim()
+                    eventBuffer.clear()
+                    lastDataPayload = data
+                    if (data == "[DONE]") return true
+
+                    try {
+                        val chunk = NetworkClient.openAIJson.decodeFromString<ChatCompletionChunk>(data)
+                        emit(chunk)
+                        parsedChunkCount++
+                    } catch (_: Exception) {
+                        // Skip malformed chunks
+                    }
+                    return false
+                }
+
                 while (!channel.isClosedForRead) {
                     val line = channel.readLine() ?: break
 
-                    if (line.startsWith("data:")) {
-                        sawStreamPayload = true
-                        val data = line.removePrefix("data:").trimStart().trim()
-                        lastDataPayload = data
-                        // OpenAI sends "[DONE]" as final message
-                        if (data == "[DONE]") break
-
-                        try {
-                            val chunk = NetworkClient.openAIJson.decodeFromString<ChatCompletionChunk>(data)
-                            emit(chunk)
-                            parsedChunkCount++
-                        } catch (_: Exception) {
-                            // Skip malformed chunks
-                        }
+                    if (line.isBlank()) {
+                        if (flushChatCompletionEvent()) break
+                    } else if (line.startsWith("data:")) {
+                        if (eventBuffer.isNotEmpty()) eventBuffer.append('\n')
+                        eventBuffer.append(line.removePrefix("data:").trimStart())
+                    } else if (
+                        line.startsWith("event:") ||
+                        line.startsWith("id:") ||
+                        line.startsWith("retry:") ||
+                        line.startsWith(":")
+                    ) {
+                        continue
                     } else if (line.isNotBlank()) {
                         rawResponseBuffer.append(line.trim())
                     }
                 }
+                flushChatCompletionEvent()
 
                 if (!sawStreamPayload && rawResponseBuffer.isNotBlank()) {
                     try {
@@ -196,7 +215,10 @@ class OpenAIAPIImpl @Inject constructor(
                         )
                     }
                 } else if (sawStreamPayload && parsedChunkCount == 0) {
-                    val fallbackPayload = lastDataPayload?.takeIf { it.isNotBlank() } ?: rawResponseBuffer.toString()
+                    val fallbackPayload = lastDataPayload
+                        ?.takeIf { it.isNotBlank() && it != "[DONE]" }
+                        ?: rawResponseBuffer.toString()
+                    if (fallbackPayload.isBlank()) return@execute
                     try {
                         val chunk = NetworkClient.openAIJson.decodeFromString<ChatCompletionChunk>(fallbackPayload)
                         emit(chunk)
@@ -256,20 +278,32 @@ class OpenAIAPIImpl @Inject constructor(
                 val channel = response.bodyAsChannel()
                 val rawResponseBuffer = StringBuilder()
                 var sawStreamPayload = false
+                val eventBuffer = StringBuilder()
+
+                suspend fun flushResponsesEvent(): Boolean {
+                    if (eventBuffer.isEmpty()) return false
+                    sawStreamPayload = true
+                    val data = eventBuffer.toString().trim()
+                    eventBuffer.clear()
+                    if (data == "[DONE]") return true
+
+                    try {
+                        val streamEvent = NetworkClient.openAIJson.decodeFromString<ResponsesStreamEvent>(data)
+                        emit(streamEvent)
+                    } catch (_: Exception) {
+                        emit(UnknownEvent)
+                    }
+                    return false
+                }
+
                 while (!channel.isClosedForRead) {
                     val line = channel.readLine() ?: break
 
-                    if (line.startsWith("data:")) {
-                        sawStreamPayload = true
-                        val data = line.removePrefix("data:").trimStart().trim()
-                        if (data == "[DONE]") break
-
-                        try {
-                            val streamEvent = NetworkClient.openAIJson.decodeFromString<ResponsesStreamEvent>(data)
-                            emit(streamEvent)
-                        } catch (_: Exception) {
-                            emit(UnknownEvent)
-                        }
+                    if (line.isBlank()) {
+                        if (flushResponsesEvent()) break
+                    } else if (line.startsWith("data:")) {
+                        if (eventBuffer.isNotEmpty()) eventBuffer.append('\n')
+                        eventBuffer.append(line.removePrefix("data:").trimStart())
                     } else if (
                         line.startsWith("event:") ||
                         line.startsWith("id:") ||
@@ -281,6 +315,7 @@ class OpenAIAPIImpl @Inject constructor(
                         rawResponseBuffer.append(line.trim())
                     }
                 }
+                flushResponsesEvent()
 
                 if (!sawStreamPayload && rawResponseBuffer.isNotBlank()) {
                     try {

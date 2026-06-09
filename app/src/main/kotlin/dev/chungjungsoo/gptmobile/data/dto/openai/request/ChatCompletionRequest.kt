@@ -1,24 +1,22 @@
 package dev.chungjungsoo.gptmobile.data.dto.openai.request
 
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
-import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.descriptors.buildClassSerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonEncoder
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
-import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
 @OptIn(ExperimentalSerializationApi::class)
@@ -118,21 +116,14 @@ data class ChatCompletionToolFunction(
 )
 
 @OptIn(ExperimentalSerializationApi::class)
-@Serializable
+@Serializable(with = ChatToolChoiceSerializer::class)
 sealed class ChatToolChoice {
-    @Serializable
-    @SerialName("auto")
     data object Auto : ChatToolChoice()
 
-    @Serializable
-    @SerialName("none")
     data object None : ChatToolChoice()
 
-    @Serializable
-    @SerialName("required")
     data object Required : ChatToolChoice()
 
-    @Serializable(with = ChatToolChoiceFunctionSerializer::class)
     data class Function(val function: ChatToolChoiceFunctionSpec) : ChatToolChoice()
 
     companion object {
@@ -141,6 +132,38 @@ sealed class ChatToolChoice {
         val required: ChatToolChoice = Required
 
         fun function(name: String): ChatToolChoice = Function(ChatToolChoiceFunctionSpec(name))
+    }
+}
+
+object ChatToolChoiceSerializer : KSerializer<ChatToolChoice> {
+    override val descriptor: SerialDescriptor = buildClassSerialDescriptor("ChatToolChoice")
+
+    override fun serialize(encoder: Encoder, value: ChatToolChoice) {
+        when (value) {
+            ChatToolChoice.Auto -> encoder.encodeString("auto")
+            ChatToolChoice.None -> encoder.encodeString("none")
+            ChatToolChoice.Required -> encoder.encodeString("required")
+            is ChatToolChoice.Function -> ChatToolChoiceFunctionSerializer.serialize(encoder, value)
+        }
+    }
+
+    override fun deserialize(decoder: Decoder): ChatToolChoice {
+        val jsonDecoder = decoder as? JsonDecoder ?: return when (val value = decoder.decodeString()) {
+            "auto" -> ChatToolChoice.Auto
+            "none" -> ChatToolChoice.None
+            "required" -> ChatToolChoice.Required
+            else -> throw SerializationException("Unexpected tool choice value: $value")
+        }
+        val element = jsonDecoder.decodeJsonElement()
+        if (element is JsonPrimitive) {
+            return when (element.content) {
+                "auto" -> ChatToolChoice.Auto
+                "none" -> ChatToolChoice.None
+                "required" -> ChatToolChoice.Required
+                else -> throw SerializationException("Unexpected tool choice value: ${element.content}")
+            }
+        }
+        return ChatToolChoiceFunctionSerializer.deserializeFromElement(jsonDecoder, element)
     }
 }
 
@@ -168,7 +191,14 @@ object ChatToolChoiceFunctionSerializer : KSerializer<ChatToolChoice.Function> {
 
     override fun deserialize(decoder: Decoder): ChatToolChoice.Function {
         val jsonDecoder = decoder as JsonDecoder
-        val jsonObject = jsonDecoder.decodeJsonElement() as? JsonObject
+        return deserializeFromElement(jsonDecoder, jsonDecoder.decodeJsonElement())
+    }
+
+    fun deserializeFromElement(
+        jsonDecoder: JsonDecoder,
+        element: JsonElement
+    ): ChatToolChoice.Function {
+        val jsonObject = element as? JsonObject
             ?: throw SerializationException("Unexpected tool choice value")
         val function = jsonObject["function"] ?: throw SerializationException("Missing function tool choice")
         return ChatToolChoice.Function(

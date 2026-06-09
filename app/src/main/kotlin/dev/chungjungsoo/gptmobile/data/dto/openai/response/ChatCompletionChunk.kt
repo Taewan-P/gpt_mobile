@@ -14,8 +14,6 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.jsonPrimitive
 
 @Serializable
 data class ChatCompletionChunk(
@@ -150,7 +148,7 @@ private fun extractText(element: JsonElement?): String? = when (element) {
     is JsonPrimitive -> element.contentOrNull ?: element.toString()
     is JsonArray -> element.mapNotNull { extractText(it) }
         .joinToString(separator = "")
-        .takeIf { it.isNotBlank() }
+        .takeIf { it.isNotEmpty() }
     is JsonObject -> {
         extractText(element["text"])
             ?: extractText(element["value"])

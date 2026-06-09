@@ -6,18 +6,20 @@ import dev.chungjungsoo.gptmobile.data.dto.ApiState
 import dev.chungjungsoo.gptmobile.data.dto.openai.common.Role
 import dev.chungjungsoo.gptmobile.data.dto.openai.common.TextContent
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatCompletionRequest
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatCompletionTool
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatMessage
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatToolCall
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatToolCallFunction
-import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatCompletionTool
-import dev.chungjungsoo.gptmobile.data.network.OpenAIAPI
 import dev.chungjungsoo.gptmobile.data.model.ClientType
+import dev.chungjungsoo.gptmobile.data.network.OpenAIAPI
 import dev.chungjungsoo.gptmobile.data.repository.streamPreparedApiState
+import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.onCompletion
-import javax.inject.Inject
+import kotlinx.coroutines.withContext
 
 class OpenAICompatibleChatProviderAdapter @Inject constructor(
     private val openAIAPI: OpenAIAPI,
@@ -47,7 +49,8 @@ class OpenAICompatibleChatProviderAdapter @Inject constructor(
                 val systemPrompt = resolveWebSearchSystemPrompt(
                     toolExecutor = toolExecutor,
                     baseSystemPrompt = platform.systemPrompt,
-                    userMessages = userMessages
+                    userMessages = userMessages,
+                    toolCallsEnabled = platform.toolCallsEnabled
                 )
                 requestBuilder.buildOpenAICompatibleMessages(contextTurns, systemPrompt)
             },
@@ -88,10 +91,10 @@ class OpenAICompatibleChatProviderAdapter @Inject constructor(
                 else -> {
                     val choice = chunk.choices?.firstOrNull()
                     val assistantOutput = extractAssistantOutput(choice)
-                    if (!assistantOutput.reasoning.isNullOrBlank()) {
+                    if (!assistantOutput.reasoning.isNullOrEmpty()) {
                         emit(ApiState.Thinking(assistantOutput.reasoning))
                     }
-                    if (!assistantOutput.content.isNullOrBlank()) {
+                    if (!assistantOutput.content.isNullOrEmpty()) {
                         emit(ApiState.Success(assistantOutput.content))
                     }
                 }
@@ -115,8 +118,11 @@ class OpenAICompatibleChatProviderAdapter @Inject constructor(
 
         var toolModeEnabled = true
         var fallbackAttempted = false
+        var completed = false
+        var round = 0
 
-        while (true) {
+        while (round < MAX_TOOL_CALL_ROUNDS) {
+            round += 1
             val assistantText = StringBuilder()
             val pendingToolCalls = mutableMapOf<Int, PendingChatToolCall>()
             var terminalError: String? = null
@@ -137,10 +143,10 @@ class OpenAICompatibleChatProviderAdapter @Inject constructor(
                     else -> {
                         val choice = chunk.choices?.firstOrNull()
                         val assistantOutput = extractAssistantOutput(choice)
-                        assistantOutput.reasoning?.takeIf { it.isNotBlank() }?.let {
+                        assistantOutput.reasoning?.takeIf { it.isNotEmpty() }?.let {
                             emit(ApiState.Thinking(it))
                         }
-                        assistantOutput.content?.takeIf { it.isNotBlank() }?.let {
+                        assistantOutput.content?.takeIf { it.isNotEmpty() }?.let {
                             assistantText.append(it)
                             emit(ApiState.Success(it))
                         }
@@ -162,7 +168,7 @@ class OpenAICompatibleChatProviderAdapter @Inject constructor(
                 if (
                     toolModeEnabled &&
                     !fallbackAttempted &&
-                    shouldRetryWithoutTools(terminalError)
+                    shouldRetryWithoutTools(error)
                 ) {
                     toolModeEnabled = false
                     fallbackAttempted = true
@@ -187,7 +193,7 @@ class OpenAICompatibleChatProviderAdapter @Inject constructor(
                 }
 
             if (completedToolCalls.isEmpty()) {
-                if (assistantText.isBlank()) {
+                if (assistantText.isEmpty()) {
                     if (toolModeEnabled && !fallbackAttempted) {
                         toolModeEnabled = false
                         fallbackAttempted = true
@@ -195,13 +201,14 @@ class OpenAICompatibleChatProviderAdapter @Inject constructor(
                     }
                     emit(ApiState.Error("Provider returned an empty message."))
                 }
+                completed = true
                 break
             }
 
             conversation.add(
                 ChatMessage(
                     role = Role.ASSISTANT,
-                    content = if (assistantText.isNotBlank()) listOf(TextContent(assistantText.toString())) else listOf(TextContent("")),
+                    content = if (assistantText.isNotEmpty()) listOf(TextContent(assistantText.toString())) else listOf(TextContent("")),
                     toolCalls = completedToolCalls
                 )
             )
@@ -210,7 +217,9 @@ class OpenAICompatibleChatProviderAdapter @Inject constructor(
                 val toolName = toolCall.function.name.orEmpty()
                 val arguments = parseToolArguments(toolCall.function.arguments)
                 emit(ApiState.ToolStatus(buildToolStatus(toolName, arguments)))
-                val result = toolExecutor.execute(toolName, arguments)
+                val result = withContext(Dispatchers.IO) {
+                    toolExecutor.execute(toolName, arguments)
+                }
                 conversation.add(
                     ChatMessage(
                         role = Role.TOOL,
@@ -219,6 +228,10 @@ class OpenAICompatibleChatProviderAdapter @Inject constructor(
                     )
                 )
             }
+        }
+
+        if (!completed) {
+            emit(ApiState.Error("Tool call limit reached."))
         }
     }
 
@@ -230,8 +243,8 @@ class OpenAICompatibleChatProviderAdapter @Inject constructor(
         val content = choice?.delta?.content ?: choice?.message?.content ?: choice?.text
         val reasoningContent = choice?.delta?.reasoningContent ?: choice?.message?.reasoningContent
         return AssistantOutput(
-            content = content?.takeIf { it.isNotBlank() } ?: reasoningContent?.takeIf { it.isNotBlank() },
-            reasoning = reasoningContent?.takeIf { it.isNotBlank() }
+            content = content?.takeIf { it.isNotEmpty() },
+            reasoning = reasoningContent?.takeIf { it.isNotEmpty() }
         )
     }
 
@@ -246,7 +259,7 @@ class OpenAICompatibleChatProviderAdapter @Inject constructor(
     }
 
     private fun mergeToolArguments(current: StringBuilder, incomingRaw: String?): StringBuilder {
-        val incoming = incomingRaw?.takeIf { it.isNotBlank() } ?: return current
+        val incoming = incomingRaw?.takeIf { it.isNotEmpty() } ?: return current
         val trimmed = incoming.trim()
         val looksLikeCompleteJsonObject = trimmed.startsWith("{") && trimmed.endsWith("}")
         if (looksLikeCompleteJsonObject) {
@@ -262,6 +275,8 @@ class OpenAICompatibleChatProviderAdapter @Inject constructor(
         return platform.compatibleType == ClientType.OPENAI && platform.stream && !platform.toolCallsEnabled
     }
 }
+
+private const val MAX_TOOL_CALL_ROUNDS = 8
 
 private data class PendingChatToolCall(
     val index: Int,

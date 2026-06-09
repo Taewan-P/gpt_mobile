@@ -19,10 +19,12 @@ import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseFailedEvent
 import dev.chungjungsoo.gptmobile.data.network.OpenAIAPI
 import dev.chungjungsoo.gptmobile.data.repository.streamPreparedApiState
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 
 class OpenAIResponsesChatProviderAdapter @Inject constructor(
@@ -48,11 +50,12 @@ class OpenAIResponsesChatProviderAdapter @Inject constructor(
                 val systemPrompt = resolveWebSearchSystemPrompt(
                     toolExecutor = toolExecutor,
                     baseSystemPrompt = platform.systemPrompt,
-                    userMessages = userMessages
+                    userMessages = userMessages,
+                    toolCallsEnabled = platform.toolCallsEnabled
                 )
                 val tools = if (platform.toolCallsEnabled) {
                     toolRegistry.toolsFor(platform).map { definition ->
-                        ResponseTool(
+                        ResponseTool.function(
                             name = definition.name,
                             description = definition.description,
                             parameters = definition.parameters
@@ -91,8 +94,11 @@ class OpenAIResponsesChatProviderAdapter @Inject constructor(
         platform: PlatformV2
     ): Flow<ApiState> = flow {
         var inputItems = initialRequest.input
+        var completed = false
+        var round = 0
 
-        while (true) {
+        while (round < MAX_TOOL_CALL_ROUNDS) {
+            round += 1
             val pendingCalls = linkedMapOf<String, PendingResponseToolCall>()
             var terminalError: String? = null
             var sawVisibleText = false
@@ -108,13 +114,13 @@ class OpenAIResponsesChatProviderAdapter @Inject constructor(
                 when (event) {
                     is ReasoningSummaryTextDeltaEvent -> emit(ApiState.Thinking(event.delta))
                     is OutputTextDeltaEvent -> {
-                        if (event.delta.isNotBlank()) {
+                        if (event.delta.isNotEmpty()) {
                             sawVisibleText = true
                             emit(ApiState.Success(event.delta))
                         }
                     }
                     is OutputTextDoneEvent -> {
-                        if (!sawVisibleText && event.text.isNotBlank()) {
+                        if (!sawVisibleText && event.text.isNotEmpty()) {
                             sawVisibleText = true
                             emit(ApiState.Success(event.text))
                         }
@@ -140,7 +146,7 @@ class OpenAIResponsesChatProviderAdapter @Inject constructor(
                 .mapNotNull { call ->
                     val name = call.name?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
                     val callId = call.callId ?: call.id ?: return@mapNotNull null
-                    val argumentsText = call.arguments?.takeIf { it.isNotBlank() } ?: "{}"
+                    val argumentsText = call.arguments?.takeIf { it.isNotEmpty() } ?: "{}"
                     val arguments = parseToolArguments(argumentsText)
                     PendingResponseToolInvocation(
                         id = call.id,
@@ -156,12 +162,15 @@ class OpenAIResponsesChatProviderAdapter @Inject constructor(
                 if (!sawVisibleText) {
                     emit(ApiState.Error("Provider returned an empty message."))
                 }
+                completed = true
                 break
             }
 
             val outputs = toolCalls.map { invocation ->
                 emit(ApiState.ToolStatus(buildToolStatus(invocation.toolName, invocation.arguments)))
-                val result = toolExecutor.execute(invocation.toolName, invocation.arguments)
+                val result = withContext(Dispatchers.IO) {
+                    toolExecutor.execute(invocation.toolName, invocation.arguments)
+                }
                 ResponseInputItem.FunctionCallOutput(
                     callId = invocation.callId,
                     output = result.output
@@ -179,6 +188,10 @@ class OpenAIResponsesChatProviderAdapter @Inject constructor(
                     )
                 } +
                 outputs
+        }
+
+        if (!completed) {
+            emit(ApiState.Error("Tool call limit reached."))
         }
     }
 
@@ -198,7 +211,7 @@ class OpenAIResponsesChatProviderAdapter @Inject constructor(
             callId = callId ?: existing.callId,
             status = status ?: existing.status,
             arguments = when {
-                !arguments.isNullOrBlank() -> arguments
+                !arguments.isNullOrEmpty() -> arguments
                 else -> existing.arguments
             }
         )
@@ -210,12 +223,11 @@ class OpenAIResponsesChatProviderAdapter @Inject constructor(
         itemId: String,
         delta: String
     ) {
-        if (delta.isBlank()) return
+        if (delta.isEmpty()) return
 
         val existing = pendingCalls[itemId] ?: PendingResponseToolCall(id = itemId)
         val updatedArguments = when {
-            existing.arguments.isNullOrBlank() -> delta
-            existing.arguments.endsWith(delta) -> existing.arguments
+            existing.arguments.isNullOrEmpty() -> delta
             else -> existing.arguments + delta
         }
 
@@ -229,6 +241,8 @@ class OpenAIResponsesChatProviderAdapter @Inject constructor(
         emit(ApiState.Error(e.message ?: "Failed to complete chat"))
     }
 }
+
+private const val MAX_TOOL_CALL_ROUNDS = 8
 
 private data class PendingResponseToolCall(
     val id: String,

@@ -151,14 +151,14 @@ object ResponseInputItemSerializer : KSerializer<ResponseInputItem> {
         return when (jsonObject["type"]?.jsonPrimitive?.content) {
             "function_call" -> ResponseInputItem.FunctionCall(
                 id = jsonObject["id"]?.jsonPrimitive?.content,
-                callId = jsonObject["call_id"]?.jsonPrimitive?.content.orEmpty(),
-                name = jsonObject["name"]?.jsonPrimitive?.content.orEmpty(),
-                arguments = jsonObject["arguments"]?.jsonPrimitive?.content.orEmpty(),
+                callId = jsonObject.requiredString("call_id"),
+                name = jsonObject.requiredString("name"),
+                arguments = jsonObject.requiredString("arguments"),
                 status = jsonObject["status"]?.jsonPrimitive?.content
             )
             "function_call_output" -> ResponseInputItem.FunctionCallOutput(
-                callId = jsonObject["call_id"]?.jsonPrimitive?.content.orEmpty(),
-                output = jsonObject["output"]?.jsonPrimitive?.content.orEmpty()
+                callId = jsonObject.requiredString("call_id"),
+                output = jsonObject.requiredString("output")
             )
             else -> ResponseInputItem.Message(
                 jsonDecoder.json.decodeFromJsonElement(messageSerializer, jsonObject)
@@ -166,6 +166,10 @@ object ResponseInputItemSerializer : KSerializer<ResponseInputItem> {
         }
     }
 }
+
+private fun JsonObject.requiredString(name: String): String =
+    this[name]?.jsonPrimitive?.content
+        ?: throw SerializationException("Missing required Responses input field: $name")
 
 /**
  * Content can be either a simple string or a list of content parts.
@@ -282,4 +286,18 @@ data class ResponseTool(
     @SerialName("strict")
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val strict: Boolean? = null
-)
+) {
+    companion object {
+        fun function(
+            name: String,
+            description: String,
+            parameters: JsonObject
+        ): ResponseTool = ResponseTool(
+            type = "function",
+            name = name,
+            description = description,
+            parameters = parameters,
+            strict = false
+        )
+    }
+}
