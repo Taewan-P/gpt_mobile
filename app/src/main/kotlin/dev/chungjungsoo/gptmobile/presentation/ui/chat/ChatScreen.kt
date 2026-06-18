@@ -530,8 +530,9 @@ internal suspend fun LazyListState.animateScrollToLatestChatMessage(lastMessageI
 
     repeat(12) {
         withFrameNanos { }
-        if (!canScrollForward) return
-        scrollToItem(bottomAnchorIndex)
+        if (canScrollForward) {
+            scrollToItem(bottomAnchorIndex)
+        }
     }
 }
 

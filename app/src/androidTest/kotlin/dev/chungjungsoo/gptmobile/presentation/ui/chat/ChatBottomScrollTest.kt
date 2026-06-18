@@ -37,7 +37,17 @@ class ChatBottomScrollTest {
     fun scrollToLatestMessage_reachesBottomWithOneConversation() {
         assertScrollReachesBottomAfterLatestMessageGrows(
             lastMessageIndex = 0,
-            includePreviousMessage = false
+            includePreviousMessage = false,
+            growthDelayFrames = 1
+        )
+    }
+
+    @Test
+    fun scrollToLatestMessage_reachesBottomWhenOneConversationGrowsLate() {
+        assertScrollReachesBottomAfterLatestMessageGrows(
+            lastMessageIndex = 0,
+            includePreviousMessage = false,
+            growthDelayFrames = 3
         )
     }
 
@@ -45,13 +55,15 @@ class ChatBottomScrollTest {
     fun scrollToLatestMessage_reachesBottomWhenLatestMessageGrowsAfterFirstLayout() {
         assertScrollReachesBottomAfterLatestMessageGrows(
             lastMessageIndex = 1,
-            includePreviousMessage = true
+            includePreviousMessage = true,
+            growthDelayFrames = 1
         )
     }
 
     private fun assertScrollReachesBottomAfterLatestMessageGrows(
         lastMessageIndex: Int,
-        includePreviousMessage: Boolean
+        includePreviousMessage: Boolean,
+        growthDelayFrames: Int
     ) {
         var listState: LazyListState? = null
 
@@ -77,7 +89,9 @@ class ChatBottomScrollTest {
                         var showBottomControls by remember { mutableStateOf(false) }
 
                         LaunchedEffect(Unit) {
-                            withFrameNanos { }
+                            repeat(growthDelayFrames) {
+                                withFrameNanos { }
+                            }
                             showBottomControls = true
                         }
 
