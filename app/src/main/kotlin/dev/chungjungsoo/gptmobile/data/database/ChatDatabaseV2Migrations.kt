@@ -213,6 +213,19 @@ object ChatDatabaseV2Migrations {
         }
     }
 
+    val GEMINI_SAFETY_COLUMN_MIGRATIONS = listOf(
+        "ALTER TABLE `platform_v2` ADD COLUMN `harassment_safety_threshold` TEXT NOT NULL DEFAULT 'BLOCK_NONE'",
+        "ALTER TABLE `platform_v2` ADD COLUMN `hate_speech_safety_threshold` TEXT NOT NULL DEFAULT 'BLOCK_NONE'",
+        "ALTER TABLE `platform_v2` ADD COLUMN `sexually_explicit_safety_threshold` TEXT NOT NULL DEFAULT 'BLOCK_NONE'",
+        "ALTER TABLE `platform_v2` ADD COLUMN `dangerous_content_safety_threshold` TEXT NOT NULL DEFAULT 'BLOCK_NONE'"
+    )
+
+    val MIGRATION_4_5 = object : Migration(4, 5) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            GEMINI_SAFETY_COLUMN_MIGRATIONS.forEach(db::execSQL)
+        }
+    }
+
     internal fun legacyFilesToAttachmentsJson(filesValue: String): String {
         val attachments = filesValue
             .split(",")

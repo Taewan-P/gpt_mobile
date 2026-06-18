@@ -2,11 +2,42 @@ package dev.chungjungsoo.gptmobile.data.database
 
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantRevisionListConverter
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatAttachmentListConverter
+import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
+import dev.chungjungsoo.gptmobile.data.model.ClientType
+import dev.chungjungsoo.gptmobile.data.model.GeminiSafetySettings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ChatDatabaseV2MigrationsTest {
+    @Test
+    fun `new platform defaults Gemini safety thresholds to block none`() {
+        val platform = PlatformV2(
+            name = "Google",
+            compatibleType = ClientType.GOOGLE,
+            apiUrl = "https://generativelanguage.googleapis.com",
+            model = "gemini-3-pro-preview"
+        )
+
+        assertEquals(GeminiSafetySettings.BLOCK_NONE, platform.harassmentSafetyThreshold)
+        assertEquals(GeminiSafetySettings.BLOCK_NONE, platform.hateSpeechSafetyThreshold)
+        assertEquals(GeminiSafetySettings.BLOCK_NONE, platform.sexuallyExplicitSafetyThreshold)
+        assertEquals(GeminiSafetySettings.BLOCK_NONE, platform.dangerousContentSafetyThreshold)
+    }
+
+    @Test
+    fun `version five migration adds Gemini safety columns with block none defaults`() {
+        assertEquals(
+            listOf(
+                "ALTER TABLE `platform_v2` ADD COLUMN `harassment_safety_threshold` TEXT NOT NULL DEFAULT 'BLOCK_NONE'",
+                "ALTER TABLE `platform_v2` ADD COLUMN `hate_speech_safety_threshold` TEXT NOT NULL DEFAULT 'BLOCK_NONE'",
+                "ALTER TABLE `platform_v2` ADD COLUMN `sexually_explicit_safety_threshold` TEXT NOT NULL DEFAULT 'BLOCK_NONE'",
+                "ALTER TABLE `platform_v2` ADD COLUMN `dangerous_content_safety_threshold` TEXT NOT NULL DEFAULT 'BLOCK_NONE'"
+            ),
+            ChatDatabaseV2Migrations.GEMINI_SAFETY_COLUMN_MIGRATIONS
+        )
+    }
+
     @Test
     fun `legacy file list migrates to attachment json`() {
         val json = ChatDatabaseV2Migrations.legacyFilesToAttachmentsJson("/tmp/first.png,/tmp/second.webp")
