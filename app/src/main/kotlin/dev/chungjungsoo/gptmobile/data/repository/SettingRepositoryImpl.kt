@@ -97,7 +97,8 @@ class SettingRepositoryImpl @Inject constructor(
                     topP = platform.topP,
                     systemPrompt = platform.systemPrompt,
                     stream = true,
-                    reasoning = false
+                    reasoning = false,
+                    toolCallsEnabled = platform.name == ApiType.OPENAI
                 )
             )
         }

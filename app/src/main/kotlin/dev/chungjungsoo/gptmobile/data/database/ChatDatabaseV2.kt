@@ -17,7 +17,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.StringListConverter
 
 @Database(
     entities = [ChatRoomV2::class, MessageV2::class, PlatformV2::class, ChatPlatformModelV2::class],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 @TypeConverters(

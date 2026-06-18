@@ -48,6 +48,9 @@ data class PlatformV2(
     @ColumnInfo(name = "reasoning")
     val reasoning: Boolean = false,
 
+    @ColumnInfo(name = "tool_calls_enabled")
+    val toolCallsEnabled: Boolean = false,
+
     @ColumnInfo(name = "timeout")
     val timeout: Int = 30
 )

@@ -123,6 +123,7 @@ class SetupViewModelV2 @Inject constructor(
                     systemPrompt = ModelConstants.DEFAULT_PROMPT,
                     stream = true,
                     reasoning = false,
+                    toolCallsEnabled = clientType in setOf(ClientType.OPENAI, ClientType.OPENROUTER, ClientType.CUSTOM),
                     timeout = 30
                 )
                 settingRepository.addPlatformV2(platform)

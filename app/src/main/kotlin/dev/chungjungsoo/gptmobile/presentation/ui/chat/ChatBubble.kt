@@ -91,6 +91,7 @@ fun OpponentChatBubble(
     isError: Boolean = false,
     text: String,
     thoughts: String = "",
+    toolStatus: String? = null,
     attachments: List<String> = emptyList(),
     contentIdentity: Any = text,
     canEdit: Boolean = false,
@@ -132,6 +133,15 @@ fun OpponentChatBubble(
             ) {
                 Column {
                     val displayText = if (isLoading) text + "●" else text
+
+                    toolStatus?.takeIf { it.isNotBlank() }?.let { status ->
+                        Text(
+                            text = status,
+                            modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
 
                     ChatMarkdown(
                         content = displayText,

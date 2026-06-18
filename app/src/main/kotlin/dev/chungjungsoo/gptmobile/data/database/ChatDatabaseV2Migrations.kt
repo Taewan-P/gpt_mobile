@@ -213,6 +213,13 @@ object ChatDatabaseV2Migrations {
         }
     }
 
+    val MIGRATION_4_5 = object : Migration(4, 5) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `platform_v2` ADD COLUMN `tool_calls_enabled` INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("UPDATE `platform_v2` SET `tool_calls_enabled` = 1 WHERE `compatible_type` = 'OPENAI'")
+        }
+    }
+
     internal fun legacyFilesToAttachmentsJson(filesValue: String): String {
         val attachments = filesValue
             .split(",")

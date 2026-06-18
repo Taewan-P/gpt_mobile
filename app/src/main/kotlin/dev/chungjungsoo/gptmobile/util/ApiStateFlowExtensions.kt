@@ -16,6 +16,7 @@ suspend fun Flow<ApiState>.handleStates(
     turnIndex: Int,
     platformIdx: Int,
     onLoadingComplete: () -> Unit,
+    onToolStatusChange: (String?) -> Unit = {},
     nanoTimeProvider: () -> Long = System::nanoTime,
     currentTimeProvider: () -> Long = { System.currentTimeMillis() / 1000 },
     revisionToAppendOnSuccess: AssistantRevision? = null
@@ -30,6 +31,10 @@ suspend fun Flow<ApiState>.handleStates(
                 is ApiState.Thinking -> {
                     buffer.appendThought(chunk.thinkingChunk)
                     buffer.publishIfDue(messageFlow, turnIndex, platformIdx)
+                }
+
+                is ApiState.ToolStatus -> {
+                    onToolStatusChange(chunk.status)
                 }
 
                 is ApiState.Success -> {
@@ -50,6 +55,7 @@ suspend fun Flow<ApiState>.handleStates(
         }
     } finally {
         buffer.flush(messageFlow, turnIndex, platformIdx)
+        onToolStatusChange(null)
         when {
             terminalError != null -> messageFlow.setErrorMessage(
                 turnIndex = turnIndex,

@@ -32,6 +32,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.buildJsonObject
+import org.jsoup.Jsoup
 
 class OpenAIAPIImpl @Inject constructor(
     private val networkClient: NetworkClient
@@ -46,6 +48,22 @@ class OpenAIAPIImpl @Inject constructor(
 
     override fun setAPIUrl(url: String) {
         this.apiUrl = url
+    }
+
+    override suspend fun createConversation(): String {
+        val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}v1/conversations" else "$apiUrl/v1/conversations"
+        return networkClient().preparePost(endpoint) {
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject { })
+            token?.let { bearerAuth(it) }
+        }.execute { response ->
+            val responseBody = response.body<String>()
+            if (!response.status.isSuccess()) {
+                throw IllegalStateException(parseOpenAIHttpError(response.status.value, responseBody))
+            }
+
+            NetworkClient.openAIJson.decodeFromString<OpenAIConversationResponse>(responseBody).id
+        }
     }
 
     override suspend fun uploadFile(filePath: String, fileName: String, mimeType: String): UploadedProviderFile {
@@ -98,18 +116,12 @@ class OpenAIAPIImpl @Inject constructor(
                 applyPlatformStreamingTimeout(timeoutSeconds)
                 contentType(ContentType.Application.Json)
                 setBody(NetworkClient.openAIJson.encodeToString(request))
-                accept(ContentType.Text.EventStream)
+                accept(if (request.stream) ContentType.Text.EventStream else ContentType.Application.Json)
                 token?.let { bearerAuth(it) }
             }.execute { response ->
                 if (!response.status.isSuccess()) {
                     val errorBody = response.body<String>()
-
-                    val errorMessage = try {
-                        val errorResponse = NetworkClient.openAIJson.decodeFromString<OpenAIErrorResponse>(errorBody)
-                        errorResponse.error.message
-                    } catch (_: Exception) {
-                        "HTTP ${response.status.value}: $errorBody"
-                    }
+                    val errorMessage = parseOpenAIHttpError(response.status.value, errorBody)
 
                     emit(
                         ChatCompletionChunk(
@@ -123,22 +135,97 @@ class OpenAIAPIImpl @Inject constructor(
                     return@execute
                 }
 
+                if (!request.stream) {
+                    val responseBody = response.body<String>()
+                    try {
+                        val chunk = NetworkClient.openAIJson.decodeFromString<ChatCompletionChunk>(responseBody)
+                        emit(chunk)
+                    } catch (_: Exception) {
+                        emit(
+                            ChatCompletionChunk(
+                                error = ErrorDetail(
+                                    message = "Provider returned an unsupported response format.",
+                                    type = "parse_error"
+                                )
+                            )
+                        )
+                    }
+                    return@execute
+                }
+
                 // Success - read SSE stream
                 val channel = response.bodyAsChannel()
+                val rawResponseBuffer = StringBuilder()
+                var sawStreamPayload = false
+                var parsedChunkCount = 0
+                var lastDataPayload: String? = null
+                val eventBuffer = StringBuilder()
+
+                suspend fun flushChatCompletionEvent(): Boolean {
+                    if (eventBuffer.isEmpty()) return false
+                    sawStreamPayload = true
+                    val data = eventBuffer.toString().trim()
+                    eventBuffer.clear()
+                    lastDataPayload = data
+                    if (data == "[DONE]") return true
+
+                    try {
+                        val chunk = NetworkClient.openAIJson.decodeFromString<ChatCompletionChunk>(data)
+                        emit(chunk)
+                        parsedChunkCount++
+                    } catch (_: Exception) {
+                        // Skip malformed chunks
+                    }
+                    return false
+                }
+
                 while (!channel.isClosedForRead) {
                     val line = channel.readLine() ?: break
 
-                    if (line.startsWith("data: ")) {
-                        val data = line.removePrefix("data: ").trim()
-                        // OpenAI sends "[DONE]" as final message
-                        if (data == "[DONE]") break
+                    if (line.isBlank()) {
+                        if (flushChatCompletionEvent()) break
+                    } else if (line.startsWith("data:")) {
+                        if (eventBuffer.isNotEmpty()) eventBuffer.append('\n')
+                        eventBuffer.append(line.removePrefix("data:").trimStart())
+                    } else if (line.isSseMetadataLine()) {
+                        continue
+                    } else if (line.isNotBlank()) {
+                        rawResponseBuffer.append(line.trim())
+                    }
+                }
+                flushChatCompletionEvent()
 
-                        try {
-                            val chunk = NetworkClient.openAIJson.decodeFromString<ChatCompletionChunk>(data)
-                            emit(chunk)
-                        } catch (_: Exception) {
-                            // Skip malformed chunks
-                        }
+                if (!sawStreamPayload && rawResponseBuffer.isNotBlank()) {
+                    try {
+                        val chunk = NetworkClient.openAIJson.decodeFromString<ChatCompletionChunk>(rawResponseBuffer.toString())
+                        emit(chunk)
+                    } catch (_: Exception) {
+                        emit(
+                            ChatCompletionChunk(
+                                error = ErrorDetail(
+                                    message = "Provider returned an unsupported response format.",
+                                    type = "parse_error"
+                                )
+                            )
+                        )
+                    }
+                } else if (sawStreamPayload && parsedChunkCount == 0) {
+                    val fallbackPayload = lastDataPayload
+                        ?.takeIf { it.isNotBlank() && it != "[DONE]" }
+                        ?: rawResponseBuffer.toString()
+                    if (fallbackPayload.isBlank()) return@execute
+                    try {
+                        val chunk = NetworkClient.openAIJson.decodeFromString<ChatCompletionChunk>(fallbackPayload)
+                        emit(chunk)
+                    } catch (_: Exception) {
+                        emit(
+                            ChatCompletionChunk(
+                                error = ErrorDetail(
+                                    message = "Provider returned an unsupported response format.",
+                                    type = "parse_error"
+                                )
+                            )
+                        )
                     }
                 }
             }
@@ -176,13 +263,7 @@ class OpenAIAPIImpl @Inject constructor(
             }.execute { response ->
                 if (!response.status.isSuccess()) {
                     val errorBody = response.body<String>()
-
-                    val errorMessage = try {
-                        val errorResponse = NetworkClient.openAIJson.decodeFromString<OpenAIErrorResponse>(errorBody)
-                        errorResponse.error.message
-                    } catch (_: Exception) {
-                        "HTTP ${response.status.value}: $errorBody"
-                    }
+                    val errorMessage = parseOpenAIHttpError(response.status.value, errorBody)
 
                     emit(ResponseErrorEvent(message = errorMessage, code = response.status.value.toString()))
                     return@execute
@@ -190,19 +271,53 @@ class OpenAIAPIImpl @Inject constructor(
 
                 // Success - read SSE stream
                 val channel = response.bodyAsChannel()
+                val rawResponseBuffer = StringBuilder()
+                var sawStreamPayload = false
+                val eventBuffer = StringBuilder()
+
+                suspend fun flushResponsesEvent(): Boolean {
+                    if (eventBuffer.isEmpty()) return false
+                    sawStreamPayload = true
+                    val data = eventBuffer.toString().trim()
+                    eventBuffer.clear()
+                    if (data == "[DONE]") return true
+
+                    try {
+                        val streamEvent = NetworkClient.openAIJson.decodeFromString<ResponsesStreamEvent>(data)
+                        emit(streamEvent)
+                    } catch (_: Exception) {
+                        emit(UnknownEvent)
+                    }
+                    return false
+                }
+
                 while (!channel.isClosedForRead) {
                     val line = channel.readLine() ?: break
 
-                    if (line.startsWith("data: ")) {
-                        val data = line.removePrefix("data: ").trim()
-                        if (data == "[DONE]") break
+                    if (line.isBlank()) {
+                        if (flushResponsesEvent()) break
+                    } else if (line.startsWith("data:")) {
+                        if (eventBuffer.isNotEmpty()) eventBuffer.append('\n')
+                        eventBuffer.append(line.removePrefix("data:").trimStart())
+                    } else if (line.isSseMetadataLine()) {
+                        continue
+                    } else if (line.isNotBlank()) {
+                        rawResponseBuffer.append(line.trim())
+                    }
+                }
+                flushResponsesEvent()
 
-                        try {
-                            val streamEvent = NetworkClient.openAIJson.decodeFromString<ResponsesStreamEvent>(data)
-                            emit(streamEvent)
-                        } catch (_: Exception) {
-                            emit(UnknownEvent)
-                        }
+                if (!sawStreamPayload && rawResponseBuffer.isNotBlank()) {
+                    try {
+                        val streamEvent = NetworkClient.openAIJson.decodeFromString<ResponsesStreamEvent>(rawResponseBuffer.toString())
+                        emit(streamEvent)
+                    } catch (_: Exception) {
+                        emit(
+                            ResponseErrorEvent(
+                                message = "Provider returned an unsupported response format.",
+                                code = "parse_error"
+                            )
+                        )
                     }
                 }
             }
@@ -246,3 +361,35 @@ private data class OpenAIFileResponse(
     @kotlinx.serialization.SerialName("mime_type")
     val mimeType: String? = null
 )
+
+@Serializable
+private data class OpenAIConversationResponse(
+    val id: String
+)
+
+private fun parseOpenAIHttpError(statusCode: Int, responseBody: String): String {
+    val openAIErrorMessage = runCatching {
+        NetworkClient.openAIJson.decodeFromString<OpenAIErrorResponse>(responseBody).error.message
+    }.getOrNull()
+    if (!openAIErrorMessage.isNullOrBlank()) {
+        return openAIErrorMessage
+    }
+
+    val trimmed = responseBody.trim()
+    if (trimmed.startsWith("<!DOCTYPE", ignoreCase = true) || trimmed.startsWith("<html", ignoreCase = true)) {
+        val document = Jsoup.parse(trimmed)
+        val title = document.title().trim()
+        val bodyText = document.body()?.text().orEmpty().replace(Regex("\\s+"), " ").trim()
+        val summary = when {
+            bodyText.isNotBlank() -> bodyText.take(240)
+            title.isNotBlank() -> title
+            else -> "Upstream gateway error."
+        }
+        return "HTTP $statusCode: $summary"
+    }
+
+    return "HTTP $statusCode: ${trimmed.take(240)}"
+}
+
+private fun String.isSseMetadataLine(): Boolean =
+    listOf("event:", "id:", "retry:", ":").any { startsWith(it) }
