@@ -35,6 +35,10 @@ extensions.configure<ApplicationExtension> {
         generateLocaleConfig = true
     }
 
+    lint {
+        disable += "MissingTranslation"
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
