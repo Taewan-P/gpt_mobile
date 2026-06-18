@@ -153,4 +153,11 @@
     <string name="api_address_description">אנא הזן את כתובת ה-API של Ollama שלך כולל מספר הפורט. האפליקציה תשתמש בנקודת קצה v1/chat/completions, אז אנא הזן רק את החלק הקדמי של הכתובת המלאה. הכתובת חייבת להסתיים ב-\'/\'. למשל) http://192.168.1.100:11434/</string>
     <string name="select_groq_model_description">אנא בחר את מודל הצ\'אט של Groq. אם אתה רוצה דגמים שאינם ברשימה, בדוק את אתר התיעוד של Groq API והזן שם של מודל זמין.</string>
     <string name="default_mode">ברירת מחדל</string>
+    <string name="gemini_safety_settings">Gemini safety settings</string>
+    <string name="gemini_safety_settings_description">Harassment, hate speech, sexual, dangerous content</string>
+    <string name="gemini_safety_settings_icon">Gemini safety settings icon</string>
+    <string name="gemini_safety_harassment">Harassment</string>
+    <string name="gemini_safety_hate_speech">Hate speech</string>
+    <string name="gemini_safety_sexually_explicit">Sexually explicit</string>
+    <string name="gemini_safety_dangerous_content">Dangerous content</string>
 </resources>

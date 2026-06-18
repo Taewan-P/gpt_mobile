@@ -85,6 +85,9 @@ class PlatformSettingViewModel @Inject constructor(
     fun openTimeoutDialog() = _dialogState.update { it.copy(isTimeoutDialogOpen = true) }
     fun closeTimeoutDialog() = _dialogState.update { it.copy(isTimeoutDialogOpen = false) }
 
+    fun openGeminiSafetyDialog() = _dialogState.update { it.copy(isGeminiSafetyDialogOpen = true) }
+    fun closeGeminiSafetyDialog() = _dialogState.update { it.copy(isGeminiSafetyDialogOpen = false) }
+
     fun updatePlatformName(name: String) {
         _platformState.value?.let { platform ->
             updatePlatform(platform.copy(name = name.trim()))
@@ -142,6 +145,25 @@ class PlatformSettingViewModel @Inject constructor(
         }
     }
 
+    fun updateGeminiSafetySettings(
+        harassmentSafetyThreshold: String,
+        hateSpeechSafetyThreshold: String,
+        sexuallyExplicitSafetyThreshold: String,
+        dangerousContentSafetyThreshold: String
+    ) {
+        _platformState.value?.let { platform ->
+            updatePlatform(
+                platform.copy(
+                    harassmentSafetyThreshold = harassmentSafetyThreshold,
+                    hateSpeechSafetyThreshold = hateSpeechSafetyThreshold,
+                    sexuallyExplicitSafetyThreshold = sexuallyExplicitSafetyThreshold,
+                    dangerousContentSafetyThreshold = dangerousContentSafetyThreshold
+                )
+            )
+            closeGeminiSafetyDialog()
+        }
+    }
+
     fun openDeleteDialog() = _dialogState.update { it.copy(isDeleteDialogOpen = true) }
     fun closeDeleteDialog() = _dialogState.update { it.copy(isDeleteDialogOpen = false) }
 
@@ -164,6 +186,7 @@ class PlatformSettingViewModel @Inject constructor(
         val isTopPDialogOpen: Boolean = false,
         val isSystemPromptDialogOpen: Boolean = false,
         val isTimeoutDialogOpen: Boolean = false,
+        val isGeminiSafetyDialogOpen: Boolean = false,
         val isDeleteDialogOpen: Boolean = false
     )
 }

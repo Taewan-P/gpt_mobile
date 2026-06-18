@@ -153,4 +153,11 @@
     <string name="select_groq_model">حدد نموذج دردشة Groq</string>
     <string name="select_groq_model_description">يرجى تحديد نموذج دردشة Groq. إذا كنت تريد نماذج غير موجودة في القائمة، فراجع موقع وثائق Groq API وشاهد ما هو متاح.</string>
     <string name="export_chat">تصدير الدردشة</string>
+    <string name="gemini_safety_settings">Gemini safety settings</string>
+    <string name="gemini_safety_settings_description">Harassment, hate speech, sexual, dangerous content</string>
+    <string name="gemini_safety_settings_icon">Gemini safety settings icon</string>
+    <string name="gemini_safety_harassment">Harassment</string>
+    <string name="gemini_safety_hate_speech">Hate speech</string>
+    <string name="gemini_safety_sexually_explicit">Sexually explicit</string>
+    <string name="gemini_safety_dangerous_content">Dangerous content</string>
 </resources>
