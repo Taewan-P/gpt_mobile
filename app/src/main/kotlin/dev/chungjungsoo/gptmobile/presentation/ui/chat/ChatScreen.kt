@@ -141,7 +141,7 @@ fun ChatScreen(
 
     suspend fun animateScrollToLatestMessage() {
         if (lastMessageIndex >= 0) {
-            listState.animateScrollToItem(lastMessageIndex + 1)
+            listState.animateScrollToItem(lastMessageIndex, scrollOffset = Int.MAX_VALUE)
         }
     }
 
@@ -267,10 +267,6 @@ fun ChatScreen(
                                 onShowPreviousRevision = chatViewModel::showPreviousAssistantRevision,
                                 onShowNextRevision = chatViewModel::showNextAssistantRevision
                             )
-                        }
-
-                        item(key = "chat-bottom-anchor") {
-                            Spacer(Modifier.size(1.dp))
                         }
                     }
                 }
