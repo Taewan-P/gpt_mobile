@@ -3,4 +3,15 @@
     <string name="app_name">جی‌پی‌تی موبایل</string>
     <string name="gpt_mobile_introduction_logo">لوگوی معرفی جی‌پی‌تی موبایل</string>
     <string name="welcome_title">بهترین دستیار هوش‌مصنوعی\nشما میتونید ان را در\nتفلن همراه خود داشته باشید</string>
+    <string name="gemini_safety_settings">تنظیمات ایمنی Gemini</string>
+    <string name="gemini_safety_settings_description">آزار، نفرت پراکنی، محتوای جنسی، محتوای خطرناک</string>
+    <string name="gemini_safety_settings_icon">نماد تنظیمات ایمنی Gemini</string>
+    <string name="gemini_safety_harassment">آزار</string>
+    <string name="gemini_safety_hate_speech">نفرت پراکنی</string>
+    <string name="gemini_safety_sexually_explicit">محتوای جنسی صریح</string>
+    <string name="gemini_safety_dangerous_content">محتوای خطرناک</string>
+    <string name="gemini_safety_block_none">مسدود نکن</string>
+    <string name="gemini_safety_block_only_high">فقط سطح بالا را مسدود کن</string>
+    <string name="gemini_safety_block_medium_and_above">سطح متوسط و بالاتر را مسدود کن</string>
+    <string name="gemini_safety_block_low_and_above">سطح پایین و بالاتر را مسدود کن</string>
 </resources>

@@ -94,6 +94,9 @@ fun HomeScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val selectedChatCount = chatListState.selectedChats.count { it }
+    val duplicatedChatMessage = stringResource(R.string.duplicated_chat)
+    val deletedChatsMessage = stringResource(R.string.deleted_chats, selectedChatCount)
 
     LaunchedEffect(lifecycleState) {
         if (lifecycleState == Lifecycle.State.RESUMED && !chatListState.isSelectionMode && !chatListState.isSearchMode) {
@@ -116,7 +119,7 @@ fun HomeScreen(
             HomeTopAppBar(
                 isSelectionMode = chatListState.isSelectionMode,
                 isSearchMode = chatListState.isSearchMode,
-                selectedChats = chatListState.selectedChats.count { it },
+                selectedChats = selectedChatCount,
                 scrollBehavior = scrollBehavior,
                 actionOnClick = {
                     if (chatListState.isSelectionMode) {
@@ -127,7 +130,7 @@ fun HomeScreen(
                 },
                 duplicateOnClick = {
                     homeViewModel.duplicateSelectedChat()
-                    Toast.makeText(context, context.getString(R.string.duplicated_chat), Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, duplicatedChatMessage, Toast.LENGTH_SHORT).show()
                 },
                 navigationOnClick = {
                     if (chatListState.isSelectionMode) {
@@ -237,9 +240,8 @@ fun HomeScreen(
             DeleteWarningDialog(
                 onDismissRequest = homeViewModel::closeDeleteWarningDialog,
                 onConfirm = {
-                    val deletedChatRoomCount = chatListState.selectedChats.count { it }
                     homeViewModel.deleteSelectedChats()
-                    Toast.makeText(context, context.getString(R.string.deleted_chats, deletedChatRoomCount), Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, deletedChatsMessage, Toast.LENGTH_SHORT).show()
                     homeViewModel.closeDeleteWarningDialog()
                 }
             )

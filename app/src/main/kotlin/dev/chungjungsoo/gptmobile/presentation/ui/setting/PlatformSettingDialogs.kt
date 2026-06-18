@@ -11,6 +11,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -30,6 +35,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import dev.chungjungsoo.gptmobile.R
+import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
+import dev.chungjungsoo.gptmobile.data.model.GeminiSafetySettings
 import dev.chungjungsoo.gptmobile.util.isValidUrl
 import kotlin.math.roundToInt
 
@@ -156,6 +163,21 @@ fun TimeoutDialog(
             initialValue = timeoutSeconds,
             onDismissRequest = settingViewModel::closeTimeoutDialog,
             onConfirmRequest = settingViewModel::updateTimeout
+        )
+    }
+}
+
+@Composable
+fun GeminiSafetySettingsDialog(
+    dialogState: PlatformSettingViewModel.DialogState,
+    platform: PlatformV2,
+    settingViewModel: PlatformSettingViewModel
+) {
+    if (dialogState.isGeminiSafetyDialogOpen) {
+        GeminiSafetySettingsDialog(
+            platform = platform,
+            onDismissRequest = settingViewModel::closeGeminiSafetyDialog,
+            onConfirmRequest = settingViewModel::updateGeminiSafetySettings
         )
     }
 }
@@ -661,6 +683,111 @@ private fun SystemPromptDialog(
             }
         }
     )
+}
+
+@Composable
+private fun GeminiSafetySettingsDialog(
+    platform: PlatformV2,
+    onDismissRequest: () -> Unit,
+    onConfirmRequest: (String, String, String, String) -> Unit
+) {
+    val configuration = LocalWindowInfo.current
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
+    val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
+    var harassment by remember { mutableStateOf(GeminiSafetySettings.normalizeThreshold(platform.harassmentSafetyThreshold)) }
+    var hateSpeech by remember { mutableStateOf(GeminiSafetySettings.normalizeThreshold(platform.hateSpeechSafetyThreshold)) }
+    var sexuallyExplicit by remember { mutableStateOf(GeminiSafetySettings.normalizeThreshold(platform.sexuallyExplicitSafetyThreshold)) }
+    var dangerousContent by remember { mutableStateOf(GeminiSafetySettings.normalizeThreshold(platform.dangerousContentSafetyThreshold)) }
+
+    AlertDialog(
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier
+            .widthIn(max = screenWidth - 40.dp)
+            .heightIn(max = screenHeight - 80.dp),
+        title = { Text(text = stringResource(R.string.gemini_safety_settings)) },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState())
+            ) {
+                SafetyThresholdDropdown(
+                    label = stringResource(R.string.gemini_safety_harassment),
+                    selectedThreshold = harassment,
+                    onThresholdSelected = { harassment = it }
+                )
+                SafetyThresholdDropdown(
+                    label = stringResource(R.string.gemini_safety_hate_speech),
+                    selectedThreshold = hateSpeech,
+                    onThresholdSelected = { hateSpeech = it }
+                )
+                SafetyThresholdDropdown(
+                    label = stringResource(R.string.gemini_safety_sexually_explicit),
+                    selectedThreshold = sexuallyExplicit,
+                    onThresholdSelected = { sexuallyExplicit = it }
+                )
+                SafetyThresholdDropdown(
+                    label = stringResource(R.string.gemini_safety_dangerous_content),
+                    selectedThreshold = dangerousContent,
+                    onThresholdSelected = { dangerousContent = it }
+                )
+            }
+        },
+        onDismissRequest = onDismissRequest,
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirmRequest(harassment, hateSpeech, sexuallyExplicit, dangerousContent) }
+            ) {
+                Text(stringResource(R.string.confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SafetyThresholdDropdown(
+    label: String,
+    selectedThreshold: String,
+    onThresholdSelected: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it }
+    ) {
+        OutlinedTextField(
+            modifier = Modifier
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            value = stringResource(GeminiSafetySettings.labelResFor(selectedThreshold)),
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+            }
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            GeminiSafetySettings.supportedThresholds.forEach { threshold ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(GeminiSafetySettings.labelResFor(threshold))) },
+                    onClick = {
+                        onThresholdSelected(threshold)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
 }
 
 @Composable

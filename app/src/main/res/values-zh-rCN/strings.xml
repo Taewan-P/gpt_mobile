@@ -226,4 +226,15 @@
     <string name="platform_added_successfully">提供商添加成功</string>
     <string name="at_least_one_platform_required">请至少启用一个提供商</string>
     <string name="remove">移除</string>
+    <string name="gemini_safety_settings">Gemini 安全设置</string>
+    <string name="gemini_safety_settings_description">骚扰、仇恨言论、性内容、危险内容</string>
+    <string name="gemini_safety_settings_icon">Gemini 安全设置图标</string>
+    <string name="gemini_safety_harassment">骚扰</string>
+    <string name="gemini_safety_hate_speech">仇恨言论</string>
+    <string name="gemini_safety_sexually_explicit">露骨色情内容</string>
+    <string name="gemini_safety_dangerous_content">危险内容</string>
+    <string name="gemini_safety_block_none">不屏蔽</string>
+    <string name="gemini_safety_block_only_high">仅屏蔽高风险</string>
+    <string name="gemini_safety_block_medium_and_above">屏蔽中等及以上</string>
+    <string name="gemini_safety_block_low_and_above">屏蔽低及以上</string>
 </resources>

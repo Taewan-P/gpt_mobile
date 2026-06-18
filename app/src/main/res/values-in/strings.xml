@@ -243,4 +243,15 @@
     <string name="at_least_one_platform_required">Tambahkan setidaknya satu platform untuk melanjutkan</string>
     <string name="remove">Hapus</string>
     <string name="revision_counter">Revisi %1$d/%2$d</string>
+    <string name="gemini_safety_settings">Setelan keamanan Gemini</string>
+    <string name="gemini_safety_settings_description">Pelecehan, ujaran kebencian, konten seksual, konten berbahaya</string>
+    <string name="gemini_safety_settings_icon">Ikon setelan keamanan Gemini</string>
+    <string name="gemini_safety_harassment">Pelecehan</string>
+    <string name="gemini_safety_hate_speech">Ujaran kebencian</string>
+    <string name="gemini_safety_sexually_explicit">Seksual eksplisit</string>
+    <string name="gemini_safety_dangerous_content">Konten berbahaya</string>
+    <string name="gemini_safety_block_none">Jangan blokir</string>
+    <string name="gemini_safety_block_only_high">Blokir hanya tingkat tinggi</string>
+    <string name="gemini_safety_block_medium_and_above">Blokir tingkat sedang ke atas</string>
+    <string name="gemini_safety_block_low_and_above">Blokir tingkat rendah ke atas</string>
 </resources>

@@ -226,6 +226,23 @@ fun PlatformSettingScreen(
                         )
                     }
                 )
+                if (platformData.compatibleType == ClientType.GOOGLE) {
+                    SettingItem(
+                        modifier = Modifier.height(64.dp),
+                        title = stringResource(R.string.gemini_safety_settings),
+                        description = stringResource(R.string.gemini_safety_settings_description),
+                        enabled = platformData.enabled,
+                        onItemClick = settingViewModel::openGeminiSafetyDialog,
+                        showTrailingIcon = false,
+                        showLeadingIcon = true,
+                        leadingIcon = {
+                            Icon(
+                                ImageVector.vectorResource(id = R.drawable.ic_info),
+                                contentDescription = stringResource(R.string.gemini_safety_settings_icon)
+                            )
+                        }
+                    )
+                }
                 ExtendedThinkingSwitch(
                     modifier = Modifier.height(64.dp),
                     enabled = platformData.enabled,
@@ -241,6 +258,7 @@ fun PlatformSettingScreen(
                 TopPDialog(dialogState, platformData.topP, settingViewModel)
                 SystemPromptDialog(dialogState, platformData.systemPrompt ?: "", settingViewModel)
                 TimeoutDialog(dialogState, platformData.timeout, settingViewModel)
+                GeminiSafetySettingsDialog(dialogState, platformData, settingViewModel)
                 DeletePlatformDialog(dialogState, settingViewModel)
             }
         }

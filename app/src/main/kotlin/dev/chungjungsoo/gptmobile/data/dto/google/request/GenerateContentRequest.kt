@@ -18,7 +18,11 @@ data class GenerateContentRequest(
 
     @SerialName("systemInstruction")
     @EncodeDefault(EncodeDefault.Mode.NEVER)
-    val systemInstruction: Content? = null
+    val systemInstruction: Content? = null,
+
+    @SerialName("safetySettings")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val safetySettings: List<SafetySetting>? = null
 )
 
 @OptIn(ExperimentalSerializationApi::class)
@@ -47,6 +51,18 @@ data class GenerationConfig(
     @SerialName("thinkingConfig")
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val thinkingConfig: ThinkingConfig? = null
+)
+
+@OptIn(ExperimentalSerializationApi::class)
+@Serializable
+data class SafetySetting(
+    @SerialName("category")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val category: String,
+
+    @SerialName("threshold")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val threshold: String
 )
 
 @OptIn(ExperimentalSerializationApi::class)
