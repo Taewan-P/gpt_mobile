@@ -10,7 +10,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -143,12 +143,7 @@ fun ChatScreen(
     suspend fun animateScrollToLatestMessage() {
         if (lastMessageIndex >= 0) {
             listState.animateScrollToItem(lastMessageIndex)
-
-            val latestMessage = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == lastMessageIndex } ?: return
-            val remainingScroll = latestMessage.offset + latestMessage.size - listState.layoutInfo.viewportEndOffset
-            if (remainingScroll > 0) {
-                listState.animateScrollBy(remainingScroll.toFloat())
-            }
+            listState.scrollBy(1_000_000f)
         }
     }
 
