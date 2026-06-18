@@ -153,11 +153,15 @@
     <string name="openai_description">Twórca Chata GPT.</string>
     <string name="enter_api_key">Podaj klucz API</string>
     <string name="token_input_description">Wprowadź klucz API wybranej przez Ciebie platformy. Nasza aplikacja nie zbiera tych danych. Klucze API i historia czatów są zapisywane tylko na Twoim urządzeniu, i nie zostaną nigdzie wysłane, z wyjątkiem serwerów odbiorczych API.</string>
-    <string name="gemini_safety_settings">Gemini safety settings</string>
-    <string name="gemini_safety_settings_description">Harassment, hate speech, sexual, dangerous content</string>
-    <string name="gemini_safety_settings_icon">Gemini safety settings icon</string>
-    <string name="gemini_safety_harassment">Harassment</string>
-    <string name="gemini_safety_hate_speech">Hate speech</string>
-    <string name="gemini_safety_sexually_explicit">Sexually explicit</string>
-    <string name="gemini_safety_dangerous_content">Dangerous content</string>
+    <string name="gemini_safety_settings">Ustawienia bezpieczeństwa Gemini</string>
+    <string name="gemini_safety_settings_description">Nękanie, mowa nienawiści, treści seksualne, treści niebezpieczne</string>
+    <string name="gemini_safety_settings_icon">Ikona ustawień bezpieczeństwa Gemini</string>
+    <string name="gemini_safety_harassment">Nękanie</string>
+    <string name="gemini_safety_hate_speech">Mowa nienawiści</string>
+    <string name="gemini_safety_sexually_explicit">Treści jednoznacznie seksualne</string>
+    <string name="gemini_safety_dangerous_content">Treści niebezpieczne</string>
+    <string name="gemini_safety_block_none">Nie blokuj</string>
+    <string name="gemini_safety_block_only_high">Blokuj tylko wysoki poziom</string>
+    <string name="gemini_safety_block_medium_and_above">Blokuj średni i wyższy poziom</string>
+    <string name="gemini_safety_block_low_and_above">Blokuj niski i wyższy poziom</string>
 </resources>

@@ -8,7 +8,9 @@ import dev.chungjungsoo.gptmobile.data.dto.ApiState
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.request.MessageRequest
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.MessageResponseChunk
 import dev.chungjungsoo.gptmobile.data.dto.google.request.GenerateContentRequest
+import dev.chungjungsoo.gptmobile.data.dto.google.response.Candidate
 import dev.chungjungsoo.gptmobile.data.dto.google.response.GenerateContentResponse
+import dev.chungjungsoo.gptmobile.data.dto.google.response.PromptFeedback
 import dev.chungjungsoo.gptmobile.data.dto.groq.request.GroqChatCompletionRequest
 import dev.chungjungsoo.gptmobile.data.dto.groq.response.GroqChatCompletionChunk
 import dev.chungjungsoo.gptmobile.data.dto.groq.response.GroqChoice
@@ -207,6 +209,62 @@ class ChatRepositoryImplTest {
     }
 
     @Test
+    fun `google prompt safety block emits error`() = runBlocking {
+        val repository = createRepository(
+            googleAPI = FakeGoogleAPI(
+                flowOf(
+                    GenerateContentResponse(
+                        promptFeedback = PromptFeedback(blockReason = "SAFETY")
+                    )
+                )
+            )
+        )
+
+        val states = repository.completeChat(
+            userMessages = listOf(MessageV2(content = "Hi", platformType = null)),
+            assistantMessages = emptyList(),
+            platform = googlePlatform()
+        ).toList()
+
+        assertEquals(
+            listOf(
+                ApiState.Loading,
+                ApiState.Error("Gemini safety settings blocked the prompt: SAFETY"),
+                ApiState.Done
+            ),
+            states
+        )
+    }
+
+    @Test
+    fun `google safety finish reason emits error`() = runBlocking {
+        val repository = createRepository(
+            googleAPI = FakeGoogleAPI(
+                flowOf(
+                    GenerateContentResponse(
+                        candidates = listOf(Candidate(finishReason = "SAFETY"))
+                    )
+                )
+            )
+        )
+
+        val states = repository.completeChat(
+            userMessages = listOf(MessageV2(content = "Hi", platformType = null)),
+            assistantMessages = emptyList(),
+            platform = googlePlatform()
+        ).toList()
+
+        assertEquals(
+            listOf(
+                ApiState.Loading,
+                ApiState.Error("Gemini safety settings blocked the response."),
+                ApiState.Done
+            ),
+            states
+        )
+    }
+
+    @Test
     fun `failed historical turn is excluded from subsequent inline budget checks`() = runBlocking {
         val openAIAPI = RecordingOpenAIAPI()
         val repository = createRepository(openAIAPI = openAIAPI)
@@ -396,7 +454,9 @@ class ChatRepositoryImplTest {
         override suspend fun isFileAvailable(fileId: String): Boolean = false
     }
 
-    private class FakeGoogleAPI : GoogleAPI {
+    private class FakeGoogleAPI(
+        private val chunks: Flow<GenerateContentResponse> = emptyFlow()
+    ) : GoogleAPI {
         var streamCalls = 0
         var lastRequest: GenerateContentRequest? = null
 
@@ -411,7 +471,7 @@ class ChatRepositoryImplTest {
         ): Flow<GenerateContentResponse> {
             streamCalls += 1
             lastRequest = request
-            return emptyFlow()
+            return chunks
         }
 
         override suspend fun uploadFile(

@@ -156,11 +156,15 @@
     <string name="not_set">설정되지 않음</string>
     <string name="export_chat">채팅 내보내기</string>
     <string name="migration_assistant">마이그레이션 도구</string>
-    <string name="gemini_safety_settings">Gemini safety settings</string>
-    <string name="gemini_safety_settings_description">Harassment, hate speech, sexual, dangerous content</string>
-    <string name="gemini_safety_settings_icon">Gemini safety settings icon</string>
-    <string name="gemini_safety_harassment">Harassment</string>
-    <string name="gemini_safety_hate_speech">Hate speech</string>
-    <string name="gemini_safety_sexually_explicit">Sexually explicit</string>
-    <string name="gemini_safety_dangerous_content">Dangerous content</string>
+    <string name="gemini_safety_settings">Gemini 안전 설정</string>
+    <string name="gemini_safety_settings_description">괴롭힘, 혐오 발언, 성적 콘텐츠, 위험한 콘텐츠</string>
+    <string name="gemini_safety_settings_icon">Gemini 안전 설정 아이콘</string>
+    <string name="gemini_safety_harassment">괴롭힘</string>
+    <string name="gemini_safety_hate_speech">혐오 발언</string>
+    <string name="gemini_safety_sexually_explicit">노골적인 성적 콘텐츠</string>
+    <string name="gemini_safety_dangerous_content">위험한 콘텐츠</string>
+    <string name="gemini_safety_block_none">차단 안 함</string>
+    <string name="gemini_safety_block_only_high">높음만 차단</string>
+    <string name="gemini_safety_block_medium_and_above">중간 이상 차단</string>
+    <string name="gemini_safety_block_low_and_above">낮음 이상 차단</string>
 </resources>

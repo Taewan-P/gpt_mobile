@@ -153,11 +153,15 @@
     <string name="f_droid_icon">F-Droid Icono</string>
     <string name="play_store_icon">Play Store Icono</string>
     <string name="url_icon">URL Icono</string>
-    <string name="gemini_safety_settings">Gemini safety settings</string>
-    <string name="gemini_safety_settings_description">Harassment, hate speech, sexual, dangerous content</string>
-    <string name="gemini_safety_settings_icon">Gemini safety settings icon</string>
-    <string name="gemini_safety_harassment">Harassment</string>
-    <string name="gemini_safety_hate_speech">Hate speech</string>
-    <string name="gemini_safety_sexually_explicit">Sexually explicit</string>
-    <string name="gemini_safety_dangerous_content">Dangerous content</string>
+    <string name="gemini_safety_settings">Configuración de seguridad de Gemini</string>
+    <string name="gemini_safety_settings_description">Acoso, discurso de odio, contenido sexual y peligroso</string>
+    <string name="gemini_safety_settings_icon">Icono de configuración de seguridad de Gemini</string>
+    <string name="gemini_safety_harassment">Acoso</string>
+    <string name="gemini_safety_hate_speech">Discurso de odio</string>
+    <string name="gemini_safety_sexually_explicit">Sexualmente explícito</string>
+    <string name="gemini_safety_dangerous_content">Contenido peligroso</string>
+    <string name="gemini_safety_block_none">No bloquear</string>
+    <string name="gemini_safety_block_only_high">Bloquear solo alto</string>
+    <string name="gemini_safety_block_medium_and_above">Bloquear medio y superior</string>
+    <string name="gemini_safety_block_low_and_above">Bloquear bajo y superior</string>
 </resources>

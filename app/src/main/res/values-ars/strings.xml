@@ -152,11 +152,15 @@
     <string name="default_mode">افتراضي</string>
     <string name="ai_generated">تم إنشاؤه بواسطة الذكاء الاصطناعي (تجريبي)</string>
     <string name="update">تحديث</string>
-    <string name="gemini_safety_settings">Gemini safety settings</string>
-    <string name="gemini_safety_settings_description">Harassment, hate speech, sexual, dangerous content</string>
-    <string name="gemini_safety_settings_icon">Gemini safety settings icon</string>
-    <string name="gemini_safety_harassment">Harassment</string>
-    <string name="gemini_safety_hate_speech">Hate speech</string>
-    <string name="gemini_safety_sexually_explicit">Sexually explicit</string>
-    <string name="gemini_safety_dangerous_content">Dangerous content</string>
+    <string name="gemini_safety_settings">إعدادات أمان Gemini</string>
+    <string name="gemini_safety_settings_description">المضايقة، خطاب الكراهية، المحتوى الجنسي، المحتوى الخطير</string>
+    <string name="gemini_safety_settings_icon">أيقونة إعدادات أمان Gemini</string>
+    <string name="gemini_safety_harassment">المضايقة</string>
+    <string name="gemini_safety_hate_speech">خطاب الكراهية</string>
+    <string name="gemini_safety_sexually_explicit">محتوى جنسي صريح</string>
+    <string name="gemini_safety_dangerous_content">محتوى خطير</string>
+    <string name="gemini_safety_block_none">عدم الحظر</string>
+    <string name="gemini_safety_block_only_high">حظر العالي فقط</string>
+    <string name="gemini_safety_block_medium_and_above">حظر المتوسط وما فوق</string>
+    <string name="gemini_safety_block_low_and_above">حظر المنخفض وما فوق</string>
 </resources>

@@ -1,5 +1,8 @@
 package dev.chungjungsoo.gptmobile.data.model
 
+import androidx.annotation.StringRes
+import dev.chungjungsoo.gptmobile.R
+
 object GeminiSafetySettings {
     const val BLOCK_NONE = "BLOCK_NONE"
     const val BLOCK_ONLY_HIGH = "BLOCK_ONLY_HIGH"
@@ -15,10 +18,11 @@ object GeminiSafetySettings {
 
     fun normalizeThreshold(value: String?): String = value?.takeIf { it in supportedThresholds } ?: BLOCK_NONE
 
-    fun labelFor(threshold: String): String = when (normalizeThreshold(threshold)) {
-        BLOCK_ONLY_HIGH -> "Block high only"
-        BLOCK_MEDIUM_AND_ABOVE -> "Block medium and above"
-        BLOCK_LOW_AND_ABOVE -> "Block low and above"
-        else -> "Block none"
+    @StringRes
+    fun labelResFor(threshold: String): Int = when (normalizeThreshold(threshold)) {
+        BLOCK_ONLY_HIGH -> R.string.gemini_safety_block_only_high
+        BLOCK_MEDIUM_AND_ABOVE -> R.string.gemini_safety_block_medium_and_above
+        BLOCK_LOW_AND_ABOVE -> R.string.gemini_safety_block_low_and_above
+        else -> R.string.gemini_safety_block_none
     }
 }

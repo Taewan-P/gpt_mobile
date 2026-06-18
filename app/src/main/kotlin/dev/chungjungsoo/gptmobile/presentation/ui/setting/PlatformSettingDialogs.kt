@@ -765,7 +765,7 @@ private fun SafetyThresholdDropdown(
                 .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
                 .fillMaxWidth()
                 .padding(vertical = 8.dp),
-            value = GeminiSafetySettings.labelFor(selectedThreshold),
+            value = stringResource(GeminiSafetySettings.labelResFor(selectedThreshold)),
             onValueChange = {},
             readOnly = true,
             label = { Text(label) },
@@ -779,7 +779,7 @@ private fun SafetyThresholdDropdown(
         ) {
             GeminiSafetySettings.supportedThresholds.forEach { threshold ->
                 DropdownMenuItem(
-                    text = { Text(GeminiSafetySettings.labelFor(threshold)) },
+                    text = { Text(stringResource(GeminiSafetySettings.labelResFor(threshold))) },
                     onClick = {
                         onThresholdSelected(threshold)
                         expanded = false

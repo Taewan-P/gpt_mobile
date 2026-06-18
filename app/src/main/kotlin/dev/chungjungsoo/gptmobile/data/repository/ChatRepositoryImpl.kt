@@ -658,8 +658,16 @@ class ChatRepositoryImpl @Inject constructor(
                         when {
                             response.error != null -> emit(ApiState.Error(response.error.message))
 
+                            response.promptFeedback?.blockReason != null -> {
+                                emit(ApiState.Error("Gemini safety settings blocked the prompt: ${response.promptFeedback.blockReason}"))
+                            }
+
+                            response.candidates?.firstOrNull()?.finishReason == GOOGLE_SAFETY_FINISH_REASON -> {
+                                emit(ApiState.Error("Gemini safety settings blocked the response."))
+                            }
+
                             response.candidates?.firstOrNull()?.content?.parts != null -> {
-                                val parts = response.candidates.first().content.parts
+                                val parts = response.candidates.first().content?.parts.orEmpty()
                                 parts.forEach { part ->
                                     part.text?.let { text ->
                                         if (part.thought == true) {
@@ -681,6 +689,10 @@ class ChatRepositoryImpl @Inject constructor(
         }
     } catch (e: Exception) {
         flowOf(ApiState.Error(e.message ?: "Failed to complete chat"))
+    }
+
+    private companion object {
+        private const val GOOGLE_SAFETY_FINISH_REASON = "SAFETY"
     }
 
     private fun PlatformV2.toGoogleSafetySettings(): List<SafetySetting> = listOf(

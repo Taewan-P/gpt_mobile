@@ -19,7 +19,7 @@ data class GenerateContentResponse(
 @Serializable
 data class Candidate(
     @SerialName("content")
-    val content: Content,
+    val content: Content? = null,
 
     @SerialName("finishReason")
     val finishReason: String? = null,

@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
+import dev.chungjungsoo.gptmobile.data.model.GeminiSafetySettings
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -154,10 +155,10 @@ class PlatformSettingViewModel @Inject constructor(
         _platformState.value?.let { platform ->
             updatePlatform(
                 platform.copy(
-                    harassmentSafetyThreshold = harassmentSafetyThreshold,
-                    hateSpeechSafetyThreshold = hateSpeechSafetyThreshold,
-                    sexuallyExplicitSafetyThreshold = sexuallyExplicitSafetyThreshold,
-                    dangerousContentSafetyThreshold = dangerousContentSafetyThreshold
+                    harassmentSafetyThreshold = GeminiSafetySettings.normalizeThreshold(harassmentSafetyThreshold),
+                    hateSpeechSafetyThreshold = GeminiSafetySettings.normalizeThreshold(hateSpeechSafetyThreshold),
+                    sexuallyExplicitSafetyThreshold = GeminiSafetySettings.normalizeThreshold(sexuallyExplicitSafetyThreshold),
+                    dangerousContentSafetyThreshold = GeminiSafetySettings.normalizeThreshold(dangerousContentSafetyThreshold)
                 )
             )
             closeGeminiSafetyDialog()
