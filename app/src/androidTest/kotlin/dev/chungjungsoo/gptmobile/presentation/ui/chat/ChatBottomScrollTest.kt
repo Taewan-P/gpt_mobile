@@ -34,7 +34,25 @@ class ChatBottomScrollTest {
     val composeRule = createComposeRule()
 
     @Test
+    fun scrollToLatestMessage_reachesBottomWithOneConversation() {
+        assertScrollReachesBottomAfterLatestMessageGrows(
+            lastMessageIndex = 0,
+            includePreviousMessage = false
+        )
+    }
+
+    @Test
     fun scrollToLatestMessage_reachesBottomWhenLatestMessageGrowsAfterFirstLayout() {
+        assertScrollReachesBottomAfterLatestMessageGrows(
+            lastMessageIndex = 1,
+            includePreviousMessage = true
+        )
+    }
+
+    private fun assertScrollReachesBottomAfterLatestMessageGrows(
+        lastMessageIndex: Int,
+        includePreviousMessage: Boolean
+    ) {
         var listState: LazyListState? = null
 
         composeRule.setContent {
@@ -49,8 +67,10 @@ class ChatBottomScrollTest {
                         .testTag("chatList"),
                     state = state
                 ) {
-                    item {
-                        Spacer(Modifier.height(360.dp))
+                    if (includePreviousMessage) {
+                        item {
+                            Spacer(Modifier.height(360.dp))
+                        }
                     }
 
                     item {
@@ -80,7 +100,7 @@ class ChatBottomScrollTest {
                     modifier = Modifier.testTag("scrollButton"),
                     onClick = {
                         scope.launch {
-                            state.animateScrollToLatestChatMessage(lastMessageIndex = 1)
+                            state.animateScrollToLatestChatMessage(lastMessageIndex)
                         }
                     }
                 ) {
