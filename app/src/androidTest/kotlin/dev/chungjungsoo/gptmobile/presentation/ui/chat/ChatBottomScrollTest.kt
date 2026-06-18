@@ -1,0 +1,99 @@
+package dev.chungjungsoo.gptmobile.presentation.ui.chat
+
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
+import org.junit.Assert.assertFalse
+import org.junit.Rule
+import org.junit.Test
+
+class ChatBottomScrollTest {
+    @get:Rule
+    val composeRule = createComposeRule()
+
+    @Test
+    fun scrollToLatestMessage_reachesBottomWhenLatestMessageGrowsAfterFirstLayout() {
+        var listState: LazyListState? = null
+
+        composeRule.setContent {
+            val state = rememberLazyListState()
+            val scope = rememberCoroutineScope()
+            listState = state
+
+            Box(Modifier.size(width = 320.dp, height = 280.dp)) {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .testTag("chatList"),
+                    state = state
+                ) {
+                    item {
+                        Spacer(Modifier.height(360.dp))
+                    }
+
+                    item {
+                        var showBottomControls by remember { mutableStateOf(false) }
+
+                        LaunchedEffect(Unit) {
+                            withFrameNanos { }
+                            showBottomControls = true
+                        }
+
+                        Column {
+                            Text("latest message")
+                            Spacer(Modifier.height(360.dp))
+                            if (showBottomControls) {
+                                Text("revision controls")
+                                Spacer(Modifier.height(96.dp))
+                            }
+                        }
+                    }
+
+                    item {
+                        Spacer(Modifier.height(1.dp))
+                    }
+                }
+
+                Button(
+                    modifier = Modifier.testTag("scrollButton"),
+                    onClick = {
+                        scope.launch {
+                            state.animateScrollToLatestChatMessage(lastMessageIndex = 1)
+                        }
+                    }
+                ) {
+                    Text("Bottom")
+                }
+            }
+        }
+
+        composeRule.onNodeWithTag("scrollButton").performClick()
+        composeRule.waitForIdle()
+
+        composeRule.runOnIdle {
+            assertFalse(listState?.canScrollForward ?: true)
+        }
+    }
+}

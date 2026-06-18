@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -67,6 +68,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -140,9 +142,7 @@ fun ChatScreen(
     val scope = rememberCoroutineScope()
 
     suspend fun animateScrollToLatestMessage() {
-        if (lastMessageIndex >= 0) {
-            listState.animateScrollToItem(lastMessageIndex + 1)
-        }
+        listState.animateScrollToLatestChatMessage(lastMessageIndex)
     }
 
     LaunchedEffect(isIdle) {
@@ -520,6 +520,19 @@ private fun chatMessagePairKey(message: MessageV2, index: Int): String = if (mes
     "message-${message.id}"
 } else {
     "message-${message.createdAt}-$index"
+}
+
+internal suspend fun LazyListState.animateScrollToLatestChatMessage(lastMessageIndex: Int) {
+    if (lastMessageIndex < 0) return
+
+    val bottomAnchorIndex = lastMessageIndex + 1
+    animateScrollToItem(bottomAnchorIndex)
+
+    repeat(12) {
+        withFrameNanos { }
+        if (!canScrollForward) return
+        scrollToItem(bottomAnchorIndex)
+    }
 }
 
 @Composable
