@@ -10,7 +10,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -31,6 +30,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -139,11 +140,12 @@ fun ChatScreen(
     val lastMessageIndex = groupedMessages.userMessages.lastIndex
 
     val scope = rememberCoroutineScope()
+    val latestMessageBottomRequester = remember { BringIntoViewRequester() }
 
     suspend fun animateScrollToLatestMessage() {
         if (lastMessageIndex >= 0) {
             listState.animateScrollToItem(lastMessageIndex)
-            listState.scrollBy(1_000_000f)
+            latestMessageBottomRequester.bringIntoView()
         }
     }
 
@@ -254,6 +256,7 @@ fun ChatScreen(
                                 canUseChat = canUseChat,
                                 isIdle = isIdle,
                                 isActiveMessage = true,
+                                bottomMarkerModifier = Modifier.bringIntoViewRequester(latestMessageBottomRequester),
                                 maximumUserChatBubbleWidth = maximumUserChatBubbleWidth,
                                 maximumOpponentChatBubbleWidth = maximumOpponentChatBubbleWidth,
                                 onEditQuestion = chatViewModel::openUserMessageEditDialog,
@@ -391,6 +394,7 @@ private fun ChatMessagePair(
     canUseChat: Boolean,
     isIdle: Boolean,
     isActiveMessage: Boolean,
+    bottomMarkerModifier: Modifier = Modifier,
     maximumUserChatBubbleWidth: Dp,
     maximumOpponentChatBubbleWidth: Dp,
     onEditQuestion: (MessageV2) -> Unit,
@@ -508,7 +512,8 @@ private fun ChatMessagePair(
                 onRetryClick = { onRetry(messageIndex, platformIndexState) },
                 onEditClick = { onEditAssistant(messageIndex, platformIndexState) },
                 onShowPreviousRevision = { onShowPreviousRevision(messageIndex, platformIndexState) },
-                onShowNextRevision = { onShowNextRevision(messageIndex, platformIndexState) }
+                onShowNextRevision = { onShowNextRevision(messageIndex, platformIndexState) },
+                bottomMarkerModifier = bottomMarkerModifier
             )
         }
     }
