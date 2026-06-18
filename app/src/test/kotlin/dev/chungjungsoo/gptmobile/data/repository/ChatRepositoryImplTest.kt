@@ -19,6 +19,7 @@ import dev.chungjungsoo.gptmobile.data.dto.openai.response.ChatCompletionChunk
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponsesStreamEvent
 import dev.chungjungsoo.gptmobile.data.model.ChatAttachment
 import dev.chungjungsoo.gptmobile.data.model.ClientType
+import dev.chungjungsoo.gptmobile.data.model.GeminiSafetySettings
 import dev.chungjungsoo.gptmobile.data.network.AnthropicAPI
 import dev.chungjungsoo.gptmobile.data.network.GoogleAPI
 import dev.chungjungsoo.gptmobile.data.network.GroqAPI
@@ -183,6 +184,29 @@ class ChatRepositoryImplTest {
     }
 
     @Test
+    fun `google request includes configured safety settings`() = runBlocking {
+        val googleAPI = FakeGoogleAPI()
+        val repository = createRepository(googleAPI = googleAPI)
+
+        repository.completeChat(
+            userMessages = listOf(MessageV2(content = "Hi", platformType = null)),
+            assistantMessages = emptyList(),
+            platform = googlePlatform()
+        ).toList()
+
+        assertEquals(1, googleAPI.streamCalls)
+        assertEquals(
+            listOf(
+                GeminiSafetySettings.HARM_CATEGORY_HARASSMENT to GeminiSafetySettings.BLOCK_LOW_AND_ABOVE,
+                GeminiSafetySettings.HARM_CATEGORY_HATE_SPEECH to GeminiSafetySettings.BLOCK_MEDIUM_AND_ABOVE,
+                GeminiSafetySettings.HARM_CATEGORY_SEXUALLY_EXPLICIT to GeminiSafetySettings.BLOCK_ONLY_HIGH,
+                GeminiSafetySettings.HARM_CATEGORY_DANGEROUS_CONTENT to GeminiSafetySettings.BLOCK_NONE
+            ),
+            googleAPI.lastRequest?.safetySettings?.map { it.category to it.threshold }
+        )
+    }
+
+    @Test
     fun `failed historical turn is excluded from subsequent inline budget checks`() = runBlocking {
         val openAIAPI = RecordingOpenAIAPI()
         val repository = createRepository(openAIAPI = openAIAPI)
@@ -242,7 +266,8 @@ class ChatRepositoryImplTest {
 
     private fun createRepository(
         groqAPI: GroqAPI = FakeGroqAPI(emptyFlow()),
-        openAIAPI: OpenAIAPI = RecordingOpenAIAPI()
+        openAIAPI: OpenAIAPI = RecordingOpenAIAPI(),
+        googleAPI: GoogleAPI = FakeGoogleAPI()
     ): ChatRepositoryImpl = ChatRepositoryImpl(
         context = ContextWrapper(null),
         chatRoomDao = proxy(),
@@ -254,11 +279,11 @@ class ChatRepositoryImplTest {
         openAIAPI = openAIAPI,
         groqAPI = groqAPI,
         anthropicAPI = FakeAnthropicAPI(),
-        googleAPI = FakeGoogleAPI(),
+        googleAPI = googleAPI,
         attachmentUploadCoordinator = AttachmentUploadCoordinator(
             openAIAPI,
             FakeAnthropicAPI(),
-            FakeGoogleAPI()
+            googleAPI
         ),
         contextBuilder = ContextBuilder()
     )
@@ -270,6 +295,18 @@ class ChatRepositoryImplTest {
         apiUrl = "https://api.groq.com/openai/",
         model = model,
         reasoning = reasoning
+    )
+
+    private fun googlePlatform() = PlatformV2(
+        uid = "google-platform",
+        name = "Google",
+        compatibleType = ClientType.GOOGLE,
+        apiUrl = "https://generativelanguage.googleapis.com",
+        model = "gemini-3-pro-preview",
+        harassmentSafetyThreshold = GeminiSafetySettings.BLOCK_LOW_AND_ABOVE,
+        hateSpeechSafetyThreshold = GeminiSafetySettings.BLOCK_MEDIUM_AND_ABOVE,
+        sexuallyExplicitSafetyThreshold = GeminiSafetySettings.BLOCK_ONLY_HIGH,
+        dangerousContentSafetyThreshold = GeminiSafetySettings.BLOCK_NONE
     )
 
     private fun customPlatform() = PlatformV2(
@@ -360,6 +397,9 @@ class ChatRepositoryImplTest {
     }
 
     private class FakeGoogleAPI : GoogleAPI {
+        var streamCalls = 0
+        var lastRequest: GenerateContentRequest? = null
+
         override fun setToken(token: String?) = Unit
 
         override fun setAPIUrl(url: String) = Unit
@@ -368,7 +408,11 @@ class ChatRepositoryImplTest {
             request: GenerateContentRequest,
             model: String,
             timeoutSeconds: Int
-        ): Flow<GenerateContentResponse> = emptyFlow()
+        ): Flow<GenerateContentResponse> {
+            streamCalls += 1
+            lastRequest = request
+            return emptyFlow()
+        }
 
         override suspend fun uploadFile(
             filePath: String,

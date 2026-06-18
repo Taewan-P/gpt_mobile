@@ -31,6 +31,7 @@ import dev.chungjungsoo.gptmobile.data.dto.google.common.Part
 import dev.chungjungsoo.gptmobile.data.dto.google.common.Role as GoogleRole
 import dev.chungjungsoo.gptmobile.data.dto.google.request.GenerateContentRequest
 import dev.chungjungsoo.gptmobile.data.dto.google.request.GenerationConfig
+import dev.chungjungsoo.gptmobile.data.dto.google.request.SafetySetting
 import dev.chungjungsoo.gptmobile.data.dto.groq.request.GroqChatCompletionRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.common.ImageContent as OpenAIImageContent
 import dev.chungjungsoo.gptmobile.data.dto.openai.common.ImageUrl
@@ -50,6 +51,7 @@ import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseErrorEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseFailedEvent
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.data.model.ClientType
+import dev.chungjungsoo.gptmobile.data.model.GeminiSafetySettings
 import dev.chungjungsoo.gptmobile.data.network.AnthropicAPI
 import dev.chungjungsoo.gptmobile.data.network.GoogleAPI
 import dev.chungjungsoo.gptmobile.data.network.GroqAPI
@@ -646,7 +648,8 @@ class ChatRepositoryImpl @Inject constructor(
                         Content(
                             parts = listOf(Part.text(it))
                         )
-                    }
+                    },
+                    safetySettings = platform.toGoogleSafetySettings()
                 )
             },
             stream = { request ->
@@ -679,6 +682,25 @@ class ChatRepositoryImpl @Inject constructor(
     } catch (e: Exception) {
         flowOf(ApiState.Error(e.message ?: "Failed to complete chat"))
     }
+
+    private fun PlatformV2.toGoogleSafetySettings(): List<SafetySetting> = listOf(
+        SafetySetting(
+            category = GeminiSafetySettings.HARM_CATEGORY_HARASSMENT,
+            threshold = GeminiSafetySettings.normalizeThreshold(harassmentSafetyThreshold)
+        ),
+        SafetySetting(
+            category = GeminiSafetySettings.HARM_CATEGORY_HATE_SPEECH,
+            threshold = GeminiSafetySettings.normalizeThreshold(hateSpeechSafetyThreshold)
+        ),
+        SafetySetting(
+            category = GeminiSafetySettings.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+            threshold = GeminiSafetySettings.normalizeThreshold(sexuallyExplicitSafetyThreshold)
+        ),
+        SafetySetting(
+            category = GeminiSafetySettings.HARM_CATEGORY_DANGEROUS_CONTENT,
+            threshold = GeminiSafetySettings.normalizeThreshold(dangerousContentSafetyThreshold)
+        )
+    )
 
     private suspend fun transformMessageV2ToGoogle(message: MessageV2, role: GoogleRole, platformUid: String): Content {
         val parts = mutableListOf<Part>()
