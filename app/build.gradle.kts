@@ -16,12 +16,12 @@ plugins {
 
 extensions.configure<ApplicationExtension> {
     namespace = "dev.chungjungsoo.gptmobile"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "dev.chungjungsoo.gptmobile"
         minSdk = 31
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 21
         versionName = "0.7.5"
 
