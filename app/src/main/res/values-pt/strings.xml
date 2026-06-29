@@ -150,4 +150,15 @@
     <string name="edit">Editar</string>
     <string name="edit_question">Editar Mensagem do Utilizador</string>
     <string name="user_message">Mensagem do Utilizador</string>
+    <string name="gemini_safety_settings">Configurações de segurança do Gemini</string>
+    <string name="gemini_safety_settings_description">Assédio, discurso de ódio, conteúdo sexual, conteúdo perigoso</string>
+    <string name="gemini_safety_settings_icon">Ícone das configurações de segurança do Gemini</string>
+    <string name="gemini_safety_harassment">Assédio</string>
+    <string name="gemini_safety_hate_speech">Discurso de ódio</string>
+    <string name="gemini_safety_sexually_explicit">Sexualmente explícito</string>
+    <string name="gemini_safety_dangerous_content">Conteúdo perigoso</string>
+    <string name="gemini_safety_block_none">Não bloquear</string>
+    <string name="gemini_safety_block_only_high">Bloquear apenas alto</string>
+    <string name="gemini_safety_block_medium_and_above">Bloquear médio e acima</string>
+    <string name="gemini_safety_block_low_and_above">Bloquear baixo e acima</string>
 </resources>

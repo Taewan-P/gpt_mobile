@@ -4,6 +4,7 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import dev.chungjungsoo.gptmobile.data.model.ClientType
+import dev.chungjungsoo.gptmobile.data.model.GeminiSafetySettings
 import java.util.*
 
 @Entity(tableName = "platform_v2")
@@ -49,5 +50,17 @@ data class PlatformV2(
     val reasoning: Boolean = false,
 
     @ColumnInfo(name = "timeout")
-    val timeout: Int = 30
+    val timeout: Int = 30,
+
+    @ColumnInfo(name = "harassment_safety_threshold", defaultValue = "'BLOCK_NONE'")
+    val harassmentSafetyThreshold: String = GeminiSafetySettings.BLOCK_NONE,
+
+    @ColumnInfo(name = "hate_speech_safety_threshold", defaultValue = "'BLOCK_NONE'")
+    val hateSpeechSafetyThreshold: String = GeminiSafetySettings.BLOCK_NONE,
+
+    @ColumnInfo(name = "sexually_explicit_safety_threshold", defaultValue = "'BLOCK_NONE'")
+    val sexuallyExplicitSafetyThreshold: String = GeminiSafetySettings.BLOCK_NONE,
+
+    @ColumnInfo(name = "dangerous_content_safety_threshold", defaultValue = "'BLOCK_NONE'")
+    val dangerousContentSafetyThreshold: String = GeminiSafetySettings.BLOCK_NONE
 )

@@ -16,14 +16,14 @@ plugins {
 
 extensions.configure<ApplicationExtension> {
     namespace = "dev.chungjungsoo.gptmobile"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "dev.chungjungsoo.gptmobile"
         minSdk = 31
-        targetSdk = 36
-        versionCode = 21
-        versionName = "0.7.5"
+        targetSdk = 37
+        versionCode = 22
+        versionName = "0.7.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -33,6 +33,10 @@ extensions.configure<ApplicationExtension> {
 
     androidResources {
         generateLocaleConfig = true
+    }
+
+    lint {
+        disable += "MissingTranslation"
     }
 
     buildTypes {

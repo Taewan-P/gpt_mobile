@@ -1,7 +1,10 @@
 package dev.chungjungsoo.gptmobile.data.dto
 
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.ImageSource
+import dev.chungjungsoo.gptmobile.data.dto.google.common.Content
 import dev.chungjungsoo.gptmobile.data.dto.google.common.Part
+import dev.chungjungsoo.gptmobile.data.dto.google.request.GenerateContentRequest
+import dev.chungjungsoo.gptmobile.data.dto.google.request.SafetySetting
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseContentPart
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertFalse
@@ -38,5 +41,26 @@ class ProviderAttachmentSerializationTest {
         assertTrue(payload.contains("\"file_data\""))
         assertTrue(payload.contains("\"file_uri\":\"google-uri\""))
         assertFalse(payload.contains("inline_data"))
+    }
+
+    @Test
+    fun `google generate content request serializes safety settings`() {
+        val payload = json.encodeToString(
+            GenerateContentRequest(
+                contents = listOf(
+                    Content(parts = listOf(Part.text("hello")))
+                ),
+                safetySettings = listOf(
+                    SafetySetting(
+                        category = "HARM_CATEGORY_HARASSMENT",
+                        threshold = "BLOCK_NONE"
+                    )
+                )
+            )
+        )
+
+        assertTrue(payload.contains("\"safetySettings\""))
+        assertTrue(payload.contains("\"category\":\"HARM_CATEGORY_HARASSMENT\""))
+        assertTrue(payload.contains("\"threshold\":\"BLOCK_NONE\""))
     }
 }

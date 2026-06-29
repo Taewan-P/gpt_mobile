@@ -1,4 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">GPTMobile</string>
+    <string name="gemini_safety_settings">Paramètres de sécurité Gemini</string>
+    <string name="gemini_safety_settings_description">Harcèlement, discours haineux, contenu sexuel et dangereux</string>
+    <string name="gemini_safety_settings_icon">Icône des paramètres de sécurité Gemini</string>
+    <string name="gemini_safety_harassment">Harcèlement</string>
+    <string name="gemini_safety_hate_speech">Discours haineux</string>
+    <string name="gemini_safety_sexually_explicit">Sexuellement explicite</string>
+    <string name="gemini_safety_dangerous_content">Contenu dangereux</string>
+    <string name="gemini_safety_block_none">Ne rien bloquer</string>
+    <string name="gemini_safety_block_only_high">Bloquer uniquement le niveau élevé</string>
+    <string name="gemini_safety_block_medium_and_above">Bloquer le niveau moyen et supérieur</string>
+    <string name="gemini_safety_block_low_and_above">Bloquer le niveau faible et supérieur</string>
 </resources>

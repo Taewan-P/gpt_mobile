@@ -243,4 +243,15 @@
     <string name="assistant_message">Сообщение ассистента</string>
     <string name="assistant_thoughts">Размышления ассистента</string>
     <string name="revision_counter">Редакция %1$d/%2$d</string>
+    <string name="gemini_safety_settings">Настройки безопасности Gemini</string>
+    <string name="gemini_safety_settings_description">Домогательства, язык ненависти, сексуальный и опасный контент</string>
+    <string name="gemini_safety_settings_icon">Значок настроек безопасности Gemini</string>
+    <string name="gemini_safety_harassment">Домогательства</string>
+    <string name="gemini_safety_hate_speech">Язык ненависти</string>
+    <string name="gemini_safety_sexually_explicit">Откровенно сексуальный контент</string>
+    <string name="gemini_safety_dangerous_content">Опасный контент</string>
+    <string name="gemini_safety_block_none">Не блокировать</string>
+    <string name="gemini_safety_block_only_high">Блокировать только высокий уровень</string>
+    <string name="gemini_safety_block_medium_and_above">Блокировать средний и выше</string>
+    <string name="gemini_safety_block_low_and_above">Блокировать низкий и выше</string>
 </resources>
