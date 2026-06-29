@@ -54,7 +54,7 @@ class AnthropicAPIImpl @Inject constructor(
     }
 
     override suspend fun uploadFile(filePath: String, fileName: String, mimeType: String): UploadedProviderFile {
-        val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}v1/files" else "$apiUrl/v1/files"
+        val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}files" else "$apiUrl/files"
         val responseBody = networkClient().preparePost(endpoint) {
             setBody(
                 MultiPartFormDataContent(
@@ -86,7 +86,7 @@ class AnthropicAPIImpl @Inject constructor(
     }
 
     override suspend fun isFileAvailable(fileId: String): Boolean {
-        val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}v1/files/$fileId" else "$apiUrl/v1/files/$fileId"
+        val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}files/$fileId" else "$apiUrl/files/$fileId"
         return try {
             networkClient().prepareGet(endpoint) {
                 headers {
@@ -104,7 +104,7 @@ class AnthropicAPIImpl @Inject constructor(
 
     override fun streamChatMessage(messageRequest: MessageRequest, timeoutSeconds: Int): Flow<MessageResponseChunk> = flow {
         try {
-            val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}v1/messages" else "$apiUrl/v1/messages"
+            val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}messages" else "$apiUrl/messages"
 
             networkClient().preparePost(endpoint) {
                 applyPlatformStreamingTimeout(timeoutSeconds)

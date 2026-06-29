@@ -120,7 +120,7 @@
     <string name="model_name">மாதிரி பெயர்</string>
     <string name="model_custom_example">எ.கா. slama3.2, தூக்கி, லேசாக,…</string>
     <string name="custom_model_warning">மாதிரி பெயரை பநிஇ ஆதரிக்க வேண்டும் என்பதை நினைவில் கொள்க.</string>
-    <string name="api_address_description">துறைமுகம் எண் உட்பட உங்கள் ஓலாமா பநிஇ முகவரியை உள்ளிடவும். பயன்பாடு V1/CHAT/CONTIONS ENDPOINT ஐப் பயன்படுத்தும், எனவே தயவுசெய்து முழு முகவரியின் முன் பகுதியை மட்டுமே உள்ளிடவும். முகவரி ஒரு \'/\' உடன் முடிவடைய வேண்டும். எ.கா.) http://192.168.1.100:11434/</string>
+    <string name="api_address_description">துறைமுகம் எண் உட்பட உங்கள் ஓலாமா பநிஇ முகவரியை உள்ளிடவும். பயன்பாடு CHAT/CONTIONS ENDPOINT ஐப் பயன்படுத்தும், எனவே தயவுசெய்து முழு முகவரியின் முன் பகுதியை மட்டுமே உள்ளிடவும். முகவரி ஒரு \'/\' உடன் முடிவடைய வேண்டும். எ.கா.) http://192.168.1.100:11434/v1/</string>
     <string name="ollama_api_address">ஓலாமா பநிஇ முகவரி</string>
     <string name="reset">மீட்டமை</string>
     <string name="api_url_cautions">முகவரி ஒரு \'/\' உடன் முடிவடைய வேண்டும்.</string>

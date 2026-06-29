@@ -141,7 +141,7 @@
     <string name="model_custom_example">على سبيل المثال llama3.2، llava، llama3:latest، …</string>
     <string name="custom_model_warning">لاحظ أن اسم النموذج يجب أن تدعمه واجهة برمجة التطبيقات.</string>
     <string name="enter_api_address">أدخل عنوان API</string>
-    <string name="api_address_description">الرجاء إدخال عنوان Ollama API الخاص بك بما في ذلك رقم المنفذ. سيستخدم التطبيق نقطة النهاية v1/chat/completions، لذا يرجى إدخال الجزء الأمامي فقط من العنوان الكامل. يجب أن ينتهي العنوان بـ \'/\'. على سبيل المثال) http://192.168.1.100:11434/</string>
+    <string name="api_address_description">الرجاء إدخال عنوان Ollama API الخاص بك بما في ذلك رقم المنفذ. سيستخدم التطبيق نقطة النهاية chat/completions، لذا يرجى إدخال الجزء الأمامي فقط من العنوان الكامل. يجب أن ينتهي العنوان بـ \'/\'. على سبيل المثال) http://192.168.1.100:11434/v1/</string>
     <string name="ollama_api_address">عنوان Ollama API</string>
     <string name="reset">إعادة تعيين</string>
     <string name="ollama_api_key">مفتاح Ollama API</string>

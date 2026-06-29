@@ -2,11 +2,13 @@ package dev.chungjungsoo.gptmobile.data.database
 
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import dev.chungjungsoo.gptmobile.data.ModelConstants
 import dev.chungjungsoo.gptmobile.data.database.entity.ACTIVE_REVISION_LATEST
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantRevision
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantRevisionListConverter
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatAttachmentListConverter
 import dev.chungjungsoo.gptmobile.data.model.ChatAttachment
+import dev.chungjungsoo.gptmobile.data.model.ClientType
 import java.io.File
 
 object ChatDatabaseV2Migrations {
@@ -226,6 +228,12 @@ object ChatDatabaseV2Migrations {
         }
     }
 
+    val MIGRATION_5_6 = object : Migration(5, 6) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            migrateLegacyProviderApiUrls(db)
+        }
+    }
+
     internal fun legacyFilesToAttachmentsJson(filesValue: String): String {
         val attachments = filesValue
             .split(",")
@@ -256,4 +264,55 @@ object ChatDatabaseV2Migrations {
 
         return AssistantRevisionListConverter().fromList(revisions)
     }
+
+    internal fun migrateLegacyProviderApiUrls(db: SupportSQLiteDatabase) {
+        val updates = mutableListOf<Pair<Int, String>>()
+        db.query("SELECT platform_id, compatible_type, api_url FROM platform_v2").use { cursor ->
+            val idIndex = cursor.getColumnIndexOrThrow("platform_id")
+            val compatibleTypeIndex = cursor.getColumnIndexOrThrow("compatible_type")
+            val apiUrlIndex = cursor.getColumnIndexOrThrow("api_url")
+            while (cursor.moveToNext()) {
+                val id = cursor.getInt(idIndex)
+                val compatibleType = cursor.getString(compatibleTypeIndex) ?: continue
+                val apiUrl = cursor.getString(apiUrlIndex) ?: continue
+                val normalizedApiUrl = normalizeLegacyProviderApiUrl(compatibleType, apiUrl)
+                if (normalizedApiUrl != apiUrl) {
+                    updates.add(id to normalizedApiUrl)
+                }
+            }
+        }
+
+        updates.forEach { (id, apiUrl) ->
+            db.execSQL(
+                "UPDATE platform_v2 SET api_url = ? WHERE platform_id = ?",
+                arrayOf<Any>(apiUrl, id)
+            )
+        }
+    }
+
+    internal fun normalizeLegacyProviderApiUrl(
+        compatibleType: String,
+        apiUrl: String
+    ): String {
+        val normalizedApiUrl = ModelConstants.normalizeLegacyAPIUrl(apiUrl)
+        if (normalizedApiUrl != apiUrl) return normalizedApiUrl
+
+        val trimmedApiUrl = apiUrl.trim()
+        if (trimmedApiUrl.isBlank() || compatibleType !in legacyOpenAICompatibleTypes || trimmedApiUrl.hasV1Segment()) {
+            return apiUrl
+        }
+
+        return "${trimmedApiUrl.trimEnd('/')}/v1/"
+    }
+
+    private val legacyOpenAICompatibleTypes = setOf(
+        ClientType.CUSTOM.name,
+        ClientType.GROQ.name,
+        ClientType.OLLAMA.name,
+        ClientType.OPENROUTER.name
+    )
+
+    private fun String.hasV1Segment(): Boolean = trimEnd('/')
+        .split("/")
+        .any { segment -> segment.substringBefore("?").substringBefore("#") == "v1" }
 }

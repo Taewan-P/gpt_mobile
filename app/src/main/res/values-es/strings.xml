@@ -117,7 +117,7 @@
     <string name="model_custom_example">por ejemplo llama3.2, llava, llama3:latest, …</string>
     <string name="custom_model_warning">Ten en cuenta que el modelo deberá ser compatible por la API.</string>
     <string name="enter_api_address">Introduce la dirección de la API</string>
-    <string name="api_address_description">Por favor, introduce la dirección de tu API de Ollama, incluyendo el número de puerto. La aplicación usará el endpoint v1/chat/completions, así que solo introduce la primera parte de la dirección completa. La dirección debe terminar con una ‘/’. Por ejemplo: http://192.168.1.100:11434/</string>
+    <string name="api_address_description">Por favor, introduce la dirección de tu API de Ollama, incluyendo el número de puerto. La aplicación usará el endpoint chat/completions, así que solo introduce la primera parte de la dirección completa. La dirección debe terminar con una ‘/’. Por ejemplo: http://192.168.1.100:11434/v1/</string>
     <string name="ollama_api_address">Dirección de la API de Ollama</string>
     <string name="reset">Resetear</string>
     <string name="ollama_api_key">Clave API de Ollama</string>

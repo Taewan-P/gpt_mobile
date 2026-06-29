@@ -83,14 +83,7 @@ class SettingRepositoryImpl @Inject constructor(
                         ApiType.OLLAMA -> ClientType.OLLAMA
                     },
                     enabled = platform.enabled,
-                    apiUrl = if (
-                        (platform.name == ApiType.OPENAI || platform.name == ApiType.GROQ) &&
-                        platform.apiUrl.endsWith("v1/")
-                    ) {
-                        platform.apiUrl.removeSuffix("v1/")
-                    } else {
-                        platform.apiUrl
-                    },
+                    apiUrl = ModelConstants.normalizeLegacyAPIUrl(platform.apiUrl),
                     token = platform.token,
                     model = platform.model ?: "",
                     temperature = platform.temperature,

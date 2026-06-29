@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.database
 
+import dev.chungjungsoo.gptmobile.data.ModelConstants
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantRevisionListConverter
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatAttachmentListConverter
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
@@ -102,5 +103,27 @@ class ChatDatabaseV2MigrationsTest {
         val revisions = AssistantRevisionListConverter().fromString("[")
 
         assertTrue(revisions.isEmpty())
+    }
+
+    @Test
+    fun `legacy provider api urls normalize to current defaults`() {
+        assertEquals(ModelConstants.OPENAI_API_URL, ModelConstants.normalizeLegacyAPIUrl("https://api.openai.com/"))
+        assertEquals(ModelConstants.ANTHROPIC_API_URL, ModelConstants.normalizeLegacyAPIUrl("https://api.anthropic.com/"))
+        assertEquals(ModelConstants.GOOGLE_API_URL, ModelConstants.normalizeLegacyAPIUrl("https://generativelanguage.googleapis.com"))
+        assertEquals(ModelConstants.GROQ_API_URL, ModelConstants.normalizeLegacyAPIUrl("https://api.groq.com/openai/"))
+        assertEquals(ModelConstants.OPENROUTER_API_URL, ModelConstants.normalizeLegacyAPIUrl("https://openrouter.ai/api/"))
+        assertEquals(ModelConstants.OLLAMA_API_URL, ModelConstants.normalizeLegacyAPIUrl("http://localhost:11434/"))
+        assertEquals("https://proxy.example/api/", ModelConstants.normalizeLegacyAPIUrl("https://proxy.example/api/"))
+    }
+
+    @Test
+    fun `legacy OpenAI compatible custom api urls gain version segment`() {
+        assertEquals("https://proxy.example/api/v1/", ChatDatabaseV2Migrations.normalizeLegacyProviderApiUrl("CUSTOM", "https://proxy.example/api/"))
+        assertEquals("https://openrouter.example/api/v1/", ChatDatabaseV2Migrations.normalizeLegacyProviderApiUrl("OPENROUTER", "https://openrouter.example/api/"))
+        assertEquals("http://localhost:11434/v1/", ChatDatabaseV2Migrations.normalizeLegacyProviderApiUrl("OLLAMA", "http://localhost:11434"))
+        assertEquals("https://groq-proxy.example/openai/v1/", ChatDatabaseV2Migrations.normalizeLegacyProviderApiUrl("GROQ", "https://groq-proxy.example/openai/"))
+        assertEquals("https://proxy.example/api/v1/", ChatDatabaseV2Migrations.normalizeLegacyProviderApiUrl("CUSTOM", "https://proxy.example/api/v1/"))
+        assertEquals("https://generativelanguage.googleapis.com/custom/", ChatDatabaseV2Migrations.normalizeLegacyProviderApiUrl("GOOGLE", "https://generativelanguage.googleapis.com/custom/"))
+        assertEquals("https://anthropic-proxy.example/api/", ChatDatabaseV2Migrations.normalizeLegacyProviderApiUrl("ANTHROPIC", "https://anthropic-proxy.example/api/"))
     }
 }

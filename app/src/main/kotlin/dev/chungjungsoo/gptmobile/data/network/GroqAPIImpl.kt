@@ -36,7 +36,7 @@ class GroqAPIImpl @Inject constructor(
     ): Flow<GroqChatCompletionChunk> = flow {
         try {
             val resolvedApiUrl = apiUrl.ifBlank { ModelConstants.GROQ_API_URL }
-            val endpoint = if (resolvedApiUrl.endsWith("/")) "${resolvedApiUrl}v1/chat/completions" else "$resolvedApiUrl/v1/chat/completions"
+            val endpoint = if (resolvedApiUrl.endsWith("/")) "${resolvedApiUrl}chat/completions" else "$resolvedApiUrl/chat/completions"
 
             networkClient().preparePost(endpoint) {
                 applyPlatformStreamingTimeout(timeoutSeconds)

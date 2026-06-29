@@ -121,7 +121,7 @@
     <string name="model_custom_example">예시) llama3.2, llava, llama3:latest, …</string>
     <string name="custom_model_warning">API가 지원하는 이름을 입력해야 정상 작동합니다.</string>
     <string name="enter_api_address">API 주소 입력</string>
-    <string name="api_address_description">포트번호를 포함하여 API 주소를 입력하세요. 이 앱은 v1/chat/completions 엔드포인트를 사용하기에, 주소의 앞부분만 입력하세요. 주소는 끝에 \'/\'로 끝나야 합니다. 예시) http://192.168.1.100:11434/</string>
+    <string name="api_address_description">포트번호를 포함하여 API 주소를 입력하세요. 이 앱은 chat/completions 엔드포인트를 사용하기에, 주소의 앞부분만 입력하세요. 주소는 끝에 \'/\'로 끝나야 합니다. 예시) http://192.168.1.100:11434/v1/</string>
     <string name="ollama_api_address">Ollama API 주소</string>
     <string name="ollama_api_key">Ollama API 키</string>
     <string name="api_url_cautions">URL이 \'/\'로 끝나야 합니다.</string>

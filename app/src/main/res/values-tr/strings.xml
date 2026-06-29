@@ -150,7 +150,7 @@
     <string name="model_custom_example">ör. llama3.2, llava, llama3:latest, …</string>
     <string name="custom_model_warning">Model adının API tarafından desteklenmesi gerektiğini unutmayın.</string>
     <string name="enter_api_address">API Adresini Girin</string>
-    <string name="api_address_description">Lütfen Ollama API’nizin adresini, port numarası dahil olmak üzere girin. Uygulama v1/chat/completions uç noktasını kullanacağından, yalnızca adresin ön kısmını girin. Adres bir ‘/’ ile bitmelidir. ör.) http://192.168.1.100:11434/</string>
+    <string name="api_address_description">Lütfen Ollama API’nizin adresini, port numarası dahil olmak üzere girin. Uygulama chat/completions uç noktasını kullanacağından, yalnızca adresin ön kısmını girin. Adres bir ‘/’ ile bitmelidir. ör.) http://192.168.1.100:11434/v1/</string>
     <string name="ollama_api_address">Ollama API Adresi</string>
     <string name="ollama_api_help" translatable="false">https://ollama.com/blog/openai-compatibility</string>
     <string name="reset">Sıfırla</string>
