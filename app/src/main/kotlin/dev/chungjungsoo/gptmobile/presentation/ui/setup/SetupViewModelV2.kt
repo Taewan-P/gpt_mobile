@@ -180,7 +180,7 @@ class SetupViewModelV2 @Inject constructor(
         ClientType.ANTHROPIC -> ModelConstants.ANTHROPIC_API_URL
         ClientType.GOOGLE -> ModelConstants.GOOGLE_API_URL
         ClientType.GROQ -> ModelConstants.GROQ_API_URL
-        ClientType.OLLAMA -> "http://localhost:11434/"
+        ClientType.OLLAMA -> ModelConstants.OLLAMA_API_URL
         ClientType.OPENROUTER -> ModelConstants.OPENROUTER_API_URL
         ClientType.CUSTOM -> ""
     }

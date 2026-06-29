@@ -15,7 +15,7 @@ object ModelConstants {
     const val GOOGLE_API_URL = "https://generativelanguage.googleapis.com/"
     const val GROQ_API_URL = "https://api.groq.com/openai/v1/"
     const val OPENROUTER_API_URL = "https://openrouter.ai/api/v1/"
-    const val OLLAMA_API_URL = "http://localhost:11434/"
+    const val OLLAMA_API_URL = "http://localhost:11434/v1/"
 
     fun getDefaultAPIUrl(apiType: ApiType) = when (apiType) {
         ApiType.OPENAI -> OPENAI_API_URL
@@ -23,6 +23,16 @@ object ModelConstants {
         ApiType.GOOGLE -> GOOGLE_API_URL
         ApiType.GROQ -> GROQ_API_URL
         ApiType.OLLAMA -> ""
+    }
+
+    fun normalizeLegacyAPIUrl(apiUrl: String): String = when (apiUrl.trim()) {
+        "https://api.openai.com", "https://api.openai.com/" -> OPENAI_API_URL
+        "https://api.anthropic.com", "https://api.anthropic.com/" -> ANTHROPIC_API_URL
+        "https://generativelanguage.googleapis.com", "https://generativelanguage.googleapis.com/" -> GOOGLE_API_URL
+        "https://api.groq.com/openai", "https://api.groq.com/openai/" -> GROQ_API_URL
+        "https://openrouter.ai/api", "https://openrouter.ai/api/" -> OPENROUTER_API_URL
+        "http://localhost:11434", "http://localhost:11434/" -> OLLAMA_API_URL
+        else -> apiUrl
     }
 
     const val ANTHROPIC_MAXIMUM_TOKEN = 4096

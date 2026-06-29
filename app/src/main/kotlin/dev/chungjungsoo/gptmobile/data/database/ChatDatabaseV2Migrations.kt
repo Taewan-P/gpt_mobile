@@ -2,6 +2,7 @@ package dev.chungjungsoo.gptmobile.data.database
 
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import dev.chungjungsoo.gptmobile.data.ModelConstants
 import dev.chungjungsoo.gptmobile.data.database.entity.ACTIVE_REVISION_LATEST
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantRevision
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantRevisionListConverter
@@ -213,6 +214,12 @@ object ChatDatabaseV2Migrations {
         }
     }
 
+    val MIGRATION_4_5 = object : Migration(4, 5) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            migrateLegacyProviderApiUrls(db)
+        }
+    }
+
     internal fun legacyFilesToAttachmentsJson(filesValue: String): String {
         val attachments = filesValue
             .split(",")
@@ -242,5 +249,28 @@ object ChatDatabaseV2Migrations {
             .map { AssistantRevision(content = it, thoughts = "", createdAt = createdAt) }
 
         return AssistantRevisionListConverter().fromList(revisions)
+    }
+
+    internal fun migrateLegacyProviderApiUrls(db: SupportSQLiteDatabase) {
+        val updates = mutableListOf<Pair<Int, String>>()
+        db.query("SELECT platform_id, api_url FROM platform_v2").use { cursor ->
+            val idIndex = cursor.getColumnIndexOrThrow("platform_id")
+            val apiUrlIndex = cursor.getColumnIndexOrThrow("api_url")
+            while (cursor.moveToNext()) {
+                val id = cursor.getInt(idIndex)
+                val apiUrl = cursor.getString(apiUrlIndex) ?: continue
+                val normalizedApiUrl = ModelConstants.normalizeLegacyAPIUrl(apiUrl)
+                if (normalizedApiUrl != apiUrl) {
+                    updates.add(id to normalizedApiUrl)
+                }
+            }
+        }
+
+        updates.forEach { (id, apiUrl) ->
+            db.execSQL(
+                "UPDATE platform_v2 SET api_url = ? WHERE platform_id = ?",
+                arrayOf<Any>(apiUrl, id)
+            )
+        }
     }
 }
