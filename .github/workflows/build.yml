@@ -1,7 +1,19 @@
 name: Build Android 11 ARMv7
 
 on:
+  push:
+    branches: ["main", "master"]
+    tags: ["*-*"]
+  pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GRADLE_VERSION: "8.9"
+  UBER_APK_SIGNER_VERSION: "1.3.0"
+  UBER_APK_SIGNER_SHA256: "e1299fd6fcf4da527dd53735b56127e8ea922a321128123b9c32d619bba1d835"
 
 jobs:
   build:
@@ -29,3 +41,172 @@ jobs:
         with:
           name: GPTMobile-Android11-ARMv7
           path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+  release:
+    name: Sign, verify and publish release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v5
+
+      - name: Download unsigned APK
+        uses: actions/download-artifact@v5
+        with:
+          name: gptmobile-release-apk
+          path: ${{ runner.temp }}/unsigned
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if [[ "$RELEASE_TAG" =~ ^([0-9]+)-(.+)$ ]]; then
+            echo "version_code=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+            echo "version_name=${BASH_REMATCH[2]}" >> "$GITHUB_OUTPUT"
+          else
+            echo "Tag must have the form VersionCode-VersionName, for example 1-1.0.0"
+            exit 1
+          fi
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Download Uber APK Signer
+        run: |
+          curl --fail --location --retry 3 --retry-all-errors \
+            -o "$RUNNER_TEMP/uber-apk-signer.jar" \
+            "https://github.com/patrickfav/uber-apk-signer/releases/download/v${UBER_APK_SIGNER_VERSION}/uber-apk-signer-${UBER_APK_SIGNER_VERSION}.jar"
+          echo "${UBER_APK_SIGNER_SHA256}  $RUNNER_TEMP/uber-apk-signer.jar" | sha256sum --check --strict
+
+      - name: Restore release keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          test -n "$KEYSTORE_BASE64"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/gptmobile-release.p12"
+          chmod 600 "$RUNNER_TEMP/gptmobile-release.p12"
+
+      - name: Sign and zip-align APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE_PASSWORD"
+          test -n "$KEY_ALIAS"
+          test -n "$KEY_PASSWORD"
+          test "$KEY_ALIAS" = "gptmobile"
+          mkdir -p "$RUNNER_TEMP/signed"
+          UNSIGNED_APK="$(find "$RUNNER_TEMP/unsigned" -type f -name 'app-release-unsigned.apk' -print -quit)"
+          test -n "$UNSIGNED_APK"
+          java -jar "$RUNNER_TEMP/uber-apk-signer.jar" \
+            -a "$UNSIGNED_APK" \
+            --ks "$RUNNER_TEMP/gptmobile-release.p12" \
+            --ksAlias "$KEY_ALIAS" \
+            --ksPass "$KEYSTORE_PASSWORD" \
+            --ksKeyPass "$KEY_PASSWORD" \
+            --out "$RUNNER_TEMP/signed" \
+            --verbose
+
+      - name: Name release APK
+        id: artifact
+        shell: bash
+        env:
+          VERSION_NAME: ${{ steps.version.outputs.version_name }}
+        run: |
+          SIGNED_APK="$(find "$RUNNER_TEMP/signed" -maxdepth 1 -type f -name '*-aligned-signed.apk' -print -quit)"
+          test -n "$SIGNED_APK"
+          OUTPUT="$RUNNER_TEMP/GPT_Mobile-arm7a-sdk30.${VERSION_NAME}.apk"
+          cp "$SIGNED_APK" "$OUTPUT"
+          test -s "$OUTPUT"
+          echo "apk=$OUTPUT" >> "$GITHUB_OUTPUT"
+
+      - name: Verify APK signature and alignment
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          APK: ${{ steps.artifact.outputs.apk }}
+        run: |
+          test -n "$KEYSTORE_PASSWORD"
+          test -n "$KEY_ALIAS"
+          keytool -exportcert \
+            -rfc \
+            -alias "$KEY_ALIAS" \
+            -keystore "$RUNNER_TEMP/gptmobile-release.p12" \
+            -storetype PKCS12 \
+            -storepass:env KEYSTORE_PASSWORD \
+            -file "$RUNNER_TEMP/release-cert.pem" >/dev/null
+          EXPECTED_CERT_SHA256="$(openssl x509 -in "$RUNNER_TEMP/release-cert.pem" -outform DER | sha256sum | awk '{print $1}')"
+          test -n "$EXPECTED_CERT_SHA256"
+          echo "Release certificate SHA-256: $EXPECTED_CERT_SHA256"
+          java -jar "$RUNNER_TEMP/uber-apk-signer.jar" \
+            -a "$APK" \
+            --onlyVerify \
+            --verifySha256 "$EXPECTED_CERT_SHA256" \
+            --verbose
+
+      - name: Generate SHA-256 checksum
+        id: checksum
+        shell: bash
+        env:
+          APK: ${{ steps.artifact.outputs.apk }}
+        run: |
+          sha256sum "$APK" > "$APK.sha256"
+          cat "$APK.sha256"
+          echo "checksum_file=$APK.sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          VERSION_NAME: ${{ steps.version.outputs.version_name }}
+          APK: ${{ steps.artifact.outputs.apk }}
+          CHECKSUM: ${{ steps.checksum.outputs.checksum_file }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Release $RELEASE_TAG already exists; updating it."
+          
+            gh release edit "$RELEASE_TAG" \
+              --title "GPT Mobile (arm7a-sdk30) ${VERSION_NAME}" \
+              --notes "Initial release." \
+              --latest
+          
+            gh release upload "$RELEASE_TAG" \
+              "$APK" \
+              "$CHECKSUM" \
+              --clobber
+          else
+            echo "Creating release $RELEASE_TAG."
+          
+            gh release create "$RELEASE_TAG" \
+              "$APK" \
+              "$CHECKSUM" \
+              --verify-tag \
+              --title "PT Mobile (arm7a-sdk30) ${VERSION_NAME}" \
+              --notes "Initial release." \
+              --latest
+          fi
+
+      - name: Upload signed release artifacts to workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: gptmobile-${{ steps.version.outputs.version_name }}
+          path: |
+            ${{ steps.artifact.outputs.apk }}
+            ${{ steps.checksum.outputs.checksum_file }}
+          if-no-files-found: error
+
+      - name: Remove signing material
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/gptmobile-release.p12"
+          rm -f "$RUNNER_TEMP/uber-apk-signer.jar"
