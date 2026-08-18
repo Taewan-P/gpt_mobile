@@ -21,10 +21,14 @@ extensions.configure<ApplicationExtension> {
 
     defaultConfig {
         applicationId = "dev.chungjungsoo.gptmobile"
-        minSdk = 31
+        minSdk = 30
         targetSdk = 37
         versionCode = 23
         versionName = "0.8.0"
+
+        ndk {
+            abiFilters += "armeabi-v7a"
+        }
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
