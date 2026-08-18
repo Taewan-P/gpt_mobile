@@ -11,7 +11,6 @@ permissions:
   contents: read
 
 env:
-  GRADLE_VERSION: "8.9"
   UBER_APK_SIGNER_VERSION: "1.3.0"
   UBER_APK_SIGNER_SHA256: "e1299fd6fcf4da527dd53735b56127e8ea922a321128123b9c32d619bba1d835"
 
@@ -21,10 +20,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -57,7 +56,7 @@ jobs:
       - name: Download unsigned APK
         uses: actions/download-artifact@v5
         with:
-          name: gptmobile-release-apk
+          name: GPTMobile-Android11-ARMv7
           path: ${{ runner.temp }}/unsigned
 
       - name: Resolve release version
@@ -191,7 +190,7 @@ jobs:
               "$APK" \
               "$CHECKSUM" \
               --verify-tag \
-              --title "PT Mobile (arm7a-sdk30) ${VERSION_NAME}" \
+              --title "GPT Mobile (arm7a-sdk30) ${VERSION_NAME}" \
               --notes "Initial release." \
               --latest
           fi
