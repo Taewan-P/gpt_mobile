@@ -336,9 +336,15 @@
     <string name="cancel_agent_runs">Отмена</string>
     <plurals name="agent_runs_active">
         <item quantity="one">%1$d профиль выполняется</item>
+        <item quantity="few">%1$d профиля выполняются</item>
+        <item quantity="many">%1$d профилей выполняются</item>
+        <item quantity="other">%1$d профиля выполняются</item>
     </plurals>
     <plurals name="duration_seconds">
         <item quantity="one">%1$d с</item>
+        <item quantity="few">%1$d с</item>
+        <item quantity="many">%1$d с</item>
+        <item quantity="other">%1$d с</item>
     </plurals>
     <string name="retry_tools_warning">Повторная попытка может привести к повторному запуску назначенных инструментов.</string>
     <string name="no_matching_tool_calls">Нет подходящих вызовов инструментов.</string>
