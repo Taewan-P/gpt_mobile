@@ -14,6 +14,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,7 +23,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -72,6 +73,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -111,7 +113,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.effectiveTimeline
 import dev.chungjungsoo.gptmobile.util.isAssistantErrorMessage
 import java.io.File
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -130,6 +132,8 @@ fun ChatScreen(
     val maximumUserChatBubbleWidth = (screenWidthDp - systemChatMargin) * 0.8F
     val maximumOpponentChatBubbleWidth = screenWidthDp - systemChatMargin
     val listState = rememberLazyListState()
+    val isUserDragging by listState.interactionSource.collectIsDraggedAsState()
+    var followBottom by remember { mutableStateOf(true) }
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
     val chatRoom by chatViewModel.chatRoom.collectAsStateWithLifecycle()
@@ -143,7 +147,6 @@ fun ChatScreen(
     val isChatModelDialogOpen by chatViewModel.isChatModelDialogOpen.collectAsStateWithLifecycle()
     val messageEditSession by chatViewModel.messageEditSession.collectAsStateWithLifecycle()
     val isSelectTextSheetOpen by chatViewModel.isSelectTextSheetOpen.collectAsStateWithLifecycle()
-    val isLoaded by chatViewModel.isLoaded.collectAsStateWithLifecycle()
     val selectedAttachments by chatViewModel.selectedAttachments.collectAsStateWithLifecycle()
     val attachmentNotice by chatViewModel.attachmentNotice.collectAsStateWithLifecycle()
     val needsLocalNetworkAccess by chatViewModel.needsLocalNetworkAccess.collectAsStateWithLifecycle()
@@ -195,34 +198,33 @@ fun ChatScreen(
         chatViewModel.refreshLocalNetworkRequirement()
     }
 
-    suspend fun animateScrollToLatestMessage() {
-        val latestItemIndex = listState.layoutInfo.totalItemsCount - 1
-        if (latestItemIndex >= 0) {
-            listState.animateScrollToItem(latestItemIndex)
-        }
+    LaunchedEffect(isUserDragging, listState.isScrollInProgress, listState.canScrollForward, listState.lastScrolledBackward) {
+        followBottom = nextFollowBottom(
+            isFollowing = followBottom,
+            isUserScrolling = isUserDragging || listState.isScrollInProgress,
+            isScrollingAway = listState.lastScrolledBackward,
+            canScrollForward = listState.canScrollForward
+        )
     }
 
-    LaunchedEffect(isIdle) {
-        animateScrollToLatestMessage()
+    LaunchedEffect(lastMessageIndex) {
+        followBottom = true
     }
 
-    LaunchedEffect(isLoaded) {
-        animateScrollToLatestMessage()
-    }
+    ChatBottomAutoScroller(
+        listState = listState,
+        enabled = shouldAutoScrollToBottom(
+            isFollowing = followBottom,
+            isUserDragging = isUserDragging,
+            isScrollInProgress = listState.isScrollInProgress,
+            isScrollingAway = listState.lastScrolledBackward
+        )
+    )
 
     LaunchedEffect(attachmentNotice) {
         attachmentNotice?.let { notice ->
             Toast.makeText(context, notice, Toast.LENGTH_SHORT).show()
             chatViewModel.consumeAttachmentNotice()
-        }
-    }
-
-    // Auto-scroll to bottom when keyboard opens
-    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
-    LaunchedEffect(imeVisible) {
-        if (imeVisible) {
-            delay(100) // Small delay to let keyboard animation start
-            animateScrollToLatestMessage()
         }
     }
 
@@ -303,7 +305,7 @@ fun ChatScreen(
                     }
                 }
 
-                if (listState.canScrollForward) {
+                if (!followBottom && listState.canScrollForward) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -312,7 +314,8 @@ fun ChatScreen(
                     ) {
                         ScrollToBottomButton {
                             scope.launch {
-                                animateScrollToLatestMessage()
+                                listState.animateScrollToLatestChatMessage()
+                                followBottom = true
                             }
                         }
                     }
@@ -578,6 +581,51 @@ private fun chatMessagePairKey(message: MessageV2, index: Int): String = if (mes
     "message-${message.id}"
 } else {
     "message-${message.createdAt}-$index"
+}
+
+internal fun nextFollowBottom(
+    isFollowing: Boolean,
+    isUserScrolling: Boolean,
+    isScrollingAway: Boolean,
+    canScrollForward: Boolean
+): Boolean = when {
+    !canScrollForward -> true
+    isUserScrolling && isScrollingAway -> false
+    else -> isFollowing
+}
+
+internal fun shouldAutoScrollToBottom(
+    isFollowing: Boolean,
+    isUserDragging: Boolean,
+    isScrollInProgress: Boolean,
+    isScrollingAway: Boolean
+): Boolean = isFollowing &&
+    !isUserDragging &&
+    !(isScrollInProgress && isScrollingAway)
+
+@Composable
+internal fun ChatBottomAutoScroller(
+    listState: LazyListState,
+    enabled: Boolean
+) {
+    LaunchedEffect(listState, enabled) {
+        if (!enabled) return@LaunchedEffect
+
+        snapshotFlow { listState.layoutInfo }
+            .collectLatest { layoutInfo ->
+                val latestItemIndex = layoutInfo.totalItemsCount - 1
+                if (latestItemIndex >= 0 && listState.canScrollForward) {
+                    listState.requestScrollToItem(latestItemIndex)
+                }
+            }
+    }
+}
+
+internal suspend fun LazyListState.animateScrollToLatestChatMessage() {
+    val latestItemIndex = layoutInfo.totalItemsCount - 1
+    if (latestItemIndex >= 0) {
+        animateScrollToItem(latestItemIndex)
+    }
 }
 
 @Composable
