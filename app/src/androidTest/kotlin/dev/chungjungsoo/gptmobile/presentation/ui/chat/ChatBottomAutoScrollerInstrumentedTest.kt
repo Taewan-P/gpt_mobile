@@ -17,6 +17,8 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
+import androidx.test.platform.app.InstrumentationRegistry
+import dev.chungjungsoo.gptmobile.R
 import kotlinx.coroutines.launch
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -37,7 +39,7 @@ class ChatBottomAutoScrollerInstrumentedTest {
 
             Box(Modifier.size(width = 320.dp, height = 280.dp)) {
                 GrowingChatList(listState, additionalHeight)
-                ChatBottomAutoScroller(listState, enabled = true)
+                ChatBottomAutoScroller(listState, isEnabled = true)
             }
         }
 
@@ -54,7 +56,8 @@ class ChatBottomAutoScrollerInstrumentedTest {
     fun bottomButton_reenablesFollowingForLateContentGrowth() {
         lateinit var listState: LazyListState
         var additionalHeight by mutableStateOf(0.dp)
-        var followBottom by mutableStateOf(false)
+        var isFollowingBottom by mutableStateOf(false)
+        val scrollToBottomDescription = InstrumentationRegistry.getInstrumentation().targetContext.getString(R.string.scroll_to_bottom_icon)
 
         composeRule.setContent {
             listState = rememberLazyListState()
@@ -62,11 +65,11 @@ class ChatBottomAutoScrollerInstrumentedTest {
 
             Box(Modifier.size(width = 320.dp, height = 280.dp)) {
                 GrowingChatList(listState, additionalHeight)
-                ChatBottomAutoScroller(listState, enabled = followBottom)
+                ChatBottomAutoScroller(listState, isEnabled = isFollowingBottom)
                 ScrollToBottomButton {
                     scope.launch {
                         listState.animateScrollToLatestChatMessage()
-                        followBottom = true
+                        isFollowingBottom = true
                     }
                 }
             }
@@ -75,7 +78,7 @@ class ChatBottomAutoScrollerInstrumentedTest {
         composeRule.waitForIdle()
         composeRule.runOnIdle { assertTrue(listState.canScrollForward) }
 
-        composeRule.onNodeWithContentDescription("Scroll to bottom icon").performClick()
+        composeRule.onNodeWithContentDescription(scrollToBottomDescription).performClick()
         composeRule.waitForIdle()
         composeRule.runOnIdle { assertFalse(listState.canScrollForward) }
 

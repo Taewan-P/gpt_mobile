@@ -133,7 +133,7 @@ fun ChatScreen(
     val maximumOpponentChatBubbleWidth = screenWidthDp - systemChatMargin
     val listState = rememberLazyListState()
     val isUserDragging by listState.interactionSource.collectIsDraggedAsState()
-    var followBottom by remember { mutableStateOf(true) }
+    var isFollowingBottom by remember { mutableStateOf(true) }
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
     val chatRoom by chatViewModel.chatRoom.collectAsStateWithLifecycle()
@@ -199,8 +199,8 @@ fun ChatScreen(
     }
 
     LaunchedEffect(isUserDragging, listState.isScrollInProgress, listState.canScrollForward, listState.lastScrolledBackward) {
-        followBottom = nextFollowBottom(
-            isFollowing = followBottom,
+        isFollowingBottom = nextFollowBottom(
+            isFollowing = isFollowingBottom,
             isUserScrolling = isUserDragging || listState.isScrollInProgress,
             isScrollingAway = listState.lastScrolledBackward,
             canScrollForward = listState.canScrollForward
@@ -208,13 +208,13 @@ fun ChatScreen(
     }
 
     LaunchedEffect(lastMessageIndex) {
-        followBottom = true
+        isFollowingBottom = true
     }
 
     ChatBottomAutoScroller(
         listState = listState,
-        enabled = shouldAutoScrollToBottom(
-            isFollowing = followBottom,
+        isEnabled = shouldAutoScrollToBottom(
+            isFollowing = isFollowingBottom,
             isUserDragging = isUserDragging,
             isScrollInProgress = listState.isScrollInProgress,
             isScrollingAway = listState.lastScrolledBackward
@@ -305,7 +305,7 @@ fun ChatScreen(
                     }
                 }
 
-                if (!followBottom && listState.canScrollForward) {
+                if (!isFollowingBottom && listState.canScrollForward) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -315,7 +315,7 @@ fun ChatScreen(
                         ScrollToBottomButton {
                             scope.launch {
                                 listState.animateScrollToLatestChatMessage()
-                                followBottom = true
+                                isFollowingBottom = true
                             }
                         }
                     }
@@ -606,10 +606,10 @@ internal fun shouldAutoScrollToBottom(
 @Composable
 internal fun ChatBottomAutoScroller(
     listState: LazyListState,
-    enabled: Boolean
+    isEnabled: Boolean
 ) {
-    LaunchedEffect(listState, enabled) {
-        if (!enabled) return@LaunchedEffect
+    LaunchedEffect(listState, isEnabled) {
+        if (!isEnabled) return@LaunchedEffect
 
         snapshotFlow { listState.layoutInfo }
             .collectLatest { layoutInfo ->
