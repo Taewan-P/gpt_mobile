@@ -1,0 +1,192 @@
+{
+  "schemaVersion": 1,
+  "models": [
+    {
+      "id": "gemma3-1b-it",
+      "displayName": "Gemma3-1B-IT",
+      "downloadUrl": "https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/42d538a932e8d5b12e6b3b455f5572560bd60b2c/gemma3-1b-it-int4.litertlm?download=true",
+      "sizeInBytes": 584417280,
+      "minRamGb": 6,
+      "isGated": true,
+      "capabilities": {
+        "vision": false,
+        "tools": false,
+        "thinking": false
+      },
+      "supportedAccelerators": ["gpu", "cpu", "npu"],
+      "defaultConfig": {
+        "topK": 64,
+        "topP": 0.95,
+        "temperature": 1.0,
+        "maxTokens": 1024
+      },
+      "minAppVersion": "0.8.0",
+      "socToModelFiles": {
+        "SM8550": {
+          "modelFile": "Gemma3-1B-IT_q4_ekv1280_sm8550.litertlm",
+          "downloadUrl": "https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/6d54daa71cfbffba6b2843c08eeb1a27e7430bf0/Gemma3-1B-IT_q4_ekv1280_sm8550.litertlm?download=true",
+          "commitHash": "6d54daa71cfbffba6b2843c08eeb1a27e7430bf0",
+          "sizeInBytes": 690143232,
+          "contextSize": 1280,
+          "quantization": "q4"
+        },
+        "SM8650": {
+          "modelFile": "Gemma3-1B-IT_q4_ekv1280_sm8650.litertlm",
+          "downloadUrl": "https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/6d54daa71cfbffba6b2843c08eeb1a27e7430bf0/Gemma3-1B-IT_q4_ekv1280_sm8650.litertlm?download=true",
+          "commitHash": "6d54daa71cfbffba6b2843c08eeb1a27e7430bf0",
+          "sizeInBytes": 690094080,
+          "contextSize": 1280,
+          "quantization": "q4"
+        },
+        "SM8750": {
+          "modelFile": "Gemma3-1B-IT_q4_ekv1280_sm8750.litertlm",
+          "downloadUrl": "https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/6d54daa71cfbffba6b2843c08eeb1a27e7430bf0/Gemma3-1B-IT_q4_ekv1280_sm8750.litertlm?download=true",
+          "commitHash": "6d54daa71cfbffba6b2843c08eeb1a27e7430bf0",
+          "sizeInBytes": 689291264,
+          "contextSize": 1280,
+          "quantization": "q4"
+        },
+        "SM8850": {
+          "modelFile": "Gemma3-1B-IT_q4_ekv1280_sm8850.litertlm",
+          "downloadUrl": "https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/6d54daa71cfbffba6b2843c08eeb1a27e7430bf0/Gemma3-1B-IT_q4_ekv1280_sm8850.litertlm?download=true",
+          "commitHash": "6d54daa71cfbffba6b2843c08eeb1a27e7430bf0",
+          "sizeInBytes": 693747712,
+          "contextSize": 1280,
+          "quantization": "q4"
+        },
+        "MT6989": {
+          "modelFile": "Gemma3-1B-IT_q4_ekv1280_mt6989.litertlm",
+          "downloadUrl": "https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/6d54daa71cfbffba6b2843c08eeb1a27e7430bf0/Gemma3-1B-IT_q4_ekv1280_mt6989.litertlm?download=true",
+          "commitHash": "6d54daa71cfbffba6b2843c08eeb1a27e7430bf0",
+          "sizeInBytes": 1032830976,
+          "contextSize": 1280,
+          "quantization": "q4"
+        },
+        "MT6991": {
+          "modelFile": "Gemma3-1B-IT_q4_ekv1280_mt6991.litertlm",
+          "downloadUrl": "https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/6d54daa71cfbffba6b2843c08eeb1a27e7430bf0/Gemma3-1B-IT_q4_ekv1280_mt6991.litertlm?download=true",
+          "commitHash": "6d54daa71cfbffba6b2843c08eeb1a27e7430bf0",
+          "sizeInBytes": 1033814016,
+          "contextSize": 1280,
+          "quantization": "q4"
+        },
+        "MT6993": {
+          "modelFile": "Gemma3-1B-IT_q4_ekv1280_mt6993.litertlm",
+          "downloadUrl": "https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/6d54daa71cfbffba6b2843c08eeb1a27e7430bf0/Gemma3-1B-IT_q4_ekv1280_mt6993.litertlm?download=true",
+          "commitHash": "6d54daa71cfbffba6b2843c08eeb1a27e7430bf0",
+          "sizeInBytes": 1020411904,
+          "contextSize": 1280,
+          "quantization": "q4"
+        },
+        "Tensor G5": {
+          "modelFile": "Gemma3-1B-IT_q8_ekv1280_Google_Tensor_G5.litertlm",
+          "downloadUrl": "https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/6d54daa71cfbffba6b2843c08eeb1a27e7430bf0/Gemma3-1B-IT_q8_ekv1280_Google_Tensor_G5.litertlm?download=true",
+          "commitHash": "6d54daa71cfbffba6b2843c08eeb1a27e7430bf0",
+          "sizeInBytes": 1678542365,
+          "contextSize": 1280,
+          "quantization": "q8"
+        }
+      }
+    },
+    {
+      "id": "gemma-3n-e2b-it",
+      "displayName": "Gemma-3n-E2B-it",
+      "downloadUrl": "https://huggingface.co/google/gemma-3n-E2B-it-litert-lm/resolve/ba9ca88da013b537b6ed38108be609b8db1c3a16/gemma-3n-E2B-it-int4.litertlm?download=true",
+      "sizeInBytes": 3655827456,
+      "minRamGb": 8,
+      "isGated": true,
+      "capabilities": {
+        "vision": true,
+        "tools": false,
+        "thinking": false
+      },
+      "supportedAccelerators": ["cpu", "gpu"],
+      "defaultConfig": {
+        "topK": 64,
+        "topP": 0.95,
+        "temperature": 1.0,
+        "maxTokens": 4096
+      },
+      "minAppVersion": "0.8.0"
+    },
+    {
+      "id": "gemma-4-e2b-it",
+      "displayName": "Gemma-4-E2B-it",
+      "downloadUrl": "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/6e5c4f1e395deb959c494953478fa5cec4b8008f/gemma-4-E2B-it.litertlm?download=true",
+      "sizeInBytes": 2588147712,
+      "minRamGb": 8,
+      "isGated": true,
+      "capabilities": {
+        "vision": true,
+        "tools": true,
+        "thinking": true
+      },
+      "supportedAccelerators": ["gpu", "cpu", "npu"],
+      "defaultConfig": {
+        "topK": 64,
+        "topP": 0.95,
+        "temperature": 1.0,
+        "maxTokens": 4000
+      },
+      "minAppVersion": "0.8.0",
+      "socToModelFiles": {
+        "SM8750": {
+          "modelFile": "gemma-4-E2B-it_qualcomm_sm8750.litertlm",
+          "downloadUrl": "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/6b78abd019e61a1ca4cbe3b212d2c9ce8ff38a94/gemma-4-E2B-it_qualcomm_sm8750.litertlm?download=true",
+          "commitHash": "6b78abd019e61a1ca4cbe3b212d2c9ce8ff38a94",
+          "sizeInBytes": 3016294400,
+          "contextSize": 1280
+        },
+        "Tensor G5": {
+          "modelFile": "gemma-4-E2B-it_Google_Tensor_G5.litertlm",
+          "downloadUrl": "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/6b78abd019e61a1ca4cbe3b212d2c9ce8ff38a94/gemma-4-E2B-it_Google_Tensor_G5.litertlm?download=true",
+          "commitHash": "6b78abd019e61a1ca4cbe3b212d2c9ce8ff38a94",
+          "sizeInBytes": 3113545589,
+          "contextSize": 1280
+        }
+      }
+    },
+    {
+      "id": "qwen2.5-1.5b-instruct",
+      "displayName": "Qwen2.5-1.5B-Instruct",
+      "downloadUrl": "https://huggingface.co/litert-community/Qwen2.5-1.5B-Instruct/resolve/19edb84c69a0212f29a6ef17ba0d6f278b6a1614/Qwen2.5-1.5B-Instruct_multi-prefill-seq_q8_ekv4096.litertlm?download=true",
+      "sizeInBytes": 1597931520,
+      "minRamGb": 6,
+      "isGated": false,
+      "capabilities": {
+        "vision": false,
+        "tools": false,
+        "thinking": false
+      },
+      "supportedAccelerators": ["gpu", "cpu"],
+      "defaultConfig": {
+        "topK": 20,
+        "topP": 0.8,
+        "temperature": 0.7,
+        "maxTokens": 4096
+      },
+      "minAppVersion": "0.8.0"
+    },
+    {
+      "id": "deepseek-r1-distill-qwen-1.5b",
+      "displayName": "DeepSeek-R1-Distill-Qwen-1.5B",
+      "downloadUrl": "https://huggingface.co/litert-community/DeepSeek-R1-Distill-Qwen-1.5B/resolve/e34bb88632342d1f9640bad579a45134eb1cf988/DeepSeek-R1-Distill-Qwen-1.5B_multi-prefill-seq_q8_ekv4096.litertlm?download=true",
+      "sizeInBytes": 1833451520,
+      "minRamGb": 6,
+      "isGated": false,
+      "capabilities": {
+        "vision": false,
+        "tools": false,
+        "thinking": true
+      },
+      "supportedAccelerators": ["gpu", "cpu"],
+      "defaultConfig": {
+        "topK": 64,
+        "topP": 0.95,
+        "temperature": 1.0,
+        "maxTokens": 4096
+      },
+      "minAppVersion": "0.8.0"
+    }
+  ]
+}

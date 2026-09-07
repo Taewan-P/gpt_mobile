@@ -1,19 +1,15 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
--->
+<?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <exclude domain="file" path="datastore/token.preferences_pb" />
+        <exclude domain="database" path="chat_v2" />
+        <exclude domain="database" path="chat_v2-wal" />
+        <exclude domain="database" path="chat_v2-shm" />
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <exclude domain="file" path="datastore/token.preferences_pb" />
+        <exclude domain="database" path="chat_v2" />
+        <exclude domain="database" path="chat_v2-wal" />
+        <exclude domain="database" path="chat_v2-shm" />
     </device-transfer>
-    -->
 </data-extraction-rules>

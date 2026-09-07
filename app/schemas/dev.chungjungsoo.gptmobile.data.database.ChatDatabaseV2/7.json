@@ -1,0 +1,790 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 7,
+    "identityHash": "019e647a67993863f8c16017da07d74a",
+    "entities": [
+      {
+        "tableName": "chats_v2",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`chat_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `title` TEXT NOT NULL, `enabled_platform` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "chat_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "enabledPlatform",
+            "columnName": "enabled_platform",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updated_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "chat_id"
+          ]
+        }
+      },
+      {
+        "tableName": "messages_v2",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`message_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `chat_id` INTEGER NOT NULL, `thoughts` TEXT NOT NULL, `content` TEXT NOT NULL, `attachments` TEXT NOT NULL, `revisions` TEXT NOT NULL, `active_revision_index` INTEGER NOT NULL, `linked_message_id` INTEGER NOT NULL, `platform_type` TEXT, `current_run_id` TEXT, `created_at` INTEGER NOT NULL, FOREIGN KEY(`chat_id`) REFERENCES `chats_v2`(`chat_id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "message_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chatId",
+            "columnName": "chat_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "thoughts",
+            "columnName": "thoughts",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "content",
+            "columnName": "content",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attachments",
+            "columnName": "attachments",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revisions",
+            "columnName": "revisions",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "activeRevisionIndex",
+            "columnName": "active_revision_index",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "linkedMessageId",
+            "columnName": "linked_message_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "platformType",
+            "columnName": "platform_type",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "currentRunId",
+            "columnName": "current_run_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "message_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_messages_v2_chat_id",
+            "unique": false,
+            "columnNames": [
+              "chat_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_messages_v2_chat_id` ON `${TABLE_NAME}` (`chat_id`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "chats_v2",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "chat_id"
+            ],
+            "referencedColumns": [
+              "chat_id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "platform_v2",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`platform_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `uid` TEXT NOT NULL, `name` TEXT NOT NULL, `compatible_type` TEXT NOT NULL, `enabled` INTEGER NOT NULL, `api_url` TEXT NOT NULL, `token` TEXT, `secret_ref` TEXT, `model` TEXT NOT NULL, `temperature` REAL, `top_p` REAL, `system_prompt` TEXT, `stream` INTEGER NOT NULL, `reasoning` INTEGER NOT NULL, `timeout` INTEGER NOT NULL, `harassment_safety_threshold` TEXT NOT NULL DEFAULT 'BLOCK_NONE', `hate_speech_safety_threshold` TEXT NOT NULL DEFAULT 'BLOCK_NONE', `sexually_explicit_safety_threshold` TEXT NOT NULL DEFAULT 'BLOCK_NONE', `dangerous_content_safety_threshold` TEXT NOT NULL DEFAULT 'BLOCK_NONE')",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "platform_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "uid",
+            "columnName": "uid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "compatibleType",
+            "columnName": "compatible_type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "enabled",
+            "columnName": "enabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "apiUrl",
+            "columnName": "api_url",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "token",
+            "columnName": "token",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "secretRef",
+            "columnName": "secret_ref",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "model",
+            "columnName": "model",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "temperature",
+            "columnName": "temperature",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "topP",
+            "columnName": "top_p",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "systemPrompt",
+            "columnName": "system_prompt",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "stream",
+            "columnName": "stream",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reasoning",
+            "columnName": "reasoning",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timeout",
+            "columnName": "timeout",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "harassmentSafetyThreshold",
+            "columnName": "harassment_safety_threshold",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'BLOCK_NONE'"
+          },
+          {
+            "fieldPath": "hateSpeechSafetyThreshold",
+            "columnName": "hate_speech_safety_threshold",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'BLOCK_NONE'"
+          },
+          {
+            "fieldPath": "sexuallyExplicitSafetyThreshold",
+            "columnName": "sexually_explicit_safety_threshold",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'BLOCK_NONE'"
+          },
+          {
+            "fieldPath": "dangerousContentSafetyThreshold",
+            "columnName": "dangerous_content_safety_threshold",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'BLOCK_NONE'"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "platform_id"
+          ]
+        }
+      },
+      {
+        "tableName": "chat_platform_model_v2",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`chat_id` INTEGER NOT NULL, `platform_uid` TEXT NOT NULL, `model` TEXT NOT NULL, `updated_at` INTEGER NOT NULL, PRIMARY KEY(`chat_id`, `platform_uid`), FOREIGN KEY(`chat_id`) REFERENCES `chats_v2`(`chat_id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "chatId",
+            "columnName": "chat_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "platformUid",
+            "columnName": "platform_uid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "model",
+            "columnName": "model",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updated_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "chat_id",
+            "platform_uid"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "chats_v2",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "chat_id"
+            ],
+            "referencedColumns": [
+              "chat_id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "tool_connections",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`connection_uid` TEXT NOT NULL, `name` TEXT NOT NULL, `alias` TEXT NOT NULL, `type` TEXT NOT NULL, `endpoint_url` TEXT, `auth_type` TEXT NOT NULL, `secret_ref` TEXT, `oauth_client_id` TEXT, `allow_cleartext` INTEGER NOT NULL, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, PRIMARY KEY(`connection_uid`))",
+        "fields": [
+          {
+            "fieldPath": "connectionUid",
+            "columnName": "connection_uid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "alias",
+            "columnName": "alias",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endpointUrl",
+            "columnName": "endpoint_url",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "authType",
+            "columnName": "auth_type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "secretRef",
+            "columnName": "secret_ref",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "oauthClientId",
+            "columnName": "oauth_client_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "allowCleartext",
+            "columnName": "allow_cleartext",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updated_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "connection_uid"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_tool_connections_alias",
+            "unique": true,
+            "columnNames": [
+              "alias"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_tool_connections_alias` ON `${TABLE_NAME}` (`alias`)"
+          }
+        ]
+      },
+      {
+        "tableName": "agent_tool_bindings",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`binding_uid` TEXT NOT NULL, `profile_uid` TEXT NOT NULL, `connection_uid` TEXT, `tool_name` TEXT NOT NULL, `created_at` INTEGER NOT NULL, PRIMARY KEY(`binding_uid`), FOREIGN KEY(`connection_uid`) REFERENCES `tool_connections`(`connection_uid`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "bindingUid",
+            "columnName": "binding_uid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "profileUid",
+            "columnName": "profile_uid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "connectionUid",
+            "columnName": "connection_uid",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "toolName",
+            "columnName": "tool_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "binding_uid"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_agent_tool_bindings_profile_uid",
+            "unique": false,
+            "columnNames": [
+              "profile_uid"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_agent_tool_bindings_profile_uid` ON `${TABLE_NAME}` (`profile_uid`)"
+          },
+          {
+            "name": "index_agent_tool_bindings_connection_uid",
+            "unique": false,
+            "columnNames": [
+              "connection_uid"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_agent_tool_bindings_connection_uid` ON `${TABLE_NAME}` (`connection_uid`)"
+          },
+          {
+            "name": "index_agent_tool_bindings_profile_uid_connection_uid_tool_name",
+            "unique": true,
+            "columnNames": [
+              "profile_uid",
+              "connection_uid",
+              "tool_name"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_agent_tool_bindings_profile_uid_connection_uid_tool_name` ON `${TABLE_NAME}` (`profile_uid`, `connection_uid`, `tool_name`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "tool_connections",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "connection_uid"
+            ],
+            "referencedColumns": [
+              "connection_uid"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "agent_runs",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`run_id` TEXT NOT NULL, `chat_id` INTEGER NOT NULL, `user_message_id` INTEGER NOT NULL, `assistant_message_id` INTEGER NOT NULL, `profile_uid` TEXT NOT NULL, `provider_snapshot` TEXT NOT NULL, `model_snapshot` TEXT NOT NULL, `status` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `started_at` INTEGER, `completed_at` INTEGER, `terminal_error` TEXT, PRIMARY KEY(`run_id`), FOREIGN KEY(`chat_id`) REFERENCES `chats_v2`(`chat_id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`user_message_id`) REFERENCES `messages_v2`(`message_id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`assistant_message_id`) REFERENCES `messages_v2`(`message_id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "runId",
+            "columnName": "run_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chatId",
+            "columnName": "chat_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userMessageId",
+            "columnName": "user_message_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "assistantMessageId",
+            "columnName": "assistant_message_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "profileUid",
+            "columnName": "profile_uid",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "providerSnapshot",
+            "columnName": "provider_snapshot",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "modelSnapshot",
+            "columnName": "model_snapshot",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAt",
+            "columnName": "started_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "completedAt",
+            "columnName": "completed_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "terminalError",
+            "columnName": "terminal_error",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "run_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_agent_runs_chat_id",
+            "unique": false,
+            "columnNames": [
+              "chat_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_agent_runs_chat_id` ON `${TABLE_NAME}` (`chat_id`)"
+          },
+          {
+            "name": "index_agent_runs_user_message_id",
+            "unique": false,
+            "columnNames": [
+              "user_message_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_agent_runs_user_message_id` ON `${TABLE_NAME}` (`user_message_id`)"
+          },
+          {
+            "name": "index_agent_runs_assistant_message_id",
+            "unique": false,
+            "columnNames": [
+              "assistant_message_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_agent_runs_assistant_message_id` ON `${TABLE_NAME}` (`assistant_message_id`)"
+          },
+          {
+            "name": "index_agent_runs_status",
+            "unique": false,
+            "columnNames": [
+              "status"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_agent_runs_status` ON `${TABLE_NAME}` (`status`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "chats_v2",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "chat_id"
+            ],
+            "referencedColumns": [
+              "chat_id"
+            ]
+          },
+          {
+            "table": "messages_v2",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "user_message_id"
+            ],
+            "referencedColumns": [
+              "message_id"
+            ]
+          },
+          {
+            "table": "messages_v2",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "assistant_message_id"
+            ],
+            "referencedColumns": [
+              "message_id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "tool_events",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`event_id` TEXT NOT NULL, `run_id` TEXT NOT NULL, `sequence` INTEGER NOT NULL, `call_id` TEXT NOT NULL, `connection_uid_snapshot` TEXT, `connection_name_snapshot` TEXT, `tool_name` TEXT NOT NULL, `model_tool_name` TEXT NOT NULL, `arguments` TEXT NOT NULL, `result` TEXT, `result_type` TEXT, `status` TEXT NOT NULL, `is_error` INTEGER NOT NULL, `started_at` INTEGER, `completed_at` INTEGER, `error` TEXT, PRIMARY KEY(`event_id`), FOREIGN KEY(`run_id`) REFERENCES `agent_runs`(`run_id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "eventId",
+            "columnName": "event_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "runId",
+            "columnName": "run_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sequence",
+            "columnName": "sequence",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "callId",
+            "columnName": "call_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "connectionUidSnapshot",
+            "columnName": "connection_uid_snapshot",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "connectionNameSnapshot",
+            "columnName": "connection_name_snapshot",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "toolName",
+            "columnName": "tool_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "modelToolName",
+            "columnName": "model_tool_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "arguments",
+            "columnName": "arguments",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "result",
+            "columnName": "result",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "resultType",
+            "columnName": "result_type",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isError",
+            "columnName": "is_error",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAt",
+            "columnName": "started_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "completedAt",
+            "columnName": "completed_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "error",
+            "columnName": "error",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "event_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_tool_events_run_id",
+            "unique": false,
+            "columnNames": [
+              "run_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_tool_events_run_id` ON `${TABLE_NAME}` (`run_id`)"
+          },
+          {
+            "name": "index_tool_events_run_id_sequence",
+            "unique": true,
+            "columnNames": [
+              "run_id",
+              "sequence"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_tool_events_run_id_sequence` ON `${TABLE_NAME}` (`run_id`, `sequence`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "agent_runs",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "run_id"
+            ],
+            "referencedColumns": [
+              "run_id"
+            ]
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '019e647a67993863f8c16017da07d74a')"
+    ]
+  }
+}

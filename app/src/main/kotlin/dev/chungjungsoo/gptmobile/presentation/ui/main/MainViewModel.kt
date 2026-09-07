@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
+import dev.chungjungsoo.gptmobile.presentation.StartupRecoveryGate
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,11 +27,12 @@ class MainViewModel @Inject constructor(private val settingRepository: SettingRe
     private val _isReady: MutableStateFlow<Boolean> = MutableStateFlow(false)
     val isReady: StateFlow<Boolean> = _isReady.asStateFlow()
 
-    private val _event: MutableSharedFlow<SplashEvent> = MutableSharedFlow()
+    private val _event: MutableSharedFlow<SplashEvent> = MutableSharedFlow(replay = 1)
     val event: SharedFlow<SplashEvent> = _event.asSharedFlow()
 
     init {
         viewModelScope.launch {
+            StartupRecoveryGate.await()
             val platforms = settingRepository.fetchPlatforms()
             val platformV2s = settingRepository.fetchPlatformV2s()
 

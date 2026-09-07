@@ -8,7 +8,6 @@ interface GroqAPI {
     fun streamChatCompletion(
         request: GroqChatCompletionRequest,
         timeoutSeconds: Int,
-        token: String?,
-        apiUrl: String
+        config: ProviderRequestConfig
     ): Flow<GroqChatCompletionChunk>
 }

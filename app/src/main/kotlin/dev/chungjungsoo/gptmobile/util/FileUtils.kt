@@ -102,6 +102,38 @@ object FileUtils {
         )
     }
 
+    fun readImageBytesForLocalInference(context: Context, filePath: String): ByteArray? {
+        val rawBytes = try {
+            getInputStreamFromUri(context, filePath)?.use { inputStream -> inputStream.readBytes() }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to read image bytes for local inference: $filePath", e)
+            null
+        } ?: return null
+
+        return try {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size, bounds)
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return rawBytes
+            val decodeOptions = BitmapFactory.Options().apply {
+                inSampleSize = calculateImageInSampleSize(bounds.outWidth, bounds.outHeight)
+            }
+            val bitmap = BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size, decodeOptions) ?: return rawBytes
+            try {
+                val output = ByteArrayOutputStream()
+                if (bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) {
+                    output.toByteArray()
+                } else {
+                    rawBytes
+                }
+            } finally {
+                bitmap.recycle()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to convert image bytes for local inference: $filePath", e)
+            rawBytes
+        }
+    }
+
     fun encodeFileForUpload(context: Context, filePath: String, mimeType: String): EncodedImage? {
         if (!isImage(mimeType)) {
             val base64Data = encodeFileToBase64(context, filePath) ?: return null

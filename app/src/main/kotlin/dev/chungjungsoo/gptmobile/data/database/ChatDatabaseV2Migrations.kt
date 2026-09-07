@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.database
 
+import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import dev.chungjungsoo.gptmobile.data.ModelConstants
@@ -13,8 +14,16 @@ import java.io.File
 
 object ChatDatabaseV2Migrations {
 
+    val AGENT_TOOL_BINDING_CALLBACK = object : RoomDatabase.Callback() {
+        override fun onOpen(db: SupportSQLiteDatabase) {
+            installAgentToolBindingConstraints(db)
+        }
+    }
+
     val MIGRATION_1_2 = object : Migration(1, 2) {
         override fun migrate(db: SupportSQLiteDatabase) {
+            ensureLegacyMessageColumns(db)
+            ensureLegacyPlatformColumns(db)
             db.execSQL(
                 """
                 CREATE TABLE IF NOT EXISTS `chat_platform_model_v2` (
@@ -66,6 +75,9 @@ object ChatDatabaseV2Migrations {
 
     val MIGRATION_2_3 = object : Migration(2, 3) {
         override fun migrate(db: SupportSQLiteDatabase) {
+            // Early v2 builds advanced the DB version without adding these schema-v2 columns.
+            ensureLegacyMessageColumns(db)
+            ensureLegacyPlatformColumns(db)
             db.execSQL(
                 """
                 CREATE TABLE IF NOT EXISTS `messages_v2_new` (
@@ -234,6 +246,192 @@ object ChatDatabaseV2Migrations {
         }
     }
 
+    val MIGRATION_6_7 = object : Migration(6, 7) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `messages_v2` ADD COLUMN `current_run_id` TEXT")
+            db.execSQL("ALTER TABLE `platform_v2` ADD COLUMN `secret_ref` TEXT")
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `tool_connections` (
+                    `connection_uid` TEXT NOT NULL,
+                    `name` TEXT NOT NULL,
+                    `alias` TEXT NOT NULL,
+                    `type` TEXT NOT NULL,
+                    `endpoint_url` TEXT,
+                    `auth_type` TEXT NOT NULL,
+                    `secret_ref` TEXT,
+                    `oauth_client_id` TEXT,
+                    `allow_cleartext` INTEGER NOT NULL,
+                    `created_at` INTEGER NOT NULL,
+                    `updated_at` INTEGER NOT NULL,
+                    PRIMARY KEY(`connection_uid`)
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_tool_connections_alias` ON `tool_connections` (`alias`)")
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `agent_tool_bindings` (
+                    `binding_uid` TEXT NOT NULL,
+                    `profile_uid` TEXT NOT NULL,
+                    `connection_uid` TEXT,
+                    `tool_name` TEXT NOT NULL,
+                    `created_at` INTEGER NOT NULL,
+                    PRIMARY KEY(`binding_uid`),
+                    FOREIGN KEY(`connection_uid`) REFERENCES `tool_connections`(`connection_uid`) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_agent_tool_bindings_profile_uid` ON `agent_tool_bindings` (`profile_uid`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_agent_tool_bindings_connection_uid` ON `agent_tool_bindings` (`connection_uid`)")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_agent_tool_bindings_profile_uid_connection_uid_tool_name` ON `agent_tool_bindings` (`profile_uid`, `connection_uid`, `tool_name`)")
+            installAgentToolBindingConstraints(db)
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `agent_runs` (
+                    `run_id` TEXT NOT NULL,
+                    `chat_id` INTEGER NOT NULL,
+                    `user_message_id` INTEGER NOT NULL,
+                    `assistant_message_id` INTEGER NOT NULL,
+                    `profile_uid` TEXT NOT NULL,
+                    `provider_snapshot` TEXT NOT NULL,
+                    `model_snapshot` TEXT NOT NULL,
+                    `status` TEXT NOT NULL,
+                    `created_at` INTEGER NOT NULL,
+                    `started_at` INTEGER,
+                    `completed_at` INTEGER,
+                    `terminal_error` TEXT,
+                    PRIMARY KEY(`run_id`),
+                    FOREIGN KEY(`chat_id`) REFERENCES `chats_v2`(`chat_id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                    FOREIGN KEY(`user_message_id`) REFERENCES `messages_v2`(`message_id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                    FOREIGN KEY(`assistant_message_id`) REFERENCES `messages_v2`(`message_id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_agent_runs_chat_id` ON `agent_runs` (`chat_id`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_agent_runs_user_message_id` ON `agent_runs` (`user_message_id`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_agent_runs_assistant_message_id` ON `agent_runs` (`assistant_message_id`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_agent_runs_status` ON `agent_runs` (`status`)")
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `tool_events` (
+                    `event_id` TEXT NOT NULL,
+                    `run_id` TEXT NOT NULL,
+                    `sequence` INTEGER NOT NULL,
+                    `call_id` TEXT NOT NULL,
+                    `connection_uid_snapshot` TEXT,
+                    `connection_name_snapshot` TEXT,
+                    `tool_name` TEXT NOT NULL,
+                    `model_tool_name` TEXT NOT NULL,
+                    `arguments` TEXT NOT NULL,
+                    `result` TEXT,
+                    `result_type` TEXT,
+                    `status` TEXT NOT NULL,
+                    `is_error` INTEGER NOT NULL,
+                    `started_at` INTEGER,
+                    `completed_at` INTEGER,
+                    `error` TEXT,
+                    PRIMARY KEY(`event_id`),
+                    FOREIGN KEY(`run_id`) REFERENCES `agent_runs`(`run_id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_tool_events_run_id` ON `tool_events` (`run_id`)")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_tool_events_run_id_sequence` ON `tool_events` (`run_id`, `sequence`)")
+        }
+    }
+
+    val LOCAL_MODEL_TABLE_MIGRATIONS = listOf(
+        """
+        CREATE TABLE IF NOT EXISTS `local_models` (
+            `catalog_entry_id` TEXT NOT NULL,
+            `commit_hash` TEXT NOT NULL,
+            `file_name` TEXT NOT NULL,
+            `relative_directory` TEXT NOT NULL,
+            `total_bytes` INTEGER NOT NULL,
+            `status` TEXT NOT NULL,
+            `created_at` INTEGER NOT NULL,
+            `updated_at` INTEGER NOT NULL,
+            PRIMARY KEY(`catalog_entry_id`)
+        )
+        """.trimIndent()
+    )
+
+    val MIGRATION_8_9 = object : Migration(8, 9) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            LOCAL_MODEL_TABLE_MIGRATIONS.forEach(db::execSQL)
+        }
+    }
+
+    val PLATFORM_LOCAL_INFERENCE_COLUMN_MIGRATIONS = listOf(
+        "ALTER TABLE `platform_v2` ADD COLUMN `top_k` INTEGER",
+        "ALTER TABLE `platform_v2` ADD COLUMN `max_tokens` INTEGER",
+        "ALTER TABLE `platform_v2` ADD COLUMN `accelerator` TEXT"
+    )
+
+    val MIGRATION_9_10 = object : Migration(9, 10) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            PLATFORM_LOCAL_INFERENCE_COLUMN_MIGRATIONS.forEach(db::execSQL)
+        }
+    }
+
+    val MIGRATION_7_8 = object : Migration(7, 8) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `messages_v2` ADD COLUMN `timeline` TEXT NOT NULL DEFAULT '[]'")
+            // Mirrors hasUnavailableAssistantOrder: only rows that interleaved reasoning with text,
+            // or ran tools, have an order that cannot be reconstructed. A plain reply keeps an empty
+            // timeline so it renders without the chronology notice.
+            db.execSQL(
+                """
+                UPDATE `messages_v2`
+                SET `timeline` = '[{"type":"LEGACY_ORDER"}]'
+                WHERE `platform_type` IS NOT NULL
+                  AND (
+                      (TRIM(`content`) != '' AND TRIM(`thoughts`) != '')
+                      OR EXISTS (
+                          SELECT 1 FROM `tool_events`
+                          WHERE `tool_events`.`run_id` = `messages_v2`.`current_run_id`
+                      )
+                  )
+                """.trimIndent()
+            )
+        }
+    }
+
+    private fun installAgentToolBindingConstraints(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TRIGGER IF NOT EXISTS `agent_tool_bindings_builtin_insert_unique`
+            BEFORE INSERT ON `agent_tool_bindings`
+            WHEN NEW.`connection_uid` IS NULL AND EXISTS (
+                SELECT 1 FROM `agent_tool_bindings`
+                WHERE `profile_uid` = NEW.`profile_uid`
+                  AND `connection_uid` IS NULL
+                  AND `tool_name` = NEW.`tool_name`
+            )
+            BEGIN
+                SELECT RAISE(ABORT, 'duplicate built-in tool binding');
+            END
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            CREATE TRIGGER IF NOT EXISTS `agent_tool_bindings_builtin_update_unique`
+            BEFORE UPDATE ON `agent_tool_bindings`
+            WHEN NEW.`connection_uid` IS NULL AND EXISTS (
+                SELECT 1 FROM `agent_tool_bindings`
+                WHERE `profile_uid` = NEW.`profile_uid`
+                  AND `connection_uid` IS NULL
+                  AND `tool_name` = NEW.`tool_name`
+                  AND `binding_uid` != OLD.`binding_uid`
+            )
+            BEGIN
+                SELECT RAISE(ABORT, 'duplicate built-in tool binding');
+            END
+            """.trimIndent()
+        )
+    }
+
     internal fun legacyFilesToAttachmentsJson(filesValue: String): String {
         val attachments = filesValue
             .split(",")
@@ -250,6 +448,75 @@ object ChatDatabaseV2Migrations {
             }
 
         return ChatAttachmentListConverter().fromList(attachments)
+    }
+
+    internal fun ensureLegacyMessageColumns(db: SupportSQLiteDatabase) {
+        if (!db.hasColumn("messages_v2", "thoughts")) {
+            db.execSQL("ALTER TABLE `messages_v2` ADD COLUMN `thoughts` TEXT NOT NULL DEFAULT ''")
+        }
+        if (!db.hasColumn("messages_v2", "revisions")) {
+            db.execSQL("ALTER TABLE `messages_v2` ADD COLUMN `revisions` TEXT NOT NULL DEFAULT ''")
+        }
+    }
+
+    internal fun ensureLegacyPlatformColumns(db: SupportSQLiteDatabase) {
+        val hasCompatibleType = db.hasColumn("platform_v2", "compatible_type")
+        val hasReasoning = db.hasColumn("platform_v2", "reasoning")
+        if (hasCompatibleType && hasReasoning) return
+
+        val compatibleType = if (hasCompatibleType) {
+            "`compatible_type`"
+        } else {
+            """
+            CASE
+                WHEN LOWER(`name`) LIKE '%anthropic%' OR LOWER(`api_url`) LIKE '%anthropic%' THEN 'ANTHROPIC'
+                WHEN LOWER(`name`) LIKE '%gemini%' OR LOWER(`name`) LIKE '%google%' OR LOWER(`api_url`) LIKE '%googleapis%' THEN 'GOOGLE'
+                WHEN LOWER(`name`) LIKE '%groq%' OR LOWER(`api_url`) LIKE '%groq%' THEN 'GROQ'
+                WHEN LOWER(`name`) LIKE '%ollama%' THEN 'OLLAMA'
+                WHEN LOWER(`name`) LIKE '%openrouter%' OR LOWER(`api_url`) LIKE '%openrouter%' THEN 'OPENROUTER'
+                WHEN LOWER(`name`) LIKE '%openai%' OR LOWER(`api_url`) LIKE '%openai%' THEN 'OPENAI'
+                ELSE 'CUSTOM'
+            END
+            """.trimIndent()
+        }
+        val reasoning = if (hasReasoning) "`reasoning`" else "0"
+
+        db.execSQL("ALTER TABLE `platform_v2` RENAME TO `platform_v2_legacy`")
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `platform_v2` (
+                `platform_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `uid` TEXT NOT NULL,
+                `name` TEXT NOT NULL,
+                `compatible_type` TEXT NOT NULL,
+                `enabled` INTEGER NOT NULL,
+                `api_url` TEXT NOT NULL,
+                `token` TEXT,
+                `model` TEXT NOT NULL,
+                `temperature` REAL,
+                `top_p` REAL,
+                `system_prompt` TEXT,
+                `stream` INTEGER NOT NULL,
+                `reasoning` INTEGER NOT NULL,
+                `timeout` INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            """
+            INSERT INTO `platform_v2` (
+                `platform_id`, `uid`, `name`, `compatible_type`, `enabled`, `api_url`,
+                `token`, `model`, `temperature`, `top_p`, `system_prompt`, `stream`,
+                `reasoning`, `timeout`
+            )
+            SELECT
+                `platform_id`, `uid`, `name`, $compatibleType, `enabled`, `api_url`,
+                `token`, `model`, `temperature`, `top_p`, `system_prompt`, `stream`,
+                $reasoning, `timeout`
+            FROM `platform_v2_legacy`
+            """.trimIndent()
+        )
+        db.execSQL("DROP TABLE `platform_v2_legacy`")
     }
 
     internal fun legacyRevisionsToStructuredJson(
@@ -315,4 +582,10 @@ object ChatDatabaseV2Migrations {
     private fun String.hasV1Segment(): Boolean = trimEnd('/')
         .split("/")
         .any { segment -> segment.substringBefore("?").substringBefore("#") == "v1" }
+}
+
+private fun SupportSQLiteDatabase.hasColumn(table: String, column: String): Boolean = query("PRAGMA table_info(`$table`)").use { cursor ->
+    val nameIndex = cursor.getColumnIndexOrThrow("name")
+    generateSequence { if (cursor.moveToNext()) cursor.getString(nameIndex) else null }
+        .any { it == column }
 }

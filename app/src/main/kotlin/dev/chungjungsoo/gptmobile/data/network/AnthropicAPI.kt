@@ -5,9 +5,18 @@ import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.MessageResponseChu
 import kotlinx.coroutines.flow.Flow
 
 interface AnthropicAPI {
-    fun setToken(token: String?)
-    fun setAPIUrl(url: String)
-    fun streamChatMessage(messageRequest: MessageRequest, timeoutSeconds: Int): Flow<MessageResponseChunk>
-    suspend fun uploadFile(filePath: String, fileName: String, mimeType: String): UploadedProviderFile
-    suspend fun isFileAvailable(fileId: String): Boolean
+    fun streamChatMessage(
+        messageRequest: MessageRequest,
+        timeoutSeconds: Int,
+        config: ProviderRequestConfig
+    ): Flow<MessageResponseChunk>
+
+    suspend fun uploadFile(
+        filePath: String,
+        fileName: String,
+        mimeType: String,
+        config: ProviderRequestConfig
+    ): UploadedProviderFile
+
+    suspend fun isFileAvailable(fileId: String, config: ProviderRequestConfig): Boolean
 }

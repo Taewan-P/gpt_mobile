@@ -11,6 +11,10 @@
 -dontwarn io.micrometer.**
 -dontwarn reactor.**
 
+# AppAuth (Hugging Face OAuth redirect / token exchange)
+-keep class net.openid.appauth.** { *; }
+-dontwarn net.openid.appauth.**
+
 # Ignore missing optional logging dependencies used by Netty
 -dontwarn org.apache.log4j.**
 -dontwarn org.apache.logging.log4j.**

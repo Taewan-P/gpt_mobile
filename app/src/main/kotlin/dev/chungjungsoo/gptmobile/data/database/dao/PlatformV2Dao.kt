@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 
@@ -22,6 +23,15 @@ interface PlatformV2Dao {
     @Update
     suspend fun editPlatform(platform: PlatformV2)
 
+    @Transaction
+    suspend fun deletePlatform(platform: PlatformV2) {
+        deleteBindingsByProfileUid(platform.uid)
+        deletePlatformRow(platform)
+    }
+
+    @Query("DELETE FROM agent_tool_bindings WHERE profile_uid = :profileUid")
+    suspend fun deleteBindingsByProfileUid(profileUid: String)
+
     @Delete
-    suspend fun deletePlatform(platform: PlatformV2)
+    suspend fun deletePlatformRow(platform: PlatformV2)
 }

@@ -2,12 +2,12 @@ package dev.chungjungsoo.gptmobile.presentation.ui.setup
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,27 +17,27 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -45,173 +45,193 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.model.ClientType
+import dev.chungjungsoo.gptmobile.presentation.common.PrimaryLongButton
+import dev.chungjungsoo.gptmobile.presentation.theme.defaultSpatialSpec
+import dev.chungjungsoo.gptmobile.presentation.theme.fastEffectsSpec
+import dev.chungjungsoo.gptmobile.presentation.ui.localmodel.LocalModelDownloadDialogHost
+import dev.chungjungsoo.gptmobile.presentation.ui.localmodel.rememberLocalModelDownloader
+import dev.chungjungsoo.gptmobile.presentation.ui.setting.LocalModelListItem
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupViewModelV2.Companion.WIZARD_STEP_API_KEY
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupViewModelV2.Companion.WIZARD_STEP_BASICS
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupViewModelV2.Companion.WIZARD_STEP_MODEL
-import dev.chungjungsoo.gptmobile.presentation.ui.setup.SetupViewModelV2.Companion.WIZARD_TOTAL_STEPS
 
 @Composable
 fun SetupPlatformWizardScreen(
     modifier: Modifier = Modifier,
     setupViewModel: SetupViewModelV2 = hiltViewModel(),
     onComplete: () -> Unit,
-    onBackAction: () -> Unit
+    onBackAction: () -> Unit,
+    onNavigateToLocalModels: () -> Unit = {}
 ) {
-    // Keep State objects for derivedStateOf to properly track dependencies
-    val wizardStepState = setupViewModel.wizardStep.collectAsStateWithLifecycle()
-    val selectedClientTypeState = setupViewModel.selectedClientType.collectAsStateWithLifecycle()
-    val platformNameState = setupViewModel.platformName.collectAsStateWithLifecycle()
-    val apiUrlState = setupViewModel.apiUrl.collectAsStateWithLifecycle()
-    val apiKeyState = setupViewModel.apiKey.collectAsStateWithLifecycle()
-    val modelState = setupViewModel.model.collectAsStateWithLifecycle()
+    val wizardStep by setupViewModel.wizardStep.collectAsStateWithLifecycle()
+    val selectedClientType by setupViewModel.selectedClientType.collectAsStateWithLifecycle()
+    val catalogModels by setupViewModel.catalogLocalModels.collectAsStateWithLifecycle()
+    val downloadState by setupViewModel.localModelDownloadState.collectAsStateWithLifecycle()
+    val canProceed by setupViewModel.canProceed.collectAsStateWithLifecycle()
+    val isWaitingForDownload by setupViewModel.isWaitingForDownload.collectAsStateWithLifecycle()
+    val saveStatus by setupViewModel.saveStatus.collectAsStateWithLifecycle()
+    val requestDownload = rememberLocalModelDownloader { entry ->
+        setupViewModel.selectLocalModel(entry.id)
+    }
 
-    // Extract values for use in composables
-    val wizardStep = wizardStepState.value
-    val selectedClientType = selectedClientTypeState.value
-    platformNameState.value
-    apiUrlState.value
-    apiKeyState.value
-    modelState.value
-
-    // Compute canProceed using derivedStateOf for proper reactivity
-    val canProceed by remember {
-        derivedStateOf {
-            when (wizardStepState.value) {
-                WIZARD_STEP_BASICS -> platformNameState.value.isNotBlank() && apiUrlState.value.isNotBlank()
-
-                WIZARD_STEP_API_KEY -> true
-
-                // API key is optional for some providers (e.g., Ollama)
-                WIZARD_STEP_MODEL -> modelState.value.isNotBlank()
-
-                else -> false
+    val isSaving = saveStatus is SaveStatus.Saving
+    val handleBack = {
+        if (!isSaving) {
+            if (wizardStep > 0) {
+                setupViewModel.previousWizardStep()
+            } else {
+                setupViewModel.resetWizard()
+                onBackAction()
             }
         }
     }
 
-    // Handle back press
-    BackHandler {
-        if (wizardStep > 0) {
-            setupViewModel.previousWizardStep()
-        } else {
-            setupViewModel.resetWizard()
-            onBackAction()
-        }
-    }
+    BackHandler(onBack = handleBack)
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
             SetupAppBar(
-                backAction = {
-                    if (wizardStep > 0) {
-                        setupViewModel.previousWizardStep()
-                    } else {
-                        setupViewModel.resetWizard()
-                        onBackAction()
-                    }
-                }
+                backAction = handleBack,
+                enabled = !isSaving
             )
         }
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .padding(innerPadding)
-                .fillMaxSize()
-                .imePadding()
+                .fillMaxSize(),
+            contentAlignment = Alignment.TopCenter
         ) {
-            // Progress indicator
-            WizardProgressIndicator(
-                currentStep = wizardStep,
-                totalSteps = WIZARD_TOTAL_STEPS
-            )
+            Column(
+                modifier = Modifier
+                    .widthIn(max = 720.dp)
+                    .fillMaxSize()
+                    .imePadding()
+            ) {
+                WizardProgressIndicator(
+                    currentStep = setupViewModel.wizardDisplayStep(),
+                    totalSteps = setupViewModel.wizardTotalSteps(),
+                    isLocalPlatform = selectedClientType == ClientType.LITERT_LM
+                )
 
-            // Step content
-            AnimatedContent(
-                targetState = wizardStep,
-                transitionSpec = {
-                    if (targetState > initialState) {
-                        (slideInHorizontally { it } + fadeIn()) togetherWith
-                            (slideOutHorizontally { -it } + fadeOut())
-                    } else {
-                        (slideInHorizontally { -it } + fadeIn()) togetherWith
-                            (slideOutHorizontally { it } + fadeOut())
-                    }
-                },
-                label = "wizard_step_animation",
-                modifier = Modifier.weight(1f)
-            ) { step ->
-                when (step) {
-                    WIZARD_STEP_BASICS -> {
-                        // Collect states directly inside AnimatedContent for proper state updates
-                        val currentPlatformName by setupViewModel.platformName.collectAsStateWithLifecycle()
-                        val currentApiUrl by setupViewModel.apiUrl.collectAsStateWithLifecycle()
-                        BasicsStep(
-                            clientType = selectedClientType,
-                            platformName = currentPlatformName,
-                            onPlatformNameChange = setupViewModel::updatePlatformName,
-                            apiUrl = currentApiUrl,
-                            onApiUrlChange = setupViewModel::updateApiUrl
-                        )
-                    }
+                AnimatedContent(
+                    targetState = wizardStep,
+                    transitionSpec = {
+                        val direction = if (targetState > initialState) {
+                            AnimatedContentTransitionScope.SlideDirection.Start
+                        } else {
+                            AnimatedContentTransitionScope.SlideDirection.End
+                        }
+                        (
+                            slideIntoContainer(
+                                towards = direction,
+                                animationSpec = defaultSpatialSpec()
+                            ) + fadeIn(animationSpec = fastEffectsSpec())
+                            ) togetherWith
+                            (
+                                slideOutOfContainer(
+                                    towards = direction,
+                                    animationSpec = defaultSpatialSpec()
+                                ) + fadeOut(animationSpec = fastEffectsSpec())
+                                )
+                    },
+                    label = "wizard_step_animation",
+                    modifier = Modifier.weight(1f)
+                ) { step ->
+                    when (step) {
+                        WIZARD_STEP_BASICS -> {
+                            val currentPlatformName by setupViewModel.platformName.collectAsStateWithLifecycle()
+                            val currentApiUrl by setupViewModel.apiUrl.collectAsStateWithLifecycle()
+                            BasicsStep(
+                                clientType = selectedClientType,
+                                platformName = currentPlatformName,
+                                onPlatformNameChange = setupViewModel::updatePlatformName,
+                                apiUrl = currentApiUrl,
+                                onApiUrlChange = setupViewModel::updateApiUrl,
+                                isApiUrlVisible = selectedClientType != ClientType.LITERT_LM
+                            )
+                        }
 
-                    WIZARD_STEP_API_KEY -> {
-                        // Collect apiKey state directly inside AnimatedContent for proper state updates
-                        val currentApiKey by setupViewModel.apiKey.collectAsStateWithLifecycle()
-                        ApiKeyStep(
-                            clientType = selectedClientType,
-                            apiKey = currentApiKey,
-                            onApiKeyChange = setupViewModel::updateApiKey
-                        )
-                    }
+                        WIZARD_STEP_API_KEY -> {
+                            val currentApiKey by setupViewModel.apiKey.collectAsStateWithLifecycle()
+                            ApiKeyStep(
+                                clientType = selectedClientType,
+                                apiKey = currentApiKey,
+                                onApiKeyChange = setupViewModel::updateApiKey
+                            )
+                        }
 
-                    WIZARD_STEP_MODEL -> {
-                        // Collect model state directly inside AnimatedContent for proper recomposition
-                        val currentModel by setupViewModel.model.collectAsStateWithLifecycle()
-                        ModelStep(
-                            model = currentModel,
-                            onModelChange = setupViewModel::updateModel
-                        )
+                        WIZARD_STEP_MODEL -> {
+                            val currentModel by setupViewModel.model.collectAsStateWithLifecycle()
+                            if (selectedClientType == ClientType.LITERT_LM) {
+                                LocalModelStep(
+                                    items = catalogModels,
+                                    selectedCatalogEntryId = currentModel,
+                                    checkingAccessEntryId = downloadState.checkingAccessEntryId,
+                                    showPendingActivationHint = isWaitingForDownload,
+                                    onModelSelected = { catalogEntryId ->
+                                        val entry = catalogModels.firstOrNull { it.entry.id == catalogEntryId }?.entry
+                                        if (entry != null) {
+                                            requestDownload(entry)
+                                        } else {
+                                            setupViewModel.selectLocalModel(catalogEntryId)
+                                        }
+                                    },
+                                    onNavigateToLocalModels = onNavigateToLocalModels
+                                )
+                            } else {
+                                ModelStep(
+                                    model = currentModel,
+                                    onModelChange = setupViewModel::updateModel
+                                )
+                            }
+                        }
                     }
                 }
-            }
 
-            // Navigation buttons
-            WizardNavigationButtons(
-                currentStep = wizardStep,
-                canProceed = canProceed,
-                onBack = {
-                    if (wizardStep > 0) {
-                        setupViewModel.previousWizardStep()
-                    } else {
-                        setupViewModel.resetWizard()
-                        onBackAction()
-                    }
-                },
-                onNext = {
-                    if (wizardStep < WIZARD_TOTAL_STEPS - 1) {
-                        setupViewModel.nextWizardStep()
-                    } else {
-                        setupViewModel.savePlatform()
-                        onComplete()
-                    }
-                },
-                isLastStep = wizardStep == WIZARD_TOTAL_STEPS - 1
-            )
+                WizardNavigationButton(
+                    canProceed = canProceed && saveStatus !is SaveStatus.Saving,
+                    onNext = {
+                        if (wizardStep == WIZARD_STEP_MODEL) {
+                            setupViewModel.savePlatform(onComplete)
+                        } else {
+                            setupViewModel.nextWizardStep()
+                        }
+                    },
+                    isLastStep = wizardStep == WIZARD_STEP_MODEL,
+                    isSaving = isSaving,
+                    errorMessage = (saveStatus as? SaveStatus.Error)?.message
+                )
+            }
         }
     }
+
+    LocalModelDownloadDialogHost(
+        dialog = downloadState.dialog,
+        onConfirmRamWarning = setupViewModel::confirmRamWarning,
+        onConfirmMeteredDownload = setupViewModel::confirmMeteredDownload,
+        onDismissDialog = setupViewModel::dismissDownloadDialog,
+        onStartSignIn = setupViewModel::startHuggingFaceSignIn,
+        onAuthActivityResult = setupViewModel::onAuthActivityResult,
+        onLicenseTabClosed = setupViewModel::onLicenseTabClosed,
+        onRetryAfterLicense = setupViewModel::retryAfterLicense,
+        onEnterAccessToken = setupViewModel::openAccessTokenDialog,
+        onSaveAccessToken = setupViewModel::saveHuggingFaceAccessToken
+    )
 }
 
 @Composable
 private fun WizardProgressIndicator(
     currentStep: Int,
     totalSteps: Int,
+    isLocalPlatform: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 16.dp)
+            .padding(horizontal = 24.dp, vertical = 16.dp)
     ) {
         // Step indicator text
         Text(
@@ -237,18 +257,20 @@ private fun WizardProgressIndicator(
         ) {
             StepLabel(
                 text = stringResource(R.string.step_basics),
-                isCompleted = currentStep > WIZARD_STEP_BASICS,
-                isCurrent = currentStep == WIZARD_STEP_BASICS
+                isCompleted = currentStep > 0,
+                isCurrent = currentStep == 0
             )
-            StepLabel(
-                text = stringResource(R.string.step_api_key),
-                isCompleted = currentStep > WIZARD_STEP_API_KEY,
-                isCurrent = currentStep == WIZARD_STEP_API_KEY
-            )
+            if (!isLocalPlatform) {
+                StepLabel(
+                    text = stringResource(R.string.step_api_key),
+                    isCompleted = currentStep > WIZARD_STEP_API_KEY,
+                    isCurrent = currentStep == WIZARD_STEP_API_KEY
+                )
+            }
             StepLabel(
                 text = stringResource(R.string.step_model),
-                isCompleted = currentStep > WIZARD_STEP_MODEL,
-                isCurrent = currentStep == WIZARD_STEP_MODEL
+                isCompleted = currentStep > totalSteps - 1,
+                isCurrent = currentStep == totalSteps - 1
             )
         }
     }
@@ -293,13 +315,14 @@ private fun BasicsStep(
     onPlatformNameChange: (String) -> Unit,
     apiUrl: String,
     onApiUrlChange: (String) -> Unit,
+    isApiUrlVisible: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp)
+            .padding(horizontal = 24.dp)
     ) {
         Text(
             modifier = Modifier.semantics { heading() },
@@ -310,7 +333,13 @@ private fun BasicsStep(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = stringResource(R.string.platform_basics_description),
+            text = stringResource(
+                if (clientType == ClientType.LITERT_LM) {
+                    R.string.local_platform_basics_description
+                } else {
+                    R.string.platform_basics_description
+                }
+            ),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -330,25 +359,27 @@ private fun BasicsStep(
             }
         )
 
-        Spacer(modifier = Modifier.height(20.dp))
+        if (isApiUrlVisible) {
+            Spacer(modifier = Modifier.height(20.dp))
 
-        // API URL
-        OutlinedTextField(
-            value = apiUrl,
-            onValueChange = onApiUrlChange,
-            label = { Text(stringResource(R.string.api_url)) },
-            placeholder = { Text(stringResource(R.string.api_url_hint)) },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            enabled = clientType != ClientType.GOOGLE,
-            supportingText = {
-                if (clientType == ClientType.GOOGLE) {
-                    Text(stringResource(R.string.client_type_google_desc))
-                } else {
-                    Text(stringResource(R.string.api_url_cautions))
+            // API URL
+            OutlinedTextField(
+                value = apiUrl,
+                onValueChange = onApiUrlChange,
+                label = { Text(stringResource(R.string.api_url)) },
+                placeholder = { Text(stringResource(R.string.api_url_hint)) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                enabled = clientType != ClientType.GOOGLE,
+                supportingText = {
+                    if (clientType == ClientType.GOOGLE) {
+                        Text(stringResource(R.string.client_type_google_desc))
+                    } else {
+                        Text(stringResource(R.string.api_url_cautions))
+                    }
                 }
-            }
-        )
+            )
+        }
     }
 }
 
@@ -363,7 +394,7 @@ private fun ApiKeyStep(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp)
+            .padding(horizontal = 24.dp)
     ) {
         Text(
             modifier = Modifier.semantics { heading() },
@@ -427,6 +458,39 @@ private fun ApiKeyStep(
 }
 
 @Composable
+private fun LocalModelStep(
+    items: List<LocalModelListItem>,
+    selectedCatalogEntryId: String,
+    checkingAccessEntryId: String?,
+    showPendingActivationHint: Boolean,
+    onModelSelected: (String) -> Unit,
+    onNavigateToLocalModels: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp)
+    ) {
+        Text(
+            modifier = Modifier.semantics { heading() },
+            text = stringResource(R.string.step_model),
+            style = MaterialTheme.typography.headlineSmall
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        LocalModelCatalogPicker(
+            items = items,
+            selectedCatalogEntryId = selectedCatalogEntryId,
+            checkingAccessEntryId = checkingAccessEntryId,
+            showPendingActivationHint = showPendingActivationHint,
+            onModelSelected = onModelSelected,
+            onNavigateToLocalModels = onNavigateToLocalModels
+        )
+    }
+}
+
+@Composable
 private fun ModelStep(
     model: String,
     onModelChange: (String) -> Unit,
@@ -436,7 +500,7 @@ private fun ModelStep(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp)
+            .padding(horizontal = 24.dp)
     ) {
         Text(
             modifier = Modifier.semantics { heading() },
@@ -479,48 +543,43 @@ private fun ModelStep(
 }
 
 @Composable
-private fun WizardNavigationButtons(
-    currentStep: Int,
+private fun WizardNavigationButton(
     canProceed: Boolean,
-    onBack: () -> Unit,
     onNext: () -> Unit,
     isLastStep: Boolean,
+    isSaving: Boolean = false,
+    errorMessage: String? = null,
     modifier: Modifier = Modifier
 ) {
-    Row(
+    Column(
         modifier = modifier
-            .fillMaxWidth()
-            .padding(20.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+            .padding(horizontal = 24.dp, vertical = 12.dp)
     ) {
-        // Back button
-        OutlinedButton(
-            onClick = onBack,
-            modifier = Modifier.weight(1f)
-        ) {
+        errorMessage?.let { message ->
             Text(
-                text = if (currentStep == 0) {
-                    stringResource(R.string.cancel)
-                } else {
-                    stringResource(R.string.back)
-                }
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics {
+                        error(message)
+                        liveRegion = LiveRegionMode.Assertive
+                    }
+                    .padding(bottom = 8.dp)
             )
         }
-
-        // Next/Finish button
-        Button(
+        PrimaryLongButton(
+            enabled = canProceed,
             onClick = onNext,
-            modifier = Modifier.weight(1f),
-            enabled = canProceed
-        ) {
-            Text(
-                text = if (isLastStep) {
-                    stringResource(R.string.finish)
-                } else {
-                    stringResource(R.string.next)
+            text = stringResource(
+                when {
+                    isLastStep && isSaving -> R.string.saving
+                    isLastStep -> R.string.finish
+                    else -> R.string.next
                 }
             )
-        }
+        )
     }
 }
 
@@ -532,4 +591,5 @@ private fun getApiHelpUrl(clientType: ClientType): String? = when (clientType) {
     ClientType.OLLAMA -> "https://ollama.com/blog/openai-compatibility"
     ClientType.OPENROUTER -> "https://openrouter.ai/keys"
     ClientType.CUSTOM -> null
+    ClientType.LITERT_LM -> null
 }

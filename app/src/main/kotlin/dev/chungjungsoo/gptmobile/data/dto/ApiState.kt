@@ -4,6 +4,8 @@ sealed class ApiState {
     data object Loading : ApiState()
     data class Thinking(val thinkingChunk: String) : ApiState()
     data class Success(val textChunk: String) : ApiState()
+    data class ToolCall(val toolSequence: Int) : ApiState()
+    data class Notice(val message: String, val persistent: Boolean = false) : ApiState()
     data class Error(val message: String) : ApiState()
     data object Done : ApiState()
 }

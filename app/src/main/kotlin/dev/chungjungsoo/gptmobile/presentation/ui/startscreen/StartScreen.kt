@@ -39,6 +39,7 @@ fun StartScreen(onStartClick: () -> Unit) {
             Spacer(modifier = Modifier.weight(1f))
             WelcomeText()
             PrimaryLongButton(
+                modifier = Modifier.padding(20.dp),
                 onClick = onStartClick,
                 text = stringResource(R.string.get_started)
             )

@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.setting
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -10,15 +11,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
@@ -27,6 +27,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -43,9 +45,9 @@ import dev.chungjungsoo.gptmobile.presentation.common.LocalThemeMode
 import dev.chungjungsoo.gptmobile.presentation.common.LocalThemeViewModel
 import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
 import dev.chungjungsoo.gptmobile.presentation.common.SettingItem
+import dev.chungjungsoo.gptmobile.presentation.common.SettingsSection
 import dev.chungjungsoo.gptmobile.util.getClientTypeDisplayName
 import dev.chungjungsoo.gptmobile.util.getDynamicThemeTitle
-import dev.chungjungsoo.gptmobile.util.getThemeModeTitle
 import dev.chungjungsoo.gptmobile.util.pinnedExitUntilCollapsedScrollBehavior
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,6 +58,8 @@ fun SettingScreen(
     onNavigationClick: () -> Unit,
     onNavigateToAddPlatform: () -> Unit,
     onNavigateToPlatformSetting: (String) -> Unit,
+    onNavigateToLocalModels: () -> Unit,
+    onNavigateToToolConnections: () -> Unit,
     onNavigateToAboutPage: () -> Unit
 ) {
     val scrollState = rememberScrollState()
@@ -92,42 +96,65 @@ fun SettingScreen(
             Modifier
                 .padding(innerPadding)
                 .verticalScroll(scrollState)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            ThemeSetting { settingViewModel.openThemeDialog() }
-
-            // Add Platform button
-            SettingItem(
-                title = stringResource(R.string.add_platform),
-                description = stringResource(R.string.add_platform_description),
-                onItemClick = onNavigateToAddPlatform,
-                showTrailingIcon = false,
-                showLeadingIcon = true,
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Filled.Add,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
+            SettingsSection(title = stringResource(R.string.appearance)) {
+                ThemeSetting { settingViewModel.openThemeDialog() }
+            }
+            SettingsSection(title = stringResource(R.string.providers)) {
+                SettingItem(
+                    title = stringResource(R.string.add_platform),
+                    description = stringResource(R.string.add_platform_description),
+                    onItemClick = onNavigateToAddPlatform,
+                    showTrailingIcon = false,
+                    showLeadingIcon = true,
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Filled.Add,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                )
+                SettingItem(
+                    title = stringResource(R.string.local_models),
+                    description = stringResource(R.string.local_models_description),
+                    onItemClick = onNavigateToLocalModels,
+                    showTrailingIcon = true,
+                    showLeadingIcon = false
+                )
+                if (platformState.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.no_platforms_configured),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
                     )
+                } else {
+                    platformState.forEach { platform ->
+                        PlatformItem(
+                            platform = platform,
+                            onItemClick = { onNavigateToPlatformSetting(platform.uid) }
+                        )
+                    }
                 }
-            )
-
-            // Dynamic platform list
-            platformState.forEach { platform ->
-                PlatformItem(
-                    platform = platform,
-                    onItemClick = { onNavigateToPlatformSetting(platform.uid) },
-                    onDeleteClick = { settingViewModel.openDeleteDialog(platform.id) }
+            }
+            SettingsSection(title = stringResource(R.string.tools)) {
+                SettingItem(
+                    title = stringResource(R.string.web_tools),
+                    description = stringResource(R.string.web_tools_description),
+                    onItemClick = onNavigateToToolConnections,
+                    showTrailingIcon = true,
+                    showLeadingIcon = false
                 )
             }
-
-            AboutPageItem(onItemClick = onNavigateToAboutPage)
-
-            if (dialogState.isThemeDialogOpen) {
-                ThemeSettingDialog(settingViewModel)
+            SettingsSection(title = stringResource(R.string.settings_app)) {
+                AboutPageItem(onItemClick = onNavigateToAboutPage)
             }
 
-            if (dialogState.isDeleteDialogOpen) {
-                DeletePlatformDialog(settingViewModel)
+            if (dialogState.isThemeDialogOpen) {
+                ThemeSettingsSheet(settingViewModel)
             }
         }
     }
@@ -168,11 +195,20 @@ private fun SettingTopBar(
 fun ThemeSetting(
     onItemClick: () -> Unit
 ) {
+    val themeMode = when (LocalThemeMode.current) {
+        ThemeMode.SYSTEM -> stringResource(R.string.system_default)
+        ThemeMode.DARK -> stringResource(R.string.dark)
+        ThemeMode.LIGHT -> stringResource(R.string.light)
+    }
     SettingItem(
         title = stringResource(R.string.theme_settings),
-        description = stringResource(R.string.theme_description),
+        description = stringResource(
+            R.string.theme_summary,
+            getDynamicThemeTitle(LocalDynamicTheme.current),
+            themeMode
+        ),
         onItemClick = onItemClick,
-        showTrailingIcon = false,
+        showTrailingIcon = true,
         showLeadingIcon = false
     )
 }
@@ -190,71 +226,70 @@ fun AboutPageItem(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ThemeSettingDialog(
+private fun ThemeSettingsSheet(
     settingViewModel: SettingViewModelV2 = hiltViewModel()
 ) {
     val themeViewModel = LocalThemeViewModel.current
-    AlertDialog(
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState())
-            ) {
-                Text(text = stringResource(R.string.dynamic_theme), style = MaterialTheme.typography.titleMedium)
-                Spacer(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(16.dp)
-                )
-                DynamicTheme.entries.forEach { theme ->
-                    RadioItem(
-                        title = getDynamicThemeTitle(theme),
-                        description = null,
-                        value = theme.name,
-                        selected = LocalDynamicTheme.current == theme
-                    ) {
-                        themeViewModel.updateDynamicTheme(theme)
-                    }
-                }
-                Spacer(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(24.dp)
-                )
-                Text(text = stringResource(R.string.dark_mode), style = MaterialTheme.typography.titleMedium)
-                Spacer(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(16.dp)
-                )
-                ThemeMode.entries.forEach { theme ->
-                    RadioItem(
-                        title = getThemeModeTitle(theme),
-                        description = null,
-                        value = theme.name,
-                        selected = LocalThemeMode.current == theme
-                    ) {
-                        themeViewModel.updateThemeMode(theme)
-                    }
+    ModalBottomSheet(onDismissRequest = settingViewModel::closeThemeDialog) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.theme_settings),
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier
+                    .semantics { heading() }
+                    .padding(horizontal = 8.dp, vertical = 12.dp)
+            )
+            Text(
+                text = stringResource(R.string.dynamic_theme),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
+            )
+            DynamicTheme.entries.forEach { theme ->
+                RadioItem(
+                    title = getDynamicThemeTitle(theme),
+                    description = null,
+                    value = theme.name,
+                    selected = LocalDynamicTheme.current == theme
+                ) {
+                    themeViewModel.updateDynamicTheme(theme)
                 }
             }
-        },
-        onDismissRequest = settingViewModel::closeThemeDialog,
-        confirmButton = {
-            TextButton(
-                onClick = settingViewModel::closeThemeDialog
-            ) {
-                Text(stringResource(R.string.confirm))
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = stringResource(R.string.theme_mode),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
+            )
+            ThemeMode.entries.forEach { theme ->
+                RadioItem(
+                    title = when (theme) {
+                        ThemeMode.SYSTEM -> stringResource(R.string.system_default)
+                        ThemeMode.DARK -> stringResource(R.string.dark)
+                        ThemeMode.LIGHT -> stringResource(R.string.light)
+                    },
+                    description = null,
+                    value = theme.name,
+                    selected = LocalThemeMode.current == theme
+                ) {
+                    themeViewModel.updateThemeMode(theme)
+                }
             }
+            Spacer(modifier = Modifier.height(32.dp))
         }
-    )
+    }
 }
 
 @Composable
 fun PlatformItem(
     platform: PlatformV2,
-    onItemClick: () -> Unit,
-    onDeleteClick: () -> Unit
+    onItemClick: () -> Unit
 ) {
     SettingItem(
         title = platform.name,
@@ -262,34 +297,5 @@ fun PlatformItem(
         onItemClick = onItemClick,
         showTrailingIcon = true,
         showLeadingIcon = false
-    )
-}
-
-@Composable
-fun DeletePlatformDialog(
-    settingViewModel: SettingViewModelV2 = hiltViewModel()
-) {
-    AlertDialog(
-        title = {
-            Text(stringResource(R.string.delete_platform))
-        },
-        text = {
-            Text(stringResource(R.string.delete_platform_confirmation))
-        },
-        onDismissRequest = settingViewModel::closeDeleteDialog,
-        confirmButton = {
-            TextButton(
-                onClick = settingViewModel::confirmDelete
-            ) {
-                Text(stringResource(R.string.delete))
-            }
-        },
-        dismissButton = {
-            TextButton(
-                onClick = settingViewModel::closeDeleteDialog
-            ) {
-                Text(stringResource(R.string.cancel))
-            }
-        }
     )
 }

@@ -6,11 +6,17 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+data class AddPlatformSaveState(
+    val isSaving: Boolean = false,
+    val errorMessage: String? = null
+)
 
 @HiltViewModel
 class SettingViewModelV2 @Inject constructor(
@@ -23,6 +29,9 @@ class SettingViewModelV2 @Inject constructor(
     private val _dialogState = MutableStateFlow(DialogState())
     val dialogState: StateFlow<DialogState> = _dialogState.asStateFlow()
 
+    private val _addPlatformSaveState = MutableStateFlow(AddPlatformSaveState())
+    val addPlatformSaveState: StateFlow<AddPlatformSaveState> = _addPlatformSaveState.asStateFlow()
+
     init {
         fetchPlatforms()
     }
@@ -34,10 +43,32 @@ class SettingViewModelV2 @Inject constructor(
         }
     }
 
-    fun addPlatform(platform: PlatformV2) {
+    fun addPlatform(
+        platform: PlatformV2,
+        onSuccess: () -> Unit = {}
+    ) {
+        if (_addPlatformSaveState.value.isSaving) return
+        _addPlatformSaveState.value = AddPlatformSaveState(isSaving = true)
         viewModelScope.launch {
-            settingRepository.addPlatformV2(platform)
-            fetchPlatforms()
+            try {
+                settingRepository.addPlatformV2(platform)
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (throwable: Throwable) {
+                _addPlatformSaveState.value = AddPlatformSaveState(
+                    errorMessage = throwable.message ?: "Could not save platform"
+                )
+                return@launch
+            }
+            try {
+                val platforms = settingRepository.fetchPlatformV2s()
+                _platformState.update { platforms }
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (_: Throwable) {
+            }
+            _addPlatformSaveState.value = AddPlatformSaveState()
+            onSuccess()
         }
     }
 

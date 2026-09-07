@@ -23,6 +23,7 @@
 # Build
 /build
 /captures
+/.worktrees/
 .externalNativeBuild
 .cxx
 app/release/**

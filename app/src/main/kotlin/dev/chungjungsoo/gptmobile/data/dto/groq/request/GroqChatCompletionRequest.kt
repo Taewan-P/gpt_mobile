@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.dto.groq.request
 
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatFunctionTool
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatMessage
 import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.ExperimentalSerializationApi
@@ -45,5 +46,9 @@ data class GroqChatCompletionRequest(
 
     @SerialName("stop")
     @EncodeDefault(EncodeDefault.Mode.NEVER)
-    val stop: List<String>? = null
+    val stop: List<String>? = null,
+
+    @SerialName("tools")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val tools: List<ChatFunctionTool>? = null
 )

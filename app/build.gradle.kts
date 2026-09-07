@@ -1,6 +1,7 @@
 @file:Suppress("UnstableApiUsage")
 
 import com.android.build.api.dsl.ApplicationExtension
+import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import org.gradle.kotlin.dsl.aboutLibraries
 import org.gradle.kotlin.dsl.configure
 
@@ -22,13 +23,28 @@ extensions.configure<ApplicationExtension> {
         applicationId = "dev.chungjungsoo.gptmobile"
         minSdk = 28
         targetSdk = 37
-        versionCode = 22
-        versionName = "0.7.6"
+        versionCode = 24
+        versionName = "0.9.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        // Hugging Face OAuth. Replace these after registering an HF OAuth app;
+        // the gallery credentials cannot be reused.
+        manifestPlaceholders["appAuthRedirectScheme"] =
+            "REPLACE_WITH_YOUR_REDIRECT_SCHEME_IN_HUGGINGFACE_APP"
+        buildConfigField(
+            "String",
+            "HF_OAUTH_CLIENT_ID",
+            "\"REPLACE_WITH_YOUR_CLIENT_ID_IN_HUGGINGFACE_APP\""
+        )
+        buildConfigField(
+            "String",
+            "HF_OAUTH_REDIRECT_URI",
+            "\"REPLACE_WITH_YOUR_REDIRECT_URI_IN_HUGGINGFACE_APP\""
+        )
     }
 
     androidResources {
@@ -55,6 +71,7 @@ extensions.configure<ApplicationExtension> {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     packaging {
         resources {
@@ -62,6 +79,12 @@ extensions.configure<ApplicationExtension> {
             excludes += "META-INF/INDEX.LIST"
             excludes += "META-INF/io.netty.versions.properties"
         }
+    }
+}
+
+extensions.configure<ApplicationAndroidComponentsExtension> {
+    onVariants { variant ->
+        variant.androidTest?.sources?.assets?.addStaticSourceDirectory("$projectDir/schemas")
     }
 }
 
@@ -92,13 +115,28 @@ dependencies {
     implementation(libs.hilt)
     implementation(libs.androidx.lifecycle.runtime.compose.android)
     ksp(libs.hilt.compiler)
+    implementation(libs.androidx.hilt.work)
+    ksp(libs.androidx.hilt.compiler)
+    implementation(libs.androidx.work.runtime.ktx)
 
     // Ktor
     implementation(libs.ktor.content.negotiation)
     implementation(libs.ktor.core)
     implementation(libs.ktor.client.cio)
+    implementation(libs.ktor.client.okhttp)
     implementation(libs.ktor.logging)
     implementation(libs.ktor.serialization)
+    implementation(libs.mcp.kotlin.sdk.client) {
+        // The SDK bytecode targets Kotlin 2.1, but its 2.4 stdlib confuses Hilt's 2.3 metadata reader.
+        exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib")
+    }
+
+    // OAuth browser flow
+    implementation(libs.androidx.browser)
+    implementation(libs.openid.appauth)
+
+    // On-device LiteRT-LM serving
+    implementation(libs.litertlm)
 
     // License page UI
     implementation(libs.auto.license.core)
@@ -123,10 +161,12 @@ dependencies {
 
     // Test
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
+    androidTestImplementation(libs.room.testing)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 }

@@ -4,6 +4,7 @@ import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 
 @OptIn(ExperimentalSerializationApi::class)
 @Serializable
@@ -47,5 +48,34 @@ data class ChatCompletionRequest(
 
     @SerialName("stop")
     @EncodeDefault(EncodeDefault.Mode.NEVER)
-    val stop: List<String>? = null
+    val stop: List<String>? = null,
+
+    @SerialName("tools")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val tools: List<ChatFunctionTool>? = null
+)
+
+@Serializable
+data class ChatFunctionTool(
+    @SerialName("type")
+    val type: String = "function",
+
+    @SerialName("function")
+    val function: ChatFunctionDefinition
+) {
+    constructor(name: String, description: String, parameters: JsonObject) : this(
+        function = ChatFunctionDefinition(name, description, parameters)
+    )
+}
+
+@Serializable
+data class ChatFunctionDefinition(
+    @SerialName("name")
+    val name: String,
+
+    @SerialName("description")
+    val description: String,
+
+    @SerialName("parameters")
+    val parameters: JsonObject
 )

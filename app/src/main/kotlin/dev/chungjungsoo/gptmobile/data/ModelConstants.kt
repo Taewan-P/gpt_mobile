@@ -1,14 +1,24 @@
 package dev.chungjungsoo.gptmobile.data
 
 import dev.chungjungsoo.gptmobile.data.model.ApiType
+import dev.chungjungsoo.gptmobile.data.model.ClientType
 
 object ModelConstants {
     // LinkedHashSet should be used to guarantee item order
-    val openaiModels = linkedSetOf("gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4")
-    val anthropicModels = linkedSetOf("claude-3-5-sonnet-20240620", "claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307")
-    val googleModels = linkedSetOf("gemini-1.5-pro-latest", "gemini-1.5-flash-latest", "gemini-1.0-pro")
-    val groqModels = linkedSetOf("llama-3.2-3b-preview", "llama-3.2-1b-preview", "llama-3.1-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it")
-    val ollamaModels = linkedSetOf<String>()
+    const val OPENAI_DEFAULT_MODEL = "gpt-5.6"
+    const val ANTHROPIC_DEFAULT_MODEL = "claude-sonnet-5"
+    const val GOOGLE_DEFAULT_MODEL = "gemini-3.7-flash"
+    const val GROQ_DEFAULT_MODEL = "openai/gpt-oss-120b"
+    const val OLLAMA_DEFAULT_MODEL = "gpt-oss"
+
+    // OpenRouter has no unsuffixed alias; only the explicit tier slugs are served.
+    const val OPENROUTER_DEFAULT_MODEL = "openai/gpt-5.6-sol"
+
+    val openaiModels = linkedSetOf(OPENAI_DEFAULT_MODEL, "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano")
+    val anthropicModels = linkedSetOf(ANTHROPIC_DEFAULT_MODEL, "claude-opus-5", "claude-sonnet-4-6", "claude-haiku-4-5-20251001")
+    val googleModels = linkedSetOf(GOOGLE_DEFAULT_MODEL, "gemini-3.1-pro-preview", "gemini-3-flash-preview", "gemini-2.5-flash")
+    val groqModels = linkedSetOf(GROQ_DEFAULT_MODEL, "openai/gpt-oss-20b", "qwen/qwen3.6-27b", "llama-3.3-70b-versatile")
+    val ollamaModels = linkedSetOf(OLLAMA_DEFAULT_MODEL)
 
     const val OPENAI_API_URL = "https://api.openai.com/v1/"
     const val ANTHROPIC_API_URL = "https://api.anthropic.com/v1/"
@@ -33,6 +43,39 @@ object ModelConstants {
         "https://openrouter.ai/api", "https://openrouter.ai/api/" -> OPENROUTER_API_URL
         "http://localhost:11434", "http://localhost:11434/" -> OLLAMA_API_URL
         else -> apiUrl
+    }
+
+    fun defaultPlatformName(clientType: ClientType): String = when (clientType) {
+        ClientType.OPENAI -> "OpenAI"
+        ClientType.ANTHROPIC -> "Anthropic"
+        ClientType.GOOGLE -> "Google"
+        ClientType.GROQ -> "Groq"
+        ClientType.OLLAMA -> "Ollama"
+        ClientType.OPENROUTER -> "OpenRouter"
+        ClientType.CUSTOM -> ""
+        ClientType.LITERT_LM -> "Local"
+    }
+
+    fun defaultApiUrl(clientType: ClientType): String = when (clientType) {
+        ClientType.OPENAI -> OPENAI_API_URL
+        ClientType.ANTHROPIC -> ANTHROPIC_API_URL
+        ClientType.GOOGLE -> GOOGLE_API_URL
+        ClientType.GROQ -> GROQ_API_URL
+        ClientType.OLLAMA -> OLLAMA_API_URL
+        ClientType.OPENROUTER -> OPENROUTER_API_URL
+        ClientType.CUSTOM -> ""
+        ClientType.LITERT_LM -> ""
+    }
+
+    fun defaultModel(clientType: ClientType): String = when (clientType) {
+        ClientType.OPENAI -> OPENAI_DEFAULT_MODEL
+        ClientType.ANTHROPIC -> ANTHROPIC_DEFAULT_MODEL
+        ClientType.GOOGLE -> GOOGLE_DEFAULT_MODEL
+        ClientType.GROQ -> GROQ_DEFAULT_MODEL
+        ClientType.OLLAMA -> OLLAMA_DEFAULT_MODEL
+        ClientType.OPENROUTER -> OPENROUTER_DEFAULT_MODEL
+        ClientType.CUSTOM -> ""
+        ClientType.LITERT_LM -> ""
     }
 
     const val ANTHROPIC_MAXIMUM_TOKEN = 4096

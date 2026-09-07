@@ -9,6 +9,7 @@ interface SettingRepository {
     suspend fun fetchPlatformV2s(): List<PlatformV2>
     suspend fun fetchThemes(): ThemeSetting
     suspend fun migrateToPlatformV2()
+    suspend fun migrateSecrets(): List<SecretMigrationError>
     suspend fun updatePlatforms(platforms: List<Platform>)
     suspend fun updateThemes(themeSetting: ThemeSetting)
 
@@ -18,3 +19,5 @@ interface SettingRepository {
     suspend fun deletePlatformV2(platform: PlatformV2)
     suspend fun getPlatformV2ById(id: Int): PlatformV2?
 }
+
+data class SecretMigrationError(val source: String, val message: String)

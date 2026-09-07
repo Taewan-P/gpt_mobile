@@ -247,6 +247,28 @@ data class OutputItemDoneEvent(
     val item: OutputItem
 ) : ResponsesStreamEvent()
 
+@Serializable
+@SerialName("response.function_call_arguments.delta")
+data class FunctionCallArgumentsDeltaEvent(
+    @SerialName("item_id")
+    val itemId: String,
+    @SerialName("output_index")
+    val outputIndex: Int,
+    @SerialName("delta")
+    val delta: String
+) : ResponsesStreamEvent()
+
+@Serializable
+@SerialName("response.function_call_arguments.done")
+data class FunctionCallArgumentsDoneEvent(
+    @SerialName("item_id")
+    val itemId: String,
+    @SerialName("output_index")
+    val outputIndex: Int,
+    @SerialName("arguments")
+    val arguments: String
+) : ResponsesStreamEvent()
+
 /**
  * Catch-all for unrecognized events
  */
@@ -290,7 +312,16 @@ data class OutputItem(
     val type: String,
 
     @SerialName("id")
-    val id: String
+    val id: String,
+
+    @SerialName("call_id")
+    val callId: String? = null,
+
+    @SerialName("name")
+    val name: String? = null,
+
+    @SerialName("arguments")
+    val arguments: String? = null
 )
 
 @Serializable

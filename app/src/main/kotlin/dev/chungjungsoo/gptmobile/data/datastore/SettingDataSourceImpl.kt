@@ -99,6 +99,12 @@ class SettingDataSourceImpl @Inject constructor(
         }
     }
 
+    override suspend fun clearToken(apiType: ApiType) {
+        dataStore.edit { pref ->
+            pref.remove(apiTokenMap[apiType]!!)
+        }
+    }
+
     override suspend fun updateModel(apiType: ApiType, model: String) {
         dataStore.edit { pref ->
             pref[apiModelMap[apiType]!!] = model

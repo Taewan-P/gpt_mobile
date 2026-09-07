@@ -18,12 +18,17 @@ class ContextBuilder @Inject constructor() {
         if (userMessages.isEmpty()) return emptyList()
 
         val rawTurns = userMessages.mapIndexed { index, userMessage ->
-            val assistantMessage = assistantMessages.getOrNull(index)
-                ?.firstValidAssistantCandidate(platform.uid)
+            val assistantCandidates = assistantMessages.getOrNull(index).orEmpty()
+                .filter { it.platformType == platform.uid }
+            val assistantMessage = assistantCandidates.firstValidAssistantCandidate(platform.uid)
 
             RawConversationTurn(
                 userMessage = userMessage,
                 assistantMessage = assistantMessage,
+                hasAssistantError = assistantMessage == null &&
+                    assistantCandidates.any { candidate ->
+                        isAssistantErrorMessage(sanitizeAssistantMessageForContext(candidate).content)
+                    },
                 isCurrentTurn = index == userMessages.lastIndex
             )
         }
@@ -31,8 +36,7 @@ class ContextBuilder @Inject constructor() {
         val filteredTurns = rawTurns.filter { turn ->
             when {
                 turn.isCurrentTurn -> true
-                turn.assistantMessage == null -> false
-                turn.assistantMessage.effectiveContent().isBlank() && turn.assistantMessage.attachments.isEmpty() -> false
+                turn.hasAssistantError -> false
                 else -> true
             }
         }
@@ -110,5 +114,6 @@ class ContextBuilder @Inject constructor() {
 private data class RawConversationTurn(
     val userMessage: MessageV2,
     val assistantMessage: MessageV2?,
+    val hasAssistantError: Boolean,
     val isCurrentTurn: Boolean
 )

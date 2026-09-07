@@ -7,6 +7,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -29,7 +30,9 @@ class MigrateViewModel @Inject constructor(
         val platformState: MigrationState = MigrationState.READY,
         val chatState: MigrationState = MigrationState.BLOCKED,
         val numberOfPlatforms: Int = 0,
-        val numberOfChats: Int = 0
+        val numberOfChats: Int = 0,
+        val platformErrorMessage: String? = null,
+        val chatErrorMessage: String? = null
     )
 
     private val _uiState = MutableStateFlow(MigrationUIState())
@@ -40,32 +43,70 @@ class MigrateViewModel @Inject constructor(
     }
 
     fun migratePlatform() {
+        val currentState = _uiState.value.platformState
+        if (currentState != MigrationState.READY && currentState != MigrationState.ERROR) return
         viewModelScope.launch {
             try {
-                _uiState.update { it.copy(platformState = MigrationState.MIGRATING) }
+                _uiState.update {
+                    it.copy(
+                        platformState = MigrationState.MIGRATING,
+                        platformErrorMessage = null
+                    )
+                }
                 settingRepository.migrateToPlatformV2()
                 _uiState.update {
                     it.copy(
                         platformState = MigrationState.MIGRATED,
-                        chatState = MigrationState.READY
+                        chatState = MigrationState.READY,
+                        platformErrorMessage = null
                     )
                 }
-            } catch (e: Exception) {
-                _uiState.update { it.copy(platformState = MigrationState.ERROR) }
-                Log.e("Migration", "Error migrating platform", e)
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (throwable: Throwable) {
+                _uiState.update {
+                    it.copy(
+                        platformState = MigrationState.ERROR,
+                        platformErrorMessage = throwable.message.orEmpty()
+                    )
+                }
+                Log.e("Migration", "Error migrating platform", throwable)
             }
         }
     }
 
     fun migrateChats() {
+        val state = _uiState.value
+        if (state.platformState != MigrationState.MIGRATED ||
+            (state.chatState != MigrationState.READY && state.chatState != MigrationState.ERROR)
+        ) {
+            return
+        }
         viewModelScope.launch {
             try {
-                _uiState.update { it.copy(chatState = MigrationState.MIGRATING) }
+                _uiState.update {
+                    it.copy(
+                        chatState = MigrationState.MIGRATING,
+                        chatErrorMessage = null
+                    )
+                }
                 chatRepository.migrateToChatRoomV2MessageV2()
-                _uiState.update { it.copy(chatState = MigrationState.MIGRATED) }
-            } catch (e: Exception) {
-                _uiState.update { it.copy(chatState = MigrationState.ERROR) }
-                Log.e("Migration", "Error migrating platform", e)
+                _uiState.update {
+                    it.copy(
+                        chatState = MigrationState.MIGRATED,
+                        chatErrorMessage = null
+                    )
+                }
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (throwable: Throwable) {
+                _uiState.update {
+                    it.copy(
+                        chatState = MigrationState.ERROR,
+                        chatErrorMessage = throwable.message.orEmpty()
+                    )
+                }
+                Log.e("Migration", "Error migrating chats", throwable)
             }
         }
     }

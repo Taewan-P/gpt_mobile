@@ -3,13 +3,24 @@ package dev.chungjungsoo.gptmobile.presentation.ui.chat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -20,26 +31,164 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveThoughts
+import dev.chungjungsoo.gptmobile.data.model.ClientType
+import dev.chungjungsoo.gptmobile.presentation.common.SettingItem
+import dev.chungjungsoo.gptmobile.presentation.ui.setup.DownloadedLocalModelOption
+import dev.chungjungsoo.gptmobile.presentation.ui.setup.LocalModelPicker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+internal enum class MessageActionRole {
+    USER,
+    ASSISTANT
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun MessageActionsSheet(
+    role: MessageActionRole,
+    canCopy: Boolean,
+    canEdit: Boolean,
+    canSelectText: Boolean,
+    canRetry: Boolean,
+    revisionIndexLabel: String?,
+    canShowPreviousRevision: Boolean,
+    canShowNextRevision: Boolean,
+    onCopy: () -> Unit,
+    onSelectText: () -> Unit,
+    onEdit: () -> Unit,
+    onRetry: () -> Unit,
+    onPreviousRevision: () -> Unit,
+    onNextRevision: () -> Unit,
+    onDismissRequest: () -> Unit
+) {
+    fun runAction(action: () -> Unit) {
+        onDismissRequest()
+        action()
+    }
+
+    ModalBottomSheet(onDismissRequest = onDismissRequest) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.message_actions),
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier
+                    .semantics { heading() }
+                    .padding(horizontal = 8.dp, vertical = 12.dp)
+            )
+            when (role) {
+                MessageActionRole.USER -> {
+                    SettingItem(
+                        title = stringResource(R.string.copy_text),
+                        enabled = canCopy,
+                        onItemClick = { runAction(onCopy) },
+                        showTrailingIcon = false,
+                        showLeadingIcon = false
+                    )
+                    SettingItem(
+                        title = stringResource(R.string.edit),
+                        enabled = canEdit,
+                        onItemClick = { runAction(onEdit) },
+                        showTrailingIcon = false,
+                        showLeadingIcon = false
+                    )
+                }
+
+                MessageActionRole.ASSISTANT -> {
+                    if (canCopy) {
+                        SettingItem(
+                            title = stringResource(R.string.copy_text),
+                            onItemClick = { runAction(onCopy) },
+                            showTrailingIcon = false,
+                            showLeadingIcon = false
+                        )
+                    }
+                    if (canSelectText) {
+                        SettingItem(
+                            title = stringResource(R.string.select_text),
+                            onItemClick = { runAction(onSelectText) },
+                            showTrailingIcon = false,
+                            showLeadingIcon = false
+                        )
+                    }
+                    if (canEdit) {
+                        SettingItem(
+                            title = stringResource(R.string.edit),
+                            onItemClick = { runAction(onEdit) },
+                            showTrailingIcon = false,
+                            showLeadingIcon = false
+                        )
+                    }
+                    if (canRetry) {
+                        SettingItem(
+                            title = stringResource(R.string.retry),
+                            description = stringResource(R.string.retry_tools_warning),
+                            onItemClick = { runAction(onRetry) },
+                            showTrailingIcon = false,
+                            showLeadingIcon = false
+                        )
+                    }
+                    revisionIndexLabel?.let { label ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(
+                                enabled = canShowPreviousRevision,
+                                onClick = { runAction(onPreviousRevision) }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                                    contentDescription = stringResource(R.string.previous_revision)
+                                )
+                            }
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelLarge,
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(
+                                enabled = canShowNextRevision,
+                                onClick = { runAction(onNextRevision) }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                    contentDescription = stringResource(R.string.next_revision)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
 
 @Composable
 fun ChatModelDialog(
     platformOrder: List<String>,
     initialModels: Map<String, String>,
     platformNames: Map<String, String>,
+    platformClientTypes: Map<String, ClientType> = emptyMap(),
+    downloadedLocalModels: List<DownloadedLocalModelOption> = emptyList(),
+    onNavigateToLocalModels: () -> Unit = {},
     onDismissRequest: () -> Unit,
     onConfirmRequest: (Map<String, String>) -> Unit
 ) {
@@ -64,20 +213,36 @@ fun ChatModelDialog(
                 )
                 platformOrder.forEach { platformUid ->
                     val platformName = platformNames[platformUid] ?: stringResource(R.string.unknown)
-                    OutlinedTextField(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 8.dp),
-                        value = models[platformUid].orEmpty(),
-                        onValueChange = { value ->
-                            models = models.toMutableMap().apply { put(platformUid, value) }
-                        },
-                        singleLine = true,
-                        label = { Text(text = stringResource(R.string.chat_model_for_platform, platformName)) },
-                        supportingText = {
-                            Text(stringResource(R.string.model_supporting))
-                        }
-                    )
+                    if (platformClientTypes[platformUid] == ClientType.LITERT_LM) {
+                        Text(
+                            text = stringResource(R.string.chat_model_for_platform, platformName),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                        LocalModelPicker(
+                            models = downloadedLocalModels,
+                            selectedCatalogEntryId = models[platformUid].orEmpty(),
+                            onModelSelected = { value ->
+                                models = models.toMutableMap().apply { put(platformUid, value) }
+                            },
+                            onNavigateToLocalModels = onNavigateToLocalModels,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
+                        )
+                    } else {
+                        OutlinedTextField(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 8.dp),
+                            value = models[platformUid].orEmpty(),
+                            onValueChange = { value ->
+                                models = models.toMutableMap().apply { put(platformUid, value) }
+                            },
+                            singleLine = true,
+                            label = { Text(text = stringResource(R.string.chat_model_for_platform, platformName)) },
+                            supportingText = {
+                                Text(stringResource(R.string.model_supporting))
+                            }
+                        )
+                    }
                 }
             }
         },

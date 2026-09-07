@@ -11,6 +11,7 @@ import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.network.AnthropicAPI
 import dev.chungjungsoo.gptmobile.data.network.GoogleAPI
 import dev.chungjungsoo.gptmobile.data.network.OpenAIAPI
+import dev.chungjungsoo.gptmobile.data.network.ProviderRequestConfig
 import dev.chungjungsoo.gptmobile.util.FileUtils
 import java.io.File
 import javax.inject.Inject
@@ -40,10 +41,11 @@ class AttachmentUploadCoordinator @Inject constructor(
 
     suspend fun ensureMessageAttachmentsForPlatform(message: MessageV2, platform: PlatformV2): MessageV2 {
         if (message.attachments.isEmpty()) return message
+        val config = ProviderRequestConfig(platform.apiUrl, platform.token)
         val updatedAttachments = when (platform.compatibleType) {
-            ClientType.OPENAI -> message.attachments.map { ensureOpenAIRef(it, platform.uid) }
-            ClientType.ANTHROPIC -> message.attachments.map { ensureAnthropicRef(it, platform.uid) }
-            ClientType.GOOGLE -> message.attachments.map { ensureGoogleRef(it, platform.uid) }
+            ClientType.OPENAI -> message.attachments.map { ensureOpenAIRef(it, platform.uid, config) }
+            ClientType.ANTHROPIC -> message.attachments.map { ensureAnthropicRef(it, platform.uid, config) }
+            ClientType.GOOGLE -> message.attachments.map { ensureGoogleRef(it, platform.uid, config) }
             else -> message.attachments
         }
         return if (updatedAttachments == message.attachments) message else message.copy(attachments = updatedAttachments)
@@ -76,16 +78,24 @@ class AttachmentUploadCoordinator @Inject constructor(
         }
     }
 
-    private suspend fun ensureOpenAIRef(attachment: ChatAttachment, platformUid: String): ChatAttachment {
+    private suspend fun ensureOpenAIRef(
+        attachment: ChatAttachment,
+        platformUid: String,
+        config: ProviderRequestConfig
+    ): ChatAttachment {
         val existingRef = attachment.providerRefFor(platformUid)
-        if (existingRef?.remoteType == AttachmentRemoteType.OPENAI_FILE && openAIAPI.isFileAvailable(existingRef.remoteId)) {
+        if (
+            existingRef?.remoteType == AttachmentRemoteType.OPENAI_FILE &&
+            openAIAPI.isFileAvailable(existingRef.remoteId, config)
+        ) {
             return attachment
         }
 
         val uploadFile = openAIAPI.uploadFile(
             filePath = resolveUploadFilePath(attachment),
             fileName = attachment.resolvedDisplayName,
-            mimeType = resolveMimeType(attachment)
+            mimeType = resolveMimeType(attachment),
+            config = config
         )
         return attachment.upsertProviderRef(
             AttachmentProviderRef(
@@ -98,16 +108,24 @@ class AttachmentUploadCoordinator @Inject constructor(
         )
     }
 
-    private suspend fun ensureAnthropicRef(attachment: ChatAttachment, platformUid: String): ChatAttachment {
+    private suspend fun ensureAnthropicRef(
+        attachment: ChatAttachment,
+        platformUid: String,
+        config: ProviderRequestConfig
+    ): ChatAttachment {
         val existingRef = attachment.providerRefFor(platformUid)
-        if (existingRef?.remoteType == AttachmentRemoteType.ANTHROPIC_FILE && anthropicAPI.isFileAvailable(existingRef.remoteId)) {
+        if (
+            existingRef?.remoteType == AttachmentRemoteType.ANTHROPIC_FILE &&
+            anthropicAPI.isFileAvailable(existingRef.remoteId, config)
+        ) {
             return attachment
         }
 
         val uploadFile = anthropicAPI.uploadFile(
             filePath = resolveUploadFilePath(attachment),
             fileName = attachment.resolvedDisplayName,
-            mimeType = resolveMimeType(attachment)
+            mimeType = resolveMimeType(attachment),
+            config = config
         )
         return attachment.upsertProviderRef(
             AttachmentProviderRef(
@@ -120,12 +138,16 @@ class AttachmentUploadCoordinator @Inject constructor(
         )
     }
 
-    private suspend fun ensureGoogleRef(attachment: ChatAttachment, platformUid: String): ChatAttachment {
+    private suspend fun ensureGoogleRef(
+        attachment: ChatAttachment,
+        platformUid: String,
+        config: ProviderRequestConfig
+    ): ChatAttachment {
         val existingRef = attachment.providerRefFor(platformUid)
         if (
             existingRef?.remoteType == AttachmentRemoteType.GOOGLE_FILE &&
             !existingRef.remoteName.isNullOrBlank() &&
-            googleAPI.isFileAvailable(existingRef.remoteName)
+            googleAPI.isFileAvailable(existingRef.remoteName, config)
         ) {
             return attachment
         }
@@ -133,7 +155,8 @@ class AttachmentUploadCoordinator @Inject constructor(
         val uploadFile = googleAPI.uploadFile(
             filePath = resolveUploadFilePath(attachment),
             fileName = attachment.resolvedDisplayName,
-            mimeType = resolveMimeType(attachment)
+            mimeType = resolveMimeType(attachment),
+            config = config
         )
         return attachment.upsertProviderRef(
             AttachmentProviderRef(

@@ -1,6 +1,7 @@
 package dev.chungjungsoo.gptmobile.presentation.common
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
@@ -9,9 +10,14 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.chungjungsoo.gptmobile.R
@@ -27,60 +33,65 @@ fun SettingItem(
     showLeadingIcon: Boolean,
     leadingIcon: @Composable () -> Unit? = {}
 ) {
-    val clickableModifier = if (enabled) {
-        modifier
-            .fillMaxWidth()
-            .clickable(onClick = onItemClick)
-            .padding(horizontal = 8.dp)
+    val interactionModifier = if (enabled) {
+        Modifier.clickable(
+            role = Role.Button,
+            onClick = onItemClick
+        )
     } else {
-        modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp)
+        Modifier.semantics {
+            disabled()
+            role = Role.Button
+        }
     }
     val colors = ListItemDefaults.colors()
 
-    if (showLeadingIcon) {
-        ListItem(
-            modifier = clickableModifier,
-            headlineContent = { Text(title, overflow = TextOverflow.Ellipsis) },
-            supportingContent = {
-                description?.let { Text(it, overflow = TextOverflow.Ellipsis) }
-            },
-            leadingContent = { leadingIcon() },
-            trailingContent = {
-                if (showTrailingIcon) {
-                    Icon(
-                        ImageVector.vectorResource(id = R.drawable.ic_round_arrow_right),
-                        contentDescription = stringResource(R.string.arrow_icon)
-                    )
-                }
-            },
-            colors = ListItemDefaults.colors(
-                headlineColor = if (enabled) colors.headlineColor else colors.disabledHeadlineColor,
-                supportingColor = if (enabled) colors.supportingTextColor else colors.disabledHeadlineColor,
-                trailingIconColor = if (enabled) colors.trailingIconColor else colors.disabledTrailingIconColor
+    ListItem(
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) { }
+            .then(interactionModifier)
+            .padding(horizontal = 8.dp),
+        headlineContent = {
+            Text(
+                text = title,
+                overflow = TextOverflow.Ellipsis,
+                maxLines = 1
             )
-        )
-    } else {
-        ListItem(
-            modifier = clickableModifier,
-            headlineContent = { Text(title) },
-            supportingContent = {
-                description?.let { Text(it) }
-            },
-            trailingContent = {
-                if (showTrailingIcon) {
-                    Icon(
-                        ImageVector.vectorResource(id = R.drawable.ic_round_arrow_right),
-                        contentDescription = stringResource(R.string.arrow_icon)
-                    )
+        },
+        supportingContent = {
+            description?.let {
+                Text(
+                    text = it,
+                    overflow = TextOverflow.Ellipsis,
+                    maxLines = 2
+                )
+            }
+        },
+        leadingContent = if (showLeadingIcon) {
+            {
+                Box(modifier = Modifier.clearAndSetSemantics { }) {
+                    leadingIcon()
                 }
-            },
-            colors = ListItemDefaults.colors(
-                headlineColor = if (enabled) colors.headlineColor else colors.disabledHeadlineColor,
-                supportingColor = if (enabled) colors.supportingTextColor else colors.disabledHeadlineColor,
-                trailingIconColor = if (enabled) colors.trailingIconColor else colors.disabledTrailingIconColor
-            )
+            }
+        } else {
+            null
+        },
+        trailingContent = if (showTrailingIcon) {
+            {
+                Icon(
+                    imageVector = ImageVector.vectorResource(id = R.drawable.ic_round_arrow_right),
+                    contentDescription = null
+                )
+            }
+        } else {
+            null
+        },
+        colors = ListItemDefaults.colors(
+            containerColor = Color.Transparent,
+            headlineColor = if (enabled) colors.headlineColor else colors.disabledHeadlineColor,
+            supportingColor = if (enabled) colors.supportingTextColor else colors.disabledHeadlineColor,
+            trailingIconColor = if (enabled) colors.trailingIconColor else colors.disabledTrailingIconColor
         )
-    }
+    )
 }

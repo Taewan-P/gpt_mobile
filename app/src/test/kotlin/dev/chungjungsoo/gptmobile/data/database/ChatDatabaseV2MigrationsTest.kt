@@ -7,6 +7,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.model.GeminiSafetySettings
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -106,6 +107,34 @@ class ChatDatabaseV2MigrationsTest {
     }
 
     @Test
+    fun `assistant revision serialization preserves run linkage`() {
+        val converter = AssistantRevisionListConverter()
+        val encoded = converter.fromList(
+            listOf(
+                dev.chungjungsoo.gptmobile.data.database.entity.AssistantRevision(
+                    content = "Answer",
+                    thoughts = "Reasoning",
+                    createdAt = 1234L,
+                    runId = "run-123"
+                )
+            )
+        )
+
+        val decoded = converter.fromString(encoded)
+
+        assertEquals("run-123", decoded.single().runId)
+    }
+
+    @Test
+    fun `legacy assistant revision json decodes without run linkage`() {
+        val decoded = AssistantRevisionListConverter().fromString(
+            """[{"content":"Old answer","thoughts":"","createdAt":1234}]"""
+        )
+
+        assertNull(decoded.single().runId)
+    }
+
+    @Test
     fun `legacy provider api urls normalize to current defaults`() {
         assertEquals(ModelConstants.OPENAI_API_URL, ModelConstants.normalizeLegacyAPIUrl("https://api.openai.com/"))
         assertEquals(ModelConstants.ANTHROPIC_API_URL, ModelConstants.normalizeLegacyAPIUrl("https://api.anthropic.com/"))
@@ -125,5 +154,53 @@ class ChatDatabaseV2MigrationsTest {
         assertEquals("https://proxy.example/api/v1/", ChatDatabaseV2Migrations.normalizeLegacyProviderApiUrl("CUSTOM", "https://proxy.example/api/v1/"))
         assertEquals("https://generativelanguage.googleapis.com/custom/", ChatDatabaseV2Migrations.normalizeLegacyProviderApiUrl("GOOGLE", "https://generativelanguage.googleapis.com/custom/"))
         assertEquals("https://anthropic-proxy.example/api/", ChatDatabaseV2Migrations.normalizeLegacyProviderApiUrl("ANTHROPIC", "https://anthropic-proxy.example/api/"))
+    }
+
+    @Test
+    fun `new platform defaults local inference columns to null`() {
+        val platform = PlatformV2(
+            name = "Local",
+            compatibleType = ClientType.LITERT_LM,
+            apiUrl = "",
+            model = "gemma3-1b-it"
+        )
+
+        assertNull(platform.topK)
+        assertNull(platform.maxTokens)
+        assertNull(platform.accelerator)
+    }
+
+    @Test
+    fun `version ten migration adds local inference columns`() {
+        assertEquals(
+            listOf(
+                "ALTER TABLE `platform_v2` ADD COLUMN `top_k` INTEGER",
+                "ALTER TABLE `platform_v2` ADD COLUMN `max_tokens` INTEGER",
+                "ALTER TABLE `platform_v2` ADD COLUMN `accelerator` TEXT"
+            ),
+            ChatDatabaseV2Migrations.PLATFORM_LOCAL_INFERENCE_COLUMN_MIGRATIONS
+        )
+    }
+
+    @Test
+    fun `version nine migration creates local models table`() {
+        assertEquals(
+            listOf(
+                """
+                CREATE TABLE IF NOT EXISTS `local_models` (
+                    `catalog_entry_id` TEXT NOT NULL,
+                    `commit_hash` TEXT NOT NULL,
+                    `file_name` TEXT NOT NULL,
+                    `relative_directory` TEXT NOT NULL,
+                    `total_bytes` INTEGER NOT NULL,
+                    `status` TEXT NOT NULL,
+                    `created_at` INTEGER NOT NULL,
+                    `updated_at` INTEGER NOT NULL,
+                    PRIMARY KEY(`catalog_entry_id`)
+                )
+                """.trimIndent()
+            ),
+            ChatDatabaseV2Migrations.LOCAL_MODEL_TABLE_MIGRATIONS
+        )
     }
 }

@@ -4,7 +4,7 @@
 
 # GPT Mobile
 
-### Chat Assistant for Android that supports chatting with multiple models at once.
+## Multi-provider AI chat and optional on-device agents for Android.
 
 <p>
   <a href="https://mailchi.mp/kotlinweekly/kotlin-weekly-431"><img alt="Kotlin Weekly" src="https://img.shields.io/badge/Kotlin%20Weekly-%23431-blue"/></a>
@@ -46,19 +46,25 @@
     - Ollama
   - Can customize temperature, top p (Nucleus sampling), and system prompt
   - Custom API URLs, Custom Models are also supported
+- **Optional agent tools per provider profile**
+  - Native tool calling with OpenAI, OpenAI-compatible/Groq, Anthropic, and Gemini
+  - Firecrawl, Perplexity, or Exa web search and hardened URL reading
+  - MCP Streamable HTTP servers with public, bearer, or OAuth authentication
+  - Parallel runs, persistent traces, cancellation, and foreground progress
+  - Existing and newly migrated profiles remain chat-only until tools are assigned
 - Local chat history
   - Chat history is **only saved locally**
-  - Only sends to official API servers while chatting
+  - Credentials are encrypted with Android Keystore and excluded from backup/export
+  - During chats, requests go only to selected model providers and assigned tools. Opening a profile's Tools dialog may contact every saved MCP server for discovery and may include its bearer or OAuth credential.
 - [Material You](https://m3.material.io/) style UI, Icons
   - Supports dark mode, system dynamic theming **without Activity restart**
 - Per app language setting for Android 13+
 - 100% Kotlin, Jetpack Compose, Single Activity, [Modern App Architecture](https://developer.android.com/topic/architecture#modern-app-architecture) in Android developers documentation
 
 
-## To be supported
+## Agent documentation
 
-- More platforms
-- Image, file support for multimodal models
+See [Agent tools, privacy, and security](docs/agent-tools.md) and the [0.8.0 release notes](docs/release-notes-v0.8.0.md).
 
 If you have any feature requests, please open an issue.
 
@@ -88,7 +94,7 @@ For translations, we are using [Hosted Weblate](https://hosted.weblate.org/engag
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=Taewan-P/gpt_mobile&type=Timeline)](https://star-history.com/#Taewan-P/gpt_mobile&Timeline)
+[![Star History Chart](https://star-history.dera.page/svg?repos=Taewan-P/gpt_mobile&type=Timeline)](https://star-history.dera.page/#Taewan-P/gpt_mobile&Timeline)
 
 
 ## License

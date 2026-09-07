@@ -6,12 +6,16 @@ import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface MessageV2Dao {
 
     @Query("SELECT * FROM messages_v2 WHERE chat_id=:chatInt")
     suspend fun loadMessages(chatInt: Int): List<MessageV2>
+
+    @Query("SELECT * FROM messages_v2 WHERE chat_id = :chatId ORDER BY created_at, message_id")
+    fun observeMessages(chatId: Int): Flow<List<MessageV2>>
 
     @Query(
         "SELECT DISTINCT chat_id FROM messages_v2 " +

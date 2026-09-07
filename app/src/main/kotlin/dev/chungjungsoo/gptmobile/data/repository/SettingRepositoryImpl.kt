@@ -11,12 +11,14 @@ import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.model.DynamicTheme
 import dev.chungjungsoo.gptmobile.data.model.ThemeMode
+import dev.chungjungsoo.gptmobile.data.security.SecretVault
 import javax.inject.Inject
 
 class SettingRepositoryImpl @Inject constructor(
     private val settingDataSource: SettingDataSource,
     private val platformV2Dao: PlatformV2Dao,
-    private val chatPlatformModelV2Dao: ChatPlatformModelV2Dao
+    private val chatPlatformModelV2Dao: ChatPlatformModelV2Dao,
+    private val secretVault: SecretVault
 ) : SettingRepository {
 
     override suspend fun fetchPlatforms(): List<Platform> = ApiType.entries.map { apiType ->
@@ -28,7 +30,7 @@ class SettingRepositoryImpl @Inject constructor(
             ApiType.GROQ -> settingDataSource.getAPIUrl(apiType) ?: ModelConstants.GROQ_API_URL
             ApiType.OLLAMA -> settingDataSource.getAPIUrl(apiType) ?: ""
         }
-        val token = settingDataSource.getToken(apiType)
+        val token = resolveLegacyToken(apiType)
         val model = settingDataSource.getModel(apiType)
         val temperature = settingDataSource.getTemperature(apiType)
         val topP = settingDataSource.getTopP(apiType)
@@ -52,7 +54,9 @@ class SettingRepositoryImpl @Inject constructor(
         )
     }
 
-    override suspend fun fetchPlatformV2s(): List<PlatformV2> = platformV2Dao.getPlatforms()
+    override suspend fun fetchPlatformV2s(): List<PlatformV2> = platformV2Dao.getPlatforms().map { platform ->
+        resolvePlatformToken(platform)
+    }
 
     override suspend fun fetchThemes(): ThemeSetting = ThemeSetting(
         dynamicTheme = settingDataSource.getDynamicTheme() ?: DynamicTheme.OFF,
@@ -61,12 +65,12 @@ class SettingRepositoryImpl @Inject constructor(
 
     override suspend fun migrateToPlatformV2() {
         val leftOverPlatformV2s = fetchPlatformV2s()
-        leftOverPlatformV2s.forEach { platformV2Dao.deletePlatform(it) }
+        leftOverPlatformV2s.forEach { deletePlatformV2(it) }
 
         val platforms = fetchPlatforms()
 
         platforms.forEach { platform ->
-            platformV2Dao.addPlatform(
+            addPlatformV2(
                 PlatformV2(
                     name = when (platform.name) {
                         ApiType.OPENAI -> "OpenAI"
@@ -96,12 +100,45 @@ class SettingRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun migrateSecrets(): List<SecretMigrationError> = buildList {
+        platformV2Dao.getPlatforms().forEach { platform ->
+            val plaintext = platform.token ?: return@forEach
+            val source = "profile:${platform.uid}"
+            try {
+                val secretRef = platform.secretRef ?: migratedProfileSecretRef(platform)
+                storeVerified(secretRef, plaintext)
+                platformV2Dao.editPlatform(platform.copy(token = null, secretRef = secretRef))
+            } catch (error: Exception) {
+                add(SecretMigrationError(source, error.message ?: "Credential migration failed."))
+            }
+        }
+
+        ApiType.entries.forEach { apiType ->
+            val plaintext = settingDataSource.getToken(apiType) ?: return@forEach
+            val source = "legacy:${apiType.name}"
+            try {
+                storeVerified(legacySecretRef(apiType), plaintext)
+                settingDataSource.clearToken(apiType)
+            } catch (error: Exception) {
+                add(SecretMigrationError(source, error.message ?: "Credential migration failed."))
+            }
+        }
+    }
+
     override suspend fun updatePlatforms(platforms: List<Platform>) {
         platforms.forEach { platform ->
             settingDataSource.updateStatus(platform.name, platform.enabled)
             settingDataSource.updateAPIUrl(platform.name, platform.apiUrl)
 
-            platform.token?.let { settingDataSource.updateToken(platform.name, it) }
+            platform.token?.let { token ->
+                if (token.isBlank()) {
+                    secretVault.delete(legacySecretRef(platform.name))
+                    settingDataSource.clearToken(platform.name)
+                } else {
+                    storeVerified(legacySecretRef(platform.name), token)
+                    settingDataSource.clearToken(platform.name)
+                }
+            }
             platform.model?.let { settingDataSource.updateModel(platform.name, it) }
             platform.temperature?.let { settingDataSource.updateTemperature(platform.name, it) }
             platform.topP?.let { settingDataSource.updateTopP(platform.name, it) }
@@ -115,17 +152,78 @@ class SettingRepositoryImpl @Inject constructor(
     }
 
     override suspend fun addPlatformV2(platform: PlatformV2) {
-        platformV2Dao.addPlatform(platform)
+        platformV2Dao.addPlatform(securePlatform(platform))
     }
 
     override suspend fun updatePlatformV2(platform: PlatformV2) {
-        platformV2Dao.editPlatform(platform)
+        val previousSecretRef = platform.secretRef
+            ?: platform.id.takeIf { it > 0 }?.let { platformV2Dao.getPlatform(it)?.secretRef }
+        val securedPlatform = securePlatform(platform)
+        platformV2Dao.editPlatform(securedPlatform)
+        if (previousSecretRef != securedPlatform.secretRef) {
+            previousSecretRef?.let { secretVault.delete(it) }
+        }
     }
 
     override suspend fun deletePlatformV2(platform: PlatformV2) {
+        val secretRef = platform.secretRef
+            ?: platform.id.takeIf { it > 0 }?.let { platformV2Dao.getPlatform(it)?.secretRef }
         chatPlatformModelV2Dao.deleteByPlatformUid(platform.uid)
         platformV2Dao.deletePlatform(platform)
+        secretRef?.let { secretVault.delete(it) }
     }
 
-    override suspend fun getPlatformV2ById(id: Int): PlatformV2? = platformV2Dao.getPlatform(id)
+    override suspend fun getPlatformV2ById(id: Int): PlatformV2? = platformV2Dao.getPlatform(id)?.let { platform ->
+        resolvePlatformToken(platform)
+    }
+
+    private suspend fun securePlatform(platform: PlatformV2): PlatformV2 {
+        val secret = platform.token
+        if (secret == null) {
+            return platform.copy(token = null, secretRef = null)
+        }
+
+        val secretRef = platform.secretRef ?: profileSecretRef(platform.uid)
+        storeVerified(secretRef, secret)
+        return platform.copy(token = null, secretRef = secretRef)
+    }
+
+    private suspend fun resolvePlatformToken(platform: PlatformV2): PlatformV2 {
+        if (platform.token != null) return platform
+        val secretRef = platform.secretRef ?: return platform
+        return platform.copy(token = readSecret(secretRef))
+    }
+
+    private suspend fun resolveLegacyToken(apiType: ApiType): String? = settingDataSource.getToken(apiType)
+        ?: readSecret(legacySecretRef(apiType))
+
+    private suspend fun readSecret(secretRef: String): String? {
+        val bytes = secretVault.read(secretRef) ?: return null
+        return try {
+            bytes.decodeToString()
+        } finally {
+            bytes.fill(0)
+        }
+    }
+
+    private suspend fun storeVerified(secretRef: String, secret: String) {
+        val bytes = secret.encodeToByteArray()
+        try {
+            secretVault.put(secretRef, bytes)
+            val verified = secretVault.read(secretRef)
+            try {
+                check(verified != null && verified.contentEquals(bytes)) { "Credential verification failed." }
+            } finally {
+                verified?.fill(0)
+            }
+        } finally {
+            bytes.fill(0)
+        }
+    }
+
+    private fun profileSecretRef(uid: String): String = "profile_$uid"
+
+    private fun migratedProfileSecretRef(platform: PlatformV2): String = platform.id.takeIf { it > 0 }?.let { "room_profile_$it" } ?: profileSecretRef(platform.uid)
+
+    private fun legacySecretRef(apiType: ApiType): String = "legacy_${apiType.name.lowercase()}"
 }

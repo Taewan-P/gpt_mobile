@@ -1,6 +1,5 @@
 package dev.chungjungsoo.gptmobile.data.network
 
-import dev.chungjungsoo.gptmobile.data.ModelConstants
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatCompletionRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponsesRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ChatCompletionChunk
@@ -27,6 +26,7 @@ import io.ktor.http.isSuccess
 import io.ktor.utils.io.readLine
 import java.io.File
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -36,22 +36,16 @@ import kotlinx.serialization.Serializable
 class OpenAIAPIImpl @Inject constructor(
     private val networkClient: NetworkClient
 ) : OpenAIAPI {
-
-    private var token: String? = null
-    private var apiUrl: String = ModelConstants.OPENAI_API_URL
-
-    override fun setToken(token: String?) {
-        this.token = token
-    }
-
-    override fun setAPIUrl(url: String) {
-        this.apiUrl = url
-    }
-
-    override suspend fun uploadFile(filePath: String, fileName: String, mimeType: String): UploadedProviderFile {
+    override suspend fun uploadFile(
+        filePath: String,
+        fileName: String,
+        mimeType: String,
+        config: ProviderRequestConfig
+    ): UploadedProviderFile {
+        val apiUrl = config.apiUrl
         val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}files" else "$apiUrl/files"
         val responseBody = networkClient().preparePost(endpoint) {
-            token?.let { bearerAuth(it) }
+            config.token?.let { bearerAuth(it) }
             setBody(
                 MultiPartFormDataContent(
                     formData {
@@ -77,11 +71,12 @@ class OpenAIAPIImpl @Inject constructor(
         )
     }
 
-    override suspend fun isFileAvailable(fileId: String): Boolean {
+    override suspend fun isFileAvailable(fileId: String, config: ProviderRequestConfig): Boolean {
+        val apiUrl = config.apiUrl
         val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}files/$fileId" else "$apiUrl/files/$fileId"
         return try {
             networkClient().prepareGet(endpoint) {
-                token?.let { bearerAuth(it) }
+                config.token?.let { bearerAuth(it) }
             }.execute { response ->
                 response.status.isSuccess()
             }
@@ -90,8 +85,13 @@ class OpenAIAPIImpl @Inject constructor(
         }
     }
 
-    override fun streamChatCompletion(request: ChatCompletionRequest, timeoutSeconds: Int): Flow<ChatCompletionChunk> = flow {
+    override fun streamChatCompletion(
+        request: ChatCompletionRequest,
+        timeoutSeconds: Int,
+        config: ProviderRequestConfig
+    ): Flow<ChatCompletionChunk> = flow {
         try {
+            val apiUrl = config.apiUrl
             val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}chat/completions" else "$apiUrl/chat/completions"
 
             networkClient().preparePost(endpoint) {
@@ -99,10 +99,11 @@ class OpenAIAPIImpl @Inject constructor(
                 contentType(ContentType.Application.Json)
                 setBody(NetworkClient.openAIJson.encodeToString(request))
                 accept(ContentType.Text.EventStream)
-                token?.let { bearerAuth(it) }
+                config.token?.let { bearerAuth(it) }
             }.execute { response ->
                 if (!response.status.isSuccess()) {
                     val errorBody = response.body<String>()
+                    throwIfToolDefinitionsRejected(response.status.value, !request.tools.isNullOrEmpty(), errorBody)
 
                     val errorMessage = try {
                         val errorResponse = NetworkClient.openAIJson.decodeFromString<OpenAIErrorResponse>(errorBody)
@@ -143,6 +144,7 @@ class OpenAIAPIImpl @Inject constructor(
                 }
             }
         } catch (e: Exception) {
+            if (e is CancellationException || e is dev.chungjungsoo.gptmobile.data.agent.ToolDefinitionsRejectedException) throw e
             val errorMessage = when (e) {
                 is java.net.UnknownHostException -> "Network error: Unable to resolve host."
                 is java.nio.channels.UnresolvedAddressException -> "Network error: Unable to resolve address. Check your internet connection."
@@ -163,8 +165,13 @@ class OpenAIAPIImpl @Inject constructor(
         }
     }.flowOn(Dispatchers.IO)
 
-    override fun streamResponses(request: ResponsesRequest, timeoutSeconds: Int): Flow<ResponsesStreamEvent> = flow {
+    override fun streamResponses(
+        request: ResponsesRequest,
+        timeoutSeconds: Int,
+        config: ProviderRequestConfig
+    ): Flow<ResponsesStreamEvent> = flow {
         try {
+            val apiUrl = config.apiUrl
             val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}responses" else "$apiUrl/responses"
 
             networkClient().preparePost(endpoint) {
@@ -172,10 +179,11 @@ class OpenAIAPIImpl @Inject constructor(
                 contentType(ContentType.Application.Json)
                 setBody(NetworkClient.openAIJson.encodeToString(request))
                 accept(ContentType.Text.EventStream)
-                token?.let { bearerAuth(it) }
+                config.token?.let { bearerAuth(it) }
             }.execute { response ->
                 if (!response.status.isSuccess()) {
                     val errorBody = response.body<String>()
+                    throwIfToolDefinitionsRejected(response.status.value, !request.tools.isNullOrEmpty(), errorBody)
 
                     val errorMessage = try {
                         val errorResponse = NetworkClient.openAIJson.decodeFromString<OpenAIErrorResponse>(errorBody)
@@ -207,6 +215,7 @@ class OpenAIAPIImpl @Inject constructor(
                 }
             }
         } catch (e: Exception) {
+            if (e is CancellationException || e is dev.chungjungsoo.gptmobile.data.agent.ToolDefinitionsRejectedException) throw e
             val errorMessage = when (e) {
                 is java.net.UnknownHostException -> "Network error: Unable to resolve host."
                 is java.nio.channels.UnresolvedAddressException -> "Network error: Unable to resolve address. Check your internet connection."

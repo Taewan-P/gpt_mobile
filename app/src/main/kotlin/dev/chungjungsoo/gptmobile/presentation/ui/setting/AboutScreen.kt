@@ -1,8 +1,8 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.setting
 
 import android.content.ClipData
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -32,6 +32,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.presentation.common.SettingItem
+import dev.chungjungsoo.gptmobile.presentation.common.SettingsSection
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,102 +68,105 @@ fun AboutScreen(
             modifier = Modifier
                 .padding(innerPadding)
                 .verticalScroll(scrollState)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            SettingItem(
-                modifier = Modifier.height(64.dp),
-                title = stringResource(R.string.version),
-                description = "v$version",
-                onItemClick = { scope.launch { clipboardManager.setClipEntry(ClipEntry(ClipData.newPlainText("v$version", "v$version"))) } },
-                showTrailingIcon = false,
-                showLeadingIcon = true,
-                leadingIcon = {
-                    Icon(
-                        ImageVector.vectorResource(id = R.drawable.ic_info),
-                        contentDescription = stringResource(R.string.version_icon)
-                    )
-                }
-            )
-            SettingItem(
-                modifier = Modifier.height(64.dp),
-                title = stringResource(R.string.license),
-                description = stringResource(R.string.license_description),
-                onItemClick = onNavigationToLicense,
-                showTrailingIcon = true,
-                showLeadingIcon = true,
-                leadingIcon = {
-                    Icon(
-                        ImageVector.vectorResource(id = R.drawable.ic_license),
-                        contentDescription = stringResource(R.string.license_icon)
-                    )
-                }
-            )
-            SettingItem(
-                modifier = Modifier.height(64.dp),
-                title = stringResource(R.string.github),
-                onItemClick = { uriHandler.openUri(githubLink) },
-                showTrailingIcon = false,
-                showLeadingIcon = true,
-                leadingIcon = {
-                    Icon(
-                        ImageVector.vectorResource(id = R.drawable.ic_github),
-                        contentDescription = stringResource(R.string.github_icon)
-                    )
-                }
-            )
-            SettingItem(
-                modifier = Modifier.height(64.dp),
-                title = stringResource(R.string.f_droid),
-                onItemClick = { uriHandler.openUri(fdroidLink) },
-                showTrailingIcon = false,
-                showLeadingIcon = true,
-                leadingIcon = {
-                    Icon(
-                        ImageVector.vectorResource(id = R.drawable.ic_f_droid),
-                        contentDescription = stringResource(R.string.f_droid_icon)
-                    )
-                }
-            )
-            SettingItem(
-                modifier = Modifier.height(64.dp),
-                title = stringResource(R.string.play_store),
-                onItemClick = { uriHandler.openUri(googlePlayLink) },
-                showTrailingIcon = false,
-                showLeadingIcon = true,
-                leadingIcon = {
-                    Icon(
-                        ImageVector.vectorResource(id = R.drawable.ic_play_store),
-                        contentDescription = stringResource(R.string.play_store_icon)
-                    )
-                }
-            )
-            SettingItem(
-                modifier = Modifier.height(64.dp),
-                title = stringResource(R.string.bug_report),
-                description = stringResource(R.string.bug_report_description),
-                onItemClick = { uriHandler.openUri(bugReportLink) },
-                showTrailingIcon = false,
-                showLeadingIcon = true,
-                leadingIcon = {
-                    Icon(
-                        ImageVector.vectorResource(id = R.drawable.ic_bug_report),
-                        contentDescription = stringResource(R.string.bug_report_icon)
-                    )
-                }
-            )
-            SettingItem(
-                modifier = Modifier.height(64.dp),
-                title = stringResource(R.string.feedback),
-                description = stringResource(R.string.feedback_description),
-                onItemClick = { uriHandler.openUri(feedbackLink) },
-                showTrailingIcon = false,
-                showLeadingIcon = true,
-                leadingIcon = {
-                    Icon(
-                        ImageVector.vectorResource(id = R.drawable.ic_feedback),
-                        contentDescription = stringResource(R.string.feedback_icon)
-                    )
-                }
-            )
+            SettingsSection(title = stringResource(R.string.app_identity)) {
+                SettingItem(
+                    title = stringResource(R.string.app_name),
+                    description = "v$version",
+                    onItemClick = { scope.launch { clipboardManager.setClipEntry(ClipEntry(ClipData.newPlainText("v$version", "v$version"))) } },
+                    showTrailingIcon = false,
+                    showLeadingIcon = true,
+                    leadingIcon = {
+                        Icon(
+                            ImageVector.vectorResource(id = R.drawable.ic_info),
+                            contentDescription = null
+                        )
+                    }
+                )
+            }
+            SettingsSection(title = stringResource(R.string.legal)) {
+                SettingItem(
+                    title = stringResource(R.string.license),
+                    description = stringResource(R.string.license_description),
+                    onItemClick = onNavigationToLicense,
+                    showTrailingIcon = true,
+                    showLeadingIcon = true,
+                    leadingIcon = {
+                        Icon(
+                            ImageVector.vectorResource(id = R.drawable.ic_license),
+                            contentDescription = null
+                        )
+                    }
+                )
+            }
+            SettingsSection(title = stringResource(R.string.project_links)) {
+                SettingItem(
+                    title = stringResource(R.string.github),
+                    onItemClick = { uriHandler.openUri(githubLink) },
+                    showTrailingIcon = true,
+                    showLeadingIcon = true,
+                    leadingIcon = {
+                        Icon(
+                            ImageVector.vectorResource(id = R.drawable.ic_github),
+                            contentDescription = null
+                        )
+                    }
+                )
+                SettingItem(
+                    title = stringResource(R.string.f_droid),
+                    onItemClick = { uriHandler.openUri(fdroidLink) },
+                    showTrailingIcon = true,
+                    showLeadingIcon = true,
+                    leadingIcon = {
+                        Icon(
+                            ImageVector.vectorResource(id = R.drawable.ic_f_droid),
+                            contentDescription = null
+                        )
+                    }
+                )
+                SettingItem(
+                    title = stringResource(R.string.play_store),
+                    onItemClick = { uriHandler.openUri(googlePlayLink) },
+                    showTrailingIcon = true,
+                    showLeadingIcon = true,
+                    leadingIcon = {
+                        Icon(
+                            ImageVector.vectorResource(id = R.drawable.ic_play_store),
+                            contentDescription = null
+                        )
+                    }
+                )
+            }
+            SettingsSection(title = stringResource(R.string.support)) {
+                SettingItem(
+                    title = stringResource(R.string.bug_report),
+                    description = stringResource(R.string.bug_report_description),
+                    onItemClick = { uriHandler.openUri(bugReportLink) },
+                    showTrailingIcon = true,
+                    showLeadingIcon = true,
+                    leadingIcon = {
+                        Icon(
+                            ImageVector.vectorResource(id = R.drawable.ic_bug_report),
+                            contentDescription = null
+                        )
+                    }
+                )
+                SettingItem(
+                    title = stringResource(R.string.feedback),
+                    description = stringResource(R.string.feedback_description),
+                    onItemClick = { uriHandler.openUri(feedbackLink) },
+                    showTrailingIcon = true,
+                    showLeadingIcon = true,
+                    leadingIcon = {
+                        Icon(
+                            ImageVector.vectorResource(id = R.drawable.ic_feedback),
+                            contentDescription = null
+                        )
+                    }
+                )
+            }
         }
     }
 }

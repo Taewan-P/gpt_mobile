@@ -8,6 +8,13 @@ internal fun buildAssistantErrorContent(existingContent: String, error: String):
     else -> "$existingContent$RESPONSE_STOPPED_PREFIX$error]"
 }
 
+// Blank content is replaced rather than appended to, so the added fragment has to follow the
+// same branch: a whitespace-only partial response would otherwise slice into the error text.
+internal fun assistantErrorAppendedText(existingContent: String, updatedContent: String): String = when {
+    existingContent.isBlank() -> updatedContent
+    else -> updatedContent.removePrefix(existingContent)
+}
+
 internal fun stripAssistantErrorNote(content: String): String {
     val markerIndex = content.lastIndexOf(RESPONSE_STOPPED_PREFIX)
     return if (markerIndex >= 0 && content.endsWith("]")) {

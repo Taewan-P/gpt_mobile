@@ -13,7 +13,9 @@ import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonEncoder
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 /**
@@ -27,7 +29,7 @@ data class ResponsesRequest(
     val model: String,
 
     @SerialName("input")
-    val input: List<ResponseInputMessage>,
+    val input: List<ResponseInputItem>,
 
     @SerialName("stream")
     val stream: Boolean = true,
@@ -50,7 +52,30 @@ data class ResponsesRequest(
 
     @SerialName("reasoning")
     @EncodeDefault(EncodeDefault.Mode.NEVER)
-    val reasoning: ReasoningConfig? = null
+    val reasoning: ReasoningConfig? = null,
+
+    @SerialName("previous_response_id")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val previousResponseId: String? = null,
+
+    @SerialName("tools")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val tools: List<ResponseFunctionTool>? = null
+)
+
+@Serializable
+data class ResponseFunctionTool(
+    @SerialName("name")
+    val name: String,
+
+    @SerialName("description")
+    val description: String,
+
+    @SerialName("parameters")
+    val parameters: JsonObject,
+
+    @SerialName("type")
+    val type: String = "function"
 )
 
 @OptIn(ExperimentalSerializationApi::class)
@@ -69,6 +94,9 @@ data class ReasoningConfig(
  * Message format for Responses API input.
  * Content can be a string (text only) or a list of content parts (text + images).
  */
+@Serializable(with = ResponseInputItemSerializer::class)
+sealed interface ResponseInputItem
+
 @Serializable
 data class ResponseInputMessage(
     @SerialName("role")
@@ -76,7 +104,42 @@ data class ResponseInputMessage(
 
     @SerialName("content")
     val content: ResponseInputContent
-)
+) : ResponseInputItem
+
+@Serializable
+data class ResponseFunctionCallOutput(
+    @SerialName("call_id")
+    val callId: String,
+
+    @SerialName("output")
+    val output: String,
+
+    @SerialName("type")
+    val type: String = "function_call_output"
+) : ResponseInputItem
+
+object ResponseInputItemSerializer : KSerializer<ResponseInputItem> {
+    override val descriptor: SerialDescriptor = buildClassSerialDescriptor("ResponseInputItem")
+
+    override fun serialize(encoder: Encoder, value: ResponseInputItem) {
+        val jsonEncoder = encoder as JsonEncoder
+        val element = when (value) {
+            is ResponseInputMessage -> jsonEncoder.json.encodeToJsonElement(ResponseInputMessage.serializer(), value)
+            is ResponseFunctionCallOutput -> jsonEncoder.json.encodeToJsonElement(ResponseFunctionCallOutput.serializer(), value)
+        }
+        jsonEncoder.encodeJsonElement(element)
+    }
+
+    override fun deserialize(decoder: Decoder): ResponseInputItem {
+        val jsonDecoder = decoder as JsonDecoder
+        val element = jsonDecoder.decodeJsonElement().jsonObject
+        return if (element["type"]?.jsonPrimitive?.content == "function_call_output") {
+            jsonDecoder.json.decodeFromJsonElement(ResponseFunctionCallOutput.serializer(), element)
+        } else {
+            jsonDecoder.json.decodeFromJsonElement(ResponseInputMessage.serializer(), element)
+        }
+    }
+}
 
 /**
  * Content can be either a simple string or a list of content parts.

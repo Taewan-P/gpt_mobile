@@ -18,6 +18,7 @@ import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.readLine
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -31,11 +32,10 @@ class GroqAPIImpl @Inject constructor(
     override fun streamChatCompletion(
         request: GroqChatCompletionRequest,
         timeoutSeconds: Int,
-        token: String?,
-        apiUrl: String
+        config: ProviderRequestConfig
     ): Flow<GroqChatCompletionChunk> = flow {
         try {
-            val resolvedApiUrl = apiUrl.ifBlank { ModelConstants.GROQ_API_URL }
+            val resolvedApiUrl = config.apiUrl.ifBlank { ModelConstants.GROQ_API_URL }
             val endpoint = if (resolvedApiUrl.endsWith("/")) "${resolvedApiUrl}chat/completions" else "$resolvedApiUrl/chat/completions"
 
             networkClient().preparePost(endpoint) {
@@ -43,10 +43,11 @@ class GroqAPIImpl @Inject constructor(
                 contentType(ContentType.Application.Json)
                 setBody(NetworkClient.openAIJson.encodeToString(request))
                 accept(if (request.stream) ContentType.Text.EventStream else ContentType.Application.Json)
-                token?.let { bearerAuth(it) }
+                config.token?.let { bearerAuth(it) }
             }.execute { response ->
                 if (!response.status.isSuccess()) {
                     val errorBody = response.body<String>()
+                    throwIfToolDefinitionsRejected(response.status.value, !request.tools.isNullOrEmpty(), errorBody)
                     val errorMessage = try {
                         val errorResponse = NetworkClient.openAIJson.decodeFromString<GroqErrorResponse>(errorBody)
                         errorResponse.error.message
@@ -87,6 +88,7 @@ class GroqAPIImpl @Inject constructor(
                 }
             }
         } catch (e: Exception) {
+            if (e is CancellationException || e is dev.chungjungsoo.gptmobile.data.agent.ToolDefinitionsRejectedException) throw e
             val errorMessage = when (e) {
                 is java.net.UnknownHostException -> "Network error: Unable to resolve host."
                 is java.nio.channels.UnresolvedAddressException -> "Network error: Unable to resolve address. Check your internet connection."
