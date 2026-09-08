@@ -104,6 +104,7 @@ class GoogleAPIImpl @Inject constructor(
             }
 
             networkClient().preparePost(endpoint) {
+                retryGenerationRequest()
                 applyPlatformStreamingTimeout(timeoutSeconds)
                 header(GOOGLE_API_KEY_HEADER, config.token ?: "")
                 parameter("alt", "sse")

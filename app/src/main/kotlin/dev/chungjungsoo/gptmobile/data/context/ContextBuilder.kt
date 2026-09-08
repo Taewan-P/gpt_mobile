@@ -12,8 +12,7 @@ class ContextBuilder @Inject constructor() {
     fun build(
         userMessages: List<MessageV2>,
         assistantMessages: List<List<MessageV2>>,
-        platform: PlatformV2,
-        policy: ProviderContextPolicy = ProviderContextPolicy.forClientType(platform.compatibleType)
+        platform: PlatformV2
     ): List<ConversationTurn> {
         if (userMessages.isEmpty()) return emptyList()
 
@@ -33,27 +32,13 @@ class ContextBuilder @Inject constructor() {
             )
         }
 
-        val filteredTurns = rawTurns.filter { turn ->
+        return rawTurns.mapNotNull { turn ->
             when {
-                turn.isCurrentTurn -> true
-                turn.hasAssistantError -> false
-                else -> true
+                turn.isCurrentTurn -> turn.toConversationTurn()
+                turn.hasAssistantError -> null
+                else -> turn.toConversationTurn()
             }
         }
-
-        if (filteredTurns.isEmpty()) return emptyList()
-
-        val currentTurn = filteredTurns.lastOrNull { it.isCurrentTurn }
-        val historyTurns = filteredTurns
-            .filterNot { it.isCurrentTurn }
-            .takeLast(policy.recentTurnWindow)
-
-        val selectedTurns = buildList {
-            addAll(historyTurns)
-            currentTurn?.let { add(it) }
-        }
-
-        return applyAttachmentWindow(selectedTurns, policy)
     }
 
     private fun List<MessageV2>.firstValidAssistantCandidate(platformUid: String): MessageV2? = firstNotNullOfOrNull { message ->
@@ -64,37 +49,6 @@ class ContextBuilder @Inject constructor() {
             sanitizedMessage.effectiveContent().isBlank() && sanitizedMessage.attachments.isEmpty() -> null
             isAssistantErrorMessage(sanitizedMessage.content) -> null
             else -> sanitizedMessage
-        }
-    }
-
-    private fun applyAttachmentWindow(
-        turns: List<RawConversationTurn>,
-        policy: ProviderContextPolicy
-    ): List<ConversationTurn> {
-        if (turns.isEmpty()) return emptyList()
-
-        val lastIndex = turns.lastIndex
-        return turns.mapIndexed { index, turn ->
-            val shouldKeepAttachments = (lastIndex - index) <= policy.historicalImageTurnWindow
-            val userMessage = if (shouldKeepAttachments) {
-                turn.userMessage
-            } else {
-                turn.userMessage.copy(attachments = emptyList())
-            }
-
-            val assistantMessage = turn.assistantMessage?.let { message ->
-                if (shouldKeepAttachments) {
-                    message
-                } else {
-                    message.copy(attachments = emptyList())
-                }
-            }
-
-            ConversationTurn(
-                userMessage = userMessage,
-                assistantMessage = assistantMessage,
-                isCurrentTurn = turn.isCurrentTurn
-            )
         }
     }
 
@@ -116,4 +70,10 @@ private data class RawConversationTurn(
     val assistantMessage: MessageV2?,
     val hasAssistantError: Boolean,
     val isCurrentTurn: Boolean
+)
+
+private fun RawConversationTurn.toConversationTurn() = ConversationTurn(
+    userMessage = userMessage,
+    assistantMessage = assistantMessage,
+    isCurrentTurn = isCurrentTurn
 )

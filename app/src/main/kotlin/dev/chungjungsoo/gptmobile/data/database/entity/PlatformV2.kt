@@ -74,5 +74,8 @@ data class PlatformV2(
     val sexuallyExplicitSafetyThreshold: String = GeminiSafetySettings.BLOCK_NONE,
 
     @ColumnInfo(name = "dangerous_content_safety_threshold", defaultValue = "'BLOCK_NONE'")
-    val dangerousContentSafetyThreshold: String = GeminiSafetySettings.BLOCK_NONE
+    val dangerousContentSafetyThreshold: String = GeminiSafetySettings.BLOCK_NONE,
+
+    @ColumnInfo(name = "resumable_replies", defaultValue = "0")
+    val resumableReplies: Boolean = false
 )

@@ -62,7 +62,6 @@ import dev.snipme.highlights.model.BoldHighlight
 import dev.snipme.highlights.model.ColorHighlight
 import dev.snipme.highlights.model.SyntaxLanguage
 import dev.snipme.highlights.model.SyntaxThemes
-import java.util.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -71,18 +70,25 @@ private const val CLIPBOARD_LABEL_CODE = "code"
 private const val DISPLAY_MATH_PLACEHOLDER_PREFIX = "CHAT_MATH_DISPLAY_"
 private const val DISPLAY_MATH_PLACEHOLDER_SUFFIX = "_TOKEN"
 private const val DISPLAY_MATH_PLACEHOLDER_TEST_NONCE = "test"
+private const val DISPLAY_MATH_NONCE = "m"
 
 @Composable
 fun ChatMarkdown(
     content: String,
     contentIdentity: Any = content,
+    isStreaming: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val renderedContent = rememberPresentedStreamText(
+        received = content,
+        isTerminal = !isStreaming,
+        contentIdentity = contentIdentity
+    )
     val isDarkTheme = isSystemInDarkTheme()
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
-    val parsed = remember(content) { parseChatMarkdown(content) }
-    val displayMathNonce = remember(content) { UUID.randomUUID().toString().replace("-", "") }
+    val parsed = remember(renderedContent) { parseChatMarkdown(renderedContent) }
+    val displayMathNonce = remember(contentIdentity) { DISPLAY_MATH_NONCE }
     val highlightsBuilder = remember(isDarkTheme) {
         Highlights.Builder().theme(SyntaxThemes.atom(isDarkTheme))
     }

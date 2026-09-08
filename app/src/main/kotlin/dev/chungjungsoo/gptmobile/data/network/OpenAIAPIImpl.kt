@@ -1,6 +1,8 @@
 package dev.chungjungsoo.gptmobile.data.network
 
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatCompletionRequest
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.CompactResponsesRequest
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.CompactResponsesResult
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponsesRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ChatCompletionChunk
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ErrorDetail
@@ -95,6 +97,7 @@ class OpenAIAPIImpl @Inject constructor(
             val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}chat/completions" else "$apiUrl/chat/completions"
 
             networkClient().preparePost(endpoint) {
+                retryGenerationRequest()
                 applyPlatformStreamingTimeout(timeoutSeconds)
                 contentType(ContentType.Application.Json)
                 setBody(NetworkClient.openAIJson.encodeToString(request))
@@ -169,79 +172,107 @@ class OpenAIAPIImpl @Inject constructor(
         request: ResponsesRequest,
         timeoutSeconds: Int,
         config: ProviderRequestConfig
-    ): Flow<ResponsesStreamEvent> = flow {
-        try {
-            val apiUrl = config.apiUrl
-            val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}responses" else "$apiUrl/responses"
+    ): Flow<ResponsesStreamEvent> {
+        if (config.resumableReplies) {
+            return networkClient.streamResumableResponses(
+                request,
+                timeoutSeconds,
+                config,
+                config.onUnconfirmedRemoteCancellation
+            )
+        }
+        return flow {
+            try {
+                val apiUrl = config.apiUrl
+                val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}responses" else "$apiUrl/responses"
 
-            networkClient().preparePost(endpoint) {
-                applyPlatformStreamingTimeout(timeoutSeconds)
-                contentType(ContentType.Application.Json)
-                setBody(NetworkClient.openAIJson.encodeToString(request))
-                accept(ContentType.Text.EventStream)
-                config.token?.let { bearerAuth(it) }
-            }.execute { response ->
-                if (!response.status.isSuccess()) {
-                    val errorBody = response.body<String>()
-                    throwIfToolDefinitionsRejected(response.status.value, !request.tools.isNullOrEmpty(), errorBody)
+                networkClient().preparePost(endpoint) {
+                    retryGenerationRequest()
+                    applyPlatformStreamingTimeout(timeoutSeconds)
+                    contentType(ContentType.Application.Json)
+                    setBody(NetworkClient.openAIJson.encodeToString(request))
+                    accept(ContentType.Text.EventStream)
+                    config.token?.let { bearerAuth(it) }
+                }.execute { response ->
+                    if (!response.status.isSuccess()) {
+                        val errorBody = response.body<String>()
+                        throwIfToolDefinitionsRejected(response.status.value, !request.tools.isNullOrEmpty(), errorBody)
 
-                    val errorMessage = try {
-                        val errorResponse = NetworkClient.openAIJson.decodeFromString<OpenAIErrorResponse>(errorBody)
-                        errorResponse.error.message
-                    } catch (_: Exception) {
-                        "HTTP ${response.status.value}: $errorBody"
+                        val errorMessage = try {
+                            val errorResponse = NetworkClient.openAIJson.decodeFromString<OpenAIErrorResponse>(errorBody)
+                            errorResponse.error.message
+                        } catch (_: Exception) {
+                            "HTTP ${response.status.value}: $errorBody"
+                        }
+
+                        emit(ResponseErrorEvent(message = errorMessage, code = response.status.value.toString()))
+                        return@execute
                     }
 
-                    emit(ResponseErrorEvent(message = errorMessage, code = response.status.value.toString()))
-                    return@execute
-                }
+                    // Success - read SSE stream
+                    val channel = response.bodyAsChannel()
+                    while (!channel.isClosedForRead) {
+                        val line = channel.readLine() ?: break
 
-                // Success - read SSE stream
-                val channel = response.bodyAsChannel()
-                while (!channel.isClosedForRead) {
-                    val line = channel.readLine() ?: break
+                        if (line.startsWith("data: ")) {
+                            val data = line.removePrefix("data: ").trim()
+                            if (data == "[DONE]") break
 
-                    if (line.startsWith("data: ")) {
-                        val data = line.removePrefix("data: ").trim()
-                        if (data == "[DONE]") break
-
-                        try {
-                            val streamEvent = NetworkClient.openAIJson.decodeFromString<ResponsesStreamEvent>(data)
-                            emit(streamEvent)
-                        } catch (_: Exception) {
-                            emit(UnknownEvent)
+                            try {
+                                val streamEvent = NetworkClient.openAIJson.decodeFromString<ResponsesStreamEvent>(data)
+                                emit(streamEvent)
+                            } catch (_: Exception) {
+                                emit(UnknownEvent)
+                            }
                         }
                     }
                 }
-            }
-        } catch (e: Exception) {
-            if (e is CancellationException || e is dev.chungjungsoo.gptmobile.data.agent.ToolDefinitionsRejectedException) throw e
-            val errorMessage = when (e) {
-                is java.net.UnknownHostException -> "Network error: Unable to resolve host."
-                is java.nio.channels.UnresolvedAddressException -> "Network error: Unable to resolve address. Check your internet connection."
-                is java.net.ConnectException -> "Network error: Connection refused. Check the API URL."
-                is HttpRequestTimeoutException -> "Request timed out."
-                is java.net.SocketTimeoutException -> "Response timed out while waiting for the next chunk."
-                is javax.net.ssl.SSLException -> "Network error: SSL/TLS connection failed."
-                else -> e.message ?: "Unknown network error"
-            }
-            emit(
-                ResponseErrorEvent(
-                    message = errorMessage,
-                    code = "network_error"
+            } catch (e: Exception) {
+                if (e is CancellationException || e is dev.chungjungsoo.gptmobile.data.agent.ToolDefinitionsRejectedException) throw e
+                val errorMessage = when (e) {
+                    is java.net.UnknownHostException -> "Network error: Unable to resolve host."
+                    is java.nio.channels.UnresolvedAddressException -> "Network error: Unable to resolve address. Check your internet connection."
+                    is java.net.ConnectException -> "Network error: Connection refused. Check the API URL."
+                    is HttpRequestTimeoutException -> "Request timed out."
+                    is java.net.SocketTimeoutException -> "Response timed out while waiting for the next chunk."
+                    is javax.net.ssl.SSLException -> "Network error: SSL/TLS connection failed."
+                    else -> e.message ?: "Unknown network error"
+                }
+                emit(
+                    ResponseErrorEvent(
+                        message = errorMessage,
+                        code = "network_error"
+                    )
                 )
-            )
-        }
-    }.flowOn(Dispatchers.IO)
+            }
+        }.flowOn(Dispatchers.IO)
+    }
+
+    override suspend fun compactResponses(
+        request: CompactResponsesRequest,
+        timeoutSeconds: Int,
+        config: ProviderRequestConfig
+    ): CompactResponsesResult {
+        val apiUrl = config.apiUrl
+        val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}responses/compact" else "$apiUrl/responses/compact"
+        val responseBody = networkClient().preparePost(endpoint) {
+            retryGenerationRequest()
+            applyPlatformStreamingTimeout(timeoutSeconds)
+            contentType(ContentType.Application.Json)
+            setBody(NetworkClient.openAIJson.encodeToString(request))
+            config.token?.let { bearerAuth(it) }
+        }.body<String>()
+        return NetworkClient.openAIJson.decodeFromString(responseBody)
+    }
 }
 
 @Serializable
-private data class OpenAIErrorResponse(
+internal data class OpenAIErrorResponse(
     val error: OpenAIError
 )
 
 @Serializable
-private data class OpenAIError(
+internal data class OpenAIError(
     val message: String,
     val type: String? = null,
     val param: String? = null,
@@ -249,7 +280,7 @@ private data class OpenAIError(
 )
 
 @Serializable
-private data class OpenAIFileResponse(
+internal data class OpenAIFileResponse(
     val id: String,
     val filename: String? = null,
     @kotlinx.serialization.SerialName("mime_type")

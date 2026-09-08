@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.context
 
+import dev.chungjungsoo.gptmobile.data.database.entity.AssistantRevision
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.model.ChatAttachment
@@ -37,6 +38,87 @@ class ContextBuilderTest {
             turns.map { it.userMessage.content }
         )
         assertNull(turns.first().assistantMessage)
+    }
+
+    @Test
+    fun `openai context retains a fact from beyond the former ten-turn window`() {
+        val platform = openaiPlatform()
+        val userMessages = (0 until 12).map { index ->
+            MessageV2(
+                content = if (index == 0) "Secret code is ORCHID-77" else "user-$index",
+                platformType = null
+            )
+        }
+        val assistantMessages = (0 until 12).map { index ->
+            listOf(
+                MessageV2(
+                    content = if (index == 0) "Noted the secret code." else "reply-$index",
+                    platformType = platform.uid
+                )
+            )
+        }
+
+        val turns = ContextBuilder().build(userMessages, assistantMessages, platform)
+
+        assertEquals(12, turns.size)
+        assertEquals("Secret code is ORCHID-77", turns.first().userMessage.content)
+        assertEquals("Noted the secret code.", turns.first().assistantMessage?.content)
+        assertEquals("user-11", turns.last().userMessage.content)
+    }
+
+    @Test
+    fun `context uses only the selected platform and revision`() {
+        val platform = openaiPlatform()
+        val turns = ContextBuilder().build(
+            userMessages = listOf(
+                MessageV2(content = "Remember my cat is Miso", platformType = null),
+                MessageV2(content = "What is my cat's name?", platformType = null)
+            ),
+            assistantMessages = listOf(
+                listOf(
+                    MessageV2(content = "Wrong platform secret", platformType = "other-platform"),
+                    MessageV2(
+                        content = "Latest name is discarded",
+                        platformType = platform.uid,
+                        revisions = listOf(
+                            AssistantRevision(content = "Your cat is Miso.", createdAt = 1L)
+                        ),
+                        activeRevisionIndex = 0
+                    )
+                ),
+                emptyList()
+            ),
+            platform = platform
+        )
+
+        assertEquals("Remember my cat is Miso", turns.first().userMessage.content)
+        assertEquals("Your cat is Miso.", turns.first().assistantMessage?.content)
+    }
+
+    @Test
+    fun `pure failed historical turns are dropped and partial answers keep stripped text`() {
+        val platform = openaiPlatform()
+        val turns = ContextBuilder().build(
+            userMessages = listOf(
+                MessageV2(content = "first", platformType = null),
+                MessageV2(content = "second", platformType = null),
+                MessageV2(content = "now", platformType = null)
+            ),
+            assistantMessages = listOf(
+                listOf(MessageV2(content = "Error: boom", platformType = platform.uid)),
+                listOf(
+                    MessageV2(
+                        content = "Partial answer\n\n[Response stopped: timeout]",
+                        platformType = platform.uid
+                    )
+                ),
+                emptyList()
+            ),
+            platform = platform
+        )
+
+        assertEquals(listOf("second", "now"), turns.map { it.userMessage.content })
+        assertEquals("Partial answer", turns.first().assistantMessage?.content)
     }
 
     @Test
@@ -89,5 +171,13 @@ class ContextBuilderTest {
         compatibleType = ClientType.LITERT_LM,
         apiUrl = "",
         model = "gemma3-1b-it"
+    )
+
+    private fun openaiPlatform() = PlatformV2(
+        uid = "openai",
+        name = "OpenAI",
+        compatibleType = ClientType.OPENAI,
+        apiUrl = "https://api.openai.com/v1/",
+        model = "gpt-5.6"
     )
 }

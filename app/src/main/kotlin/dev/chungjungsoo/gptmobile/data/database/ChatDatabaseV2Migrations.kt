@@ -375,6 +375,42 @@ object ChatDatabaseV2Migrations {
         }
     }
 
+    val COMPACTION_TABLE_MIGRATIONS = listOf(
+        """
+        CREATE TABLE IF NOT EXISTS `context_checkpoints` (
+            `chat_id` INTEGER NOT NULL,
+            `platform_uid` TEXT NOT NULL,
+            `source_prefix_fingerprint` TEXT NOT NULL,
+            `endpoint_model_key` TEXT NOT NULL,
+            `covered_turn_count` INTEGER NOT NULL,
+            `representation` TEXT NOT NULL,
+            `serialized_working_context` TEXT NOT NULL,
+            `estimated_tokens` INTEGER,
+            `updated_at` INTEGER NOT NULL,
+            PRIMARY KEY(`chat_id`, `platform_uid`),
+            FOREIGN KEY(`chat_id`) REFERENCES `chats_v2`(`chat_id`) ON UPDATE NO ACTION ON DELETE CASCADE
+        )
+        """.trimIndent(),
+        """
+        CREATE TABLE IF NOT EXISTS `model_capacities` (
+            `platform_uid` TEXT NOT NULL,
+            `endpoint` TEXT NOT NULL,
+            `model` TEXT NOT NULL,
+            `detected_context_tokens` INTEGER,
+            `override_context_tokens` INTEGER,
+            `updated_at` INTEGER NOT NULL,
+            PRIMARY KEY(`platform_uid`, `endpoint`, `model`)
+        )
+        """.trimIndent(),
+        "ALTER TABLE `platform_v2` ADD COLUMN `resumable_replies` INTEGER NOT NULL DEFAULT 0"
+    )
+
+    val MIGRATION_10_11 = object : Migration(10, 11) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            COMPACTION_TABLE_MIGRATIONS.forEach(db::execSQL)
+        }
+    }
+
     val MIGRATION_7_8 = object : Migration(7, 8) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL("ALTER TABLE `messages_v2` ADD COLUMN `timeline` TEXT NOT NULL DEFAULT '[]'")

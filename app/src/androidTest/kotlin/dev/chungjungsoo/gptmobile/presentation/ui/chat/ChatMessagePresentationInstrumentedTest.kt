@@ -56,7 +56,8 @@ class ChatMessagePresentationInstrumentedTest {
         }
 
         composeRule.onNodeWithContentDescription("Message actions").assertDoesNotExist()
-        composeRule.onNodeWithText("Answer●").assertExists()
+        composeRule.onNodeWithText("Answer").assertExists()
+        composeRule.onNodeWithText("●").assertExists()
         composeRule.onNodeWithContentDescription("Tool in progress").assertDoesNotExist()
     }
 

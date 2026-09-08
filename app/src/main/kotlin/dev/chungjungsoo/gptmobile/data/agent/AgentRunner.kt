@@ -23,7 +23,8 @@ data class AgentRunLimits(
 )
 
 class AgentRunner(
-    private val limits: AgentRunLimits = AgentRunLimits()
+    private val limits: AgentRunLimits = AgentRunLimits(),
+    private val afterCompleteExchange: (suspend (List<AgentToolExchange>) -> List<AgentToolExchange>)? = null
 ) {
     fun run(session: AgentProviderSession, tools: List<AgentTool>): Flow<AgentRunEvent> = flow {
         val toolByName = tools.associateBy { it.definition.name }
@@ -124,6 +125,11 @@ class AgentRunner(
                     emit(AgentRunEvent.ToolFinished(call, result))
                 }
                 exchanges += AgentToolExchange(calls, results)
+                afterCompleteExchange?.let { rewrite ->
+                    val rewritten = rewrite(exchanges.toList())
+                    exchanges.clear()
+                    exchanges.addAll(rewritten)
+                }
             }
         }
 

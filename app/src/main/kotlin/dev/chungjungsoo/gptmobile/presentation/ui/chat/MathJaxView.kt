@@ -7,6 +7,7 @@ import android.view.View
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.LocalContentColor
@@ -14,11 +15,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onLayoutRectChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.TextUnitType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -31,6 +39,7 @@ private const val MATH_JAX_BASE_URL = "file:///android_asset/mathjax/"
 private const val MATH_JAX_RENDER_RETRY_DELAY_MILLIS = 50L
 private const val MAX_MATH_JAX_RENDER_RETRIES = 60
 private const val DISPLAY_MATH_HEIGHT_CACHE_SIZE = 128
+private const val MATH_VIEWPORT_OVERSCAN_DP = 48
 
 private const val MATH_JAX_HTML = """
 <!DOCTYPE html>
@@ -314,16 +323,41 @@ private fun MathJaxFormulaView(
     modifier: Modifier = Modifier,
     onMeasured: (Int) -> Unit = {}
 ) {
-    AndroidView(
-        modifier = modifier,
-        factory = { context -> MathJaxWebView(context) },
-        onReset = { webView -> webView.prepareForReuse() },
-        onRelease = { webView -> webView.releaseFromComposition() },
-        update = { webView ->
-            webView.contentDescription = request.tex
-            webView.setRenderRequest(request, onMeasured)
-        }
-    )
+    val windowSize = LocalWindowInfo.current.containerSize
+    val overscanPx = with(LocalDensity.current) { MATH_VIEWPORT_OVERSCAN_DP.dp.toPx() }
+    var visibleInWindow by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = modifier
+            .semantics { contentDescription = request.tex }
+            .onLayoutRectChanged(throttleMillis = 16L, debounceMillis = 0L) { bounds ->
+                val windowBounds = bounds.boundsInWindow
+                val nextVisible = formulaVisibleInWindow(
+                    boundsInWindow = Rect(
+                        windowBounds.left.toFloat(),
+                        windowBounds.top.toFloat(),
+                        windowBounds.right.toFloat(),
+                        windowBounds.bottom.toFloat()
+                    ),
+                    windowSize = windowSize,
+                    overscanPx = overscanPx
+                )
+                if (visibleInWindow != nextVisible) {
+                    visibleInWindow = nextVisible
+                }
+            }
+    ) {
+        if (!visibleInWindow) return@Box
+        AndroidView(
+            factory = { context -> MathJaxWebView(context) },
+            onReset = { webView -> webView.prepareForReuse() },
+            onRelease = { webView -> webView.releaseFromComposition() },
+            update = { webView ->
+                webView.contentDescription = request.tex
+                webView.setRenderRequest(request, onMeasured)
+            }
+        )
+    }
 }
 
 @SuppressLint("SetJavaScriptEnabled")
@@ -334,6 +368,7 @@ private class MathJaxWebView(context: Context) : WebView(context) {
     private var onMeasured: ((Int) -> Unit)? = null
     private var renderRetryCount = 0
     private val renderRetryRunnable = Runnable { renderPendingRequest() }
+    private var released = false
 
     init {
         setBackgroundColor(android.graphics.Color.TRANSPARENT)
@@ -373,6 +408,7 @@ private class MathJaxWebView(context: Context) : WebView(context) {
         request: MathRenderRequest,
         onMeasured: (Int) -> Unit
     ) {
+        if (released) return
         this.onMeasured = onMeasured
         if (request == renderedRequest && pendingRequest == null) {
             return
@@ -388,6 +424,7 @@ private class MathJaxWebView(context: Context) : WebView(context) {
     }
 
     fun prepareForReuse() {
+        if (released) return
         removeCallbacks(renderRetryRunnable)
         clearRenderedContent()
         renderedRequest = null
@@ -397,8 +434,10 @@ private class MathJaxWebView(context: Context) : WebView(context) {
     }
 
     fun releaseFromComposition() {
+        if (released) return
         prepareForReuse()
-        renderedRequest = null
+        released = true
+        destroy()
     }
 
     private fun renderPendingRequest() {
@@ -484,6 +523,22 @@ private fun MathRenderRequest.cacheKey(): String = buildString(tex.length + 32) 
     append(textColorCss)
     append('|')
     append(tex)
+}
+
+internal fun formulaVisibleInWindow(
+    boundsInWindow: Rect,
+    windowSize: IntSize,
+    overscanPx: Float
+): Boolean {
+    if (boundsInWindow.width <= 0f || boundsInWindow.height <= 0f) return false
+    if (windowSize.width <= 0 || windowSize.height <= 0) return false
+    val window = Rect(
+        left = -overscanPx,
+        top = -overscanPx,
+        right = windowSize.width.toFloat() + overscanPx,
+        bottom = windowSize.height.toFloat() + overscanPx
+    )
+    return boundsInWindow.overlaps(window)
 }
 
 private fun buildRenderScript(request: MathRenderRequest): String = """

@@ -11,10 +11,10 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface MessageV2Dao {
 
-    @Query("SELECT * FROM messages_v2 WHERE chat_id=:chatInt")
+    @Query("SELECT * FROM messages_v2 WHERE chat_id=:chatInt ORDER BY message_id")
     suspend fun loadMessages(chatInt: Int): List<MessageV2>
 
-    @Query("SELECT * FROM messages_v2 WHERE chat_id = :chatId ORDER BY created_at, message_id")
+    @Query("SELECT * FROM messages_v2 WHERE chat_id = :chatId ORDER BY message_id")
     fun observeMessages(chatId: Int): Flow<List<MessageV2>>
 
     @Query(

@@ -65,7 +65,8 @@ internal suspend fun Flow<ApiState>.collectApiStateUpdates(
     onUpdate: suspend (content: String, thoughts: String, timeline: List<AssistantTimelineItem>) -> Unit,
     onNotice: (String, Boolean) -> Unit = { _, _ -> },
     nanoTimeProvider: () -> Long = System::nanoTime,
-    publishIntervalMillis: Long = STREAM_PUBLISH_INTERVAL_MILLIS
+    publishIntervalMillis: Long = STREAM_PUBLISH_INTERVAL_MILLIS,
+    onCompactionState: (Boolean) -> Unit = {}
 ): ApiStateFlowOutcome {
     val buffer = StreamingMessageBuffer(nanoTimeProvider, publishIntervalMillis)
     var isCompletedSuccessfully = false
@@ -74,6 +75,8 @@ internal suspend fun Flow<ApiState>.collectApiStateUpdates(
     try {
         collect { chunk ->
             when (chunk) {
+                is ApiState.Compaction -> onCompactionState(chunk.active)
+
                 is ApiState.Thinking -> {
                     buffer.appendThought(chunk.thinkingChunk)
                     buffer.publishIfDue(onUpdate)

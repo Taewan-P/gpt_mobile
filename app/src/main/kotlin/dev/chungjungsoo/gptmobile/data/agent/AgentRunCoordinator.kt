@@ -2,6 +2,9 @@ package dev.chungjungsoo.gptmobile.data.agent
 
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.chungjungsoo.gptmobile.R
+import dev.chungjungsoo.gptmobile.data.context.CompactionResult
+import dev.chungjungsoo.gptmobile.data.context.CompactionStatus
 import dev.chungjungsoo.gptmobile.data.database.entity.AgentRunStatus
 import dev.chungjungsoo.gptmobile.data.database.entity.AgentRunTerminalError
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
@@ -14,16 +17,20 @@ import dev.chungjungsoo.gptmobile.util.ApiStateFlowOutcome
 import dev.chungjungsoo.gptmobile.util.assistantErrorAppendedText
 import dev.chungjungsoo.gptmobile.util.buildAssistantErrorContent
 import dev.chungjungsoo.gptmobile.util.collectApiStateUpdates
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,6 +40,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 data class AgentRunRequest(
     val runId: String,
@@ -53,7 +61,8 @@ data class AgentRunNotice(
     val chatId: Int,
     val runId: String,
     val message: String,
-    val persistent: Boolean = false
+    val persistent: Boolean = false,
+    val key: String? = null
 )
 
 @Singleton
@@ -68,8 +77,44 @@ class AgentRunCoordinator @Inject constructor(
     private val _activeRuns = MutableStateFlow<Map<String, ActiveAgentRun>>(emptyMap())
     private val _notices = MutableSharedFlow<AgentRunNotice>(extraBufferCapacity = 8)
 
+    private val streamPublisher = LiveAgentStreamPublisher(
+        persistScope = scope,
+        persist = { chatRepository.updateAgentMessage(it) }
+    )
+
     val activeRuns = _activeRuns.asStateFlow()
     val notices = _notices.asSharedFlow()
+
+    fun compactContext(chatId: Int, platform: PlatformV2): Deferred<CompactionResult> {
+        val runId = UUID.randomUUID().toString()
+        val job = scope.async(start = CoroutineStart.LAZY) {
+            withChatGate(chatId) {
+                check(_activeRuns.value.values.none { it.chatId == chatId && it.runId != runId }) {
+                    "Wait for this conversation's active replies before compacting."
+                }
+                collectCompactionResult(
+                    timeoutMillis = AgentRunLimits().runTimeoutMillis,
+                    timeoutMessage = context.getString(R.string.chat_context_timeout)
+                ) { chatRepository.compactNow(chatId, platform) }
+            }
+        }
+        jobs[runId] = job
+        job.invokeOnCompletionCleanup {
+            jobs.remove(runId)
+            interruptingRunIds.remove(runId)
+            _activeRuns.update { it - runId }
+        }
+        _activeRuns.update { it + (runId to ActiveAgentRun(runId, chatId, platform.uid)) }
+        try {
+            AgentRunForegroundService.start(context)
+        } catch (error: RuntimeException) {
+            job.cancel()
+            return CompletableDeferred<CompactionResult>().apply { completeExceptionally(error) }
+        }
+        job.start()
+        return job
+    }
+    val liveSnapshots = streamPublisher.snapshots
 
     fun start(requests: List<AgentRunRequest>) {
         scope.launch {
@@ -212,29 +257,43 @@ class AgentRunCoordinator @Inject constructor(
         var assistantMessage = request.assistantMessage
         try {
             if (!withContext(NonCancellable) { chatRepository.markAgentRunRunning(request.runId, startedAt) }) return
-            val outcome = chatRepository.completeChat(
-                request.userMessages,
-                request.assistantMessages,
-                request.platform,
-                request.runId
-            ).collectApiStateUpdates(
-                onUpdate = { content, thoughts, timeline ->
-                    assistantMessage = assistantMessage.copy(
-                        content = content,
-                        thoughts = thoughts,
-                        timeline = timeline
-                    )
-                    chatRepository.updateAgentMessage(assistantMessage)
-                },
-                onNotice = { notice, persistent ->
-                    _notices.tryEmit(AgentRunNotice(request.chatId, request.runId, notice, persistent))
-                },
-                publishIntervalMillis = 250L
-            )
+            val outcome = collectGenerationOutcome {
+                chatRepository.completeChat(
+                    request.userMessages,
+                    request.assistantMessages,
+                    request.platform,
+                    request.runId
+                ).collectApiStateUpdates(
+                    onUpdate = { content, thoughts, timeline ->
+                        assistantMessage = assistantMessage.copy(
+                            content = content,
+                            thoughts = thoughts,
+                            timeline = timeline
+                        )
+                        streamPublisher.publish(request.runId, assistantMessage)
+                    },
+                    onNotice = { notice, persistent ->
+                        _notices.tryEmit(AgentRunNotice(request.chatId, request.runId, notice, persistent))
+                    },
+                    publishIntervalMillis = 0L,
+                    onCompactionState = { active ->
+                        _notices.tryEmit(
+                            AgentRunNotice(
+                                request.chatId,
+                                request.runId,
+                                if (active) context.getString(R.string.chat_context_compacting) else "",
+                                key = "compaction"
+                            )
+                        )
+                    }
+                )
+            }
             val terminal = outcome.toTerminalUpdate()
             val completedAt = currentEpochSeconds()
-            val terminalMessage = terminalAgentMessage(assistantMessage, terminal.error, completedAt)
-            commitTerminalAgentRun(
+            commitStreamTerminal(
+                chatId = request.chatId,
+                runId = request.runId,
+                terminalMessage = terminalAgentMessage(assistantMessage, terminal.error, completedAt),
                 finishRun = {
                     chatRepository.finishAgentRun(
                         request.runId,
@@ -242,54 +301,94 @@ class AgentRunCoordinator @Inject constructor(
                         completedAt,
                         terminal.error
                     )
-                },
-                persistMessage = { chatRepository.updateAgentMessage(terminalMessage) }
+                }
             )
         } catch (error: CancellationException) {
             withContext(NonCancellable) {
                 val completedAt = currentEpochSeconds()
-                runCatching {
-                    val isInterrupted = interruptingRunIds.remove(request.runId)
-                    commitTerminalAgentRun(
-                        finishRun = {
-                            chatRepository.finishAgentRun(
-                                request.runId,
-                                if (isInterrupted) AgentRunStatus.INTERRUPTED else AgentRunStatus.CANCELED,
-                                completedAt,
-                                if (isInterrupted) AgentRunTerminalError.SERVICE_STOPPED else null
-                            )
-                        },
-                        persistMessage = {
-                            chatRepository.updateAgentMessage(
-                                assistantMessage.copy(createdAt = completedAt).resetActiveRevision()
-                            )
-                        }
-                    )
-                }
+                val isInterrupted = interruptingRunIds.remove(request.runId)
+                commitStreamTerminal(
+                    chatId = request.chatId,
+                    runId = request.runId,
+                    terminalMessage = assistantMessage.copy(createdAt = completedAt).resetActiveRevision(),
+                    finishRun = {
+                        chatRepository.finishAgentRun(
+                            request.runId,
+                            if (isInterrupted) AgentRunStatus.INTERRUPTED else AgentRunStatus.CANCELED,
+                            completedAt,
+                            if (isInterrupted) AgentRunTerminalError.SERVICE_STOPPED else null
+                        )
+                    }
+                )
             }
             throw error
         } catch (error: Throwable) {
             withContext(NonCancellable) {
                 val completedAt = currentEpochSeconds()
                 val message = error.message ?: "Unknown provider error."
-                runCatching {
-                    val terminalMessage = terminalAgentMessage(assistantMessage, message, completedAt)
-                    commitTerminalAgentRun(
-                        finishRun = {
-                            chatRepository.finishAgentRun(
-                                request.runId,
-                                AgentRunStatus.FAILED,
-                                completedAt,
-                                message
-                            )
-                        },
-                        persistMessage = { chatRepository.updateAgentMessage(terminalMessage) }
-                    )
-                }
+                commitStreamTerminal(
+                    chatId = request.chatId,
+                    runId = request.runId,
+                    terminalMessage = terminalAgentMessage(assistantMessage, message, completedAt),
+                    finishRun = {
+                        chatRepository.finishAgentRun(
+                            request.runId,
+                            AgentRunStatus.FAILED,
+                            completedAt,
+                            message
+                        )
+                    }
+                )
             }
         }
     }
+
+    private suspend fun commitStreamTerminal(
+        chatId: Int,
+        runId: String,
+        terminalMessage: MessageV2,
+        finishRun: suspend () -> Boolean
+    ) {
+        val persistError = persistLiveTerminal(runId, terminalMessage)
+        val committed = runCatching {
+            commitTerminalAgentRun(
+                finishRun = finishRun,
+                persistMessage = {
+                    if (persistError != null) {
+                        chatRepository.updateAgentMessage(terminalMessage)
+                    }
+                }
+            )
+        }
+        if (shouldClearLiveSnapshot(persistError, committed.getOrNull())) {
+            withContext(NonCancellable) { streamPublisher.clear(runId) }
+        }
+        if (committed.getOrNull() != true) {
+            reportSaveFailure(chatId, runId, persistError ?: committed.exceptionOrNull())
+        }
+    }
+
+    private suspend fun persistLiveTerminal(runId: String, message: MessageV2): Throwable? {
+        streamPublisher.publish(runId, message)
+        return streamPublisher.flush(runId)
+    }
+
+    private fun reportSaveFailure(chatId: Int, runId: String, error: Throwable?) {
+        if (error == null) return
+        _notices.tryEmit(
+            AgentRunNotice(
+                chatId = chatId,
+                runId = runId,
+                message = saveFailureNotice(error),
+                persistent = true
+            )
+        )
+    }
 }
+
+internal fun saveFailureNotice(error: Throwable): String = error.message?.takeIf { it.isNotBlank() } ?: "Couldn't save this reply."
+
+internal fun shouldClearLiveSnapshot(persistError: Throwable?, terminalTransitionCommitted: Boolean?): Boolean = persistError == null || terminalTransitionCommitted == true
 
 internal data class AgentRunTerminalUpdate(val status: String, val error: String?)
 
@@ -315,6 +414,19 @@ internal fun ApiStateFlowOutcome.toTerminalUpdate(): AgentRunTerminalUpdate = wh
         "Provider stream ended without completion."
     )
 }
+
+internal suspend fun collectGenerationOutcome(
+    timeoutMillis: Long = AgentRunLimits().runTimeoutMillis,
+    collect: suspend () -> ApiStateFlowOutcome
+): ApiStateFlowOutcome = withTimeoutOrNull(timeoutMillis) { collect() }
+    ?: ApiStateFlowOutcome.Failed("Agent run timed out after $timeoutMillis ms.")
+
+internal suspend fun collectCompactionResult(
+    timeoutMillis: Long,
+    timeoutMessage: String,
+    compact: suspend () -> CompactionResult
+): CompactionResult = withTimeoutOrNull(timeoutMillis) { compact() }
+    ?: CompactionResult(CompactionStatus.FAILED, timeoutMessage)
 
 internal suspend fun commitTerminalAgentRun(
     finishRun: suspend () -> Boolean,

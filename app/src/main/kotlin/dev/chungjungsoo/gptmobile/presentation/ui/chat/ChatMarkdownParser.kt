@@ -21,6 +21,13 @@ data class InlineMathToken(
 )
 
 fun parseChatMarkdown(content: String): ParsedChatMarkdown {
+    if ('$' !in content && "\\[" !in content && "\\(" !in content) {
+        return ParsedChatMarkdown(
+            blocks = if (content.isBlank()) emptyList() else listOf(ChatMarkdownBlock.Markdown(content)),
+            inlineMath = emptyList()
+        )
+    }
+
     val blocks = mutableListOf<ChatMarkdownBlock>()
     val inlineMath = mutableListOf<InlineMathToken>()
     val markdownBuffer = StringBuilder()

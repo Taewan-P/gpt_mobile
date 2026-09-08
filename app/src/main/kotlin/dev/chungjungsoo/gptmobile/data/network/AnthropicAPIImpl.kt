@@ -109,6 +109,7 @@ class AnthropicAPIImpl @Inject constructor(
             val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}messages" else "$apiUrl/messages"
 
             networkClient().preparePost(endpoint) {
+                retryGenerationRequest()
                 applyPlatformStreamingTimeout(timeoutSeconds)
                 contentType(ContentType.Application.Json)
                 setBody(json.encodeToString(messageRequest))

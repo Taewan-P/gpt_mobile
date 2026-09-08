@@ -35,6 +35,23 @@ import org.junit.Test
 class ChatViewModelRetryTest {
 
     @Test
+    fun `linked replies stay with the original question after a later completion timestamp`() {
+        val grouped = groupPersistedMessages(
+            messages = listOf(
+                MessageV2(id = 1, chatId = 7, content = "First question", platformType = null, createdAt = 10),
+                MessageV2(id = 3, chatId = 7, content = "Second question", platformType = null, createdAt = 20),
+                MessageV2(id = 4, chatId = 7, content = "Second answer", platformType = "profile", linkedMessageId = 3, createdAt = 21),
+                MessageV2(id = 5, chatId = 7, content = "Retried first answer", platformType = "profile", linkedMessageId = 1, createdAt = 30)
+            ),
+            enabledPlatformsInChat = listOf("profile"),
+            chatId = 7
+        )
+
+        assertEquals("Retried first answer", grouped.assistantMessages[0].single().content)
+        assertEquals("Second answer", grouped.assistantMessages[1].single().content)
+    }
+
+    @Test
     fun `loading state reattaches to queued and running profile runs`() {
         val latestRow = listOf(
             MessageV2(id = 10, chatId = 7, content = "", platformType = "profile-1", currentRunId = "run-1"),

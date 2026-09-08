@@ -12,7 +12,11 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.agent.AgentRunCoordinator
 import dev.chungjungsoo.gptmobile.data.agent.AgentRunRequest
+import dev.chungjungsoo.gptmobile.data.agent.LiveAgentResponseSnapshot
 import dev.chungjungsoo.gptmobile.data.catalog.CatalogEntry
+import dev.chungjungsoo.gptmobile.data.context.CompactionStatus
+import dev.chungjungsoo.gptmobile.data.context.ModelContextSettings
+import dev.chungjungsoo.gptmobile.data.context.groupPersistedConversation
 import dev.chungjungsoo.gptmobile.data.database.entity.ACTIVE_REVISION_LATEST
 import dev.chungjungsoo.gptmobile.data.database.entity.AgentRun
 import dev.chungjungsoo.gptmobile.data.database.entity.AgentRunDraft
@@ -55,6 +59,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -126,6 +131,15 @@ class ChatViewModel @Inject constructor(
     private val _isChatModelDialogOpen = MutableStateFlow(false)
     val isChatModelDialogOpen = _isChatModelDialogOpen.asStateFlow()
 
+    data class ChatContextState(val platform: PlatformV2, val settings: ModelContextSettings)
+
+    private val _chatContextState = MutableStateFlow<ChatContextState?>(null)
+    val chatContextState = _chatContextState.asStateFlow()
+    private val _isContextBusy = MutableStateFlow(false)
+    val isContextBusy = _isContextBusy.asStateFlow()
+    private var contextOperationJob: Job? = null
+    private var sendAfterContextSetup = false
+
     private val _chatPlatformModels = MutableStateFlow<Map<String, String>>(emptyMap())
     val chatPlatformModels = _chatPlatformModels.asStateFlow()
 
@@ -170,7 +184,10 @@ class ChatViewModel @Inject constructor(
 
     // Chat messages currently in the chat room
     private val _groupedMessages = MutableStateFlow(GroupedMessages())
-    val groupedMessages = _groupedMessages.asStateFlow()
+    private val liveHighWater = MutableStateFlow<Map<String, LiveAgentResponseSnapshot>>(emptyMap())
+    val groupedMessages = combine(_groupedMessages, liveHighWater) { persisted, live ->
+        overlayLiveSnapshots(persisted, live)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, GroupedMessages())
 
     private val _toolEventsByRun = MutableStateFlow<Map<String, List<ToolEvent>>>(emptyMap())
     val toolEventsByRun = _toolEventsByRun.asStateFlow()
@@ -205,6 +222,7 @@ class ChatViewModel @Inject constructor(
         observeAgentRuns()
         observeToolEvents()
         observeAgentNotices()
+        observeLiveSnapshots()
         viewModelScope.launch {
             _catalogEntries.value = modelCatalogRepository.getCachedVisibleEntries()
         }
@@ -244,6 +262,7 @@ class ChatViewModel @Inject constructor(
     }
 
     fun cancelActiveRuns() {
+        contextOperationJob?.cancel()
         _chatRoom.value.id.takeIf { it > 0 }?.let(agentRunCoordinator::cancelChat)
     }
 
@@ -281,6 +300,64 @@ class ChatViewModel @Inject constructor(
 
     fun openChatTitleDialog() = _isChatTitleDialogOpen.update { true }
     fun openChatModelDialog() = _isChatModelDialogOpen.update { true }
+
+    fun openChatContextSettings(platformUid: String) {
+        if (_isContextBusy.value) return
+        val platform = _platformsInApp.value.firstOrNull { it.uid == platformUid }?.let(::resolvePlatformModel) ?: return
+        contextOperationJob = viewModelScope.launch {
+            _isContextBusy.value = true
+            try {
+                _chatContextState.value = ChatContextState(platform, chatRepository.getModelContextSettings(platform))
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                _attachmentNotice.value = error.message ?: context.getString(R.string.chat_context_load_failed)
+            } finally {
+                _isContextBusy.value = false
+                contextOperationJob = null
+            }
+        }
+    }
+
+    fun closeChatContextSettings() {
+        _chatContextState.value = null
+        sendAfterContextSetup = false
+    }
+
+    fun saveChatContextSettings(contextWindowTokens: Int?, resumableReplies: Boolean, compactNow: Boolean) {
+        val current = _chatContextState.value ?: return
+        if (_isContextBusy.value || (contextWindowTokens != null && contextWindowTokens <= 0)) return
+        contextOperationJob = viewModelScope.launch {
+            _isContextBusy.value = true
+            var shouldSend = false
+            try {
+                chatRepository.saveModelContextSettings(current.platform, contextWindowTokens, resumableReplies)
+                _platformsInApp.update { platforms ->
+                    platforms.map { if (it.uid == current.platform.uid) it.copy(resumableReplies = resumableReplies) else it }
+                }
+                _enabledPlatformsInApp.update { platforms ->
+                    platforms.map { if (it.uid == current.platform.uid) it.copy(resumableReplies = resumableReplies) else it }
+                }
+                _chatContextState.value = null
+                shouldSend = sendAfterContextSetup
+                sendAfterContextSetup = false
+                if (compactNow && _chatRoom.value.id > 0) {
+                    _attachmentNotice.value = context.getString(R.string.chat_context_compacting)
+                    val result = agentRunCoordinator.compactContext(_chatRoom.value.id, current.platform).await()
+                    _attachmentNotice.value = result.message
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                shouldSend = false
+                _attachmentNotice.value = error.message ?: context.getString(R.string.chat_context_save_failed)
+            } finally {
+                _isContextBusy.value = false
+                contextOperationJob = null
+            }
+            if (shouldSend) askQuestion()
+        }
+    }
 
     fun openUserMessageEditDialog(question: MessageV2) {
         _messageEditSession.update {
@@ -914,16 +991,46 @@ class ChatViewModel @Inject constructor(
     }
 
     private fun sendQuestion(questionText: String, attachments: List<ChatAttachmentDraft>) {
-        MessageV2(
+        if (_isContextBusy.value) return
+        if (question.text.isBlank() && questionText.isNotBlank()) restoreQueuedQuestion(questionText)
+        val draftAtStart = question.text.toString()
+        val message = MessageV2(
             chatId = chatRoomId,
             content = questionText,
             attachments = attachments.mapNotNull { it.attachment },
             platformType = null,
             createdAt = currentTimeStamp
-        ).let { addMessage(it) }
-        question.clearText()
-        clearSelectedFiles()
-        completeChat()
+        )
+        contextOperationJob = viewModelScope.launch {
+            _isContextBusy.value = true
+            try {
+                val platforms = enabledPlatformsInChat.mapNotNull { uid ->
+                    _platformsInApp.value.firstOrNull { it.uid == uid }?.let(::resolvePlatformModel)
+                }
+                for (platform in platforms) {
+                    val issue = chatRepository.validateDraftCapacity(platform, message) ?: continue
+                    if (issue.status == CompactionStatus.NEEDS_CAPACITY) {
+                        sendAfterContextSetup = true
+                        _chatContextState.value = ChatContextState(platform, chatRepository.getModelContextSettings(platform))
+                    } else {
+                        _attachmentNotice.value = issue.message
+                    }
+                    return@launch
+                }
+                if (question.text.toString() != draftAtStart || _selectedAttachments.value != attachments) return@launch
+                addMessage(message)
+                if (question.text.toString() == questionText) question.clearText()
+                clearSelectedFiles()
+                completeChat()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                _attachmentNotice.value = error.message ?: context.getString(R.string.chat_context_load_failed)
+            } finally {
+                _isContextBusy.value = false
+                contextOperationJob = null
+            }
+        }
     }
 
     private fun rejectDraftAttachment(
@@ -1000,7 +1107,7 @@ class ChatViewModel @Inject constructor(
     }
 
     private suspend fun fetchGroupedMessages(chatId: Int): GroupedMessages {
-        val messages = chatRepository.fetchMessagesV2(chatId).sortedBy { it.createdAt }
+        val messages = chatRepository.fetchMessagesV2(chatId)
         return groupPersistedMessages(messages, enabledPlatformsInChat, chatId)
     }
 
@@ -1117,12 +1224,24 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    private fun observeLiveSnapshots() {
+        viewModelScope.launch {
+            combine(_groupedMessages, agentRunCoordinator.liveSnapshots) { persisted, incoming ->
+                persisted to incoming
+            }.collect { (persisted, incoming) ->
+                liveHighWater.update { previous ->
+                    nextLiveHighWater(previous, incoming, persisted)
+                }
+            }
+        }
+    }
+
     private fun observeAgentNotices() {
         viewModelScope.launch {
             agentRunCoordinator.notices.collect { notice ->
                 if (notice.chatId == _chatRoom.value.id) {
                     _runNoticesById.update { current ->
-                        applyChatRunNotice(current, notice.runId, notice.message, notice.persistent)
+                        applyChatRunNotice(current, notice.runId, notice.message, notice.persistent, notice.key)
                     }
                 }
             }
@@ -1187,17 +1306,25 @@ class ChatViewModel @Inject constructor(
 
 data class ChatRunNotice(
     val message: String,
-    val persistent: Boolean
+    val persistent: Boolean,
+    val key: String? = null
 )
 
 internal fun applyChatRunNotice(
     noticesByRunId: Map<String, List<ChatRunNotice>>,
     runId: String,
     message: String,
-    persistent: Boolean
+    persistent: Boolean,
+    key: String? = null
 ): Map<String, List<ChatRunNotice>> {
-    if (runId.isBlank() || message.isBlank()) return noticesByRunId
+    if (runId.isBlank() || (message.isBlank() && key == null)) return noticesByRunId
     val current = noticesByRunId[runId].orEmpty()
+    if (key != null) {
+        val next = current.filterNot { it.key == key } +
+            if (message.isBlank()) emptyList() else listOf(ChatRunNotice(message, persistent, key))
+        if (next == current) return noticesByRunId
+        return if (next.isEmpty()) noticesByRunId - runId else noticesByRunId + (runId to next)
+    }
     if (current.any { it.message == message && it.persistent == persistent }) return noticesByRunId
     return noticesByRunId + (runId to (current + ChatRunNotice(message, persistent)))
 }
@@ -1243,16 +1370,7 @@ internal fun groupPersistedMessages(
     enabledPlatformsInChat: List<String>,
     chatId: Int
 ): ChatViewModel.GroupedMessages {
-    val userMessages = mutableListOf<MessageV2>()
-    val assistantMessages = mutableListOf<MutableList<MessageV2>>()
-    messages.forEach { message ->
-        if (message.platformType == null) {
-            userMessages += message
-            assistantMessages += mutableListOf<MessageV2>()
-        } else {
-            assistantMessages.lastOrNull()?.add(message)
-        }
-    }
+    val (userMessages, assistantMessages) = groupPersistedConversation(messages)
     return ChatViewModel.GroupedMessages(
         userMessages = userMessages,
         assistantMessages = assistantMessages.map { row ->
@@ -1396,7 +1514,9 @@ internal fun formatAssistantExport(
 }
 
 internal fun persistableMessages(groupedMessages: ChatViewModel.GroupedMessages): List<MessageV2> {
-    val merged = groupedMessages.userMessages + groupedMessages.assistantMessages.flatten()
+    val merged = groupedMessages.userMessages.flatMapIndexed { index, userMessage ->
+        listOf(userMessage) + groupedMessages.assistantMessages.getOrNull(index).orEmpty()
+    }
     return merged
         .filter {
             it.effectiveContent().isNotBlank() ||
@@ -1405,7 +1525,6 @@ internal fun persistableMessages(groupedMessages: ChatViewModel.GroupedMessages)
                 it.attachments.isNotEmpty() ||
                 it.currentRunId != null
         }
-        .sortedBy { it.createdAt }
 }
 
 internal fun createEmptyAssistantMessage(chatId: Int, platformUid: String): MessageV2 = MessageV2(

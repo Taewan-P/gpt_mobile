@@ -10,9 +10,20 @@ import dev.chungjungsoo.gptmobile.data.agent.AgentToolExchange
 import dev.chungjungsoo.gptmobile.data.agent.AgentToolResult
 import dev.chungjungsoo.gptmobile.data.agent.ProviderEvent
 import dev.chungjungsoo.gptmobile.data.agent.ToolResultContent
+import dev.chungjungsoo.gptmobile.data.context.ANTHROPIC_INTERLEAVED_THINKING_BETA
+import dev.chungjungsoo.gptmobile.data.context.CompactionRepresentation
 import dev.chungjungsoo.gptmobile.data.context.ConversationTurn
+import dev.chungjungsoo.gptmobile.data.context.OutputTokenBudget
+import dev.chungjungsoo.gptmobile.data.context.PreparedContext
+import dev.chungjungsoo.gptmobile.data.context.TokenBudget
+import dev.chungjungsoo.gptmobile.data.context.anthropicThinkingPolicy
+import dev.chungjungsoo.gptmobile.data.context.outputReserveTokens
+import dev.chungjungsoo.gptmobile.data.context.resolvedOutputTokenCap
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
+import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.CompactionContent
+import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.MessageRole
+import dev.chungjungsoo.gptmobile.data.dto.anthropic.request.InputMessage
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ContentBlock
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ContentBlockType
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ContentDeltaResponseChunk
@@ -27,13 +38,19 @@ import dev.chungjungsoo.gptmobile.data.dto.google.common.Role as GoogleRole
 import dev.chungjungsoo.gptmobile.data.dto.google.request.GenerateContentRequest
 import dev.chungjungsoo.gptmobile.data.dto.google.response.Candidate
 import dev.chungjungsoo.gptmobile.data.dto.google.response.GenerateContentResponse
+import dev.chungjungsoo.gptmobile.data.dto.google.response.UsageMetadata
 import dev.chungjungsoo.gptmobile.data.dto.groq.request.GroqChatCompletionRequest
 import dev.chungjungsoo.gptmobile.data.dto.groq.response.GroqChatCompletionChunk
 import dev.chungjungsoo.gptmobile.data.dto.groq.response.GroqChoice
 import dev.chungjungsoo.gptmobile.data.dto.groq.response.GroqDelta
+import dev.chungjungsoo.gptmobile.data.dto.groq.response.GroqUsage
+import dev.chungjungsoo.gptmobile.data.dto.groq.response.GroqXGroq
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatCompletionRequest
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseFunctionCallInput
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseFunctionCallOutput
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponsesRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ChatCompletionChunk
+import dev.chungjungsoo.gptmobile.data.dto.openai.response.ChatCompletionUsage
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ChatFunctionDelta
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ChatToolCallDelta
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.Choice
@@ -41,6 +58,7 @@ import dev.chungjungsoo.gptmobile.data.dto.openai.response.Delta
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.OutputTextDeltaEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseCompletedEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseObject
+import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseUsage
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponsesStreamEvent
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.network.AnthropicAPI
@@ -56,6 +74,7 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
@@ -65,6 +84,7 @@ import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ProviderAdaptersTest {
@@ -106,6 +126,95 @@ class ProviderAdaptersTest {
         )
         assertNull(api.responseRequests.single().tools)
         assertEquals(ProviderRequestConfig("https://provider.example/v1", "secret"), api.configs.single())
+    }
+
+    @Test
+    fun `openai responses adapter enables resumable replies only on official endpoint`() = runBlocking {
+        val callback: suspend (String) -> Unit = {}
+        val officialApi = FakeOpenAIAPI(responseRounds = ArrayDeque(listOf(emptyFlow())))
+        OpenAIResponsesAdapter(officialApi, attachmentEncoder())
+            .openSession(
+                turns(),
+                platform(ClientType.OPENAI).copy(apiUrl = ModelConstants.OPENAI_API_URL, resumableReplies = true),
+                onUnconfirmedRemoteCancellation = callback
+            )
+            .streamRound(emptyList(), emptyList())
+            .toList()
+
+        assertTrue(officialApi.configs.single().resumableReplies)
+        assertTrue(officialApi.configs.single().onUnconfirmedRemoteCancellation === callback)
+
+        val customApi = FakeOpenAIAPI(responseRounds = ArrayDeque(listOf(emptyFlow())))
+        OpenAIResponsesAdapter(customApi, attachmentEncoder())
+            .openSession(
+                turns(),
+                platform(ClientType.OPENAI).copy(resumableReplies = true),
+                onUnconfirmedRemoteCancellation = callback
+            )
+            .streamRound(emptyList(), emptyList())
+            .toList()
+
+        assertFalse(customApi.configs.single().resumableReplies)
+        assertTrue(customApi.configs.single().onUnconfirmedRemoteCancellation === callback)
+    }
+
+    @Test
+    fun `openai responses rebuilt session replays completed call and output with compacted context`() = runBlocking {
+        val api = FakeOpenAIAPI(responseRounds = ArrayDeque(listOf(emptyFlow())))
+        val session = OpenAIResponsesAdapter(api, attachmentEncoder())
+            .openSession(
+                listOf(
+                    ConversationTurn(
+                        MessageV2(content = "Compacted context: weather call is complete.", platformType = null),
+                        null,
+                        false
+                    )
+                ),
+                platform(ClientType.OPENAI)
+            )
+
+        session.streamRound(
+            listOf(definition),
+            listOf(AgentToolExchange(listOf(call), listOf(result)))
+        ).toList()
+
+        val input = api.responseRequests.single().input
+        assertTrue(input.first() is dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseInputMessage)
+        assertEquals(call.callId, (input[1] as ResponseFunctionCallInput).callId)
+        assertEquals(call.name, (input[1] as ResponseFunctionCallInput).name)
+        assertEquals(result.callId, (input[2] as ResponseFunctionCallOutput).callId)
+        assertEquals("sunny", (input[2] as ResponseFunctionCallOutput).output)
+        val encoded = NetworkClient.openAIJson.encodeToString(api.responseRequests.single())
+        assertTrue(encoded.contains("\"type\":\"function_call\""))
+        assertTrue(encoded.contains("\\\"city\\\":\\\"Tokyo\\\""))
+    }
+
+    @Test
+    fun `anthropic rebuilt session replays completed tool protocol after compacted context`() = runBlocking {
+        val api = FakeAnthropicAPI(ArrayDeque(listOf(emptyFlow())))
+        val session = AnthropicMessagesAdapter(api, attachmentEncoder())
+            .openSession(
+                listOf(
+                    ConversationTurn(
+                        MessageV2(content = "Compacted context: weather call is complete.", platformType = null),
+                        null,
+                        false
+                    )
+                ),
+                platform(ClientType.ANTHROPIC)
+            )
+
+        session.streamRound(
+            listOf(definition),
+            listOf(AgentToolExchange(listOf(call), listOf(result)))
+        ).toList()
+
+        val continuation = api.requests.single().messages.takeLast(2)
+        val toolUse = continuation[0].content.single() as dev.chungjungsoo.gptmobile.data.dto.anthropic.common.ToolUseContent
+        val toolResult = continuation[1].content.single() as dev.chungjungsoo.gptmobile.data.dto.anthropic.common.ToolResultContent
+        assertEquals(call.callId, toolUse.id)
+        assertEquals(result.callId, toolResult.toolUseId)
+        assertEquals("sunny", toolResult.content)
     }
 
     @Test
@@ -731,6 +840,254 @@ class ProviderAdaptersTest {
         assertNull(api.requests.single().tools)
     }
 
+    @Test
+    fun `anthropic thinking request cap matches compaction reserve`() = runBlocking {
+        val api = FakeAnthropicAPI(ArrayDeque(listOf(emptyFlow())))
+        val platform = platform(ClientType.ANTHROPIC).copy(model = "claude-sonnet-4-6", reasoning = true)
+
+        AnthropicMessagesAdapter(api, attachmentEncoder())
+            .openSession(turns(), platform)
+            .streamRound(listOf(definition), emptyList())
+            .toList()
+
+        assertEquals(16_000, api.requests.single().maxTokens)
+        assertEquals(outputReserveTokens(platform, true), api.requests.single().maxTokens)
+        assertEquals("adaptive", requestJson(api.requests.single())["thinking"]!!.jsonObject["type"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `unspecified hosted output cap is explicit and matches reserve`() = runBlocking {
+        val api = FakeOpenAIAPI(chatRounds = ArrayDeque(listOf(emptyFlow())))
+        val platform = platform(ClientType.CUSTOM)
+
+        OpenAICompatibleAdapter(api, FakeGroqAPI(), attachmentEncoder())
+            .openSession(turns(), platform)
+            .streamRound(emptyList(), emptyList())
+            .toList()
+
+        assertEquals(OutputTokenBudget.DEFAULT_HOSTED_OUTPUT_TOKENS, resolvedOutputTokenCap(platform))
+        assertEquals(outputReserveTokens(platform), api.chatRequests.single().maxTokens)
+    }
+
+    @Test
+    fun `openai native compacted items are prepended to tail with current instructions`() = runBlocking {
+        val api = FakeOpenAIAPI(responseRounds = ArrayDeque(listOf(emptyFlow())))
+        val prepared = PreparedContext(
+            instructions = "live-instructions",
+            turns = listOf(
+                ConversationTurn(
+                    userMessage = MessageV2(content = "latest-tail", platformType = null),
+                    assistantMessage = null,
+                    isCurrentTurn = true
+                )
+            ),
+            nativeItemsJson = """[{"type":"compaction","encrypted_content":"opaque-state"}]""",
+            representation = CompactionRepresentation.NATIVE_OPENAI,
+            tokenBudget = TokenBudget(32_000, 100, 4_096, 10, 0, 0, 100),
+            coveredTurnCount = 4,
+            sourcePrefixFingerprint = "fp"
+        )
+
+        OpenAIResponsesAdapter(api, attachmentEncoder())
+            .openSession(prepared.turns, platform(ClientType.OPENAI).copy(systemPrompt = "stale"), prepared)
+            .streamRound(emptyList(), emptyList())
+            .toList()
+
+        val request = api.responseRequests.single()
+        val encoded = NetworkClient.openAIJson.encodeToString(request)
+        assertTrue(encoded.contains("opaque-state"))
+        assertTrue(encoded.contains("latest-tail"))
+        assertEquals("live-instructions", request.instructions)
+        assertEquals(outputReserveTokens(platform(ClientType.OPENAI)), request.maxOutputTokens)
+    }
+
+    @Test
+    fun `anthropic native compacted messages are prepended to tail`() = runBlocking {
+        val api = FakeAnthropicAPI(ArrayDeque(listOf(emptyFlow())))
+        val nativeJson = NetworkClient.json.encodeToString(
+            listOf(
+                InputMessage(
+                    MessageRole.ASSISTANT,
+                    listOf(CompactionContent("compacted-memory"))
+                )
+            )
+        )
+        val prepared = PreparedContext(
+            instructions = "live-instructions",
+            turns = listOf(
+                ConversationTurn(
+                    userMessage = MessageV2(content = "latest-tail", platformType = null),
+                    assistantMessage = null,
+                    isCurrentTurn = true
+                )
+            ),
+            nativeItemsJson = nativeJson,
+            representation = CompactionRepresentation.NATIVE_ANTHROPIC,
+            tokenBudget = TokenBudget(32_000, 100, 4_096, 10, 0, 0, 100),
+            coveredTurnCount = 4,
+            sourcePrefixFingerprint = "fp"
+        )
+
+        AnthropicMessagesAdapter(api, attachmentEncoder())
+            .openSession(prepared.turns, platform(ClientType.ANTHROPIC).copy(systemPrompt = "stale"), prepared)
+            .streamRound(emptyList(), emptyList())
+            .toList()
+
+        val request = api.requests.single()
+        val encoded = NetworkClient.json.encodeToString(request)
+        assertTrue(encoded.contains("compacted-memory"))
+        assertTrue(encoded.contains("latest-tail"))
+        assertEquals("live-instructions", request.systemPrompt)
+        assertEquals(2, request.messages.size)
+    }
+
+    @Test
+    fun `openai responses adapter emits usage before completed`() = runBlocking {
+        val api = FakeOpenAIAPI(
+            responseRounds = ArrayDeque(
+                listOf(
+                    flowOf(
+                        OutputTextDeltaEvent("item_1", 0, 0, "hello"),
+                        ResponseCompletedEvent(
+                            ResponseObject("resp_1", "completed", usage = ResponseUsage(12, 4))
+                        )
+                    )
+                )
+            )
+        )
+
+        val events = OpenAIResponsesAdapter(api, attachmentEncoder())
+            .openSession(turns(), platform(ClientType.OPENAI))
+            .streamRound(emptyList(), emptyList())
+            .toList()
+
+        assertEquals(
+            listOf(ProviderEvent.TextDelta("hello"), ProviderEvent.Usage(12, 4), ProviderEvent.Completed),
+            events
+        )
+    }
+
+    @Test
+    fun `openai compatible adapter emits optional terminal usage before completed`() = runBlocking {
+        val api = FakeOpenAIAPI(
+            chatRounds = ArrayDeque(
+                listOf(
+                    flowOf(
+                        ChatCompletionChunk(
+                            choices = listOf(Choice(0, Delta(content = "hi"), "stop")),
+                            usage = ChatCompletionUsage(promptTokens = 9, completionTokens = 2)
+                        )
+                    )
+                )
+            )
+        )
+
+        val events = OpenAICompatibleAdapter(api, FakeGroqAPI(), attachmentEncoder())
+            .openSession(turns(), platform(ClientType.CUSTOM))
+            .streamRound(emptyList(), emptyList())
+            .toList()
+
+        assertEquals(
+            listOf(ProviderEvent.TextDelta("hi"), ProviderEvent.Usage(9, 2), ProviderEvent.Completed),
+            events
+        )
+    }
+
+    @Test
+    fun `groq adapter emits x_groq usage including additive cache tokens`() = runBlocking {
+        val groq = FakeGroqAPI(
+            ArrayDeque(
+                listOf(
+                    flowOf(
+                        GroqChatCompletionChunk(
+                            choices = listOf(GroqChoice(0, delta = GroqDelta(content = "hi"), finishReason = "stop")),
+                            xGroq = GroqXGroq(
+                                usage = GroqUsage(
+                                    promptTokens = 8,
+                                    completionTokens = 3,
+                                    cacheCreationInputTokens = 1,
+                                    cacheReadInputTokens = 5
+                                )
+                            )
+                        )
+                    )
+                )
+            )
+        )
+
+        val events = OpenAICompatibleAdapter(FakeOpenAIAPI(), groq, attachmentEncoder())
+            .openSession(turns(), platform(ClientType.GROQ))
+            .streamRound(emptyList(), emptyList())
+            .toList()
+
+        assertEquals(
+            listOf(ProviderEvent.TextDelta("hi"), ProviderEvent.Usage(14, 3), ProviderEvent.Completed),
+            events
+        )
+    }
+
+    @Test
+    fun `gemini adapter emits usageMetadata before completed`() = runBlocking {
+        val api = FakeGoogleAPI(
+            ArrayDeque(
+                listOf(
+                    flowOf(
+                        GenerateContentResponse(
+                            candidates = listOf(
+                                Candidate(content = Content(role = GoogleRole.MODEL, parts = listOf(Part.text("done"))))
+                            ),
+                            usageMetadata = UsageMetadata(
+                                promptTokenCount = 11,
+                                cachedContentTokenCount = 4,
+                                candidatesTokenCount = 2,
+                                thoughtsTokenCount = 3
+                            )
+                        )
+                    )
+                )
+            )
+        )
+
+        val events = GeminiAdapter(api, attachmentEncoder())
+            .openSession(turns(), platform(ClientType.GOOGLE))
+            .streamRound(emptyList(), emptyList())
+            .toList()
+
+        assertEquals(
+            listOf(ProviderEvent.TextDelta("done"), ProviderEvent.Usage(11, 5), ProviderEvent.Completed),
+            events
+        )
+    }
+
+    @Test
+    fun `anthropic adapter emits cache-inclusive usage before completed`() = runBlocking {
+        val api = FakeAnthropicAPI(
+            ArrayDeque(
+                listOf(
+                    flowOf(
+                        NetworkClient.json.decodeFromString<MessageResponseChunk>(
+                            """{"type":"message_start","message":{"id":"msg_1","role":"assistant","content":[],"model":"claude","usage":{"input_tokens":6,"cache_read_input_tokens":10,"output_tokens":1}}}"""
+                        ),
+                        NetworkClient.json.decodeFromString<MessageResponseChunk>(
+                            """{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":4}}"""
+                        ),
+                        MessageStopResponseChunk
+                    )
+                )
+            )
+        )
+
+        val events = AnthropicMessagesAdapter(api, attachmentEncoder())
+            .openSession(turns(), platform(ClientType.ANTHROPIC))
+            .streamRound(emptyList(), emptyList())
+            .toList()
+
+        assertEquals(
+            listOf(ProviderEvent.Usage(16, 4), ProviderEvent.Completed),
+            events
+        )
+    }
+
     private fun turns() = listOf(
         ConversationTurn(
             userMessage = MessageV2(content = "hello", platformType = null),
@@ -809,6 +1166,12 @@ class ProviderAdaptersTest {
         ) = UploadedProviderFile("file", mimeType)
 
         override suspend fun isFileAvailable(fileId: String, config: ProviderRequestConfig) = false
+
+        override suspend fun compactResponses(
+            request: dev.chungjungsoo.gptmobile.data.dto.openai.request.CompactResponsesRequest,
+            timeoutSeconds: Int,
+            config: ProviderRequestConfig
+        ) = dev.chungjungsoo.gptmobile.data.dto.openai.request.CompactResponsesResult()
     }
 
     private class FakeGroqAPI(

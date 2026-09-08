@@ -56,7 +56,11 @@ data class MessageRequest(
 
     @SerialName("tools")
     @EncodeDefault(EncodeDefault.Mode.NEVER)
-    val tools: List<AnthropicTool>? = null
+    val tools: List<AnthropicTool>? = null,
+
+    @SerialName("context_management")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val contextManagement: AnthropicContextManagement? = null
 )
 
 @Serializable
