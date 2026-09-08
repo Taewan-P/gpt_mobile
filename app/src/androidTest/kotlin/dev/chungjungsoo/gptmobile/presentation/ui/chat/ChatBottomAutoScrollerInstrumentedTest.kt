@@ -30,6 +30,33 @@ class ChatBottomAutoScrollerInstrumentedTest {
     val composeRule = createComposeRule()
 
     @Test
+    fun openingLoadedHistory_startsAtBottomWithoutAutoScroll() {
+        lateinit var listState: LazyListState
+        var isHistoryLoaded by mutableStateOf(false)
+
+        composeRule.setContent {
+            listState = rememberChatListState(messageCount = if (isHistoryLoaded) 2 else 0)
+
+            Box(Modifier.size(width = 320.dp, height = 280.dp)) {
+                GrowingChatList(
+                    listState = listState,
+                    additionalHeight = 480.dp,
+                    isContentVisible = isHistoryLoaded
+                )
+            }
+        }
+
+        composeRule.waitForIdle()
+        composeRule.runOnIdle { isHistoryLoaded = true }
+        composeRule.waitForIdle()
+
+        composeRule.runOnIdle {
+            assertTrue(listState.canScrollBackward)
+            assertFalse(listState.canScrollForward)
+        }
+    }
+
+    @Test
     fun growingContentWhileFollowing_keepsTheTrueBottomVisible() {
         lateinit var listState: LazyListState
         var additionalHeight by mutableStateOf(0.dp)
@@ -92,14 +119,17 @@ class ChatBottomAutoScrollerInstrumentedTest {
 @androidx.compose.runtime.Composable
 private fun GrowingChatList(
     listState: LazyListState,
-    additionalHeight: androidx.compose.ui.unit.Dp
+    additionalHeight: androidx.compose.ui.unit.Dp,
+    isContentVisible: Boolean = true
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         state = listState
     ) {
-        item { Spacer(Modifier.height(420.dp)) }
-        item { Spacer(Modifier.height(320.dp + additionalHeight)) }
-        item(key = "chat-bottom-anchor") { Spacer(Modifier.height(1.dp)) }
+        if (isContentVisible) {
+            item { Spacer(Modifier.height(420.dp)) }
+            item { Spacer(Modifier.height(320.dp + additionalHeight)) }
+            item(key = "chat-bottom-anchor") { Spacer(Modifier.height(1.dp)) }
+        }
     }
 }
