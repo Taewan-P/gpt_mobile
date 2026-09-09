@@ -2,6 +2,9 @@ package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasProgressBarRangeInfo
@@ -10,6 +13,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineItem
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineItemType
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
@@ -39,6 +43,28 @@ class ChatMessagePresentationInstrumentedTest {
         composeRule.onNodeWithContentDescription("Message actions").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("Copy Text").assertExists()
         composeRule.onNodeWithContentDescription("Select Text").assertExists()
+    }
+
+    @Test
+    fun userMessageExposesLongPressActionsToAccessibility() {
+        composeRule.setContent {
+            GPTMobileTheme {
+                UserChatBubble(
+                    text = "Question",
+                    canEdit = true
+                )
+            }
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("Question").fetchSemanticsNodes().size == 1
+        }
+        composeRule
+            .onNodeWithText("Question")
+            .assert(SemanticsMatcher.keyIsDefined(SemanticsActions.OnLongClick))
+            .performSemanticsAction(SemanticsActions.OnLongClick)
+        composeRule.onNodeWithText("Copy Text").assertExists()
+        composeRule.onNodeWithText("Edit").assertExists()
     }
 
     @Test

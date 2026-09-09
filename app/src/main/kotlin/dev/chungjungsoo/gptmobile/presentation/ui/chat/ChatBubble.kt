@@ -57,6 +57,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -93,10 +94,17 @@ fun UserChatBubble(
     )
 
     var isActionsSheetOpen by rememberSaveable(contentIdentity) { mutableStateOf(false) }
+    val messageActionsLabel = stringResource(R.string.message_actions)
 
     Column(horizontalAlignment = Alignment.End) {
         Card(
             modifier = modifier
+                .semantics(mergeDescendants = true) {
+                    onLongClick(label = messageActionsLabel) {
+                        isActionsSheetOpen = true
+                        true
+                    }
+                }
                 .pointerInput(contentIdentity) {
                     detectTapGestures(onLongPress = { isActionsSheetOpen = true })
                 },

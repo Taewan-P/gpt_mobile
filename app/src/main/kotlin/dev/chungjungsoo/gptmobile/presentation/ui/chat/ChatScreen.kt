@@ -546,7 +546,12 @@ private fun ChatMessagePair(
                     .padding(top = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                GPTMobileIcon(loading = isActiveMessage && !isIdle)
+                GPTMobileIcon(
+                    loading = shouldShowReplyLoadingIndicator(
+                        isActiveMessage = isActiveMessage,
+                        loadingStates = loadingStates
+                    )
+                )
                 if (enabledPlatformsInChat.size > 1) {
                     Row(
                         modifier = Modifier
@@ -617,6 +622,11 @@ private fun chatMessagePairKey(message: MessageV2, index: Int): String = if (mes
 } else {
     "message-${message.createdAt}-$index"
 }
+
+internal fun shouldShowReplyLoadingIndicator(
+    isActiveMessage: Boolean,
+    loadingStates: List<ChatViewModel.LoadingState>
+): Boolean = isActiveMessage && loadingStates.any { it == ChatViewModel.LoadingState.Loading }
 
 @Composable
 internal fun rememberChatListState(messageCount: Int): LazyListState = key(messageCount > 0) {
