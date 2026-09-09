@@ -87,7 +87,7 @@ class ChatMessagePresentationInstrumentedTest {
     }
 
     @Test
-    fun activeToolHidesStreamingDotAndDetailsSpinner() {
+    fun activeToolKeepsOneStreamingIndicatorVisible() {
         composeRule.setContent {
             GPTMobileTheme {
                 OpponentChatBubble(
@@ -103,7 +103,7 @@ class ChatMessagePresentationInstrumentedTest {
             }
         }
 
-        composeRule.onNodeWithText("Answer●").assertDoesNotExist()
+        composeRule.onAllNodesWithText("●").assertCountEquals(1)
         composeRule.onNodeWithText("Details").assertExists()
         composeRule.onNodeWithContentDescription("Tool in progress").assertDoesNotExist()
     }

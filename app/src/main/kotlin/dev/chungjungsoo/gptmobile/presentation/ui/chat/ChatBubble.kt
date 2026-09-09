@@ -69,7 +69,6 @@ import dev.chungjungsoo.gptmobile.data.database.entity.AgentRun
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineItem
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineItemType
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
-import dev.chungjungsoo.gptmobile.data.database.entity.ToolEventStatus
 import dev.chungjungsoo.gptmobile.data.database.entity.hasUnavailableAssistantOrder
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 import dev.chungjungsoo.gptmobile.presentation.theme.defaultSpatialSpec
@@ -171,9 +170,6 @@ fun OpponentChatBubble(
         isRunActive = isLoading
     )
     val contentTimeline = timeline.filter { it.type != AssistantTimelineItemType.NOTICE }
-    val activeToolEvents = toolEvents.filter {
-        it.status == ToolEventStatus.PENDING || it.status == ToolEventStatus.RUNNING
-    }
     val hasUnresolvedToolDetails = hasUnresolvedToolReferences(contentTimeline, toolEvents)
     val hasDetails = thoughts.isNotBlank() ||
         toolEvents.isNotEmpty() ||
@@ -189,7 +185,7 @@ fun OpponentChatBubble(
         hasToolEvents = toolEvents.isNotEmpty()
     )
     var isDetailsExpanded by rememberSaveable(contentIdentity) { mutableStateOf(false) }
-    val showAnswerStreamingIndicator = isLoading && activeToolEvents.isEmpty()
+    val showAnswerStreamingIndicator = isLoading
     val showProcessStreamingIndicator = showAnswerStreamingIndicator && text.isBlank()
 
     Column(modifier = modifier) {
