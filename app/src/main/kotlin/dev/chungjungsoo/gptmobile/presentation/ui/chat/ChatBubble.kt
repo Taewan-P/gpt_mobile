@@ -378,6 +378,7 @@ private fun DetailsButton(
     Row(
         modifier = Modifier
             .heightIn(min = 48.dp)
+            .clip(MaterialTheme.shapes.extraLarge)
             .clickable(onClick = onClick)
             .semantics(mergeDescendants = true) {
                 role = Role.Button
