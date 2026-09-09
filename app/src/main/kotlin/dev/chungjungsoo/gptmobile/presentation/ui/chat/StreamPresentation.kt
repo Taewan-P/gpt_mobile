@@ -7,11 +7,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
-import java.text.BreakIterator
-import java.util.Locale
+import java.util.regex.Pattern
 import kotlin.math.ceil
 
 internal const val STREAM_PRESENTATION_CATCH_UP_MS = 100L
+private val GRAPHEME_PATTERN = Pattern.compile("\\X")
 
 @Composable
 internal fun rememberPresentedStreamText(
@@ -66,17 +66,11 @@ internal fun nextPresentedText(
 
 internal fun takeGraphemes(text: String, maxGraphemes: Int): String {
     if (maxGraphemes <= 0 || text.isEmpty()) return ""
-    val iterator = BreakIterator.getCharacterInstance(Locale.ROOT)
-    iterator.setText(text)
+    val matcher = GRAPHEME_PATTERN.matcher(text)
     var end = 0
-    var count = 0
-    while (count < maxGraphemes) {
-        val next = iterator.next()
-        if (next == BreakIterator.DONE) {
-            return text
-        }
-        end = next
-        count++
+    repeat(maxGraphemes) {
+        if (!matcher.find()) return text
+        end = matcher.end()
     }
     return text.substring(0, end)
 }

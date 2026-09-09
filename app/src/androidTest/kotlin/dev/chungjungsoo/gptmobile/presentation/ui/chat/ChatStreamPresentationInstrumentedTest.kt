@@ -21,6 +21,7 @@ class ChatStreamPresentationInstrumentedTest {
         composeRule.mainClock.autoAdvance = false
         val emoji = "\uD83D\uDE00"
         val family = "👨‍👩‍👧‍👦"
+        assertEquals(family, takeGraphemes(family + "x", 1))
         var received by mutableStateOf("Hi")
         var presented = ""
 
