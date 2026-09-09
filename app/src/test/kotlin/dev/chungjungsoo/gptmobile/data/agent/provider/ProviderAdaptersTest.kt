@@ -11,8 +11,11 @@ import dev.chungjungsoo.gptmobile.data.agent.AgentToolResult
 import dev.chungjungsoo.gptmobile.data.agent.ProviderEvent
 import dev.chungjungsoo.gptmobile.data.agent.ToolResultContent
 import dev.chungjungsoo.gptmobile.data.context.ANTHROPIC_INTERLEAVED_THINKING_BETA
+import dev.chungjungsoo.gptmobile.data.context.AnthropicNativeCompactor
+import dev.chungjungsoo.gptmobile.data.context.CompactInput
 import dev.chungjungsoo.gptmobile.data.context.CompactionRepresentation
 import dev.chungjungsoo.gptmobile.data.context.ConversationTurn
+import dev.chungjungsoo.gptmobile.data.context.OpenAINativeCompactor
 import dev.chungjungsoo.gptmobile.data.context.OutputTokenBudget
 import dev.chungjungsoo.gptmobile.data.context.PreparedContext
 import dev.chungjungsoo.gptmobile.data.context.TokenBudget
@@ -46,6 +49,8 @@ import dev.chungjungsoo.gptmobile.data.dto.groq.response.GroqDelta
 import dev.chungjungsoo.gptmobile.data.dto.groq.response.GroqUsage
 import dev.chungjungsoo.gptmobile.data.dto.groq.response.GroqXGroq
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatCompletionRequest
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.CompactResponsesRequest
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.CompactResponsesResult
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseFunctionCallInput
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseFunctionCallOutput
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponsesRequest
@@ -75,6 +80,8 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
@@ -856,7 +863,7 @@ class ProviderAdaptersTest {
     }
 
     @Test
-    fun `unspecified hosted output cap is explicit and matches reserve`() = runBlocking {
+    fun `unspecified hosted output cap is omitted while reserve stays conservative`() = runBlocking {
         val api = FakeOpenAIAPI(chatRounds = ArrayDeque(listOf(emptyFlow())))
         val platform = platform(ClientType.CUSTOM)
 
@@ -865,8 +872,9 @@ class ProviderAdaptersTest {
             .streamRound(emptyList(), emptyList())
             .toList()
 
-        assertEquals(OutputTokenBudget.DEFAULT_HOSTED_OUTPUT_TOKENS, resolvedOutputTokenCap(platform))
-        assertEquals(outputReserveTokens(platform), api.chatRequests.single().maxTokens)
+        assertNull(resolvedOutputTokenCap(platform))
+        assertNull(api.chatRequests.single().maxTokens)
+        assertEquals(OutputTokenBudget.DEFAULT_HOSTED_OUTPUT_TOKENS, outputReserveTokens(platform))
     }
 
     @Test
@@ -898,7 +906,54 @@ class ProviderAdaptersTest {
         assertTrue(encoded.contains("opaque-state"))
         assertTrue(encoded.contains("latest-tail"))
         assertEquals("live-instructions", request.instructions)
-        assertEquals(outputReserveTokens(platform(ClientType.OPENAI)), request.maxOutputTokens)
+        assertNull(request.maxOutputTokens)
+        assertEquals(OutputTokenBudget.DEFAULT_HOSTED_OUTPUT_TOKENS, outputReserveTokens(platform(ClientType.OPENAI)))
+    }
+
+    @Test
+    fun `openai native compactor appends new turns to existing state`() = runBlocking {
+        val api = FakeOpenAIAPI()
+        api.compactResult = CompactResponsesResult(JsonArray(listOf(Json.parseToJsonElement("""{"type":"compaction"}"""))))
+        val compactor = OpenAINativeCompactor(api) {
+            JsonArray(listOf(Json.parseToJsonElement("""{"role":"user","content":"new"}""")))
+        }
+
+        compactor.compact(
+            CompactInput(
+                platform(ClientType.OPENAI).copy(apiUrl = ModelConstants.OPENAI_API_URL),
+                null,
+                emptyList(),
+                emptyList(),
+                """[{"type":"compaction","encrypted_content":"old"}]""",
+                128
+            )
+        )
+
+        val input = api.compactRequests.single().input.toString()
+        assertTrue(input.contains("old"))
+        assertTrue(input.contains("new"))
+    }
+
+    @Test
+    fun `anthropic native compactor rejects malformed existing state`() = runBlocking {
+        val compactor = AnthropicNativeCompactor(FakeAnthropicAPI(ArrayDeque())) { emptyList() }
+        val failure = runCatching {
+            compactor.compact(
+                CompactInput(
+                    platform(ClientType.ANTHROPIC).copy(
+                        apiUrl = ModelConstants.ANTHROPIC_API_URL,
+                        model = "claude-sonnet-5"
+                    ),
+                    null,
+                    emptyList(),
+                    emptyList(),
+                    "[1]",
+                    50_000
+                )
+            )
+        }.exceptionOrNull()
+
+        assertTrue(failure != null)
     }
 
     @Test
@@ -1136,7 +1191,9 @@ class ProviderAdaptersTest {
     ) : OpenAIAPI {
         val chatRequests = mutableListOf<ChatCompletionRequest>()
         val responseRequests = mutableListOf<ResponsesRequest>()
+        val compactRequests = mutableListOf<CompactResponsesRequest>()
         val configs = mutableListOf<ProviderRequestConfig>()
+        var compactResult = CompactResponsesResult()
 
         override fun streamChatCompletion(
             request: ChatCompletionRequest,
@@ -1168,10 +1225,13 @@ class ProviderAdaptersTest {
         override suspend fun isFileAvailable(fileId: String, config: ProviderRequestConfig) = false
 
         override suspend fun compactResponses(
-            request: dev.chungjungsoo.gptmobile.data.dto.openai.request.CompactResponsesRequest,
+            request: CompactResponsesRequest,
             timeoutSeconds: Int,
             config: ProviderRequestConfig
-        ) = dev.chungjungsoo.gptmobile.data.dto.openai.request.CompactResponsesResult()
+        ): CompactResponsesResult {
+            compactRequests += request
+            return compactResult
+        }
     }
 
     private class FakeGroqAPI(

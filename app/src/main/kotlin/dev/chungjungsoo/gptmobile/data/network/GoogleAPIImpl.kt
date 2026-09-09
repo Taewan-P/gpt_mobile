@@ -36,8 +36,7 @@ class GoogleAPIImpl @Inject constructor(
         config: ProviderRequestConfig
     ): UploadedProviderFile {
         val file = File(filePath)
-        val apiUrl = config.apiUrl
-        val startEndpoint = if (apiUrl.endsWith("/")) "${apiUrl}upload/v1beta/files" else "$apiUrl/upload/v1beta/files"
+        val startEndpoint = googleApiRoot(config.apiUrl) + "/upload/v1beta/files"
         val uploadUrl = networkClient().preparePost(startEndpoint) {
             header(GOOGLE_API_KEY_HEADER, config.token ?: "")
             contentType(ContentType.Application.Json)
@@ -71,8 +70,7 @@ class GoogleAPIImpl @Inject constructor(
     }
 
     override suspend fun isFileAvailable(fileName: String, config: ProviderRequestConfig): Boolean {
-        val apiUrl = config.apiUrl
-        val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}v1beta/$fileName" else "$apiUrl/v1beta/$fileName"
+        val endpoint = googleApiRoot(config.apiUrl) + "/v1beta/$fileName"
         return try {
             networkClient().prepareGet(endpoint) {
                 header(GOOGLE_API_KEY_HEADER, config.token ?: "")
@@ -96,12 +94,7 @@ class GoogleAPIImpl @Inject constructor(
         config: ProviderRequestConfig
     ): Flow<GenerateContentResponse> = flow {
         try {
-            val apiUrl = config.apiUrl
-            val endpoint = if (apiUrl.endsWith("/")) {
-                "${apiUrl}v1beta/models/$model:streamGenerateContent"
-            } else {
-                "$apiUrl/v1beta/models/$model:streamGenerateContent"
-            }
+            val endpoint = googleApiRoot(config.apiUrl) + "/v1beta/models/$model:streamGenerateContent"
 
             networkClient().preparePost(endpoint) {
                 retryGenerationRequest()
@@ -188,6 +181,8 @@ class GoogleAPIImpl @Inject constructor(
         const val GOOGLE_API_KEY_HEADER = "x-goog-api-key"
     }
 }
+
+internal fun googleApiRoot(apiUrl: String): String = apiUrl.trimEnd('/').removeSuffix("/v1beta")
 
 @Serializable
 private data class GoogleErrorResponse(

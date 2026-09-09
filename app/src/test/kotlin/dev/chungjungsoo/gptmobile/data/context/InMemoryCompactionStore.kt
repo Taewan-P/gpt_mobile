@@ -19,15 +19,6 @@ class InMemoryCompactionStore : CompactionStore {
         checkpoints.remove(chatId to platformUid)
     }
 
-    override suspend fun copyCheckpoints(sourceChatId: Int, destinationChatId: Int, updatedAt: Long) {
-        checkpoints.values.filter { it.chatId == sourceChatId }.forEach { source ->
-            checkpoints[destinationChatId to source.platformUid] = source.copy(
-                chatId = destinationChatId,
-                updatedAt = updatedAt
-            )
-        }
-    }
-
     override suspend fun getCapacity(platformUid: String, endpoint: String, model: String): ModelCapacity? = capacities[Triple(platformUid, endpoint, model)]
 
     override suspend fun saveCapacity(capacity: ModelCapacity) {

@@ -17,10 +17,6 @@ class RoomCompactionStore(
         dao.deleteCheckpoint(chatId, platformUid)
     }
 
-    override suspend fun copyCheckpoints(sourceChatId: Int, destinationChatId: Int, updatedAt: Long) {
-        dao.copyCheckpoints(sourceChatId, destinationChatId, updatedAt)
-    }
-
     override suspend fun getCapacity(platformUid: String, endpoint: String, model: String): ModelCapacity? = dao.getCapacity(platformUid, endpoint, model)?.toDomain()
 
     override suspend fun saveCapacity(capacity: ModelCapacity) {

@@ -1,14 +1,12 @@
 package dev.chungjungsoo.gptmobile.data.context
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 
 object RemoteContextWindowParser {
     private val json = Json {
@@ -45,7 +43,7 @@ object RemoteContextWindowParser {
             positiveInt(value)?.let { return it }
         }
         positiveInt(root["context_length"] ?: root["contextLength"])?.let { return it }
-        val parameters = root["parameters"]?.jsonPrimitive?.contentOrNull.orEmpty()
+        val parameters = (root["parameters"] as? JsonPrimitive)?.contentOrNull.orEmpty()
         val numCtx = Regex("num_ctx\\s+(\\d+)").find(parameters)?.groupValues?.get(1)?.toIntOrNull()
         return numCtx?.takeIf { it > 0 }
     }
@@ -55,14 +53,14 @@ object RemoteContextWindowParser {
     private fun parseObject(body: String): JsonObject? = parse(body) as? JsonObject
 
     private fun matchingModel(body: String, model: String): JsonObject? {
-        val root = parse(body) ?: return null
-        val objects = when {
-            root is JsonObject && root["data"] != null -> root["data"]!!.jsonArray.map { it.jsonObject }
-            root is JsonObject && root["id"] != null -> listOf(root)
+        val root = parseObject(body) ?: return null
+        val objects = when (val data = root["data"]) {
+            is JsonArray -> data.mapNotNull { it as? JsonObject }
+            null -> if (root["id"] is JsonPrimitive) listOf(root) else emptyList()
             else -> emptyList()
         }
         return objects.firstOrNull { item ->
-            item["id"]?.jsonPrimitive?.contentOrNull == model
+            (item["id"] as? JsonPrimitive)?.contentOrNull == model
         } ?: objects.singleOrNull()
     }
 

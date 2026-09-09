@@ -257,7 +257,9 @@ class AgentRunCoordinator @Inject constructor(
         var assistantMessage = request.assistantMessage
         try {
             if (!withContext(NonCancellable) { chatRepository.markAgentRunRunning(request.runId, startedAt) }) return
-            val outcome = collectGenerationOutcome {
+            val outcome = collectGenerationOutcome(
+                timeoutMessage = context.getString(R.string.agent_run_timeout)
+            ) {
                 chatRepository.completeChat(
                     request.userMessages,
                     request.assistantMessages,
@@ -379,14 +381,14 @@ class AgentRunCoordinator @Inject constructor(
             AgentRunNotice(
                 chatId = chatId,
                 runId = runId,
-                message = saveFailureNotice(error),
+                message = saveFailureNotice(error, context.getString(R.string.agent_run_save_failed)),
                 persistent = true
             )
         )
     }
 }
 
-internal fun saveFailureNotice(error: Throwable): String = error.message?.takeIf { it.isNotBlank() } ?: "Couldn't save this reply."
+internal fun saveFailureNotice(error: Throwable, fallbackMessage: String): String = error.message?.takeIf { it.isNotBlank() } ?: fallbackMessage
 
 internal fun shouldClearLiveSnapshot(persistError: Throwable?, terminalTransitionCommitted: Boolean?): Boolean = persistError == null || terminalTransitionCommitted == true
 
@@ -417,9 +419,10 @@ internal fun ApiStateFlowOutcome.toTerminalUpdate(): AgentRunTerminalUpdate = wh
 
 internal suspend fun collectGenerationOutcome(
     timeoutMillis: Long = AgentRunLimits().runTimeoutMillis,
+    timeoutMessage: String,
     collect: suspend () -> ApiStateFlowOutcome
 ): ApiStateFlowOutcome = withTimeoutOrNull(timeoutMillis) { collect() }
-    ?: ApiStateFlowOutcome.Failed("Agent run timed out after $timeoutMillis ms.")
+    ?: ApiStateFlowOutcome.Failed(timeoutMessage)
 
 internal suspend fun collectCompactionResult(
     timeoutMillis: Long,

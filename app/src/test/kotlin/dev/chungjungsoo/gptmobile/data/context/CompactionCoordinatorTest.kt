@@ -162,13 +162,17 @@ class CompactionCoordinatorTest {
     @Test
     fun `native openai window is stored and replayed as opaque items`() = runBlocking {
         val store = InMemoryCompactionStore()
+        val inputs = mutableListOf<CompactInput>()
         val native = object : ContextCompactor {
             override fun supports(platform: PlatformV2, estimatedTokens: Int) = true
-            override suspend fun compact(input: CompactInput) = CompactOutput(
-                representation = CompactionRepresentation.NATIVE_OPENAI,
-                nativeItemsJson = "[{\"type\":\"compaction\",\"encrypted_content\":\"opaque-state\"}]",
-                coveredTurnCount = input.turns.size
-            )
+            override suspend fun compact(input: CompactInput): CompactOutput {
+                inputs += input
+                return CompactOutput(
+                    representation = CompactionRepresentation.NATIVE_OPENAI,
+                    nativeItemsJson = "[{\"type\":\"compaction\",\"encrypted_content\":\"opaque-state-${inputs.size}\"}]",
+                    coveredTurnCount = input.turns.size
+                )
+            }
         }
         val coordinator = CompactionCoordinator(
             store = store,
@@ -184,9 +188,50 @@ class CompactionCoordinatorTest {
             listOf(MessageV2(chatId = 9, content = "reply-$index", platformType = "openai"))
         }
 
-        val outcome = coordinator.prepare(9, users, assistants, openaiPlatform(), force = true, outputReserve = 128) as CompactionOutcome.Compacted
-        assertEquals(CompactionRepresentation.NATIVE_OPENAI, outcome.prepared.representation)
-        assertTrue(outcome.prepared.nativeItemsJson!!.contains("opaque-state"))
+        val first = coordinator.prepare(9, users, assistants, openaiPlatform(), force = true, outputReserve = 128) as CompactionOutcome.Compacted
+        val nextUsers = users + MessageV2(chatId = 9, content = "user-6", platformType = null)
+        val nextAssistants = assistants + listOf(listOf(MessageV2(chatId = 9, content = "reply-6", platformType = "openai")))
+        val second = coordinator.prepare(9, nextUsers, nextAssistants, openaiPlatform(), force = true, outputReserve = 128) as CompactionOutcome.Compacted
+
+        assertEquals(CompactionRepresentation.NATIVE_OPENAI, second.prepared.representation)
+        assertTrue(inputs[1].existingNativeJson!!.contains("opaque-state-1"))
+        assertTrue(inputs[1].turns.all { !it.userMessage.content.contains("user-0") })
+        assertTrue(second.prepared.turns.any { it.userMessage.content.contains("user-6") })
+        assertTrue(second.checkpoint.coveredTurnCount > first.checkpoint.coveredTurnCount)
+    }
+
+    @Test
+    fun `later text compaction extends the checkpoint summary`() = runBlocking {
+        val store = InMemoryCompactionStore()
+        var firstFinished = false
+        val laterInputs = mutableListOf<String>()
+        val coordinator = CompactionCoordinator(
+            store,
+            ContextBuilder(),
+            FixedCapacityResolver(800),
+            TextContextCompactor { _, _, turns ->
+                val text = turns.joinToString("\n") { it.userMessage.content }
+                if (firstFinished) {
+                    laterInputs += text
+                    "SECOND-SUMMARY"
+                } else {
+                    "FIRST-SUMMARY"
+                }
+            },
+            emptyList()
+        )
+        val users = (0 until 4).map { MessageV2(content = "old-user-$it", platformType = null) }
+        val assistants = users.indices.map { listOf(MessageV2(content = "old-reply-$it", platformType = "openai")) }
+        val first = coordinator.prepare(10, users, assistants, openaiPlatform(), force = true, outputReserve = 128) as CompactionOutcome.Compacted
+        firstFinished = true
+        val nextUsers = users + (4 until 9).map { MessageV2(content = "new-user-$it " + "x".repeat(500), platformType = null) }
+        val nextAssistants = assistants + (4 until 9).map { listOf(MessageV2(content = "new-reply-$it", platformType = "openai")) }
+
+        val second = coordinator.prepare(10, nextUsers, nextAssistants, openaiPlatform(), outputReserve = 128) as CompactionOutcome.Compacted
+
+        assertTrue(laterInputs.first().contains("FIRST-SUMMARY"))
+        assertFalse(laterInputs.first().contains("old-user-0"))
+        assertTrue(second.checkpoint.coveredTurnCount > first.checkpoint.coveredTurnCount)
     }
 
     @Test

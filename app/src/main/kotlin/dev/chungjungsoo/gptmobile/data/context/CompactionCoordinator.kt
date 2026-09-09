@@ -124,20 +124,21 @@ class CompactionCoordinator(
                 preparedContext(platform, eligible, restored, budget, valid?.coveredTurnCount ?: 0, valid?.representation ?: CompactionRepresentation.RAW, toolEvidence, toolDefinitionNames)
             )
         }
+        val uncompacted = if (valid == null) eligible else tailFromCheckpoint
         var (prefix, tail) = if (protectCurrent) {
-            splitPrefixAndTail(eligible, maxOf((limit - outputReserve - instructionTokens - toolDefinitionTokens) / 4, currentTokens))
+            splitPrefixAndTail(uncompacted, maxOf((limit - outputReserve - instructionTokens - toolDefinitionTokens) / 4, currentTokens))
         } else {
-            eligible to emptyList()
+            uncompacted to emptyList()
         }
-        if ((force || overBudget) && prefix.isEmpty() && eligible.size > 1) {
-            prefix = eligible.dropLast(1)
-            tail = listOf(eligible.last())
+        if ((force || overBudget) && prefix.isEmpty() && uncompacted.size > 1) {
+            prefix = uncompacted.dropLast(1)
+            tail = listOf(uncompacted.last())
         }
-        if (prefix.isEmpty() && (force || overBudget) && eligible.lastOrNull()?.assistantMessage != null) {
-            prefix = eligible
+        if (prefix.isEmpty() && (force || overBudget) && uncompacted.lastOrNull()?.assistantMessage != null) {
+            prefix = uncompacted
             tail = emptyList()
         }
-        if (prefix.isEmpty() && toolEvidence.isEmpty()) {
+        if (prefix.isEmpty() && toolEvidence.isEmpty() && valid == null) {
             if (overBudget) return CompactionOutcome.Failed("Context cannot fit in this model window. Original transcript was kept.", valid)
             return CompactionOutcome.Ready(
                 preparedContext(platform, eligible, restored, budget, valid?.coveredTurnCount ?: 0, valid?.representation ?: CompactionRepresentation.RAW, toolEvidence, toolDefinitionNames)
@@ -201,9 +202,24 @@ class CompactionCoordinator(
         onCompactionState: (suspend (Boolean) -> Unit)?
     ): CompactionOutcome {
         val prefixEvidence = evidenceForTurns(prefix, toolEvidence)
+        val previousCovered = preserved?.coveredTurnCount ?: 0
+        val covered = previousCovered + prefix.size
+        val coveredTurns = eligible.take(covered)
+        val coveredEvidence = evidenceForTurns(coveredTurns, toolEvidence)
         val output = try {
             onCompactionState?.invoke(true)
-            compactPrefix(platform, prefix, prefixEvidence, limit, outputReserve, instructionTokens, toolDefinitionTokens)
+            compactPrefix(
+                platform,
+                prefix,
+                prefixEvidence,
+                coveredTurns,
+                coveredEvidence,
+                preserved?.let(::decodeCheckpoint),
+                limit,
+                outputReserve,
+                instructionTokens,
+                toolDefinitionTokens
+            )
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
@@ -225,12 +241,10 @@ class CompactionCoordinator(
                 preserved
             )
         }
-        val covered = prefix.size
-        val coveredTurns = eligible.take(covered)
         val fingerprint = CompactionKeys.sourceFingerprint(
             coveredTurns,
             platform,
-            prefixEvidence,
+            coveredEvidence,
             toolDefinitionNames
         )
         val working = SerializedWorkingContext(
@@ -289,26 +303,52 @@ class CompactionCoordinator(
         platform: PlatformV2,
         prefix: List<ConversationTurn>,
         toolEvidence: List<ToolEvidence>,
+        coveredTurns: List<ConversationTurn>,
+        coveredEvidence: List<ToolEvidence>,
+        previous: SerializedWorkingContext?,
         limit: Int,
         outputReserve: Int,
         instructionTokens: Int,
         toolDefinitionTokens: Int
     ): CompactOutput {
-        val source = attributedTurnsForCompaction(prefix, toolEvidence)
-        val sourceTokens = TokenEstimator.estimateTurns(source)
+        val incrementalSource = attributedTurnsForCompaction(prefix, toolEvidence)
+        val nativeSource = if (previous?.representation == CompactionRepresentation.TEXT_SUMMARY) {
+            listOf(summaryTurn(checkNotNull(previous.summaryText))) + incrementalSource
+        } else {
+            incrementalSource
+        }
+        val nativeTokens = TokenEstimator.estimateTurns(nativeSource) + TokenEstimator.estimateText(previous?.nativeItemsJson)
         val nativeLimit = limit - outputReserve - instructionTokens - toolDefinitionTokens - 64
         val targetTokens = minOf(limit / 4, outputReserve).coerceAtLeast(1)
-        val native = nativeCompactors.firstOrNull { it.supports(platform, sourceTokens) }
-        if (native != null && sourceTokens <= nativeLimit) {
+        val native = nativeCompactors.firstOrNull { it.supports(platform, nativeTokens) }
+        if (native != null && nativeTokens <= nativeLimit) {
             repeat(MAX_NATIVE_ATTEMPTS) {
                 try {
-                    return native.compact(CompactInput(platform, platform.systemPrompt, source, emptyList(), null, targetTokens))
+                    return native.compact(
+                        CompactInput(
+                            platform,
+                            platform.systemPrompt,
+                            nativeSource,
+                            emptyList(),
+                            previous?.nativeItemsJson,
+                            targetTokens
+                        )
+                    )
                 } catch (error: CancellationException) {
                     throw error
                 } catch (_: Exception) {
                     // Fall back only after bounded attempts, using the same complete source.
                 }
             }
+        }
+        val source = when (previous?.representation) {
+            CompactionRepresentation.TEXT_SUMMARY -> nativeSource
+
+            CompactionRepresentation.NATIVE_OPENAI, CompactionRepresentation.NATIVE_ANTHROPIC -> {
+                attributedTurnsForCompaction(coveredTurns, coveredEvidence)
+            }
+
+            else -> incrementalSource
         }
         val summaryOverhead = TokenEstimator.estimateText(TextContextCompactor.SUMMARIZATION_PROMPT) + 96
         val batchLimit = limit - targetTokens - summaryOverhead
@@ -333,7 +373,7 @@ class CompactionCoordinator(
             sourceIndex += batch.size
         }
         check(!rollingSummary.isNullOrBlank()) { "No history was available to compact." }
-        return CompactOutput(CompactionRepresentation.TEXT_SUMMARY, rollingSummary, coveredTurnCount = prefix.size)
+        return CompactOutput(CompactionRepresentation.TEXT_SUMMARY, rollingSummary, coveredTurnCount = coveredTurns.size)
     }
 
     private suspend fun compactOnce(

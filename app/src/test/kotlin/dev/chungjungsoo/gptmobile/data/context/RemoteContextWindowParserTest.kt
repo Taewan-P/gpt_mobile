@@ -26,6 +26,19 @@ class RemoteContextWindowParserTest {
     }
 
     @Test
+    fun `model parser ignores malformed envelopes`() {
+        listOf(
+            """{"data":{}}""",
+            """{"data":[1]}""",
+            """{"id":{}}"""
+        ).forEach { body ->
+            assertNull(RemoteContextWindowParser.openRouterContextLength(body, "model"))
+            assertNull(RemoteContextWindowParser.groqContextWindow(body, "model"))
+            assertNull(RemoteContextWindowParser.anthropicMaxInputTokens(body, "model"))
+        }
+    }
+
+    @Test
     fun `groq uses documented context_window and ignores output limits`() {
         val body = """{"id":"llama-3.1-8b-instant","object":"model","context_window":131072,"max_completion_tokens":8192}"""
         assertEquals(131072, RemoteContextWindowParser.groqContextWindow(body, "llama-3.1-8b-instant"))

@@ -11,7 +11,7 @@ object OutputTokenBudget {
     const val GROQ_REASONING_OUTPUT_TOKENS = 8_192
     const val LOCAL_OUTPUT_RESERVE = 256
 
-    fun hostedOutputCap(platform: PlatformV2): Int = platform.maxTokens?.takeIf { it > 0 } ?: DEFAULT_HOSTED_OUTPUT_TOKENS
+    fun hostedOutputCap(platform: PlatformV2): Int? = platform.maxTokens?.takeIf { it > 0 }
 }
 
 data class AnthropicThinkingPolicy(
@@ -88,5 +88,5 @@ fun resolvedOutputTokenCap(platform: PlatformV2, hasTools: Boolean = false): Int
 
 fun outputReserveTokens(platform: PlatformV2, hasTools: Boolean = false): Int {
     if (platform.compatibleType == ClientType.LITERT_LM) return OutputTokenBudget.LOCAL_OUTPUT_RESERVE
-    return resolvedOutputTokenCap(platform, hasTools) ?: OutputTokenBudget.LOCAL_OUTPUT_RESERVE
+    return resolvedOutputTokenCap(platform, hasTools) ?: OutputTokenBudget.DEFAULT_HOSTED_OUTPUT_TOKENS
 }

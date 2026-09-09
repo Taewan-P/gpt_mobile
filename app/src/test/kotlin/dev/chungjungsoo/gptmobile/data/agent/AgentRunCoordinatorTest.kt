@@ -170,14 +170,14 @@ class AgentRunCoordinatorTest {
 
         val terminal = terminalAgentMessage(completed, error = null, completedAt = 42L)
         assertEquals("Final answer", terminal.content)
-        assertEquals("disk full", saveFailureNotice(persistError))
+        assertEquals("disk full", saveFailureNotice(persistError, "Could not save"))
         assertFalse(terminal.content.contains("disk full"))
         assertFalse(terminal.timeline.single().content.contains("stopped"))
     }
 
     @Test
     fun `outer generation timeout preserves partial text as a failed terminal`() = runTest {
-        val outcome = collectGenerationOutcome(timeoutMillis = 10L) {
+        val outcome = collectGenerationOutcome(timeoutMillis = 10L, timeoutMessage = "Timed out") {
             awaitCancellation()
             ApiStateFlowOutcome.Completed
         }
@@ -189,14 +189,14 @@ class AgentRunCoordinatorTest {
         )
 
         assertEquals(AgentRunStatus.FAILED, terminal.status)
-        assertEquals("Agent run timed out after 10 ms.", terminal.error)
+        assertEquals("Timed out", terminal.error)
         assertTrue(message.content.startsWith("Partial"))
-        assertTrue(message.content.contains("timed out"))
+        assertTrue(message.content.contains("Timed out"))
     }
 
     @Test
     fun `outer generation bound does not fire when collect completes`() = runTest {
-        val outcome = collectGenerationOutcome(timeoutMillis = 10_000L) {
+        val outcome = collectGenerationOutcome(timeoutMillis = 10_000L, timeoutMessage = "Timed out") {
             ApiStateFlowOutcome.Completed
         }
         assertEquals(ApiStateFlowOutcome.Completed, outcome)
@@ -207,7 +207,7 @@ class AgentRunCoordinatorTest {
     fun `user cancellation is not reported as a generation timeout`() = runTest {
         var outcome: ApiStateFlowOutcome? = null
         val job = launch {
-            outcome = collectGenerationOutcome(timeoutMillis = 10_000L) {
+            outcome = collectGenerationOutcome(timeoutMillis = 10_000L, timeoutMessage = "Timed out") {
                 awaitCancellation()
                 ApiStateFlowOutcome.Completed
             }
@@ -231,7 +231,7 @@ class AgentRunCoordinatorTest {
             completedAt = 42L
         )
         assertEquals("Partial", timedOut.content)
-        assertEquals("disk full", saveFailureNotice(IllegalStateException("disk full")))
+        assertEquals("disk full", saveFailureNotice(IllegalStateException("disk full"), "Could not save"))
         assertFalse(timedOut.content.contains("disk full"))
     }
 }

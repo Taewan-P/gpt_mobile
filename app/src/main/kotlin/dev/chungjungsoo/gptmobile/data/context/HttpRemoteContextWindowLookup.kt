@@ -3,6 +3,7 @@ package dev.chungjungsoo.gptmobile.data.context
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.network.NetworkClient
+import dev.chungjungsoo.gptmobile.data.network.googleApiRoot
 import io.ktor.client.call.body
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.bearerAuth
@@ -41,7 +42,7 @@ class HttpRemoteContextWindowLookup @Inject constructor(
     }
 
     private suspend fun fetchGemini(platform: PlatformV2): Int? {
-        val endpoint = platform.apiUrl.trimEnd('/') + "/v1beta/models/" + encodedModel(platform.model)
+        val endpoint = googleApiRoot(platform.apiUrl) + "/v1beta/models/" + encodedModel(platform.model)
         val body = get(endpoint) { builder ->
             builder.header("x-goog-api-key", platform.token ?: "")
         } ?: return null

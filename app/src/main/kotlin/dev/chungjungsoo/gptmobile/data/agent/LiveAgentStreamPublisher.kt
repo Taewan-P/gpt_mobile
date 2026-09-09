@@ -61,7 +61,6 @@ internal class LiveAgentStreamPublisher(
         flushing += runId
         delayedJobs.remove(runId)?.cancel()
         persistJobs[runId]?.join()
-        persistJobs[runId]?.join()
         val message = latest[runId] ?: return lastPersistError[runId]
         return mutex(runId).withLock { persistSafely(runId, message) }
     }

@@ -620,7 +620,6 @@ class ChatRepositoryImpl @Inject constructor(
             title = duplicatedTitle,
             timestamp = timestamp
         )
-        compactionStore.copyCheckpoints(chatRoom.id, duplicate.id, timestamp)
         return duplicate
     }
 

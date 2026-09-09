@@ -59,7 +59,8 @@ object ChatRepositoryModule {
         localRuntime: LocalRuntime,
         localModelRepository: LocalModelRepository,
         modelCatalogRepository: ModelCatalogRepository,
-        @DeviceSocModel deviceSocModel: String,
+        @DeviceSocModel
+        deviceSocModel: String,
         compactionDao: CompactionDao,
         networkClient: NetworkClient
     ): ChatRepository = ChatRepositoryImpl(
