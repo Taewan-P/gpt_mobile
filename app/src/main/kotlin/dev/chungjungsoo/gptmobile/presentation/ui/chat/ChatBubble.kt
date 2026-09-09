@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
@@ -25,8 +26,10 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -35,7 +38,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -55,7 +57,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -67,7 +69,6 @@ import dev.chungjungsoo.gptmobile.data.database.entity.AgentRun
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineItem
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineItemType
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
-import dev.chungjungsoo.gptmobile.data.database.entity.ToolEventStatus
 import dev.chungjungsoo.gptmobile.data.database.entity.hasUnavailableAssistantOrder
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 import dev.chungjungsoo.gptmobile.presentation.theme.defaultSpatialSpec
@@ -92,10 +93,17 @@ fun UserChatBubble(
     )
 
     var isActionsSheetOpen by rememberSaveable(contentIdentity) { mutableStateOf(false) }
+    val messageActionsLabel = stringResource(R.string.message_actions)
 
     Column(horizontalAlignment = Alignment.End) {
         Card(
             modifier = modifier
+                .semantics(mergeDescendants = true) {
+                    onLongClick(label = messageActionsLabel) {
+                        isActionsSheetOpen = true
+                        true
+                    }
+                }
                 .pointerInput(contentIdentity) {
                     detectTapGestures(onLongPress = { isActionsSheetOpen = true })
                 },
@@ -111,25 +119,13 @@ fun UserChatBubble(
             files = files,
             modifier = Modifier.padding(top = 8.dp)
         )
-        MessageActionsButton(onClick = { isActionsSheetOpen = true })
     }
 
     if (isActionsSheetOpen) {
         MessageActionsSheet(
-            role = MessageActionRole.USER,
-            canCopy = true,
             canEdit = canEdit,
-            canSelectText = false,
-            canRetry = false,
-            revisionIndexLabel = null,
-            canShowPreviousRevision = false,
-            canShowNextRevision = false,
             onCopy = onCopyClick,
-            onSelectText = {},
             onEdit = onEditClick,
-            onRetry = {},
-            onPreviousRevision = {},
-            onNextRevision = {},
             onDismissRequest = { isActionsSheetOpen = false }
         )
     }
@@ -153,7 +149,6 @@ fun OpponentChatBubble(
     revisionIndexLabel: String? = null,
     canShowPreviousRevision: Boolean = false,
     canShowNextRevision: Boolean = false,
-    showInlineRetry: Boolean = false,
     onCopyClick: () -> Unit = {},
     onSelectClick: () -> Unit = {},
     onViewFull: (String) -> Unit = {},
@@ -175,9 +170,6 @@ fun OpponentChatBubble(
         isRunActive = isLoading
     )
     val contentTimeline = timeline.filter { it.type != AssistantTimelineItemType.NOTICE }
-    val activeToolEvents = toolEvents.filter {
-        it.status == ToolEventStatus.PENDING || it.status == ToolEventStatus.RUNNING
-    }
     val hasUnresolvedToolDetails = hasUnresolvedToolReferences(contentTimeline, toolEvents)
     val hasDetails = thoughts.isNotBlank() ||
         toolEvents.isNotEmpty() ||
@@ -192,13 +184,8 @@ fun OpponentChatBubble(
         thoughts = thoughts,
         hasToolEvents = toolEvents.isNotEmpty()
     )
-    val canCopy = !isError
-    val canSelectText = !isError
-    val retryInSheet = canRetry && !showInlineRetry
-    val hasMessageActions = canCopy || canSelectText || canEdit || retryInSheet || revisionIndexLabel != null
     var isDetailsExpanded by rememberSaveable(contentIdentity) { mutableStateOf(false) }
-    var isActionsSheetOpen by rememberSaveable(contentIdentity) { mutableStateOf(false) }
-    val showAnswerStreamingIndicator = isLoading && activeToolEvents.isEmpty()
+    val showAnswerStreamingIndicator = isLoading
     val showProcessStreamingIndicator = showAnswerStreamingIndicator && text.isBlank()
 
     Column(modifier = modifier) {
@@ -215,12 +202,11 @@ fun OpponentChatBubble(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp),
+                    .padding(start = 8.dp, top = 8.dp, end = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 DetailsButton(
                     isExpanded = isDetailsExpanded,
-                    activeToolEvents = activeToolEvents,
                     onClick = { isDetailsExpanded = !isDetailsExpanded }
                 )
             }
@@ -276,57 +262,64 @@ fun OpponentChatBubble(
             }
         }
 
-        if (!isLoading && hasMessageActions) {
+        if (!isLoading) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.padding(start = 16.dp)
             ) {
-                Spacer(modifier = Modifier.weight(1f))
-                MessageActionsButton(onClick = { isActionsSheetOpen = true })
+                if (!isError) {
+                    CopyTextIcon(onCopyClick)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    SelectTextIcon(onSelectClick)
+                    if (canEdit) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        EditTextIcon(onEditClick)
+                    }
+                }
+                if (canRetry) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    RetryIcon(onRetryClick)
+                }
             }
-        }
-
-        if (showInlineRetry) {
-            TextButton(
-                onClick = onRetryClick,
-                modifier = Modifier.padding(start = 8.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Refresh,
-                    contentDescription = null
+            if (canRetry) {
+                Text(
+                    text = stringResource(R.string.retry_tools_warning),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 16.dp, top = 4.dp)
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(stringResource(R.string.retry))
             }
-            Text(
-                text = stringResource(R.string.retry_tools_warning),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 16.dp, top = 4.dp)
-            )
-        }
-    }
 
-    if (isActionsSheetOpen) {
-        MessageActionsSheet(
-            role = MessageActionRole.ASSISTANT,
-            canCopy = canCopy,
-            canEdit = canEdit,
-            canSelectText = canSelectText,
-            canRetry = retryInSheet,
-            revisionIndexLabel = revisionIndexLabel,
-            canShowPreviousRevision = canShowPreviousRevision,
-            canShowNextRevision = canShowNextRevision,
-            onCopy = onCopyClick,
-            onSelectText = onSelectClick,
-            onEdit = onEditClick,
-            onRetry = onRetryClick,
-            onPreviousRevision = onShowPreviousRevision,
-            onNextRevision = onShowNextRevision,
-            onDismissRequest = { isActionsSheetOpen = false }
-        )
+            revisionIndexLabel?.let { label ->
+                Row(
+                    modifier = Modifier.padding(start = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        enabled = canShowPreviousRevision,
+                        onClick = onShowPreviousRevision
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                            contentDescription = stringResource(R.string.previous_revision)
+                        )
+                    }
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    IconButton(
+                        enabled = canShowNextRevision,
+                        onClick = onShowNextRevision
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = stringResource(R.string.next_revision)
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -369,7 +362,6 @@ private fun QuietAssistantContent(
 @Composable
 private fun DetailsButton(
     isExpanded: Boolean,
-    activeToolEvents: List<ToolEvent>,
     onClick: () -> Unit
 ) {
     val rotationAngle by animateFloatAsState(
@@ -377,14 +369,13 @@ private fun DetailsButton(
         animationSpec = fastEffectsSpec(),
         label = "details rotation"
     )
-    val progressDescription = stringResource(R.string.tool_in_progress)
     val expandStateDescription = stringResource(R.string.expand)
     val collapseStateDescription = stringResource(R.string.collapse)
-    Surface(
-        onClick = onClick,
+    Row(
         modifier = Modifier
-            .widthIn(max = 320.dp)
             .heightIn(min = 48.dp)
+            .clip(MaterialTheme.shapes.extraLarge)
+            .clickable(onClick = onClick)
             .semantics(mergeDescendants = true) {
                 role = Role.Button
                 stateDescription = if (isExpanded) {
@@ -392,53 +383,61 @@ private fun DetailsButton(
                 } else {
                     expandStateDescription
                 }
-            },
-        shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.surfaceContainerLow
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (activeToolEvents.isNotEmpty()) {
-                CircularProgressIndicator(
-                    modifier = Modifier
-                        .size(20.dp)
-                        .semantics { contentDescription = progressDescription },
-                    strokeWidth = 2.dp
-                )
-                Spacer(modifier = Modifier.width(8.dp))
             }
-            Text(
-                text = if (activeToolEvents.isEmpty()) {
-                    stringResource(R.string.details)
-                } else {
-                    "${stringResource(R.string.details)} · ${toolTraceStatusSummary(activeToolEvents)}"
-                },
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Icon(
-                imageVector = Icons.Rounded.KeyboardArrowDown,
-                contentDescription = null,
-                modifier = Modifier.rotate(rotationAngle)
-            )
-        }
+            .padding(horizontal = 4.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = stringResource(R.string.details),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Icon(
+            imageVector = Icons.Rounded.KeyboardArrowDown,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.rotate(rotationAngle)
+        )
     }
 }
 
 @Composable
-private fun MessageActionsButton(onClick: () -> Unit) {
-    IconButton(
-        onClick = onClick,
-        modifier = Modifier.size(48.dp)
-    ) {
+private fun CopyTextIcon(onCopyClick: () -> Unit) {
+    IconButton(onClick = onCopyClick) {
         Icon(
-            imageVector = Icons.Rounded.MoreHoriz,
-            contentDescription = stringResource(R.string.message_actions)
+            imageVector = ImageVector.vectorResource(id = R.drawable.ic_copy),
+            contentDescription = stringResource(R.string.copy_text)
+        )
+    }
+}
+
+@Composable
+private fun SelectTextIcon(onSelectClick: () -> Unit) {
+    IconButton(onClick = onSelectClick) {
+        Icon(
+            imageVector = ImageVector.vectorResource(id = R.drawable.ic_select),
+            contentDescription = stringResource(R.string.select_text)
+        )
+    }
+}
+
+@Composable
+private fun RetryIcon(onRetryClick: () -> Unit) {
+    IconButton(onClick = onRetryClick) {
+        Icon(
+            Icons.Rounded.Refresh,
+            contentDescription = stringResource(R.string.retry)
+        )
+    }
+}
+
+@Composable
+private fun EditTextIcon(onEditClick: () -> Unit) {
+    IconButton(onClick = onEditClick) {
+        Icon(
+            imageVector = Icons.Outlined.Edit,
+            contentDescription = stringResource(R.string.edit)
         )
     }
 }
@@ -557,7 +556,7 @@ private fun LegacyAssistantProcessContent(
 }
 
 @Composable
-fun GPTMobileIcon() {
+fun GPTMobileIcon(loading: Boolean) {
     Box(
         modifier = Modifier
             .padding(start = 8.dp)
@@ -566,6 +565,11 @@ fun GPTMobileIcon() {
             .background(color = Color(0xFF00A67D)),
         contentAlignment = Alignment.Center
     ) {
+        if (loading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(40.dp)
+            )
+        }
         Image(
             painter = painterResource(R.drawable.ic_gpt_mobile_no_padding),
             contentDescription = null,

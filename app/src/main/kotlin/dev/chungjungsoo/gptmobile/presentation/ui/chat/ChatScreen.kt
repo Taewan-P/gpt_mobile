@@ -516,8 +516,6 @@ private fun ChatMessagePair(
     val canEdit = canUseChat && isIdle
     val canRetry = canUseChat && isActiveMessage && !isCurrentPlatformLoading
     val isError = agentRun?.status == AgentRunStatus.FAILED && isAssistantErrorMessage(assistantContent)
-    val isFailedResponse = agentRun?.status == AgentRunStatus.FAILED || isAssistantErrorMessage(assistantContent)
-    val showInlineRetry = canRetry && isFailedResponse
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -548,7 +546,12 @@ private fun ChatMessagePair(
                     .padding(top = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                GPTMobileIcon()
+                GPTMobileIcon(
+                    loading = shouldShowReplyLoadingIndicator(
+                        isActiveMessage = isActiveMessage,
+                        loadingStates = loadingStates
+                    )
+                )
                 if (enabledPlatformsInChat.size > 1) {
                     Row(
                         modifier = Modifier
@@ -602,7 +605,6 @@ private fun ChatMessagePair(
                 },
                 canShowPreviousRevision = canShowPreviousRevision,
                 canShowNextRevision = canShowNextRevision,
-                showInlineRetry = showInlineRetry,
                 onCopyClick = { onCopyText(assistantContent) },
                 onSelectClick = { onSelectText(assistantContent) },
                 onViewFull = onSelectText,
@@ -620,6 +622,11 @@ private fun chatMessagePairKey(message: MessageV2, index: Int): String = if (mes
 } else {
     "message-${message.createdAt}-$index"
 }
+
+internal fun shouldShowReplyLoadingIndicator(
+    isActiveMessage: Boolean,
+    loadingStates: List<ChatViewModel.LoadingState>
+): Boolean = isActiveMessage && loadingStates.any { it == ChatViewModel.LoadingState.Loading }
 
 @Composable
 internal fun rememberChatListState(messageCount: Int): LazyListState = key(messageCount > 0) {

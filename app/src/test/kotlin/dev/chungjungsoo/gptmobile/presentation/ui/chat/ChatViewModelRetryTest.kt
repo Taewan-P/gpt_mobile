@@ -85,6 +85,22 @@ class ChatViewModelRetryTest {
     }
 
     @Test
+    fun `reply loading indicator follows platform loading state`() {
+        assertFalse(
+            shouldShowReplyLoadingIndicator(
+                isActiveMessage = true,
+                loadingStates = listOf(ChatViewModel.LoadingState.Idle)
+            )
+        )
+        assertTrue(
+            shouldShowReplyLoadingIndicator(
+                isActiveMessage = true,
+                loadingStates = listOf(ChatViewModel.LoadingState.Loading)
+            )
+        )
+    }
+
+    @Test
     fun `persisted message observer rebuilds normalized comparison rows`() {
         val grouped = groupPersistedMessages(
             messages = listOf(
