@@ -3,7 +3,6 @@ package dev.chungjungsoo.gptmobile.presentation.ui.chat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -12,13 +11,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -31,7 +25,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -53,28 +46,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-internal enum class MessageActionRole {
-    USER,
-    ASSISTANT
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun MessageActionsSheet(
-    role: MessageActionRole,
-    canCopy: Boolean,
     canEdit: Boolean,
-    canSelectText: Boolean,
-    canRetry: Boolean,
-    revisionIndexLabel: String?,
-    canShowPreviousRevision: Boolean,
-    canShowNextRevision: Boolean,
     onCopy: () -> Unit,
-    onSelectText: () -> Unit,
     onEdit: () -> Unit,
-    onRetry: () -> Unit,
-    onPreviousRevision: () -> Unit,
-    onNextRevision: () -> Unit,
     onDismissRequest: () -> Unit
 ) {
     fun runAction(action: () -> Unit) {
@@ -95,87 +72,19 @@ internal fun MessageActionsSheet(
                     .semantics { heading() }
                     .padding(horizontal = 8.dp, vertical = 12.dp)
             )
-            when (role) {
-                MessageActionRole.USER -> {
-                    SettingItem(
-                        title = stringResource(R.string.copy_text),
-                        enabled = canCopy,
-                        onItemClick = { runAction(onCopy) },
-                        showTrailingIcon = false,
-                        showLeadingIcon = false
-                    )
-                    SettingItem(
-                        title = stringResource(R.string.edit),
-                        enabled = canEdit,
-                        onItemClick = { runAction(onEdit) },
-                        showTrailingIcon = false,
-                        showLeadingIcon = false
-                    )
-                }
-
-                MessageActionRole.ASSISTANT -> {
-                    if (canCopy) {
-                        SettingItem(
-                            title = stringResource(R.string.copy_text),
-                            onItemClick = { runAction(onCopy) },
-                            showTrailingIcon = false,
-                            showLeadingIcon = false
-                        )
-                    }
-                    if (canSelectText) {
-                        SettingItem(
-                            title = stringResource(R.string.select_text),
-                            onItemClick = { runAction(onSelectText) },
-                            showTrailingIcon = false,
-                            showLeadingIcon = false
-                        )
-                    }
-                    if (canEdit) {
-                        SettingItem(
-                            title = stringResource(R.string.edit),
-                            onItemClick = { runAction(onEdit) },
-                            showTrailingIcon = false,
-                            showLeadingIcon = false
-                        )
-                    }
-                    if (canRetry) {
-                        SettingItem(
-                            title = stringResource(R.string.retry),
-                            description = stringResource(R.string.retry_tools_warning),
-                            onItemClick = { runAction(onRetry) },
-                            showTrailingIcon = false,
-                            showLeadingIcon = false
-                        )
-                    }
-                    revisionIndexLabel?.let { label ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(
-                                enabled = canShowPreviousRevision,
-                                onClick = { runAction(onPreviousRevision) }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                                    contentDescription = stringResource(R.string.previous_revision)
-                                )
-                            }
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.labelLarge,
-                                modifier = Modifier.weight(1f)
-                            )
-                            IconButton(
-                                enabled = canShowNextRevision,
-                                onClick = { runAction(onNextRevision) }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                    contentDescription = stringResource(R.string.next_revision)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+            SettingItem(
+                title = stringResource(R.string.copy_text),
+                onItemClick = { runAction(onCopy) },
+                showTrailingIcon = false,
+                showLeadingIcon = false
+            )
+            SettingItem(
+                title = stringResource(R.string.edit),
+                enabled = canEdit,
+                onItemClick = { runAction(onEdit) },
+                showTrailingIcon = false,
+                showLeadingIcon = false
+            )
             Spacer(modifier = Modifier.height(24.dp))
         }
     }

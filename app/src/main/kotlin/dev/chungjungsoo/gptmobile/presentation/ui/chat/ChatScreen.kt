@@ -516,8 +516,6 @@ private fun ChatMessagePair(
     val canEdit = canUseChat && isIdle
     val canRetry = canUseChat && isActiveMessage && !isCurrentPlatformLoading
     val isError = agentRun?.status == AgentRunStatus.FAILED && isAssistantErrorMessage(assistantContent)
-    val isFailedResponse = agentRun?.status == AgentRunStatus.FAILED || isAssistantErrorMessage(assistantContent)
-    val showInlineRetry = canRetry && isFailedResponse
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -548,7 +546,7 @@ private fun ChatMessagePair(
                     .padding(top = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                GPTMobileIcon()
+                GPTMobileIcon(loading = isActiveMessage && !isIdle)
                 if (enabledPlatformsInChat.size > 1) {
                     Row(
                         modifier = Modifier
@@ -602,7 +600,6 @@ private fun ChatMessagePair(
                 },
                 canShowPreviousRevision = canShowPreviousRevision,
                 canShowNextRevision = canShowNextRevision,
-                showInlineRetry = showInlineRetry,
                 onCopyClick = { onCopyText(assistantContent) },
                 onSelectClick = { onSelectText(assistantContent) },
                 onViewFull = onSelectText,

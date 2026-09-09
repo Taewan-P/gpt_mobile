@@ -1,10 +1,11 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
 import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.junit4.v2.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -24,7 +25,7 @@ class ChatMessagePresentationInstrumentedTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun completedMessageKeepsActionsHiddenUntilRequested() {
+    fun completedMessageShowsInlineToolbar() {
         composeRule.setContent {
             GPTMobileTheme {
                 OpponentChatBubble(
@@ -35,13 +36,9 @@ class ChatMessagePresentationInstrumentedTest {
             }
         }
 
-        composeRule.onAllNodesWithContentDescription("Message actions").assertCountEquals(1)
-        composeRule.onNodeWithText("Copy Text").assertDoesNotExist()
-
-        composeRule.onNodeWithContentDescription("Message actions").performClick()
-
-        composeRule.onNodeWithText("Copy Text").assertExists()
-        composeRule.onNodeWithText("Select Text").assertExists()
+        composeRule.onNodeWithContentDescription("Message actions").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Copy Text").assertExists()
+        composeRule.onNodeWithContentDescription("Select Text").assertExists()
     }
 
     @Test
@@ -56,6 +53,7 @@ class ChatMessagePresentationInstrumentedTest {
             }
         }
 
+        composeRule.onNodeWithContentDescription("Copy Text").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("Message actions").assertDoesNotExist()
         composeRule.onNodeWithText("Answer").assertExists()
         composeRule.onNodeWithText("●").assertExists()
@@ -63,7 +61,7 @@ class ChatMessagePresentationInstrumentedTest {
     }
 
     @Test
-    fun activeToolReplacesStreamingDotWithOneProgressSignal() {
+    fun activeToolHidesStreamingDotAndDetailsSpinner() {
         composeRule.setContent {
             GPTMobileTheme {
                 OpponentChatBubble(
@@ -80,7 +78,19 @@ class ChatMessagePresentationInstrumentedTest {
         }
 
         composeRule.onNodeWithText("Answer●").assertDoesNotExist()
-        composeRule.onAllNodesWithContentDescription("Tool in progress").assertCountEquals(1)
+        composeRule.onNodeWithText("Details").assertExists()
+        composeRule.onNodeWithContentDescription("Tool in progress").assertDoesNotExist()
+    }
+
+    @Test
+    fun loadingLogoShowsProgressRing() {
+        composeRule.setContent {
+            GPTMobileTheme {
+                GPTMobileIcon(loading = true)
+            }
+        }
+
+        composeRule.onNode(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate)).assertExists()
     }
 
     @Test
@@ -131,7 +141,7 @@ class ChatMessagePresentationInstrumentedTest {
     }
 
     @Test
-    fun failedRetryStaysInlineAndIsAbsentFromActionsSheet() {
+    fun failedRetryStaysOnToolbarWithoutCopy() {
         composeRule.setContent {
             GPTMobileTheme {
                 OpponentChatBubble(
@@ -139,32 +149,31 @@ class ChatMessagePresentationInstrumentedTest {
                     canRetry = true,
                     isLoading = false,
                     isError = true,
-                    canEdit = true,
-                    showInlineRetry = true
+                    canEdit = true
                 )
             }
         }
 
-        composeRule.onAllNodesWithText("Retry").assertCountEquals(1)
-        composeRule.onNodeWithContentDescription("Message actions").performClick()
-        composeRule.onAllNodesWithText("Retry").assertCountEquals(1)
+        composeRule.onNodeWithContentDescription("Message actions").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Copy Text").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Retry").assertExists()
+        composeRule.onNodeWithText("Retry may run assigned tools again.").assertExists()
     }
 
     @Test
-    fun successfulRetryInActionsSheetShowsToolsWarningOnce() {
+    fun successfulRetryOnToolbarShowsToolsWarningOnce() {
         composeRule.setContent {
             GPTMobileTheme {
                 OpponentChatBubble(
                     text = "Answer",
                     canRetry = true,
-                    isLoading = false,
-                    showInlineRetry = false
+                    isLoading = false
                 )
             }
         }
 
-        composeRule.onNodeWithContentDescription("Message actions").performClick()
-        composeRule.onAllNodesWithText("Retry").assertCountEquals(1)
+        composeRule.onNodeWithContentDescription("Copy Text").assertExists()
+        composeRule.onNodeWithContentDescription("Retry").assertExists()
         composeRule.onAllNodesWithText("Retry may run assigned tools again.").assertCountEquals(1)
     }
 
@@ -188,6 +197,9 @@ class ChatMessagePresentationInstrumentedTest {
             }
         }
 
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("Answer").fetchSemanticsNodes().size == 1
+        }
         composeRule.onAllNodesWithText("Answer").assertCountEquals(1)
         composeRule.onNodeWithText("Details").performClick()
         composeRule.onAllNodesWithText("Answer").assertCountEquals(1)
