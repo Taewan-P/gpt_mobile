@@ -58,6 +58,21 @@ class LocalEngineHolder(
         }
     }
 
+    override suspend fun trimIdleEngine() {
+        if (coroutineContext[GenerationLock] != null) return
+        if (!mutex.tryLock()) return
+        try {
+            withContext(GenerationLock()) {
+                if (loadedSpec == null) return@withContext
+                delegate.closeConversation()
+                delegate.unloadEngine()
+                loadedSpec = null
+            }
+        } finally {
+            mutex.unlock()
+        }
+    }
+
     override fun isEngineLoaded(spec: LocalEngineSpec): Boolean = loadedSpec == spec
 
     override fun hasOpenConversation(): Boolean = delegate.hasOpenConversation()

@@ -107,6 +107,11 @@ data class ResponseInputMessage(
 ) : ResponseInputItem
 
 @Serializable
+data class OpaqueResponseInput(
+    val raw: JsonObject
+) : ResponseInputItem
+
+@Serializable
 data class ResponseFunctionCallOutput(
     @SerialName("call_id")
     val callId: String,
@@ -118,6 +123,21 @@ data class ResponseFunctionCallOutput(
     val type: String = "function_call_output"
 ) : ResponseInputItem
 
+@Serializable
+data class ResponseFunctionCallInput(
+    @SerialName("call_id")
+    val callId: String,
+
+    @SerialName("name")
+    val name: String,
+
+    @SerialName("arguments")
+    val arguments: String,
+
+    @SerialName("type")
+    val type: String = "function_call"
+) : ResponseInputItem
+
 object ResponseInputItemSerializer : KSerializer<ResponseInputItem> {
     override val descriptor: SerialDescriptor = buildClassSerialDescriptor("ResponseInputItem")
 
@@ -125,7 +145,9 @@ object ResponseInputItemSerializer : KSerializer<ResponseInputItem> {
         val jsonEncoder = encoder as JsonEncoder
         val element = when (value) {
             is ResponseInputMessage -> jsonEncoder.json.encodeToJsonElement(ResponseInputMessage.serializer(), value)
+            is ResponseFunctionCallInput -> jsonEncoder.json.encodeToJsonElement(ResponseFunctionCallInput.serializer(), value)
             is ResponseFunctionCallOutput -> jsonEncoder.json.encodeToJsonElement(ResponseFunctionCallOutput.serializer(), value)
+            is OpaqueResponseInput -> value.raw
         }
         jsonEncoder.encodeJsonElement(element)
     }
@@ -133,10 +155,17 @@ object ResponseInputItemSerializer : KSerializer<ResponseInputItem> {
     override fun deserialize(decoder: Decoder): ResponseInputItem {
         val jsonDecoder = decoder as JsonDecoder
         val element = jsonDecoder.decodeJsonElement().jsonObject
-        return if (element["type"]?.jsonPrimitive?.content == "function_call_output") {
-            jsonDecoder.json.decodeFromJsonElement(ResponseFunctionCallOutput.serializer(), element)
-        } else {
-            jsonDecoder.json.decodeFromJsonElement(ResponseInputMessage.serializer(), element)
+        return when {
+            element["type"]?.jsonPrimitive?.content == "function_call" ->
+                jsonDecoder.json.decodeFromJsonElement(ResponseFunctionCallInput.serializer(), element)
+
+            element["type"]?.jsonPrimitive?.content == "function_call_output" ->
+                jsonDecoder.json.decodeFromJsonElement(ResponseFunctionCallOutput.serializer(), element)
+
+            element.containsKey("role") ->
+                jsonDecoder.json.decodeFromJsonElement(ResponseInputMessage.serializer(), element)
+
+            else -> OpaqueResponseInput(element)
         }
     }
 }

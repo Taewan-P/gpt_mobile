@@ -2,6 +2,7 @@ package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
@@ -56,7 +57,8 @@ class ChatMessagePresentationInstrumentedTest {
         }
 
         composeRule.onNodeWithContentDescription("Message actions").assertDoesNotExist()
-        composeRule.onNodeWithText("Answer●").assertExists()
+        composeRule.onNodeWithText("Answer").assertExists()
+        composeRule.onNodeWithText("●").assertExists()
         composeRule.onNodeWithContentDescription("Tool in progress").assertDoesNotExist()
     }
 
@@ -107,6 +109,25 @@ class ChatMessagePresentationInstrumentedTest {
         val dotTop = composeRule.onNodeWithText("●").fetchSemanticsNode().boundsInRoot.top
         val attachmentTop = composeRule.onNodeWithContentDescription("notes.txt").fetchSemanticsNode().boundsInRoot.top
         assertTrue(dotTop < attachmentTop)
+    }
+
+    @Test
+    fun expandedStreamingThinkingPlacesIndicatorBelowContent() {
+        composeRule.setContent {
+            GPTMobileTheme {
+                ThinkingBlock(
+                    thoughts = "Detailed reasoning",
+                    contentIdentity = "thinking-stream",
+                    isLoading = true
+                )
+            }
+        }
+
+        composeRule.onNode(hasClickAction()).performClick()
+
+        val contentBottom = composeRule.onNodeWithText("Detailed reasoning").fetchSemanticsNode().boundsInRoot.bottom
+        val dotTop = composeRule.onNodeWithText("●").fetchSemanticsNode().boundsInRoot.top
+        assertTrue(dotTop >= contentBottom)
     }
 
     @Test

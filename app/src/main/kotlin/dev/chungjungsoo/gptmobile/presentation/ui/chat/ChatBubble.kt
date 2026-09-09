@@ -261,7 +261,7 @@ fun OpponentChatBubble(
                         attachments = attachments,
                         showStreamingIndicator = showAnswerStreamingIndicator && text.isNotBlank(),
                         contentIdentity = contentIdentity,
-                        standaloneStreamingIndicator = true
+                        isStreaming = isLoading
                     )
                 }
             } else {
@@ -270,7 +270,8 @@ fun OpponentChatBubble(
                     text = text,
                     attachments = attachments,
                     showStreamingIndicator = showAnswerStreamingIndicator,
-                    contentIdentity = contentIdentity
+                    contentIdentity = contentIdentity,
+                    isStreaming = isLoading
                 )
             }
         }
@@ -336,7 +337,7 @@ private fun QuietAssistantContent(
     attachments: List<String>,
     showStreamingIndicator: Boolean,
     contentIdentity: Any,
-    standaloneStreamingIndicator: Boolean = false
+    isStreaming: Boolean = false
 ) {
     Card(
         shape = RoundedCornerShape(0.dp),
@@ -344,12 +345,12 @@ private fun QuietAssistantContent(
     ) {
         Column {
             ChatMarkdown(
-                content = if (showStreamingIndicator && !standaloneStreamingIndicator) text + "●" else text,
+                content = text,
                 contentIdentity = contentIdentity,
+                isStreaming = isStreaming,
                 modifier = Modifier.padding(16.dp)
             )
-            if (showStreamingIndicator && standaloneStreamingIndicator) {
-                // ponytail: ChatMarkdown still hides concatenated ● from semantics; standalone Text until that renderer exposes it
+            if (showStreamingIndicator) {
                 Text(
                     text = "●",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

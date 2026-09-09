@@ -3,6 +3,7 @@ package dev.chungjungsoo.gptmobile.data.network
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.HttpClientEngineFactory
 import io.ktor.client.plugins.DefaultRequest
+import io.ktor.client.plugins.HttpRequestRetry
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.logging.DEFAULT
@@ -33,6 +34,7 @@ class NetworkClient @Inject constructor(
 
             install(SSE)
 
+            install(HttpRequestRetry) { noRetry() }
             install(HttpTimeout)
 
             install(Logging) {

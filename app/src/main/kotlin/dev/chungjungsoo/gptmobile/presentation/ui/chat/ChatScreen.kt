@@ -146,6 +146,9 @@ fun ChatScreen(
     val loadingStates by chatViewModel.loadingStates.collectAsStateWithLifecycle()
     val isChatTitleDialogOpen by chatViewModel.isChatTitleDialogOpen.collectAsStateWithLifecycle()
     val isChatModelDialogOpen by chatViewModel.isChatModelDialogOpen.collectAsStateWithLifecycle()
+    val chatContextState by chatViewModel.chatContextState.collectAsStateWithLifecycle()
+    val isContextBusy by chatViewModel.isContextBusy.collectAsStateWithLifecycle()
+    var isContextPlatformPickerOpen by rememberSaveable { mutableStateOf(false) }
     val messageEditSession by chatViewModel.messageEditSession.collectAsStateWithLifecycle()
     val isSelectTextSheetOpen by chatViewModel.isSelectTextSheetOpen.collectAsStateWithLifecycle()
     val selectedAttachments by chatViewModel.selectedAttachments.collectAsStateWithLifecycle()
@@ -157,7 +160,7 @@ fun ChatScreen(
     val downloadedLocalModels by chatViewModel.downloadedLocalModels.collectAsStateWithLifecycle()
     val enabledPlatformLookup = remember(appEnabledPlatforms) { appEnabledPlatforms.associateBy { it.uid } }
     val canUseChat = (chatViewModel.enabledPlatformsInChat.toSet() - appEnabledPlatforms.map { it.uid }.toSet()).isEmpty()
-    val isIdle = loadingStates.all { it == ChatViewModel.LoadingState.Idle }
+    val isIdle = loadingStates.all { it == ChatViewModel.LoadingState.Idle } && !isContextBusy
     val context = LocalContext.current
     val lastMessageIndex = groupedMessages.userMessages.lastIndex
     var requestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
@@ -245,7 +248,15 @@ fun ChatScreen(
                 scrollBehavior,
                 chatViewModel::openChatTitleDialog,
                 chatViewModel::openChatModelDialog,
-                onExportChatItemClick = { exportChat(context, chatViewModel) }
+                onExportChatItemClick = { exportChat(context, chatViewModel) },
+                onChatContextItemClick = {
+                    val selected = chatViewModel.enabledPlatformsInChat
+                    if (selected.size == 1) {
+                        chatViewModel.openChatContextSettings(selected.single())
+                    } else {
+                        isContextPlatformPickerOpen = true
+                    }
+                }
             )
         }
     ) { innerPadding ->
@@ -361,6 +372,32 @@ fun ChatScreen(
             )
         }
 
+        if (isContextPlatformPickerOpen) {
+            ChatContextPlatformPicker(
+                platforms = appAllPlatforms.filter { it.uid in chatViewModel.enabledPlatformsInChat },
+                onSelect = { uid ->
+                    isContextPlatformPickerOpen = false
+                    chatViewModel.openChatContextSettings(uid)
+                },
+                onDismiss = { isContextPlatformPickerOpen = false }
+            )
+        }
+        chatContextState?.let { state ->
+            ChatContextDialog(
+                platformName = state.platform.name,
+                model = state.settings.model,
+                contextWindowTokens = state.settings.overrideContextWindowTokens,
+                detectedContextWindowTokens = state.settings.detectedContextWindowTokens,
+                resumableReplies = state.settings.resumableReplies,
+                supportsResumableReplies = state.settings.supportsResumableReplies,
+                canCompact = chatRoom.id > 0 && isIdle && state.settings.canCompact,
+                maxContextWindowTokens = state.settings.detectedContextWindowTokens.takeIf {
+                    state.platform.compatibleType == dev.chungjungsoo.gptmobile.data.model.ClientType.LITERT_LM
+                },
+                onConfirm = chatViewModel::saveChatContextSettings,
+                onDismiss = chatViewModel::closeChatContextSettings
+            )
+        }
         if (isChatModelDialogOpen) {
             val platformNames = chatViewModel.enabledPlatformsInChat.associateWith { uid ->
                 appAllPlatforms.find { it.uid == uid }?.name ?: stringResource(R.string.unknown)
@@ -644,7 +681,8 @@ private fun ChatTopBar(
     scrollBehavior: TopAppBarScrollBehavior,
     onChatTitleItemClick: () -> Unit,
     onChatModelItemClick: () -> Unit,
-    onExportChatItemClick: () -> Unit
+    onExportChatItemClick: () -> Unit,
+    onChatContextItemClick: () -> Unit
 ) {
     var isDropDownMenuExpanded by remember { mutableStateOf(false) }
 
@@ -681,7 +719,8 @@ private fun ChatTopBar(
                     onChatTitleItemClick.invoke()
                     isDropDownMenuExpanded = false
                 },
-                onExportChatItemClick = onExportChatItemClick
+                onExportChatItemClick = onExportChatItemClick,
+                onChatContextItemClick = onChatContextItemClick
             )
         },
         scrollBehavior = scrollBehavior
@@ -694,13 +733,21 @@ fun ChatDropdownMenu(
     isMenuItemEnabled: Boolean,
     onDismissRequest: () -> Unit,
     onChatTitleItemClick: () -> Unit,
-    onExportChatItemClick: () -> Unit
+    onExportChatItemClick: () -> Unit,
+    onChatContextItemClick: () -> Unit = {}
 ) {
     DropdownMenu(
         modifier = Modifier.wrapContentSize(),
         expanded = isDropdownMenuExpanded,
         onDismissRequest = onDismissRequest
     ) {
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.chat_context_title)) },
+            onClick = {
+                onChatContextItemClick()
+                onDismissRequest()
+            }
+        )
         DropdownMenuItem(
             enabled = isMenuItemEnabled,
             text = { Text(text = stringResource(R.string.update_chat_title)) },

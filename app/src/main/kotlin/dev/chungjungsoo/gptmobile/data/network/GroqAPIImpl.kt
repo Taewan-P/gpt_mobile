@@ -39,6 +39,7 @@ class GroqAPIImpl @Inject constructor(
             val endpoint = if (resolvedApiUrl.endsWith("/")) "${resolvedApiUrl}chat/completions" else "$resolvedApiUrl/chat/completions"
 
             networkClient().preparePost(endpoint) {
+                retryGenerationRequest()
                 applyPlatformStreamingTimeout(timeoutSeconds)
                 contentType(ContentType.Application.Json)
                 setBody(NetworkClient.openAIJson.encodeToString(request))

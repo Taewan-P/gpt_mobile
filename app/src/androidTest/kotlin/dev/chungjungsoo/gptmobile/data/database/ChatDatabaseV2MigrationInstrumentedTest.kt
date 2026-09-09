@@ -5,6 +5,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.IOException
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -361,6 +362,87 @@ class ChatDatabaseV2MigrationInstrumentedTest {
         database.close()
     }
 
+    @Test
+    @Throws(IOException::class)
+    fun migrate10To11_keepsTranscriptAndAddsCompactionTables() {
+        helper.createDatabase(COMPACTION_DATABASE, 10).apply {
+            execSQL(
+                "INSERT INTO chats_v2 (chat_id, title, enabled_platform, created_at, updated_at) " +
+                    "VALUES (11, 'Kept chat', 'profile-1', 100, 101)"
+            )
+            execSQL(
+                """
+                INSERT INTO platform_v2 (
+                    platform_id, uid, name, compatible_type, enabled, api_url, token, secret_ref,
+                    model, temperature, top_p, top_k, max_tokens, accelerator, system_prompt,
+                    stream, reasoning, timeout,
+                    harassment_safety_threshold, hate_speech_safety_threshold,
+                    sexually_explicit_safety_threshold, dangerous_content_safety_threshold
+                ) VALUES (
+                    1, 'profile-1', 'OpenAI', 'OPENAI', 1, 'https://api.openai.com/v1/', NULL, NULL,
+                    'gpt-5.4', NULL, NULL, NULL, NULL, NULL, NULL,
+                    1, 0, 30,
+                    'BLOCK_NONE', 'BLOCK_NONE', 'BLOCK_NONE', 'BLOCK_NONE'
+                )
+                """.trimIndent()
+            )
+            execSQL(
+                """
+                INSERT INTO messages_v2 (
+                    message_id, chat_id, thoughts, content, attachments, revisions,
+                    active_revision_index, linked_message_id, platform_type, current_run_id, created_at
+                ) VALUES (21, 11, '', 'Keep this user fact', '[]', '[]', -1, 0, NULL, NULL, 101)
+                """.trimIndent()
+            )
+            execSQL(
+                """
+                INSERT INTO messages_v2 (
+                    message_id, chat_id, thoughts, content, attachments, revisions,
+                    active_revision_index, linked_message_id, platform_type, current_run_id, created_at
+                ) VALUES (22, 11, '', 'Keep this assistant fact', '[]', '[]', -1, 21, 'profile-1', NULL, 102)
+                """.trimIndent()
+            )
+            close()
+        }
+
+        val database = helper.runMigrationsAndValidate(
+            COMPACTION_DATABASE,
+            11,
+            true,
+            ChatDatabaseV2Migrations.MIGRATION_10_11
+        )
+
+        database.query("SELECT title FROM chats_v2 WHERE chat_id = 11").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("Kept chat", cursor.getString(0))
+        }
+        database.query("SELECT message_id, content FROM messages_v2 ORDER BY message_id").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(21, cursor.getInt(0))
+            assertEquals("Keep this user fact", cursor.getString(1))
+            assertTrue(cursor.moveToNext())
+            assertEquals(22, cursor.getInt(0))
+            assertEquals("Keep this assistant fact", cursor.getString(1))
+            assertFalse(cursor.moveToNext())
+        }
+        database.query("SELECT resumable_replies FROM platform_v2 WHERE uid = 'profile-1'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(0, cursor.getInt(0))
+        }
+        assertCount(database, "context_checkpoints", 0)
+        assertCount(database, "model_capacities", 0)
+        database.query("PRAGMA table_info(model_capacities)").use { cursor ->
+            val notNullByName = mutableMapOf<String, Int>()
+            while (cursor.moveToNext()) {
+                notNullByName[cursor.getString(cursor.getColumnIndexOrThrow("name"))] =
+                    cursor.getInt(cursor.getColumnIndexOrThrow("notnull"))
+            }
+            assertEquals(0, notNullByName["detected_context_tokens"])
+            assertEquals(0, notNullByName["override_context_tokens"])
+        }
+        database.close()
+    }
+
     private fun assertCount(
         database: androidx.sqlite.db.SupportSQLiteDatabase,
         table: String,
@@ -378,5 +460,6 @@ class ChatDatabaseV2MigrationInstrumentedTest {
         const val CASCADE_DATABASE = "agent-migration-cascade-test"
         const val TIMELINE_DATABASE = "agent-migration-timeline-test"
         const val BROKEN_VERSION_2_DATABASE = "agent-migration-broken-v2-test"
+        const val COMPACTION_DATABASE = "compaction-migration-10-11-test"
     }
 }

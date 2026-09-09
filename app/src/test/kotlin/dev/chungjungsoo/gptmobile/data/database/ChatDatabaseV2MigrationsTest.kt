@@ -6,7 +6,14 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ChatAttachmentListConvert
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.model.GeminiSafetySettings
+import java.io.File
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -202,5 +209,98 @@ class ChatDatabaseV2MigrationsTest {
             ),
             ChatDatabaseV2Migrations.LOCAL_MODEL_TABLE_MIGRATIONS
         )
+    }
+
+    @Test
+    fun `new platform defaults resumable replies to false`() {
+        val platform = PlatformV2(
+            name = "OpenAI",
+            compatibleType = ClientType.OPENAI,
+            apiUrl = ModelConstants.OPENAI_API_URL,
+            model = "gpt-5.4"
+        )
+
+        assertEquals(false, platform.resumableReplies)
+    }
+
+    @Test
+    fun `version eleven migration adds checkpoint and capacity tables`() {
+        val statements = ChatDatabaseV2Migrations.COMPACTION_TABLE_MIGRATIONS
+        assertEquals(3, statements.size)
+        assertTrue(statements[0].contains("CREATE TABLE IF NOT EXISTS `context_checkpoints`"))
+        assertTrue(
+            statements[0].contains(
+                "FOREIGN KEY(`chat_id`) REFERENCES `chats_v2`(`chat_id`) ON UPDATE NO ACTION ON DELETE CASCADE"
+            )
+        )
+        assertTrue(statements[1].contains("CREATE TABLE IF NOT EXISTS `model_capacities`"))
+        assertTrue(statements[1].contains("`detected_context_tokens` INTEGER"))
+        assertTrue(statements[1].contains("`override_context_tokens` INTEGER"))
+        assertFalse(statements[1].contains("`detected_context_tokens` INTEGER NOT NULL"))
+        assertFalse(statements[1].contains("`override_context_tokens` INTEGER NOT NULL"))
+        assertEquals(
+            "ALTER TABLE `platform_v2` ADD COLUMN `resumable_replies` INTEGER NOT NULL DEFAULT 0",
+            statements[2]
+        )
+    }
+
+    @Test
+    fun `schema ten export stays pre compaction`() {
+        val root = schemaDatabase(10)
+        assertEquals(10, root["version"]!!.jsonPrimitive.int)
+        assertEquals("285174f72c16361eab586029e7e9a8ae", root["identityHash"]!!.jsonPrimitive.content)
+        val tables = entityNames(root)
+        assertFalse(tables.contains("context_checkpoints"))
+        assertFalse(tables.contains("model_capacities"))
+        assertTrue(tables.contains("messages_v2"))
+        assertTrue(tables.contains("chats_v2"))
+        assertFalse(entityFields(root, "platform_v2").contains("resumable_replies"))
+    }
+
+    @Test
+    fun `schema eleven export has compaction tables and resumable default`() {
+        val root = schemaDatabase(11)
+        assertEquals(11, root["version"]!!.jsonPrimitive.int)
+        val tables = entityNames(root)
+        assertTrue(tables.contains("context_checkpoints"))
+        assertTrue(tables.contains("model_capacities"))
+        assertTrue(tables.contains("messages_v2"))
+        val platform = entity(root, "platform_v2")
+        val resumable = platform["fields"]!!.jsonArray.first {
+            it.jsonObject["columnName"]!!.jsonPrimitive.content == "resumable_replies"
+        }.jsonObject
+        assertEquals("INTEGER", resumable["affinity"]!!.jsonPrimitive.content)
+        assertEquals(true, resumable["notNull"]!!.jsonPrimitive.content.toBooleanStrict())
+        assertEquals("0", resumable["defaultValue"]!!.jsonPrimitive.content)
+        val capacities = entity(root, "model_capacities")
+        val capacityFields = capacities["fields"]!!.jsonArray.associate { field ->
+            val obj = field.jsonObject
+            obj["columnName"]!!.jsonPrimitive.content to obj
+        }
+        assertEquals(null, capacityFields.getValue("detected_context_tokens")["notNull"])
+        assertEquals(null, capacityFields.getValue("override_context_tokens")["notNull"])
+    }
+
+    private fun schemaDatabase(version: Int) = Json.parseToJsonElement(schemaFile(version).readText())
+        .jsonObject["database"]!!
+        .jsonObject
+
+    private fun entityNames(root: kotlinx.serialization.json.JsonObject) = root["entities"]!!
+        .jsonArray
+        .map { it.jsonObject["tableName"]!!.jsonPrimitive.content }
+
+    private fun entity(root: kotlinx.serialization.json.JsonObject, table: String) = root["entities"]!!
+        .jsonArray
+        .map { it.jsonObject }
+        .first { it["tableName"]!!.jsonPrimitive.content == table }
+
+    private fun entityFields(root: kotlinx.serialization.json.JsonObject, table: String) = entity(root, table)["fields"]!!
+        .jsonArray
+        .map { it.jsonObject["columnName"]!!.jsonPrimitive.content }
+
+    private fun schemaFile(version: Int): File {
+        val relative = "schemas/dev.chungjungsoo.gptmobile.data.database.ChatDatabaseV2/$version.json"
+        val candidates = listOf(File(relative), File("app/$relative"), File("../$relative"))
+        return candidates.firstOrNull { it.isFile } ?: error("missing schema $version.json")
     }
 }

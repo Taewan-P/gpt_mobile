@@ -8,6 +8,18 @@ import org.junit.Test
 
 class ChatRunNoticeTest {
     @Test
+    fun `compaction status updates and clears without removing other notices`() {
+        val initial = mapOf(
+            "run" to listOf(ChatRunNotice("Waiting for model", false))
+        )
+        val compacting = applyChatRunNotice(initial, "run", "Compacting", false, key = "compaction")
+        val updated = applyChatRunNotice(compacting, "run", "Finishing compaction", false, key = "compaction")
+
+        assertEquals(listOf("Waiting for model", "Finishing compaction"), updated.getValue("run").map { it.message })
+        assertEquals(initial, applyChatRunNotice(updated, "run", "", false, key = "compaction"))
+    }
+
+    @Test
     fun `transient notices stay only while the run is active`() {
         val afterLoading = applyChatRunNotice(emptyMap(), "run-1", "Loading local model…", persistent = false)
         val afterIgnored = applyChatRunNotice(afterLoading, "run-1", "The local platform ignored attachments", persistent = true)

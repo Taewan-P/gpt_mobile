@@ -109,15 +109,23 @@ fun ThinkingBlock(
             exit = shrinkVertically(animationSpec = defaultSpatialSpec()) +
                 fadeOut(animationSpec = fastEffectsSpec())
         ) {
-            val displayText = if (isLoading) thoughts + "●" else thoughts
-
-            ChatMarkdown(
-                content = displayText,
-                contentIdentity = contentIdentity,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
-            )
+            Column {
+                ChatMarkdown(
+                    content = thoughts,
+                    contentIdentity = contentIdentity,
+                    isStreaming = isLoading,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
+                )
+                if (isLoading) {
+                    Text(
+                        text = "●",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
+                    )
+                }
+            }
         }
 
         if (!isExpanded && thoughts.isNotBlank()) {

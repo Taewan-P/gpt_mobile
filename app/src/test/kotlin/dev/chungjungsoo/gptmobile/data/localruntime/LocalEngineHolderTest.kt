@@ -158,4 +158,53 @@ class LocalEngineHolderTest {
         assertEquals(1, fake.unloadEngineCalls)
         assertFalse(fake.isEngineLoaded(spec))
     }
+
+    @Test
+    fun `idle trim unloads without cancelling`() = runTest {
+        val fake = FakeLocalRuntime()
+        val holder = LocalEngineHolder(fake)
+        val spec = LocalEngineSpec("/models/a.litertlm", LocalAccelerators.GPU, 1024)
+        holder.loadEngine(spec)
+
+        holder.trimIdleEngine()
+
+        assertEquals(0, fake.cancelActiveCalls)
+        assertEquals(1, fake.unloadEngineCalls)
+        assertFalse(holder.isEngineLoaded(spec))
+    }
+
+    @Test
+    fun `trim during generation leaves the stream running and keeps the engine`() = runTest {
+        val pause = CompletableDeferred<Unit>()
+        val fake = FakeLocalRuntime().apply {
+            pauseAfterFirst = pause
+            scriptedEvents = listOf(
+                listOf(LocalRuntimeEvent.TextDelta("one"), LocalRuntimeEvent.Done)
+            )
+        }
+        val holder = LocalEngineHolder(fake)
+        val spec = LocalEngineSpec("/models/a.litertlm", LocalAccelerators.GPU, 1024)
+        holder.loadEngine(spec)
+
+        val events = mutableListOf<LocalRuntimeEvent>()
+        val send = launch {
+            holder.sendMessage("a").collect { events += it }
+        }
+        while (events.none { it is LocalRuntimeEvent.TextDelta }) {
+            yield()
+        }
+
+        holder.trimIdleEngine()
+        pause.complete(Unit)
+        send.join()
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(LocalRuntimeEvent.TextDelta("one"), LocalRuntimeEvent.Done),
+            events
+        )
+        assertEquals(0, fake.cancelActiveCalls)
+        assertEquals(0, fake.unloadEngineCalls)
+        assertTrue(holder.isEngineLoaded(spec))
+    }
 }

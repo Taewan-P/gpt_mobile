@@ -17,6 +17,7 @@ class FakeLocalRuntime : LocalRuntime {
     var cancelActiveCalls = 0
     var closeConversationCalls = 0
     var unloadEngineCalls = 0
+    var trimIdleEngineCalls = 0
 
     var scriptedEvents: List<List<LocalRuntimeEvent>> = emptyList()
     var scriptedToolInvocations: List<List<ScriptedToolInvocation>> = emptyList()
@@ -100,6 +101,10 @@ class FakeLocalRuntime : LocalRuntime {
         unloadEngineCalls += 1
         conversationOpen = false
         loadedSpec = null
+    }
+
+    override suspend fun trimIdleEngine() {
+        trimIdleEngineCalls += 1
     }
 
     override fun hasOpenConversation(): Boolean = conversationOpen

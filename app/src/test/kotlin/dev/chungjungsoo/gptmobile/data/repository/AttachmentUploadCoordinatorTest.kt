@@ -178,6 +178,11 @@ class AttachmentUploadCoordinatorTest {
         }
 
         override suspend fun isFileAvailable(fileId: String, config: ProviderRequestConfig): Boolean = isAvailable
+        override suspend fun compactResponses(
+            request: dev.chungjungsoo.gptmobile.data.dto.openai.request.CompactResponsesRequest,
+            timeoutSeconds: Int,
+            config: ProviderRequestConfig
+        ) = dev.chungjungsoo.gptmobile.data.dto.openai.request.CompactResponsesResult()
     }
 
     private class FakeAnthropicAPI : AnthropicAPI {

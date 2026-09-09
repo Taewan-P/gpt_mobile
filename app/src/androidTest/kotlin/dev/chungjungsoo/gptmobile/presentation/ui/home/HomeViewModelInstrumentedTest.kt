@@ -2,6 +2,8 @@ package dev.chungjungsoo.gptmobile.presentation.ui.home
 
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.chungjungsoo.gptmobile.data.agent.AgentRunCoordinator
+import dev.chungjungsoo.gptmobile.data.context.CompactionResult
+import dev.chungjungsoo.gptmobile.data.context.ModelContextSettings
 import dev.chungjungsoo.gptmobile.data.database.entity.AgentRun
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoom
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
@@ -142,6 +144,10 @@ private class QueueChatRepository(
         }
         return result.getOrThrow()
     }
+    override suspend fun getModelContextSettings(platform: PlatformV2): ModelContextSettings = error("unused")
+    override suspend fun saveModelContextSettings(platform: PlatformV2, contextWindowTokens: Int?, resumableReplies: Boolean) = error("unused")
+    override suspend fun compactNow(chatId: Int, platform: PlatformV2): CompactionResult = error("unused")
+    override suspend fun validateDraftCapacity(platform: PlatformV2, message: MessageV2): CompactionResult? = error("unused")
     override suspend fun completeChat(userMessages: List<MessageV2>, assistantMessages: List<List<MessageV2>>, platform: PlatformV2, runId: String): Flow<ApiState> = error("unused")
     override fun observeMessagesV2(chatId: Int): Flow<List<MessageV2>> = error("unused")
     override fun observeAgentRuns(chatId: Int): Flow<List<AgentRun>> = error("unused")

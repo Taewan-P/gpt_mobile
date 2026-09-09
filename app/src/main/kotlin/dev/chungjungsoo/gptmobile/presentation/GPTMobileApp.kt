@@ -83,10 +83,8 @@ class GPTMobileApp :
 
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
-        if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
-            applicationScope.launch {
-                startupDependencies().localRuntime().unloadEngine()
-            }
+        applicationScope.launch {
+            trimLocalRuntimeForMemory(level, startupDependencies().localRuntime())
         }
     }
 
@@ -126,6 +124,13 @@ object StartupRecoveryGate {
 
     suspend fun await() {
         job?.join()
+    }
+}
+
+@Suppress("DEPRECATION")
+internal suspend fun trimLocalRuntimeForMemory(level: Int, runtime: LocalRuntime) {
+    if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
+        runtime.trimIdleEngine()
     }
 }
 

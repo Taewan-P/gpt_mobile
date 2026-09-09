@@ -20,6 +20,9 @@ data class ChatCompletionChunk(
     @SerialName("choices")
     val choices: List<Choice>? = null,
 
+    @SerialName("usage")
+    val usage: ChatCompletionUsage? = null,
+
     @SerialName("error")
     val error: ErrorDetail? = null
 )
@@ -81,4 +84,25 @@ data class ErrorDetail(
 
     @SerialName("code")
     val code: String? = null
+)
+
+@Serializable
+data class ChatCompletionUsage(
+    @SerialName("prompt_tokens")
+    val promptTokens: Int? = null,
+
+    @SerialName("completion_tokens")
+    val completionTokens: Int? = null,
+
+    @SerialName("total_tokens")
+    val totalTokens: Int? = null,
+
+    @SerialName("prompt_tokens_details")
+    val promptTokensDetails: PromptTokensDetails? = null
+)
+
+@Serializable
+data class PromptTokensDetails(
+    @SerialName("cached_tokens")
+    val cachedTokens: Int? = null
 )

@@ -577,4 +577,21 @@
     <string name="capability_thinking">Thinking</string>
     <string name="local_network_permission_required">Local network access is required for this provider or MCP connection.</string>
     <string name="local_network_check_failed">Could not check MCP network access. Local network permission will be requested as a precaution.</string>
+    <string name="chat_context_title">Conversation context</string>
+    <string name="chat_context_window">Context window (tokens)</string>
+    <string name="chat_context_window_unknown">Enter this model’s total context capacity. It could not be detected automatically.</string>
+    <string name="chat_context_window_invalid">Enter a positive whole number.</string>
+    <string name="chat_context_window_detected">Leave blank to use the detected capacity. This is separate from the response length limit.</string>
+    <string name="chat_compact_now">Compact now</string>
+    <string name="chat_resumable_replies">Resumable replies</string>
+    <string name="chat_resumable_replies_description">Let this provider continue generating during a connection drop. Response state is temporarily kept by the provider and is not compatible with Zero Data Retention.</string>
+    <string name="chat_context_load_failed">Could not load this model’s context settings.</string>
+    <string name="chat_context_save_failed">Could not save context settings.</string>
+    <string name="chat_context_compacting">Compacting conversation…</string>
+    <string name="chat_context_choose_platform">Choose a platform</string>
+    <string name="chat_remote_cancellation_unconfirmed">Remote cancellation could not be confirmed. The provider may still be generating this reply.</string>
+    <string name="chat_context_local_max">This local engine supports at most %1$d tokens.</string>
+    <string name="chat_context_timeout">Compaction timed out. The transcript and last valid checkpoint were kept.</string>
+    <string name="agent_run_timeout">The response timed out. Partial output was kept.</string>
+    <string name="agent_run_save_failed">Could not save this reply.</string>
 </resources>

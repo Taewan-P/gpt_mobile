@@ -75,6 +75,10 @@ interface LocalRuntime {
     suspend fun closeConversation()
     suspend fun unloadEngine()
 
+    suspend fun trimIdleEngine() {
+        unloadEngine()
+    }
+
     fun isEngineLoaded(spec: LocalEngineSpec): Boolean = false
 
     fun hasOpenConversation(): Boolean = false

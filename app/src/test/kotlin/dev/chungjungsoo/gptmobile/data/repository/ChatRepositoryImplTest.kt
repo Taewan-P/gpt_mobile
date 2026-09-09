@@ -569,6 +569,45 @@ class ChatRepositoryImplTest {
         assertTrue(event.result.orEmpty().contains("missing credential"))
     }
 
+    @Test
+    fun `mid reply compaction continues completed tool work without replaying the request`() = runBlocking {
+        val requests = mutableListOf<ChatCompletionRequest>()
+        var normalRounds = 0
+        val api = object : OpenAIAPI by RecordingOpenAIAPI() {
+            override fun streamChatCompletion(request: ChatCompletionRequest, timeoutSeconds: Int, config: ProviderRequestConfig): Flow<ChatCompletionChunk> {
+                requests += request
+                val delta = if (request.tools.isNullOrEmpty()) {
+                    Delta(content = "current_date completed successfully. Continue the outstanding reply with this result.")
+                } else if (++normalRounds == 1) {
+                    Delta(
+                        content = "before " + "x".repeat(5000),
+                        toolCalls = listOf(ChatToolCallDelta(0, "call_once", function = ChatFunctionDelta("current_date", "{}")))
+                    )
+                } else {
+                    Delta(content = "Finished with the date.")
+                }
+                return flowOf(ChatCompletionChunk(choices = listOf(Choice(0, delta, finishReason = if (delta.toolCalls.isNullOrEmpty()) "stop" else "tool_calls"))))
+            }
+        }
+        val trace = RecordingToolEventDao()
+        val store = dev.chungjungsoo.gptmobile.data.context.InMemoryCompactionStore()
+        val repository = createRepository(openAIAPI = api, toolEventRecorder = ToolEventRecorder(trace.asDao()), contextLimit = 1000, compactionStore = store)
+        val states = repository.completeChat(
+            listOf(MessageV2(chatId = 60, content = "CALL-ONCE: get the current date", platformType = null)),
+            emptyList(),
+            customPlatform().copy(maxTokens = 128),
+            "mid-run"
+        ).toList()
+        assertFalse(states.toString(), states.any { it is ApiState.Error })
+        assertEquals(2, normalRounds)
+        assertEquals(1, trace.events.size)
+        val continuation = NetworkClient.openAIJson.encodeToString(ChatCompletionRequest.serializer(), requests.last())
+        assertTrue(continuation, continuation.contains("current_date completed"))
+        assertFalse(continuation.contains("CALL-ONCE"))
+        assertEquals(null, store.getCheckpoint(60, "custom-platform"))
+        assertTrue(states.contains(ApiState.Compaction(true)))
+    }
+
     private fun createRepository(
         groqAPI: GroqAPI = FakeGroqAPI(emptyFlow()),
         openAIAPI: OpenAIAPI = RecordingOpenAIAPI(),
@@ -577,7 +616,9 @@ class ChatRepositoryImplTest {
         toolEventRecorder: ToolEventRecorder = ToolEventRecorder(proxy()),
         localRuntime: LocalRuntime = FakeLocalRuntime(),
         localModelRepository: LocalModelRepository = FakeLocalModelRepository(),
-        modelCatalogRepository: ModelCatalogRepository = FakeModelCatalogRepository()
+        modelCatalogRepository: ModelCatalogRepository = FakeModelCatalogRepository(),
+        contextLimit: Int = 128_000,
+        compactionStore: dev.chungjungsoo.gptmobile.data.context.CompactionStore = dev.chungjungsoo.gptmobile.data.context.InMemoryCompactionStore()
     ): ChatRepositoryImpl = ChatRepositoryImpl(
         context = ContextWrapper(null),
         chatRoomDao = proxy(),
@@ -603,7 +644,11 @@ class ChatRepositoryImplTest {
         localRuntime = localRuntime,
         localModelRepository = localModelRepository,
         modelCatalogRepository = modelCatalogRepository,
-        deviceSocModel = ""
+        deviceSocModel = "",
+        compactionStore = compactionStore,
+        remoteContextWindowLookup = dev.chungjungsoo.gptmobile.data.context.RemoteContextWindowLookup { platform ->
+            if (platform.compatibleType == dev.chungjungsoo.gptmobile.data.model.ClientType.LITERT_LM) null else contextLimit
+        }
     )
 
     private fun emptyToolResolver(): AgentToolResolver {
@@ -735,6 +780,12 @@ class ChatRepositoryImplTest {
         ): UploadedProviderFile = UploadedProviderFile(id = "file-uploaded", mimeType = mimeType)
 
         override suspend fun isFileAvailable(fileId: String, config: ProviderRequestConfig): Boolean = false
+
+        override suspend fun compactResponses(
+            request: dev.chungjungsoo.gptmobile.data.dto.openai.request.CompactResponsesRequest,
+            timeoutSeconds: Int,
+            config: ProviderRequestConfig
+        ) = dev.chungjungsoo.gptmobile.data.dto.openai.request.CompactResponsesResult()
     }
 
     private class FakeAnthropicAPI : AnthropicAPI {
