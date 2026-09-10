@@ -21,7 +21,7 @@ extensions.configure<ApplicationExtension> {
 
     defaultConfig {
         applicationId = "dev.chungjungsoo.gptmobile"
-        minSdk = 31
+        minSdk = 28
         targetSdk = 37
         versionCode = 24
         versionName = "0.9.0"
