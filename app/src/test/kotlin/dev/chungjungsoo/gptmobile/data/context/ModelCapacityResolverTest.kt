@@ -15,6 +15,19 @@ import org.junit.Test
 
 class ModelCapacityResolverTest {
     @Test
+    fun auto_npuTarget_clampsCapacityBeforeCompaction() = runBlocking {
+        val resolver = ModelCapacityResolver(
+            InMemoryCompactionStore(),
+            FakeModelCatalogRepository(listOf(npuEntry())),
+            "SM8750",
+            localAccelerator = { LocalAccelerators.NPU }
+        )
+        val result = resolver.resolve(localPlatform(maxTokens = 4096, accelerator = "auto"))
+            as ModelCapacityResolution.Known
+        assertEquals(1280, result.capacity.detectedContextWindowTokens)
+    }
+
+    @Test
     fun `cpu local capacity uses configured engine maxTokens not npu catalog context`() = runBlocking {
         val resolution = resolver().resolve(
             localPlatform(maxTokens = 4096, accelerator = LocalAccelerators.CPU)

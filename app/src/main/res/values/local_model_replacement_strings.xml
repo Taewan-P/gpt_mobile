@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="local_model_replacement_title">Replace Local Model</string>
+    <string name="local_model_replacement_message">Download %1$s for %2$s (%3$s). The existing file stays until the new download is verified. Retry after the download completes.</string>
+    <string name="local_model_replacement_confirm">Download and replace</string>
+</resources>

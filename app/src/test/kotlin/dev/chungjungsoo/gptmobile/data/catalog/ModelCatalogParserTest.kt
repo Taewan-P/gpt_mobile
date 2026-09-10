@@ -274,6 +274,18 @@ class ModelCatalogParserTest {
         assertEquals(3016294400L, gemma4.socToModelFiles.getValue("SM8750").sizeInBytes)
         assertEquals(1280, gemma4.socToModelFiles.getValue("SM8750").contextSize)
         assertEquals(8, gemma4.minRamGb)
+        assertEquals(1, catalog.catalogVersion)
+        assertTrue(gemma4.socToModelFiles.containsKey("Tensor G6"))
+        val gemma4G6 = gemma4.socToModelFiles.getValue("Tensor G6")
+        assertEquals("gemma-4-E2B-it_Google_Tensor_G6.litertlm", gemma4G6.modelFile)
+        assertEquals(
+            "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/b3ca0d2f076785a8f4b2219ddbd2bdb99954eae1/gemma-4-E2B-it_Google_Tensor_G6.litertlm?download=true",
+            gemma4G6.downloadUrl
+        )
+        assertEquals("b3ca0d2f076785a8f4b2219ddbd2bdb99954eae1", gemma4G6.commitHash)
+        assertEquals(3313938293L, gemma4G6.sizeInBytes)
+        assertEquals(4096, gemma4G6.contextSize)
+        assertEquals("q4", gemma4G6.quantization)
     }
 
     companion object {

@@ -12,7 +12,8 @@ data class LocalSamplingDefaults(
 
 fun localSamplingDefaults(
     entry: CatalogEntry,
-    deviceSocModel: String = ""
+    deviceSocModel: String = "",
+    isNpuAvailable: Boolean? = null
 ): LocalSamplingDefaults = LocalSamplingDefaults(
     temperature = entry.defaultConfig.temperature,
     topP = entry.defaultConfig.topP,
@@ -21,6 +22,7 @@ fun localSamplingDefaults(
     accelerator = LocalAccelerators.defaultFrom(
         supported = entry.supportedAccelerators,
         socToModelFiles = entry.socToModelFiles,
-        deviceSocModel = deviceSocModel
+        deviceSocModel = deviceSocModel,
+        isNpuAvailable = isNpuAvailable
     )
 )

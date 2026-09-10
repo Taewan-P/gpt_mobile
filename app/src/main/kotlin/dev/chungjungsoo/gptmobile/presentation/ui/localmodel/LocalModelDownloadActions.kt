@@ -6,11 +6,14 @@ import dev.chungjungsoo.gptmobile.data.huggingface.HuggingFaceTokenStore
 import dev.chungjungsoo.gptmobile.data.localmodel.GatedDownloadCoordinator
 import dev.chungjungsoo.gptmobile.data.localmodel.GatedDownloadStep
 import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelStatus
+import dev.chungjungsoo.gptmobile.data.localmodel.ResolvedModelDownload
 import dev.chungjungsoo.gptmobile.data.localmodel.SocVariantResolver
+import dev.chungjungsoo.gptmobile.data.localruntime.localModelExecutionTargets
 import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.LocalModelDownloadUiState
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.LocalModelItemStatus
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.LocalModelsDialog
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,44 +28,77 @@ class LocalModelDownloadActions(
     private val downloadGuards: LocalDownloadGuards,
     private val huggingFaceAuthClient: HuggingFaceAuthClient,
     private val scope: CoroutineScope,
-    private val deviceSocModel: String = ""
+    private val deviceSocModel: String = "",
+    private val onDownloadStarted: () -> Unit = {},
+    private val isNpuAvailable: () -> Boolean = { false }
 ) {
     private var pendingGatedEntry: CatalogEntry? = null
+    private var pendingResolvedTarget: ResolvedModelDownload? = null
+    private var allowReadyReplacement: Boolean = false
+    private var beginGeneration: Int = 0
 
     private val _uiState = MutableStateFlow(LocalModelDownloadUiState())
     val uiState: StateFlow<LocalModelDownloadUiState> = _uiState.asStateFlow()
 
     fun requestDownload(entry: CatalogEntry, currentStatus: LocalModelItemStatus? = null) {
-        if (_uiState.value.checkingAccessEntryId != null) return
-        if (currentStatus == LocalModelItemStatus.DOWNLOADING || currentStatus == LocalModelItemStatus.READY) {
+        val resolved = localModelExecutionTargets(entry, "auto", deviceSocModel, isNpuAvailable()).firstOrNull()?.download
+            ?: SocVariantResolver.resolve(entry, "", "cpu")
+        requestDownload(entry, currentStatus, resolved, allowReadyReplacement = false)
+    }
+
+    fun requestConfirmedReplacement(entry: CatalogEntry, resolved: ResolvedModelDownload): Boolean {
+        if (_uiState.value.checkingAccessEntryId != null) return false
+        if (_uiState.value.dialog !is LocalModelsDialog.Hidden) return false
+        requestDownload(
+            entry,
+            LocalModelItemStatus.READY,
+            resolved,
+            allowReadyReplacement = true
+        )
+        return true
+    }
+
+    private fun requestDownload(
+        entry: CatalogEntry,
+        currentStatus: LocalModelItemStatus?,
+        resolved: ResolvedModelDownload?,
+        allowReadyReplacement: Boolean
+    ) {
+        if (_uiState.value.checkingAccessEntryId != null || _uiState.value.dialog !is LocalModelsDialog.Hidden) return
+        beginGeneration += 1
+        if (currentStatus == LocalModelItemStatus.DOWNLOADING) return
+        if (currentStatus == LocalModelItemStatus.READY && !allowReadyReplacement) {
             return
         }
+        pendingResolvedTarget = resolved
+        this.allowReadyReplacement = allowReadyReplacement
+        val downloadEntry = resolved?.let { entryWithExplicitTarget(entry, it) } ?: entry
         if (currentStatus == LocalModelItemStatus.FAILED) {
             if (downloadGuards.isMeteredConnection()) {
-                _uiState.update { it.copy(dialog = LocalModelsDialog.MeteredConfirm(entryWithResolvedSize(entry))) }
+                _uiState.update { it.copy(dialog = LocalModelsDialog.MeteredConfirm(entryWithDisplaySize(downloadEntry, resolved))) }
             } else {
-                beginDownload(entry)
+                beginDownload(downloadEntry)
             }
             return
         }
         when {
-            downloadGuards.belowRamRequirement(entry) -> {
-                _uiState.update { it.copy(dialog = LocalModelsDialog.RamWarning(entry)) }
+            downloadGuards.belowRamRequirement(downloadEntry) -> {
+                _uiState.update { it.copy(dialog = LocalModelsDialog.RamWarning(downloadEntry)) }
             }
 
             downloadGuards.isMeteredConnection() -> {
-                _uiState.update { it.copy(dialog = LocalModelsDialog.MeteredConfirm(entryWithResolvedSize(entry))) }
+                _uiState.update { it.copy(dialog = LocalModelsDialog.MeteredConfirm(entryWithDisplaySize(downloadEntry, resolved))) }
             }
 
-            else -> beginDownload(entry)
+            else -> beginDownload(downloadEntry)
         }
     }
 
     fun confirmRamWarning() {
         val entry = (_uiState.value.dialog as? LocalModelsDialog.RamWarning)?.entry ?: return
-        dismissDialog()
+        hideCurrentDialog()
         if (downloadGuards.isMeteredConnection()) {
-            _uiState.update { it.copy(dialog = LocalModelsDialog.MeteredConfirm(entryWithResolvedSize(entry))) }
+            _uiState.update { it.copy(dialog = LocalModelsDialog.MeteredConfirm(entryWithDisplaySize(entry, pendingResolvedTarget))) }
         } else {
             beginDownload(entry)
         }
@@ -70,12 +106,15 @@ class LocalModelDownloadActions(
 
     fun confirmMeteredDownload() {
         val entry = (_uiState.value.dialog as? LocalModelsDialog.MeteredConfirm)?.entry ?: return
-        dismissDialog()
+        hideCurrentDialog()
         beginDownload(entry)
     }
 
     fun dismissDialog() {
         pendingGatedEntry = null
+        pendingResolvedTarget = null
+        allowReadyReplacement = false
+        beginGeneration += 1
         _uiState.update { it.copy(dialog = LocalModelsDialog.Hidden) }
     }
 
@@ -91,9 +130,15 @@ class LocalModelDownloadActions(
         val entry = pendingGatedEntry
             ?: (_uiState.value.dialog as? LocalModelsDialog.SignIn)?.entry
             ?: return
+        val requestGeneration = beginGeneration
         scope.launch {
-            when (val result = huggingFaceAuthClient.completeSignIn(data)) {
-                HuggingFaceSignInResult.Cancelled -> dismissDialog()
+            val result = huggingFaceAuthClient.completeSignIn(data)
+            if (requestGeneration != beginGeneration) return@launch
+            when (result) {
+                HuggingFaceSignInResult.Cancelled -> {
+                    dismissDialog()
+                    onDownloadStarted()
+                }
 
                 HuggingFaceSignInResult.Failed -> {
                     pendingGatedEntry = null
@@ -154,27 +199,51 @@ class LocalModelDownloadActions(
         huggingFaceAuthClient.dispose()
     }
 
-    private fun entryWithResolvedSize(entry: CatalogEntry): CatalogEntry {
-        val resolvedSize = SocVariantResolver.resolve(entry, deviceSocModel).sizeInBytes
+    private fun hideCurrentDialog() {
+        _uiState.update { it.copy(dialog = LocalModelsDialog.Hidden) }
+    }
+
+    private fun entryWithDisplaySize(entry: CatalogEntry, resolved: ResolvedModelDownload?): CatalogEntry {
+        val resolvedSize = resolved?.sizeInBytes
+            ?: SocVariantResolver.resolve(entry, deviceSocModel).sizeInBytes
         return if (resolvedSize > 0L) entry.copy(sizeInBytes = resolvedSize) else entry
     }
 
+    private fun entryWithExplicitTarget(entry: CatalogEntry, resolved: ResolvedModelDownload): CatalogEntry = entry.copy(
+        downloadUrl = resolved.downloadUrl,
+        sizeInBytes = resolved.sizeInBytes.takeIf { it > 0L } ?: entry.sizeInBytes,
+        socToModelFiles = emptyMap()
+    )
+
     private fun beginDownload(entry: CatalogEntry) {
+        val requestGeneration = beginGeneration
         scope.launch {
+            if (requestGeneration != beginGeneration) return@launch
             val existing = localModelRepository.getById(entry.id)
-            if (existing?.status == LocalModelStatus.DOWNLOADING || existing?.status == LocalModelStatus.READY) {
+            val isReadyReplacement = allowReadyReplacement && pendingResolvedTarget != null
+            if (existing?.status == LocalModelStatus.DOWNLOADING) {
+                finishStartedFlow()
                 return@launch
             }
+            if (existing?.status == LocalModelStatus.READY && !isReadyReplacement) {
+                finishStartedFlow()
+                return@launch
+            }
+            val resolved = pendingResolvedTarget
             if (!entry.isGated) {
-                localModelRepository.startDownload(entry)
+                startResolvedDownload(entry, resolved, requestGeneration)
                 return@launch
             }
             _uiState.update { it.copy(checkingAccessEntryId = entry.id) }
             val step = runCatching { gatedDownloadCoordinator.resolve(entry) }
                 .getOrDefault(GatedDownloadStep.Error)
+            if (requestGeneration != beginGeneration) {
+                _uiState.update { it.copy(checkingAccessEntryId = null) }
+                return@launch
+            }
             _uiState.update { it.copy(checkingAccessEntryId = null) }
             when (step) {
-                GatedDownloadStep.Proceed -> localModelRepository.startDownload(entry)
+                GatedDownloadStep.Proceed -> startResolvedDownload(entry, resolved, requestGeneration)
 
                 is GatedDownloadStep.NeedsSignIn -> {
                     pendingGatedEntry = entry
@@ -198,5 +267,36 @@ class LocalModelDownloadActions(
                 }
             }
         }
+    }
+
+    private suspend fun startResolvedDownload(
+        entry: CatalogEntry,
+        resolved: ResolvedModelDownload?,
+        requestGeneration: Int
+    ) {
+        try {
+            if (requestGeneration != beginGeneration) return
+            if (resolved != null) {
+                localModelRepository.startDownload(entry, resolved)
+            } else {
+                localModelRepository.startDownload(entry)
+            }
+            if (requestGeneration == beginGeneration) {
+                finishStartedFlow()
+            }
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (error: Exception) {
+            if (requestGeneration != beginGeneration) return
+            _uiState.update {
+                it.copy(dialog = LocalModelsDialog.DownloadError(error.message ?: "Could not start the model download"), checkingAccessEntryId = null)
+            }
+        }
+    }
+
+    private fun finishStartedFlow() {
+        pendingResolvedTarget = null
+        allowReadyReplacement = false
+        onDownloadStarted()
     }
 }

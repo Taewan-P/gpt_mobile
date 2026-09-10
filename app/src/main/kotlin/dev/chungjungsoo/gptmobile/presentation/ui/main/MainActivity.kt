@@ -31,6 +31,7 @@ import dev.chungjungsoo.gptmobile.presentation.common.ThemeSettingProvider
 import dev.chungjungsoo.gptmobile.presentation.common.ThemeViewModel
 import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 import dev.chungjungsoo.gptmobile.presentation.theme.toApplicationNightMode
+import dev.chungjungsoo.gptmobile.presentation.ui.localmodel.LocalModelReplacementHost
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.ToolConnectionsViewModel
 import kotlinx.coroutines.flow.first
 
@@ -93,6 +94,7 @@ class MainActivity : ComponentActivity() {
                             toolConnectionsViewModel = toolConnectionsViewModel,
                             onLaunchOAuth = ::launchOAuth
                         )
+                        LocalModelReplacementHost()
                         LaunchedEffect(navController) {
                             navController.awaitStartupRoute()
                         }

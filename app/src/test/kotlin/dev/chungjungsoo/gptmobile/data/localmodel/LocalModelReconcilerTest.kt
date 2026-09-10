@@ -114,6 +114,55 @@ class LocalModelReconcilerTest {
         assertTrue(actions.isEmpty())
     }
 
+    @Test
+    fun `ready row is kept while an active replacement partial exists`() {
+        val row = downloadedRow()
+        val replacementPartial = "models/qwen2.5-1.5b-instruct/npucommit/npu.litertlm.part"
+        val actions = LocalModelReconciler.reconcile(
+            rows = listOf(row),
+            diskFiles = setOf(finalPath(row), replacementPartial),
+            activeDownloadIds = setOf(row.catalogEntryId)
+        )
+
+        assertTrue(actions.isEmpty())
+    }
+
+    @Test
+    fun `verified replacement file is not deleted while the ready row still points at the old file`() {
+        val row = downloadedRow()
+        val newFile = "models/qwen2.5-1.5b-instruct/npucommit/npu.litertlm"
+        val actions = LocalModelReconciler.reconcile(
+            rows = listOf(row),
+            diskFiles = setOf(finalPath(row), newFile),
+            activeDownloadIds = setOf(row.catalogEntryId)
+        )
+
+        assertTrue(actions.isEmpty())
+    }
+
+    @Test
+    fun `inactive replacement partial is deleted without removing the ready row`() {
+        val row = downloadedRow()
+        val replacementPartial = "models/qwen2.5-1.5b-instruct/npucommit/npu.litertlm.part"
+        val actions = LocalModelReconciler.reconcile(
+            rows = listOf(row),
+            diskFiles = setOf(finalPath(row), replacementPartial),
+            activeDownloadIds = emptySet()
+        )
+
+        assertEquals(listOf(ReconcileAction.DeleteFile(replacementPartial)), actions)
+    }
+
+    @Test
+    fun `user cancel of a ready replacement keeps the retained file`() {
+        val plan = LocalModelReconciler.planUserCancel(LocalModelStatus.READY)
+
+        assertEquals(LocalModelStatus.READY, plan.newStatus)
+        assertFalse(plan.deleteRow)
+        assertFalse(plan.deleteFiles)
+        assertTrue(plan.deleteNonRetainedFiles)
+    }
+
     private fun downloadedRow() = LocalModelRecord(
         catalogEntryId = "qwen2.5-1.5b-instruct",
         commitHash = "19edb84c69a0212f29a6ef17ba0d6f278b6a1614",

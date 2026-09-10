@@ -13,13 +13,29 @@ data class ResolvedModelDownload(
 
 object SocVariantResolver {
     fun resolve(entry: CatalogEntry, deviceSocModel: String): ResolvedModelDownload {
-        val default = ResolvedModelDownload(
-            fileName = LocalModelDownloadPaths.fileNameFromUrl(entry.downloadUrl),
-            downloadUrl = entry.downloadUrl,
-            commitHash = LocalModelDownloadPaths.commitHashFromUrl(entry.downloadUrl),
-            sizeInBytes = entry.sizeInBytes
-        )
+        val default = defaultDownload(entry)
         val variant = matchingVariant(entry.socToModelFiles, deviceSocModel) ?: return default
+        return fromVariant(variant, default)
+    }
+
+    fun resolve(entry: CatalogEntry, deviceSocModel: String, accelerator: String): ResolvedModelDownload? {
+        val default = defaultDownload(entry)
+        return when (accelerator.trim().lowercase()) {
+            "npu" -> matchingVariant(entry.socToModelFiles, deviceSocModel)?.let { fromVariant(it, default) }
+            else -> default
+        }
+    }
+
+    fun matches(fileName: String, commitHash: String, resolved: ResolvedModelDownload): Boolean = fileName == resolved.fileName && commitHash == resolved.commitHash
+
+    private fun defaultDownload(entry: CatalogEntry): ResolvedModelDownload = ResolvedModelDownload(
+        fileName = LocalModelDownloadPaths.fileNameFromUrl(entry.downloadUrl),
+        downloadUrl = entry.downloadUrl,
+        commitHash = LocalModelDownloadPaths.commitHashFromUrl(entry.downloadUrl),
+        sizeInBytes = entry.sizeInBytes
+    )
+
+    private fun fromVariant(variant: SocVariant, default: ResolvedModelDownload): ResolvedModelDownload {
         val fileName = variant.modelFile.ifBlank {
             LocalModelDownloadPaths.fileNameFromUrl(variant.downloadUrl).ifBlank { default.fileName }
         }

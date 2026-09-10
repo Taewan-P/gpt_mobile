@@ -35,6 +35,19 @@ jobs:
           java-version: "17"
           cache: "gradle"
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Set up Python for native libraries
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Prepare NPU libraries
+        run: |
+          sdkmanager "ndk;28.1.13356709"
+          python3 scripts/prepare_npu_runtime.py
+
       - name: Build debug APK
         run: |
           ./gradlew assembleDebug

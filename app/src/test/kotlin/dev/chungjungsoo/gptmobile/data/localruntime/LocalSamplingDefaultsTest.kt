@@ -8,7 +8,7 @@ import org.junit.Test
 
 class LocalSamplingDefaultsTest {
     @Test
-    fun `prefers GPU when the catalog lists it`() {
+    fun `defaults new profiles to Auto when a backend is selectable`() {
         val defaults = localSamplingDefaults(
             CatalogEntry(
                 id = "gemma3-1b-it",
@@ -21,11 +21,11 @@ class LocalSamplingDefaultsTest {
         assertEquals(0.95f, defaults.topP)
         assertEquals(1.0f, defaults.temperature)
         assertEquals(1024, defaults.maxTokens)
-        assertEquals(LocalAccelerators.GPU, defaults.accelerator)
+        assertEquals(LocalAccelerators.AUTO, defaults.accelerator)
     }
 
     @Test
-    fun `falls back to the first eligible accelerator`() {
+    fun `defaults to Auto when NPU is catalog-eligible`() {
         val defaults = localSamplingDefaults(
             entry = CatalogEntry(
                 supportedAccelerators = listOf("npu", "cpu"),
@@ -34,15 +34,15 @@ class LocalSamplingDefaultsTest {
             deviceSocModel = "SM8650"
         )
 
-        assertEquals(LocalAccelerators.NPU, defaults.accelerator)
+        assertEquals(LocalAccelerators.AUTO, defaults.accelerator)
     }
 
     @Test
-    fun `does not default to NPU when the device has no SOC variant`() {
+    fun `defaults to Auto from remaining backends when NPU is ineligible`() {
         val defaults = localSamplingDefaults(
             CatalogEntry(supportedAccelerators = listOf("npu", "cpu"))
         )
 
-        assertEquals(LocalAccelerators.CPU, defaults.accelerator)
+        assertEquals(LocalAccelerators.AUTO, defaults.accelerator)
     }
 }

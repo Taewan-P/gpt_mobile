@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelStatus
+import dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators
 import dev.chungjungsoo.gptmobile.data.repository.FakeLocalModelRepository
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.FakeLocalDownloadGuards
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.addPlatformViewModel
@@ -190,5 +191,6 @@ class AddPlatformViewModelTest {
         assertEquals(0.8f, defaults?.topP)
         assertEquals(20, defaults?.topK)
         assertEquals(4096, defaults?.maxTokens)
+        assertEquals(LocalAccelerators.AUTO, defaults?.accelerator)
     }
 }

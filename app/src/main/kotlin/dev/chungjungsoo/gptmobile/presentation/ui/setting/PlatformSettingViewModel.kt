@@ -13,11 +13,15 @@ import dev.chungjungsoo.gptmobile.data.database.entity.BuiltInAgentTool
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolConnection
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolConnectionType
+import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelReplacementCoordinator
 import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelStatus
 import dev.chungjungsoo.gptmobile.data.localmodel.SocVariantResolver
 import dev.chungjungsoo.gptmobile.data.localruntime.AcceleratorOption
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators
+import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
+import dev.chungjungsoo.gptmobile.data.localruntime.localModelExecutionTargets
 import dev.chungjungsoo.gptmobile.data.localruntime.localSamplingDefaults
+import dev.chungjungsoo.gptmobile.data.localruntime.matches
 import dev.chungjungsoo.gptmobile.data.localruntime.resolvedEngineMaxTokens
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.model.GeminiSafetySettings
@@ -59,6 +63,8 @@ class PlatformSettingViewModel @Inject constructor(
     private val agentToolResolver: AgentToolResolver,
     private val modelCatalogRepository: ModelCatalogRepository,
     private val localModelRepository: LocalModelRepository,
+    private val localRuntime: LocalRuntime,
+    private val localModelReplacementCoordinator: LocalModelReplacementCoordinator,
     @param:DeviceSocModel private val deviceSocModel: String,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -90,10 +96,11 @@ class PlatformSettingViewModel @Inject constructor(
 
     val acceleratorOptions: StateFlow<List<AcceleratorOption>> = combine(_platformState, _catalogEntries) { platform, catalog ->
         val entry = catalog.firstOrNull { it.id == platform?.model }
-        LocalAccelerators.choices(
+        LocalAccelerators.preferenceChoices(
             supported = entry?.supportedAccelerators.orEmpty(),
             socToModelFiles = entry?.socToModelFiles.orEmpty(),
-            deviceSocModel = deviceSocModel
+            deviceSocModel = deviceSocModel,
+            isNpuAvailable = localRuntime.isNpuAvailable()
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -280,7 +287,7 @@ class PlatformSettingViewModel @Inject constructor(
     private fun reseedLocalModelDefaults(platform: PlatformV2, catalogEntryId: String): PlatformV2 {
         val defaults = _catalogEntries.value
             .firstOrNull { it.id == catalogEntryId }
-            ?.let { localSamplingDefaults(it, deviceSocModel) }
+            ?.let { localSamplingDefaults(it, deviceSocModel, localRuntime.isNpuAvailable()) }
         return platform.copy(
             model = catalogEntryId,
             temperature = defaults?.temperature ?: platform.temperature,
@@ -317,7 +324,7 @@ class PlatformSettingViewModel @Inject constructor(
             val capped = maxTokens?.let { requested ->
                 resolvedEngineMaxTokens(
                     requestedMaxTokens = requested.coerceIn(MIN_MAX_TOKENS, DEFAULT_MAX_TOKENS_CAP),
-                    accelerator = platform.accelerator.orEmpty(),
+                    accelerator = resolvedAccelerator(platform),
                     entry = catalogEntryFor(platform),
                     deviceSocModel = deviceSocModel
                 )
@@ -329,11 +336,14 @@ class PlatformSettingViewModel @Inject constructor(
 
     fun maxTokensCap(): Int {
         val platform = _platformState.value ?: return DEFAULT_MAX_TOKENS_CAP
+        if (resolvedAccelerator(platform) != LocalAccelerators.NPU) {
+            return DEFAULT_MAX_TOKENS_CAP
+        }
         val variantLimit = SocVariantResolver.resolve(
             catalogEntryFor(platform) ?: return DEFAULT_MAX_TOKENS_CAP,
             deviceSocModel
         ).contextSize
-        if (LocalAccelerators.normalize(platform.accelerator) != LocalAccelerators.NPU || variantLimit <= 0) {
+        if (variantLimit <= 0) {
             return DEFAULT_MAX_TOKENS_CAP
         }
         return variantLimit
@@ -341,9 +351,37 @@ class PlatformSettingViewModel @Inject constructor(
 
     private fun catalogEntryFor(platform: PlatformV2): CatalogEntry? = _catalogEntries.value.firstOrNull { it.id == platform.model }
 
+    private fun resolvedAccelerator(platform: PlatformV2): String {
+        val entry = catalogEntryFor(platform) ?: return LocalAccelerators.normalize(platform.accelerator)
+        return localModelExecutionTargets(
+            entry,
+            platform.accelerator,
+            deviceSocModel,
+            localRuntime.isNpuAvailable()
+        ).firstOrNull()?.accelerator ?: LocalAccelerators.normalize(platform.accelerator)
+    }
+
+    private fun requestReplacementIfNeeded(platform: PlatformV2) {
+        val entry = catalogEntryFor(platform) ?: return
+        val desired = localModelExecutionTargets(
+            entry,
+            platform.accelerator,
+            deviceSocModel,
+            localRuntime.isNpuAvailable()
+        ).firstOrNull() ?: return
+        viewModelScope.launch {
+            val retained = localModelRepository.getById(platform.model) ?: return@launch
+            if (retained.status != LocalModelStatus.READY) return@launch
+            if (!desired.download.matches(retained)) {
+                localModelReplacementCoordinator.request(entry, desired.download, desired.accelerator)
+            }
+        }
+    }
+
     fun updateAccelerator(accelerator: String) {
         val normalized = LocalAccelerators.normalize(accelerator)
-        if (normalized != LocalAccelerators.CPU &&
+        if (normalized != LocalAccelerators.AUTO &&
+            normalized != LocalAccelerators.CPU &&
             normalized != LocalAccelerators.GPU &&
             normalized != LocalAccelerators.NPU
         ) {
@@ -352,7 +390,9 @@ class PlatformSettingViewModel @Inject constructor(
         val option = acceleratorOptions.value.firstOrNull { it.accelerator == normalized }
         if (option?.enabled != true) return
         _platformState.value?.let { platform ->
-            updatePlatform(platform.copy(accelerator = normalized))
+            val updated = platform.copy(accelerator = normalized)
+            updatePlatform(updated)
+            requestReplacementIfNeeded(updated)
             closeAcceleratorDialog()
         }
     }

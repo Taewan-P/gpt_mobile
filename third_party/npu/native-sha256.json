@@ -1,0 +1,16 @@
+{
+  "libQnnHtp.so": "ab01bb8b74a933009bfb0518c3f73d5c972f72ea2d358136e6f72ecfedb2d693",
+  "libQnnHtpPrepare.so": "ce1b30c8d77e2d551da020255c2586b8a9b0267d0eafb5efb0bf9d0422be301b",
+  "libQnnHtpV73Skel.so": "993f11c0c527cd0c97f14c775b1e4d13cced4801b6f10ec5ed9fb7615d9214b6",
+  "libQnnHtpV73Stub.so": "ac640934ba85f87b3adbfe6b3a312a6f99574ea0b612b7919d54f20fb9a4ca3b",
+  "libQnnHtpV75Skel.so": "2034cb2aa7632bb3021b6325a2a0f65c123c7307997cc9ccdbc26810ce5da2e9",
+  "libQnnHtpV75Stub.so": "2598b0bdbbdbd51024399051e56a1b070cbe4920ece9369038a180adc979760f",
+  "libQnnHtpV79Skel.so": "bcec19697d8f0d9bbc1699d2d184245f41c7d7dd637cc723cf9e28d4458ada11",
+  "libQnnHtpV79Stub.so": "eb599ef4ece1b11abb9aff0b3f01c63a1e554c6f2c80c850aca6005b502ee7a0",
+  "libQnnHtpV81Skel.so": "fe665468281c4a6785ffba6d8c37b80db629776b8f2f7b0a269733f6401ca69b",
+  "libQnnHtpV81Stub.so": "ce8d124b24ac936ecd0c17e61cf6112aad79d079d652644ec3e8495caf32491b",
+  "libQnnSystem.so": "d6da066808f50fb2e5a3363a4f4a2ac616b7605ea8c5a42e3beda1e550ae4c41",
+  "libnpu_dispatch_google_tensor.so": "4c53896f4f02023605f66d1f29663b25a1e723f0686f9cb5f2a992ec3a071cd4",
+  "libnpu_dispatch_mediatek.so": "d654da22a82b5fb7e2c3c2fdc84617ee5ef19840d50ea978277689b6ca6252bc",
+  "libnpu_dispatch_qualcomm.so": "cf211e9212f2bd803564a2c8cff56925f57098808e57a75ff8dd480855f7daf5"
+}

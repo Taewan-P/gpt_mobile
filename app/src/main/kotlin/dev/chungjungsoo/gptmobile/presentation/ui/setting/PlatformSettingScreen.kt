@@ -784,6 +784,7 @@ fun PlatformTopAppBar(
 
 @Composable
 private fun acceleratorLabel(accelerator: String?): String = when (accelerator?.lowercase()) {
+    LocalAccelerators.AUTO -> stringResource(R.string.accelerator_auto)
     LocalAccelerators.GPU -> stringResource(R.string.accelerator_gpu)
     LocalAccelerators.CPU -> stringResource(R.string.accelerator_cpu)
     LocalAccelerators.NPU -> stringResource(R.string.accelerator_npu)

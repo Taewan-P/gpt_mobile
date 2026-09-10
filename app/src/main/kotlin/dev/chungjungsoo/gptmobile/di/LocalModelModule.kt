@@ -13,6 +13,7 @@ import dev.chungjungsoo.gptmobile.data.huggingface.HuggingFaceTokenStore
 import dev.chungjungsoo.gptmobile.data.localmodel.GatedDownloadCoordinator
 import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelDownloadProber
 import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelDownloadProberImpl
+import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
 import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
 import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepositoryImpl
 import dev.chungjungsoo.gptmobile.presentation.ui.localmodel.HuggingFaceAuthClient
@@ -65,11 +66,13 @@ object LocalModelModule {
     fun provideLocalModelRepository(
         @ApplicationContext context: Context,
         localModelDao: LocalModelDao,
-        @DeviceSocModel deviceSocModel: String
+        @DeviceSocModel deviceSocModel: String,
+        localRuntime: LocalRuntime
     ): LocalModelRepository = LocalModelRepositoryImpl(
         context = context,
         localModelDao = localModelDao,
         deviceSocModel = deviceSocModel,
-        ioDispatcher = Dispatchers.IO
+        ioDispatcher = Dispatchers.IO,
+        localRuntime = localRuntime
     )
 }

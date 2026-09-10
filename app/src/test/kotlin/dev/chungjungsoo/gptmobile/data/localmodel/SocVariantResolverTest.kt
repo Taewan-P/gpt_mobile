@@ -1,8 +1,12 @@
 package dev.chungjungsoo.gptmobile.data.localmodel
 
 import dev.chungjungsoo.gptmobile.data.catalog.CatalogEntry
+import dev.chungjungsoo.gptmobile.data.catalog.ModelCatalogParser
 import dev.chungjungsoo.gptmobile.data.catalog.SocVariant
+import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -67,6 +71,23 @@ class SocVariantResolverTest {
     }
 
     @Test
+    fun `matching Tensor G6 selects the Gemma4 catalog variant`() {
+        val catalogJson = readCatalogFile("../model_catalog.json", "model_catalog.json")
+        val gemma4 = ModelCatalogParser.parse(catalogJson).models.single { it.id == "gemma-4-e2b-it" }
+
+        val resolved = SocVariantResolver.resolve(gemma4, deviceSocModel = "Tensor G6")
+
+        assertEquals("gemma-4-E2B-it_Google_Tensor_G6.litertlm", resolved.fileName)
+        assertEquals(
+            "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/b3ca0d2f076785a8f4b2219ddbd2bdb99954eae1/gemma-4-E2B-it_Google_Tensor_G6.litertlm?download=true",
+            resolved.downloadUrl
+        )
+        assertEquals("b3ca0d2f076785a8f4b2219ddbd2bdb99954eae1", resolved.commitHash)
+        assertEquals(3_313_938_293L, resolved.sizeInBytes)
+        assertEquals(4096, resolved.contextSize)
+    }
+
+    @Test
     fun `matching SM8750 is case insensitive and returns the Qualcomm file`() {
         val resolved = SocVariantResolver.resolve(npuEntry(), deviceSocModel = "sm8750")
 
@@ -122,6 +143,53 @@ class SocVariantResolverTest {
         assertEquals(1280, resolved.contextSize)
     }
 
+    @Test
+    fun `cpu accelerator uses the default file even when SOC matches`() {
+        val resolved = SocVariantResolver.resolve(npuEntry(), deviceSocModel = "SM8750", accelerator = "cpu")
+
+        assertEquals("gemma3-1b-it-int4.litertlm", resolved?.fileName)
+        assertEquals("42d538a932e8d5b12e6b3b455f5572560bd60b2c", resolved?.commitHash)
+        assertEquals(584_417_280L, resolved?.sizeInBytes)
+    }
+
+    @Test
+    fun `gpu accelerator uses the default file even when SOC matches`() {
+        val resolved = SocVariantResolver.resolve(npuEntry(), deviceSocModel = "sm8750", accelerator = "GPU")
+
+        assertEquals("gemma3-1b-it-int4.litertlm", resolved?.fileName)
+        assertEquals(GEMMA3_DEFAULT_URL, resolved?.downloadUrl)
+    }
+
+    @Test
+    fun `npu accelerator returns the matching SOC variant`() {
+        val resolved = SocVariantResolver.resolve(npuEntry(), deviceSocModel = "SM8750", accelerator = "npu")
+
+        assertEquals("Gemma3-1B-IT_q4_ekv1280_sm8750.litertlm", resolved?.fileName)
+        assertEquals(689_291_264L, resolved?.sizeInBytes)
+        assertEquals(1280, resolved?.contextSize)
+    }
+
+    @Test
+    fun `npu accelerator does not silently fall back to the default file`() {
+        assertNull(SocVariantResolver.resolve(npuEntry(), deviceSocModel = "Tensor G4", accelerator = "npu"))
+        assertNull(SocVariantResolver.resolve(npuEntry(), deviceSocModel = "", accelerator = "NPU"))
+    }
+
+    @Test
+    fun `matches requires both file name and commit hash`() {
+        val resolved = ResolvedModelDownload(
+            fileName = "npu.litertlm",
+            downloadUrl = "https://example/npu.litertlm",
+            commitHash = "npu-hash",
+            sizeInBytes = 10L
+        )
+
+        assertTrue(SocVariantResolver.matches("npu.litertlm", "npu-hash", resolved))
+        assertFalse(SocVariantResolver.matches("cpu.litertlm", "npu-hash", resolved))
+        assertFalse(SocVariantResolver.matches("npu.litertlm", "cpu-hash", resolved))
+        assertFalse(SocVariantResolver.matches("npu.litertlm", "npu-hash", resolved.copy(fileName = "other.litertlm")))
+    }
+
     private fun npuEntry() = CatalogEntry(
         id = "gemma3-1b-it",
         downloadUrl = GEMMA3_DEFAULT_URL,
@@ -165,6 +233,12 @@ class SocVariantResolverTest {
         downloadUrl = DEFAULT_URL,
         sizeInBytes = DEFAULT_SIZE
     )
+
+    private fun readCatalogFile(vararg candidates: String): String {
+        val file = candidates.map(::File).firstOrNull { it.exists() }
+        checkNotNull(file) { "Missing catalog file. Tried: ${candidates.joinToString()}" }
+        return file.readText()
+    }
 
     private companion object {
         const val DEFAULT_FILE = "Qwen2.5-1.5B-Instruct_multi-prefill-seq_q8_ekv4096.litertlm"

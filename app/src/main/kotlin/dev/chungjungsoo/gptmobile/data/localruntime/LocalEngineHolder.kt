@@ -15,6 +15,8 @@ class LocalEngineHolder(
     private val mutex = Mutex()
     private var loadedSpec: LocalEngineSpec? = null
 
+    override fun isNpuAvailable(): Boolean = delegate.isNpuAvailable()
+
     override suspend fun loadEngine(spec: LocalEngineSpec) = withGenerationLock {
         if (loadedSpec == spec) return@withGenerationLock
         if (loadedSpec != null) {

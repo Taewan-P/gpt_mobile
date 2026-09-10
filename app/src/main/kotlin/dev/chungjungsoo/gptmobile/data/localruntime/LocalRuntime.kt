@@ -68,6 +68,8 @@ sealed interface LocalRuntimeEvent {
 }
 
 interface LocalRuntime {
+    fun isNpuAvailable(): Boolean = false
+
     suspend fun loadEngine(spec: LocalEngineSpec)
     suspend fun createConversation(config: LocalConversationConfig)
     fun sendMessage(text: String, images: List<ByteArray> = emptyList()): Flow<LocalRuntimeEvent>
