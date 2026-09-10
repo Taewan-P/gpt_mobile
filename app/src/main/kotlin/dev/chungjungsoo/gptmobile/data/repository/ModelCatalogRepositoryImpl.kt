@@ -73,7 +73,13 @@ class ModelCatalogRepositoryImpl(
         cached: suspend () -> ModelCatalog?,
         bundled: suspend () -> ModelCatalog?
     ): List<CatalogEntry> {
-        val catalog = remote() ?: cached() ?: bundled() ?: return emptyList()
+        val downloaded = remote() ?: cached()
+        val snapshot = bundled()
+        val catalog = if (snapshot != null && snapshot.catalogVersion > (downloaded?.catalogVersion ?: -1)) {
+            snapshot
+        } else {
+            downloaded ?: snapshot ?: return emptyList()
+        }
         return ModelCatalogParser.visibleEntries(catalog, appVersionName)
     }
 

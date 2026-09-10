@@ -74,12 +74,15 @@ extensions.configure<ApplicationExtension> {
         buildConfig = true
     }
     packaging {
+        jniLibs.useLegacyPackaging = true
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
             excludes += "META-INF/INDEX.LIST"
             excludes += "META-INF/io.netty.versions.properties"
         }
     }
+    sourceSets.getByName("main").jniLibs.srcDir(rootProject.file("third_party/npu/jni"))
+    sourceSets.getByName("main").assets.srcDir(rootProject.file("third_party/npu/notices"))
 }
 
 extensions.configure<ApplicationAndroidComponentsExtension> {
@@ -176,4 +179,18 @@ aboutLibraries {
     export {
         excludeFields.add("generated")
     }
+}
+
+val verifyNpuLibraries by tasks.registering {
+    val npuDirectory = rootProject.file("third_party/npu/jni/arm64-v8a")
+    inputs.dir(npuDirectory).optional()
+    doLast {
+        val dispatches = listOf("google_tensor", "mediatek", "qualcomm")
+        check(dispatches.all { npuDirectory.resolve("libnpu_dispatch_$it.so").isFile }) {
+            "NPU libraries are missing. Run python3 scripts/prepare_npu_runtime.py before assembling the APK."
+        }
+    }
+}
+tasks.configureEach {
+    if (name.startsWith("merge") && name.endsWith("NativeLibs")) dependsOn(verifyNpuLibraries)
 }

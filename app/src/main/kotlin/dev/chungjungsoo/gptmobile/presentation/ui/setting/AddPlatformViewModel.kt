@@ -7,6 +7,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.chungjungsoo.gptmobile.data.catalog.CatalogEntry
 import dev.chungjungsoo.gptmobile.data.huggingface.HuggingFaceTokenStore
 import dev.chungjungsoo.gptmobile.data.localmodel.GatedDownloadCoordinator
+import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalSamplingDefaults
 import dev.chungjungsoo.gptmobile.data.localruntime.localSamplingDefaults
 import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
@@ -32,6 +33,7 @@ class AddPlatformViewModel @Inject constructor(
     huggingFaceTokenStore: HuggingFaceTokenStore,
     downloadGuards: LocalDownloadGuards,
     huggingFaceAuthClient: HuggingFaceAuthClient,
+    private val localRuntime: LocalRuntime,
     @param:DeviceSocModel private val deviceSocModel: String
 ) : ViewModel() {
     private val _catalogEntries = MutableStateFlow<List<CatalogEntry>>(emptyList())
@@ -44,7 +46,8 @@ class AddPlatformViewModel @Inject constructor(
         downloadGuards = downloadGuards,
         huggingFaceAuthClient = huggingFaceAuthClient,
         scope = viewModelScope,
-        deviceSocModel = deviceSocModel
+        deviceSocModel = deviceSocModel,
+        isNpuAvailable = { localRuntime.isNpuAvailable() }
     )
 
     val selectedCatalogEntryId: StateFlow<String> = _selectedCatalogEntryId.asStateFlow()
@@ -130,7 +133,7 @@ class AddPlatformViewModel @Inject constructor(
 
     fun defaultsFor(catalogEntryId: String): LocalSamplingDefaults? = _catalogEntries.value
         .firstOrNull { it.id == catalogEntryId }
-        ?.let { localSamplingDefaults(it, deviceSocModel) }
+        ?.let { localSamplingDefaults(it, deviceSocModel, localRuntime.isNpuAvailable()) }
 
     override fun onCleared() {
         downloadActions.release()

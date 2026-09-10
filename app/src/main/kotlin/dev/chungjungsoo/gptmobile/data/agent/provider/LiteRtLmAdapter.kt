@@ -8,26 +8,32 @@ import dev.chungjungsoo.gptmobile.data.agent.AgentToolExchange
 import dev.chungjungsoo.gptmobile.data.agent.AgentToolResult
 import dev.chungjungsoo.gptmobile.data.agent.ProviderEvent
 import dev.chungjungsoo.gptmobile.data.agent.ToolResultContent
+import dev.chungjungsoo.gptmobile.data.catalog.CatalogEntry
 import dev.chungjungsoo.gptmobile.data.context.ConversationTurn
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
+import dev.chungjungsoo.gptmobile.data.localmodel.ResolvedModelDownload
 import dev.chungjungsoo.gptmobile.data.localruntime.ConversationFingerprint
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalConversationConfig
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalEngineSpec
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalHistoryMessage
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalHistoryRole
+import dev.chungjungsoo.gptmobile.data.localruntime.LocalModelExecutionTarget
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntimeEvent
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalSamplerConfig
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalToolDescriptor
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalToolExecutor
 import dev.chungjungsoo.gptmobile.data.localruntime.conversationFingerprint
+import dev.chungjungsoo.gptmobile.data.localruntime.localModelExecutionTargets
+import dev.chungjungsoo.gptmobile.data.localruntime.matches
 import dev.chungjungsoo.gptmobile.data.localruntime.resolvedEngineMaxTokens
 import dev.chungjungsoo.gptmobile.data.model.ChatAttachment
 import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
 import dev.chungjungsoo.gptmobile.data.repository.ModelCatalogRepository
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
@@ -47,7 +53,10 @@ class LiteRtLmAdapter(
     private val engineLoadFailedError: String = DEFAULT_ENGINE_LOAD_FAILED,
     private val modelCatalogRepository: ModelCatalogRepository? = null,
     private val deviceSocModel: String = "",
-    private val loadImageBytes: suspend (ChatAttachment) -> ByteArray? = { null }
+    private val loadImageBytes: suspend (ChatAttachment) -> ByteArray? = { null },
+    private val requestModelReplacement: (CatalogEntry, ResolvedModelDownload, String) -> Unit = { _, _, _ -> },
+    private val modelReplacementRequiredError: String = DEFAULT_MODEL_REPLACEMENT_REQUIRED,
+    private val npuUnavailableGpuNotice: String = DEFAULT_NPU_UNAVAILABLE_GPU
 ) {
     private data class OpenConversation(
         val profileUid: String,
@@ -60,9 +69,17 @@ class LiteRtLmAdapter(
 
     private var openConversation: OpenConversation? = null
     private var isConversationDirty = false
-    private val cpuFallbackByModelAccelerator = mutableSetOf<Pair<String, String>>()
+    private val failedTargets = ConcurrentHashMap.newKeySet<Pair<String, LocalModelExecutionTarget>>()
     private var exclusiveToolsByName: Map<String, AgentTool> = emptyMap()
     private var exclusiveToolEventSink: (suspend (ProviderEvent) -> Unit)? = null
+
+    suspend fun resolvedAccelerator(platform: PlatformV2): String {
+        val entry = modelCatalogRepository?.getCachedVisibleEntries()?.firstOrNull { it.id == platform.model }
+            ?: return if (platform.accelerator == "auto") LocalAccelerators.GPU else LocalAccelerators.normalize(platform.accelerator)
+        return localModelExecutionTargets(entry, platform.accelerator, deviceSocModel, localRuntime.isNpuAvailable())
+            .firstOrNull { (platform.model to it) !in failedTargets }
+            ?.accelerator ?: LocalAccelerators.CPU
+    }
 
     suspend fun openSession(
         turns: List<ConversationTurn>,
@@ -113,17 +130,6 @@ class LiteRtLmAdapter(
                     visionCapable = visionCapable,
                     includeImageBytes = false
                 )
-                val spec = rememberedEngineSpec(
-                    modelPath = modelPath,
-                    accelerator = LocalAccelerators.normalize(platform.accelerator),
-                    maxTokens = resolvedEngineMaxTokens(
-                        requestedMaxTokens = platform.maxTokens ?: DEFAULT_MAX_TOKENS,
-                        accelerator = platform.accelerator.orEmpty(),
-                        entry = catalogEntry,
-                        deviceSocModel = deviceSocModel
-                    ),
-                    isVisionEnabled = visionCapable
-                )
                 val sampler = LocalSamplerConfig(
                     topK = platform.topK ?: DEFAULT_TOP_K,
                     topP = platform.topP ?: DEFAULT_TOP_P,
@@ -139,10 +145,7 @@ class LiteRtLmAdapter(
                     ) {
                         exclusiveToolsByName = runToolsByName
                         exclusiveToolEventSink = runToolEventSink
-                        if (!isEngineLoaded(spec) && loadingModelNotice.isNotBlank()) {
-                            send(ProviderEvent.Notice(loadingModelNotice))
-                        }
-                        val loadedSpec = loadEngineOrFallback(spec) { event -> send(event) }
+                        val loadedSpec = loadCompatibleEngine(platform, catalogEntry, visionCapable) { event -> send(event) }
                         val snapshot = openConversation
                         val canReuse = !isConversationDirty &&
                             hasOpenConversation() &&
@@ -310,63 +313,80 @@ class LiteRtLmAdapter(
         }
     }
 
-    private fun rememberedEngineSpec(
-        modelPath: String,
-        accelerator: String,
-        maxTokens: Int,
-        isVisionEnabled: Boolean
-    ): LocalEngineSpec {
-        val requested = LocalEngineSpec(
-            modelPath = modelPath,
-            accelerator = accelerator,
-            maxTokens = maxTokens,
-            isVisionEnabled = isVisionEnabled
-        )
-        return if (cpuFallbackKey(modelPath, accelerator) in cpuFallbackByModelAccelerator) {
-            requested.copy(accelerator = LocalAccelerators.CPU)
-        } else {
-            requested
-        }
-    }
-
-    private suspend fun LocalRuntime.loadEngineOrFallback(
-        requested: LocalEngineSpec,
+    private suspend fun LocalRuntime.loadCompatibleEngine(
+        platform: PlatformV2,
+        entry: CatalogEntry?,
+        visionCapable: Boolean,
         send: suspend (ProviderEvent) -> Unit
     ): LocalEngineSpec {
-        try {
-            loadEngine(requested)
-            return requested
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: Exception) {
-            logEngineFailure(requested, error)
-            if (LocalAccelerators.normalize(requested.accelerator) == LocalAccelerators.CPU) {
-                throw LocalEngineLoadException(engineLoadFailedError)
+        // Re-read under the generation lock: a confirmed replacement may have completed while queued.
+        val path = localModelRepository.resolveDownloadedPath(platform.model)
+            ?: throw LocalEngineLoadException(modelNotDownloadedError)
+        val retained = localModelRepository.getById(platform.model)
+        val hasArtifactMetadata = entry != null && entry.downloadUrl.isNotBlank()
+        val targets = if (hasArtifactMetadata) {
+            localModelExecutionTargets(checkNotNull(entry), platform.accelerator, deviceSocModel, isNpuAvailable())
+        } else {
+            // Older cached catalogs may lack artifact metadata. CPU/GPU remain usable; NPU requires a known variant.
+            val order = when (platform.accelerator?.lowercase()) {
+                "auto", LocalAccelerators.GPU -> listOf(LocalAccelerators.GPU, LocalAccelerators.CPU)
+                LocalAccelerators.NPU -> emptyList()
+                else -> listOf(LocalAccelerators.CPU)
             }
-            val cpuSpec = requested.copy(accelerator = LocalAccelerators.CPU)
-            try {
-                loadEngine(cpuSpec)
-            } catch (cpuCancelled: CancellationException) {
-                throw cpuCancelled
-            } catch (cpuError: Exception) {
-                logEngineFailure(cpuSpec, cpuError)
-                throw LocalEngineLoadException(engineLoadFailedError)
-            }
-            cpuFallbackByModelAccelerator += cpuFallbackKey(requested.modelPath, requested.accelerator)
-            val notice = acceleratorUnavailableNotice(requested.accelerator)
-            if (notice.isNotBlank()) {
-                send(ProviderEvent.Notice(notice, persistent = true))
-            }
-            return cpuSpec
+            order.map { LocalModelExecutionTarget(it, ResolvedModelDownload("", "", "", 0)) }
         }
-    }
-
-    private fun cpuFallbackKey(modelPath: String, accelerator: String): Pair<String, String> = modelPath to LocalAccelerators.normalize(accelerator)
-
-    private fun acceleratorUnavailableNotice(accelerator: String): String = if (LocalAccelerators.normalize(accelerator) == LocalAccelerators.NPU) {
-        npuUnavailableNotice
-    } else {
-        gpuUnavailableNotice
+        var replacement: LocalModelExecutionTarget? = null
+        var failedAccelerator: String? = null
+        for (target in targets) {
+            val spec = LocalEngineSpec(
+                modelPath = path,
+                accelerator = target.accelerator,
+                maxTokens = resolvedEngineMaxTokens(
+                    platform.maxTokens ?: DEFAULT_MAX_TOKENS,
+                    target.accelerator,
+                    entry,
+                    deviceSocModel
+                ),
+                isVisionEnabled = visionCapable
+            )
+            val failureKey = (if (hasArtifactMetadata) platform.model else path) to target
+            if (failureKey in failedTargets) continue
+            if (hasArtifactMetadata && (retained == null || !target.download.matches(retained))) {
+                if (replacement == null) replacement = target
+                if (failedAccelerator == null) break
+                continue
+            }
+            try {
+                if (!isEngineLoaded(spec) && loadingModelNotice.isNotBlank()) {
+                    send(ProviderEvent.Notice(loadingModelNotice))
+                }
+                loadEngine(spec)
+                if (failedAccelerator != null) {
+                    val notice = when {
+                        target.accelerator == LocalAccelerators.CPU && failedAccelerator == LocalAccelerators.GPU -> gpuUnavailableNotice
+                        target.accelerator == LocalAccelerators.CPU -> npuUnavailableNotice
+                        else -> npuUnavailableGpuNotice
+                    }
+                    if (notice.isNotBlank()) send(ProviderEvent.Notice(notice, persistent = true))
+                }
+                return spec
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                logEngineFailure(spec, error)
+                if (target.accelerator != LocalAccelerators.CPU) failedTargets += failureKey
+                failedAccelerator = target.accelerator
+            } catch (error: LinkageError) {
+                logEngineFailure(spec, error)
+                if (target.accelerator != LocalAccelerators.CPU) failedTargets += failureKey
+                failedAccelerator = target.accelerator
+            }
+        }
+        if (entry != null && replacement != null) {
+            requestModelReplacement(entry, replacement.download, replacement.accelerator)
+            throw LocalEngineLoadException(modelReplacementRequiredError)
+        }
+        throw LocalEngineLoadException(engineLoadFailedError)
     }
 
     private fun logEngineFailure(spec: LocalEngineSpec, error: Throwable) {
@@ -453,7 +473,9 @@ class LiteRtLmAdapter(
         const val DEFAULT_TOO_MANY_IMAGES = "The local platform accepted only the first 10 images"
         const val DEFAULT_LOADING_MODEL = "Loading local model…"
         const val DEFAULT_GPU_UNAVAILABLE = "GPU unavailable on this device — running on CPU"
+        const val DEFAULT_NPU_UNAVAILABLE_GPU = "NPU unavailable on this device — running on GPU"
         const val DEFAULT_NPU_UNAVAILABLE = "NPU unavailable on this device — running on CPU"
+        const val DEFAULT_MODEL_REPLACEMENT_REQUIRED = "A compatible model download is needed. Confirm the replacement, then retry your message after downloading."
         const val DEFAULT_ENGINE_LOAD_FAILED = "Couldn't load the local model on this device"
         const val MAX_IMAGES_PER_MESSAGE = 10
         private const val TAG = "LiteRtLmAdapter"

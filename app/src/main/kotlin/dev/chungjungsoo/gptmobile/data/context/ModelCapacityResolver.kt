@@ -11,7 +11,8 @@ open class ModelCapacityResolver(
     private val store: CompactionStore,
     private val modelCatalogRepository: ModelCatalogRepository,
     private val deviceSocModel: String,
-    private val remoteLookup: RemoteContextWindowLookup = RemoteContextWindowLookup { null }
+    private val remoteLookup: RemoteContextWindowLookup = RemoteContextWindowLookup { null },
+    private val localAccelerator: suspend (PlatformV2) -> String = { it.accelerator.orEmpty() }
 ) {
     open suspend fun resolve(platform: PlatformV2): ModelCapacityResolution {
         val stored = store.getCapacity(platform.uid, platform.apiUrl, platform.model)
@@ -71,7 +72,7 @@ open class ModelCapacityResolver(
         val requested = platform.maxTokens?.takeIf { it > 0 } ?: LiteRtLmAdapter.DEFAULT_MAX_TOKENS
         return resolvedEngineMaxTokens(
             requestedMaxTokens = requested,
-            accelerator = platform.accelerator.orEmpty(),
+            accelerator = localAccelerator(platform),
             entry = entry,
             deviceSocModel = deviceSocModel
         ).takeIf { it > 0 }

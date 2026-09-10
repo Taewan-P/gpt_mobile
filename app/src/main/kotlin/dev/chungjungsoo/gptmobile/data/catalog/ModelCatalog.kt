@@ -5,7 +5,8 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class ModelCatalog(
     val schemaVersion: Int = 0,
-    val models: List<CatalogEntry> = emptyList()
+    val models: List<CatalogEntry> = emptyList(),
+    val catalogVersion: Int = 0
 )
 
 @Serializable

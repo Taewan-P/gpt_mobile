@@ -8,8 +8,11 @@ import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.data.dto.ThemeSetting
 import dev.chungjungsoo.gptmobile.data.huggingface.HuggingFaceTokenStore
 import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelStatus
+import dev.chungjungsoo.gptmobile.data.localruntime.FakeLocalRuntime
+import dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.repository.FakeLocalModelRepository
+import dev.chungjungsoo.gptmobile.data.repository.FakeModelCatalogRepository
 import dev.chungjungsoo.gptmobile.data.repository.SecretMigrationError
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.LocalModelItemStatus
@@ -229,6 +232,25 @@ class SetupViewModelV2Test {
     }
 
     @Test
+    fun `savePlatform defaults new local profiles to Auto`() = runTest {
+        val settings = RecordingSettingRepository()
+        val catalog = FakeModelCatalogRepository(
+            listOf(wizardCatalogEntry("ready-model").copy(supportedAccelerators = listOf("cpu", "gpu")))
+        )
+        val viewModel = setupViewModel(
+            settings = settings,
+            localModels = FakeLocalModelRepository(listOf(wizardStoredModel("ready-model"))),
+            catalog = catalog
+        )
+        viewModel.selectClientType(ClientType.LITERT_LM)
+        viewModel.updatePlatformName("On-device")
+        viewModel.selectLocalModel("ready-model")
+        viewModel.savePlatform()
+
+        assertEquals(LocalAccelerators.AUTO, settings.addedPlatforms.single().accelerator)
+    }
+
+    @Test
     fun `savePlatform invokes callback only after persistence succeeds`() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val gate = CompletableDeferred<Unit>()
@@ -294,6 +316,7 @@ private fun gatedSaveViewModel(settings: GatedSettingRepository) = SetupViewMode
     huggingFaceTokenStore = HuggingFaceTokenStore(MapSecretVault()),
     downloadGuards = FakeLocalDownloadGuards(),
     huggingFaceAuthClient = FakeHuggingFaceAuthClient(),
+    localRuntime = FakeLocalRuntime(),
     deviceSocModel = ""
 )
 

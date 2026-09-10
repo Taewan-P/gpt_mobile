@@ -10,7 +10,7 @@ lifecycleRuntime = "2.11.0"
 activityCompose = "1.13.0"
 composeBom = "2026.06.00"
 datastore = "1.2.1"
-hilt = "2.59.2"
+hilt = "2.60.1"
 ksp = "2.3.4" # Also change with Kotlin version
 ktor = "3.5.1"
 material3 = "1.4.0"
@@ -25,7 +25,7 @@ mcpKotlinSdk = "0.15.0"
 browser = "1.9.0"
 work = "2.11.2"
 appauth = "0.11.1"
-litertlm = "0.11.0"
+litertlm = "0.17.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }

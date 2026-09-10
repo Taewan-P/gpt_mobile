@@ -17,20 +17,22 @@ object LocalAccelerators {
     const val CPU = "cpu"
     const val GPU = "gpu"
     const val NPU = "npu"
+    const val AUTO = "auto"
 
     val ALL = listOf(CPU, GPU, NPU)
+    val PREFERENCES = listOf(AUTO) + ALL
 
     /**
-     * NPU is enabled only when the catalog lists it and this device has a matching
-     * SOC-specific variant. Gallery hides NPU-only models whose `socToModelFiles`
-     * omit `Build.SOC_MODEL`; we apply that same SOC gate so ineligible NPU rows
-     * stay visible but disabled. CPU/GPU stay available from the default file.
+     * Catalog NPU plus a matching SOC variant is not proof the NPU runtime works.
+     * Pass [isNpuAvailable] from parent native-library gating when that answer exists.
      */
     fun isNpuEligible(
         supported: List<String>,
         socToModelFiles: Map<String, *>,
-        deviceSocModel: String
+        deviceSocModel: String,
+        isNpuAvailable: Boolean? = null
     ): Boolean {
+        if (isNpuAvailable == false) return false
         val listsNpu = supported.any { it.equals(NPU, ignoreCase = true) }
         return listsNpu && SocVariantResolver.hasMatchingVariant(socToModelFiles, deviceSocModel)
     }
@@ -38,18 +40,17 @@ object LocalAccelerators {
     fun defaultFrom(
         supported: List<String>,
         socToModelFiles: Map<String, *> = emptyMap<String, Any>(),
-        deviceSocModel: String = ""
-    ): String {
-        val options = selectable(supported, socToModelFiles, deviceSocModel).toSet()
-        return when {
-            GPU in options -> GPU
-            else -> supported.map { it.lowercase() }.firstOrNull { it in options } ?: CPU
-        }
+        deviceSocModel: String = "",
+        isNpuAvailable: Boolean? = null
+    ): String = if (selectable(supported, socToModelFiles, deviceSocModel, isNpuAvailable).isNotEmpty()) {
+        AUTO
+    } else {
+        CPU
     }
 
     fun normalize(value: String?): String {
         val normalized = value?.lowercase()
-        return if (normalized == CPU || normalized == GPU || normalized == NPU) {
+        return if (normalized == AUTO || normalized == CPU || normalized == GPU || normalized == NPU) {
             normalized
         } else {
             CPU
@@ -59,18 +60,20 @@ object LocalAccelerators {
     fun selectable(
         supported: List<String>,
         socToModelFiles: Map<String, *> = emptyMap<String, Any>(),
-        deviceSocModel: String = ""
-    ): List<String> = choices(supported, socToModelFiles, deviceSocModel)
+        deviceSocModel: String = "",
+        isNpuAvailable: Boolean? = null
+    ): List<String> = choices(supported, socToModelFiles, deviceSocModel, isNpuAvailable)
         .filter { it.enabled }
         .map { it.accelerator }
 
     fun choices(
         supported: List<String>,
         socToModelFiles: Map<String, *> = emptyMap<String, Any>(),
-        deviceSocModel: String = ""
+        deviceSocModel: String = "",
+        isNpuAvailable: Boolean? = null
     ): List<AcceleratorOption> = ALL.map { accelerator ->
         when (accelerator) {
-            NPU -> npuChoice(supported, socToModelFiles, deviceSocModel)
+            NPU -> npuChoice(supported, socToModelFiles, deviceSocModel, isNpuAvailable)
 
             else -> {
                 val listed = supported.any { it.equals(accelerator, ignoreCase = true) }
@@ -83,12 +86,30 @@ object LocalAccelerators {
         }
     }
 
+    fun preferenceChoices(
+        supported: List<String>,
+        socToModelFiles: Map<String, *> = emptyMap<String, Any>(),
+        deviceSocModel: String = "",
+        isNpuAvailable: Boolean? = null
+    ): List<AcceleratorOption> {
+        val backends = choices(supported, socToModelFiles, deviceSocModel, isNpuAvailable)
+        val autoEnabled = backends.any { it.enabled }
+        return listOf(
+            AcceleratorOption(
+                accelerator = AUTO,
+                enabled = autoEnabled,
+                unavailableReason = if (autoEnabled) null else AcceleratorUnavailableReason.MODEL_HAS_NO_BUILD
+            )
+        ) + backends
+    }
+
     fun shouldApplySampler(accelerator: String): Boolean = normalize(accelerator) != NPU
 
     private fun npuChoice(
         supported: List<String>,
         socToModelFiles: Map<String, *>,
-        deviceSocModel: String
+        deviceSocModel: String,
+        isNpuAvailable: Boolean?
     ): AcceleratorOption {
         val listsNpu = supported.any { it.equals(NPU, ignoreCase = true) }
         if (!listsNpu || socToModelFiles.isEmpty()) {
@@ -98,7 +119,9 @@ object LocalAccelerators {
                 unavailableReason = AcceleratorUnavailableReason.MODEL_HAS_NO_BUILD
             )
         }
-        if (!SocVariantResolver.hasMatchingVariant(socToModelFiles, deviceSocModel)) {
+        if (isNpuAvailable == false ||
+            !SocVariantResolver.hasMatchingVariant(socToModelFiles, deviceSocModel)
+        ) {
             return AcceleratorOption(
                 accelerator = NPU,
                 enabled = false,

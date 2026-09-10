@@ -51,7 +51,8 @@ class LocalModelsViewModelTest {
             huggingFaceTokenStore = tokenStore,
             downloadGuards = FakeLocalDownloadGuards(),
             huggingFaceAuthClient = FakeHuggingFaceAuthClient(),
-            deviceSocModel = ""
+            deviceSocModel = "",
+            localRuntime = dev.chungjungsoo.gptmobile.data.localruntime.FakeLocalRuntime()
         )
 
         assertFalse(viewModel.uiState.value.isLoading)

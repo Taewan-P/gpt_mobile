@@ -18,8 +18,11 @@ A Platform whose ClientType is LiteRT-LM: it answers chats by running a Local Mo
 _Avoid_: Offline mode, local chat
 
 **Accelerator**:
-The hardware backend a Local Platform runs inference on: CPU, GPU, or NPU. Chosen per profile; each Catalog entry declares which ones the model supports.
+The hardware backend a Local Platform runs inference on: CPU, GPU, or NPU. Selected automatically or by a profile's manual preference; each Catalog entry declares which ones the model supports.
 _Avoid_: Backend (ambiguous with server backends)
+
+**Auto accelerator selection**:
+A Local Platform preference that selects a compatible Accelerator for the device and Local Model, preferring validated NPU support. Auto is a selection policy, not another Accelerator.
 
 ### Local inference
 

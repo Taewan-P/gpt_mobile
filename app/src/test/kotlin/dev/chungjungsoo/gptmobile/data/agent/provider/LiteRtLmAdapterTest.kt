@@ -40,6 +40,112 @@ import org.junit.Test
 
 class LiteRtLmAdapterTest {
     @Test
+    fun auto_withoutNpuRuntime_usesGpuInsteadOfCpu() = runBlocking {
+        val runtime = FakeLocalRuntime()
+        val adapter = adapter(runtime)
+
+        adapter.openSession(turns("hello"), localPlatform().copy(accelerator = "auto"))
+            .streamRound(emptyList(), emptyList()).toList()
+
+        assertEquals(listOf("gpu"), runtime.loadEngineCalls.map { it.accelerator })
+    }
+
+    @Test
+    fun npuArtifact_onInitializationFailure_neverLoadsOnCpuOrGpu() = runBlocking {
+        val runtime = FakeLocalRuntime().apply {
+            npuAvailable = true
+            failLoadEngineIf = { IllegalStateException("NPU unavailable") }
+        }
+        val catalog = FakeModelCatalogRepository(
+            listOf(
+                CatalogEntry(
+                    id = "gemma3-1b-it",
+                    downloadUrl = "https://huggingface.co/test/model/resolve/hash/default.litertlm",
+                    supportedAccelerators = listOf("npu", "gpu", "cpu"),
+                    socToModelFiles = mapOf("SM8750" to SocVariant(modelFile = "npu.litertlm", commitHash = "hash"))
+                )
+            )
+        )
+        val models = FakeLocalModelRepository(
+            downloadedPaths = mapOf("gemma3-1b-it" to "/models/npu.litertlm"),
+            initialModels = listOf(
+                dev.chungjungsoo.gptmobile.data.database.entity.LocalModel(
+                    catalogEntryId = "gemma3-1b-it",
+                    commitHash = "hash",
+                    fileName = "npu.litertlm",
+                    relativeDirectory = "models/gemma3-1b-it/hash",
+                    totalBytes = 100,
+                    status = dev.chungjungsoo.gptmobile.data.localmodel.LocalModelStatus.READY
+                )
+            )
+        )
+        val adapter = adapter(runtime, models = models, catalog = catalog, deviceSocModel = "SM8750")
+
+        val events = adapter.openSession(turns("hello"), localPlatform().copy(accelerator = "npu"))
+            .streamRound(emptyList(), emptyList()).toList()
+
+        assertTrue(runtime.loadEngineCalls.none { it.accelerator == "cpu" || it.accelerator == "gpu" })
+        assertTrue(runtime.sendMessageCalls.isEmpty())
+        assertTrue(events.any { it is ProviderEvent.Failed })
+    }
+
+    @Test
+    fun auto_npuArtifactMissing_requestsReplacementWithoutStartingInference() = runBlocking {
+        val runtime = FakeLocalRuntime().apply { npuAvailable = true }
+        val entry = CatalogEntry(
+            id = "gemma3-1b-it",
+            downloadUrl = "https://huggingface.co/test/model/resolve/hash/default.litertlm",
+            supportedAccelerators = listOf("npu", "gpu", "cpu"),
+            socToModelFiles = mapOf("SM8750" to SocVariant(modelFile = "npu.litertlm", commitHash = "npu-hash"))
+        )
+        val models = FakeLocalModelRepository(
+            downloadedPaths = mapOf(entry.id to "/models/default.litertlm"),
+            initialModels = listOf(
+                dev.chungjungsoo.gptmobile.data.database.entity.LocalModel(
+                    catalogEntryId = entry.id,
+                    commitHash = "hash",
+                    fileName = "default.litertlm",
+                    relativeDirectory = "models/gemma3-1b-it/hash",
+                    totalBytes = 100,
+                    status = dev.chungjungsoo.gptmobile.data.localmodel.LocalModelStatus.READY
+                )
+            )
+        )
+        val replacements = mutableListOf<String>()
+        val adapter = adapter(
+            runtime,
+            models,
+            FakeModelCatalogRepository(listOf(entry)),
+            deviceSocModel = "SM8750",
+            requestModelReplacement = { _, target, accelerator -> replacements += "$accelerator:${target.fileName}" }
+        )
+
+        val events = adapter.openSession(turns("hello"), localPlatform().copy(accelerator = "auto"))
+            .streamRound(emptyList(), emptyList()).toList()
+
+        assertEquals(listOf("npu:npu.litertlm"), replacements)
+        assertTrue(runtime.loadEngineCalls.isEmpty())
+        assertTrue(runtime.sendMessageCalls.isEmpty())
+        assertTrue(models.startDownloadCalls.isEmpty())
+        assertTrue(events.any { it is ProviderEvent.Failed })
+    }
+
+    @Test
+    fun cancellationDuringInitialization_doesNotFallback() = runBlocking {
+        val runtime = FakeLocalRuntime().apply {
+            failLoadEngineIf = { kotlinx.coroutines.CancellationException("stopped") }
+        }
+        try {
+            adapter(runtime).openSession(turns("hello"), localPlatform())
+                .streamRound(emptyList(), emptyList()).toList()
+            org.junit.Assert.fail("Expected cancellation")
+        } catch (_: kotlinx.coroutines.CancellationException) {
+            assertEquals(listOf("gpu"), runtime.loadEngineCalls.map { it.accelerator })
+            assertTrue(runtime.sendMessageCalls.isEmpty())
+        }
+    }
+
+    @Test
     fun `streams text deltas in order and maps thinking channel`() = runBlocking {
         val runtime = FakeLocalRuntime().apply {
             scriptedEvents = listOf(
@@ -1085,48 +1191,41 @@ class LiteRtLmAdapterTest {
     }
 
     @Test
-    fun `gpu fallback does not force a later npu selection onto cpu`() = runBlocking {
-        val runtime = FakeLocalRuntime().apply {
-            failLoadEngineIf = { spec ->
-                if (spec.accelerator == LocalAccelerators.GPU || spec.accelerator == LocalAccelerators.NPU) {
-                    IllegalStateException("accelerator unavailable")
-                } else {
-                    null
-                }
-            }
-            scriptedEvents = listOf(
-                listOf(LocalRuntimeEvent.TextDelta("ok"), LocalRuntimeEvent.Done),
-                listOf(LocalRuntimeEvent.TextDelta("npu"), LocalRuntimeEvent.Done)
-            )
-        }
-        val adapter = adapter(runtime)
+    fun manualNpu_withoutCompatibleCatalog_doesNotRunUnknownArtifact() = runBlocking {
+        val runtime = FakeLocalRuntime()
+        val events = adapter(runtime).openSession(turns("hello"), localPlatform().copy(accelerator = "npu"))
+            .streamRound(emptyList(), emptyList()).toList()
 
-        val gpuEvents = adapter.openSession(turns("hello"), localPlatform()).streamRound(emptyList(), emptyList()).toList()
-        val npuEvents = adapter.openSession(
-            listOf(completedTurn("hello", "ok"), pendingTurn("again")),
-            localPlatform(uid = "local-npu").copy(accelerator = LocalAccelerators.NPU)
-        ).streamRound(emptyList(), emptyList()).toList()
-
-        assertTrue(gpuEvents.any { it is ProviderEvent.Notice && it.message == LiteRtLmAdapter.DEFAULT_GPU_UNAVAILABLE })
-        assertTrue(npuEvents.any { it is ProviderEvent.Notice && it.message == LiteRtLmAdapter.DEFAULT_NPU_UNAVAILABLE })
-        assertFalse(npuEvents.any { it is ProviderEvent.Notice && it.message == LiteRtLmAdapter.DEFAULT_GPU_UNAVAILABLE })
-        assertEquals(
-            listOf(LocalAccelerators.GPU, LocalAccelerators.CPU, LocalAccelerators.NPU, LocalAccelerators.CPU),
-            runtime.loadEngineCalls.map { it.accelerator }
-        )
+        assertTrue(runtime.loadEngineCalls.isEmpty())
+        assertTrue(events.any { it is ProviderEvent.Failed })
     }
 
     @Test
     fun `NPU engine spec clamps max tokens to the matching SOC variant context`() = runBlocking {
         val runtime = FakeLocalRuntime().apply {
+            npuAvailable = true
             scriptedEvents = listOf(listOf(LocalRuntimeEvent.TextDelta("ok"), LocalRuntimeEvent.Done))
         }
         val adapter = adapter(
             runtime,
+            models = FakeLocalModelRepository(
+                downloadedPaths = mapOf("gemma3-1b-it" to "/models/npu.litertlm"),
+                initialModels = listOf(
+                    dev.chungjungsoo.gptmobile.data.database.entity.LocalModel(
+                        catalogEntryId = "gemma3-1b-it",
+                        commitHash = "hash",
+                        fileName = "npu.litertlm",
+                        relativeDirectory = "models/gemma3-1b-it/hash",
+                        totalBytes = 100,
+                        status = dev.chungjungsoo.gptmobile.data.localmodel.LocalModelStatus.READY
+                    )
+                )
+            ),
             catalog = FakeModelCatalogRepository(
                 listOf(
                     CatalogEntry(
                         id = "gemma3-1b-it",
+                        downloadUrl = "https://huggingface.co/test/model/resolve/hash/default.litertlm",
                         supportedAccelerators = listOf("gpu", "cpu", "npu"),
                         socToModelFiles = mapOf(
                             "SM8750" to SocVariant(modelFile = "npu.litertlm", contextSize = 1280)
@@ -1207,7 +1306,8 @@ class LiteRtLmAdapterTest {
         deviceSocModel: String = "",
         loadImageBytes: suspend (ChatAttachment) -> ByteArray? = { attachment ->
             attachment.preparedFilePath.ifBlank { attachment.localFilePath }.toByteArray()
-        }
+        },
+        requestModelReplacement: (CatalogEntry, dev.chungjungsoo.gptmobile.data.localmodel.ResolvedModelDownload, String) -> Unit = { _, _, _ -> }
     ) = LiteRtLmAdapter(
         localRuntime = runtime,
         localModelRepository = models,
@@ -1217,7 +1317,8 @@ class LiteRtLmAdapterTest {
         loadingModelNotice = loadingModelNotice,
         modelCatalogRepository = catalog,
         deviceSocModel = deviceSocModel,
-        loadImageBytes = loadImageBytes
+        loadImageBytes = loadImageBytes,
+        requestModelReplacement = requestModelReplacement
     )
 
     private fun turns(text: String) = listOf(pendingTurn(text))
