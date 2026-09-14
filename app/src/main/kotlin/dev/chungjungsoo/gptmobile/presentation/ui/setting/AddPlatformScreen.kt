@@ -423,6 +423,7 @@ private fun getClientTypeName(clientType: ClientType): String = when (clientType
 private fun getClientTypeDescription(clientType: ClientType): String = when (clientType) {
     ClientType.OPENAI -> stringResource(R.string.client_type_openai_desc)
     ClientType.ANTHROPIC -> stringResource(R.string.client_type_anthropic_desc)
+    ClientType.MISTRAL -> stringResource(R.string.client_type_mistral_desc)
     ClientType.GOOGLE -> stringResource(R.string.client_type_google_desc)
     ClientType.GROQ -> stringResource(R.string.client_type_groq_desc)
     ClientType.OLLAMA -> stringResource(R.string.client_type_ollama_desc)

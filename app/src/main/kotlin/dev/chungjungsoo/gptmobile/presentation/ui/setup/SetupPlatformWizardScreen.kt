@@ -586,6 +586,7 @@ private fun WizardNavigationButton(
 private fun getApiHelpUrl(clientType: ClientType): String? = when (clientType) {
     ClientType.OPENAI -> "https://platform.openai.com/account/api-keys"
     ClientType.ANTHROPIC -> "https://console.anthropic.com/settings/keys"
+    ClientType.MISTRAL -> "https://docs.mistral.ai/getting-started/quickstarts/developer/first-api-request"
     ClientType.GOOGLE -> "https://aistudio.google.com/app/apikey"
     ClientType.GROQ -> "https://console.groq.com/keys"
     ClientType.OLLAMA -> "https://ollama.com/blog/openai-compatibility"
