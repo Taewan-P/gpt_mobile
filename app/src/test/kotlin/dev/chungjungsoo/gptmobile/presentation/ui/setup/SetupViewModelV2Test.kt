@@ -277,6 +277,73 @@ class SetupViewModelV2Test {
         assertEquals("ready-model", viewModel.model.value)
     }
 
+    @Test
+    fun `selecting Mistral prefills approved name URL and model`() = runTest {
+        val viewModel = setupViewModel()
+
+        viewModel.selectClientType(ClientType.MISTRAL)
+
+        assertEquals("Mistral", viewModel.platformName.value)
+        assertEquals("https://api.mistral.ai/v1/", viewModel.apiUrl.value)
+        assertEquals("mistral-large-latest", viewModel.model.value)
+    }
+
+    @Test
+    fun `Mistral wizard requires v1 URL and nonblank key`() = runTest {
+        val viewModel = setupViewModel()
+        viewModel.selectClientType(ClientType.MISTRAL)
+
+        viewModel.updateApiUrl("https://api.mistral.ai/")
+        assertFalse(viewModel.canProceedFromStep(SetupViewModelV2.WIZARD_STEP_BASICS))
+
+        viewModel.updateApiUrl("https://api.mistral.ai/v1/")
+        assertTrue(viewModel.canProceedFromStep(SetupViewModelV2.WIZARD_STEP_BASICS))
+
+        viewModel.nextWizardStep()
+        assertFalse(viewModel.canProceedFromStep(SetupViewModelV2.WIZARD_STEP_API_KEY))
+        viewModel.updateApiKey("   ")
+        assertFalse(viewModel.canProceedFromStep(SetupViewModelV2.WIZARD_STEP_API_KEY))
+        viewModel.updateApiKey("secret")
+        assertTrue(viewModel.canProceedFromStep(SetupViewModelV2.WIZARD_STEP_API_KEY))
+
+        viewModel.selectClientType(ClientType.OPENAI)
+        viewModel.nextWizardStep()
+        assertTrue(viewModel.canProceedFromStep(SetupViewModelV2.WIZARD_STEP_API_KEY))
+    }
+
+    @Test
+    fun `savePlatform rejects invalid Mistral URL or blank key`() = runTest {
+        val settings = RecordingSettingRepository()
+        val viewModel = setupViewModel(settings = settings)
+        viewModel.selectClientType(ClientType.MISTRAL)
+
+        viewModel.updateApiUrl("https://api.mistral.ai/")
+        viewModel.updateApiKey("secret")
+        viewModel.savePlatform()
+        assertTrue(settings.addedPlatforms.isEmpty())
+
+        viewModel.updateApiUrl("https://api.mistral.ai/v1/")
+        viewModel.updateApiKey("")
+        viewModel.savePlatform()
+        assertTrue(settings.addedPlatforms.isEmpty())
+    }
+
+    @Test
+    fun `savePlatform persists a valid Mistral platform`() = runTest {
+        val settings = RecordingSettingRepository()
+        val viewModel = setupViewModel(settings = settings)
+        viewModel.selectClientType(ClientType.MISTRAL)
+        viewModel.updateApiUrl("https://api.mistral.ai/v1/")
+        viewModel.updateApiKey("secret")
+        viewModel.savePlatform()
+
+        val saved = settings.addedPlatforms.single()
+        assertEquals(ClientType.MISTRAL, saved.compatibleType)
+        assertEquals("https://api.mistral.ai/v1/", saved.apiUrl)
+        assertEquals("mistral-large-latest", saved.model)
+        assertEquals("secret", saved.token)
+    }
+
     private fun statusOf(viewModel: SetupViewModelV2, catalogEntryId: String) = viewModel.catalogLocalModels.value
         .first { it.entry.id == catalogEntryId }
         .status

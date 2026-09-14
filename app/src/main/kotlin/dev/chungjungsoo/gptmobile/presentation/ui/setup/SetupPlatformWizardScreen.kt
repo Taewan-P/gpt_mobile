@@ -46,6 +46,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.presentation.common.PrimaryLongButton
+import dev.chungjungsoo.gptmobile.presentation.common.isPlatformApiKeyValid
+import dev.chungjungsoo.gptmobile.presentation.common.isPlatformApiUrlValid
 import dev.chungjungsoo.gptmobile.presentation.theme.defaultSpatialSpec
 import dev.chungjungsoo.gptmobile.presentation.theme.fastEffectsSpec
 import dev.chungjungsoo.gptmobile.presentation.ui.localmodel.LocalModelDownloadDialogHost
@@ -362,6 +364,10 @@ private fun BasicsStep(
         if (isApiUrlVisible) {
             Spacer(modifier = Modifier.height(20.dp))
 
+            val isMistralUrlError = clientType == ClientType.MISTRAL &&
+                apiUrl.isNotBlank() &&
+                !isPlatformApiUrlValid(clientType, apiUrl)
+
             // API URL
             OutlinedTextField(
                 value = apiUrl,
@@ -371,8 +377,11 @@ private fun BasicsStep(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 enabled = clientType != ClientType.GOOGLE,
+                isError = isMistralUrlError,
                 supportingText = {
-                    if (clientType == ClientType.GOOGLE) {
+                    if (isMistralUrlError) {
+                        Text(stringResource(R.string.mistral_api_url_requirement))
+                    } else if (clientType == ClientType.GOOGLE) {
                         Text(stringResource(R.string.client_type_google_desc))
                     } else {
                         Text(stringResource(R.string.api_url_cautions))
@@ -421,6 +430,8 @@ private fun ApiKeyStep(
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        val isMistralKeyError = clientType == ClientType.MISTRAL && !isPlatformApiKeyValid(clientType, apiKey)
+
         // API Key
         OutlinedTextField(
             value = apiKey,
@@ -430,8 +441,13 @@ private fun ApiKeyStep(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
+            isError = isMistralKeyError,
             supportingText = {
-                Text(stringResource(R.string.api_key_supporting))
+                Text(
+                    stringResource(
+                        if (isMistralKeyError) R.string.field_required else R.string.api_key_supporting
+                    )
+                )
             }
         )
 

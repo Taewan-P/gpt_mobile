@@ -387,6 +387,7 @@
     <string name="openrouter_description">Access multiple AI models through one API</string>
     <string name="mistral" translatable="false">Mistral</string>
     <string name="mistral_description">Chat with Mistral models through the Mistral API.</string>
+    <string name="mistral_api_url_requirement">Mistral API URLs must end with /v1/.</string>
     <string name="custom_provider">Custom Provider</string>
     <string name="custom_provider_description">Connect to any OpenAI-compatible API</string>
     <string name="platform_added_successfully">Platform added successfully</string>
