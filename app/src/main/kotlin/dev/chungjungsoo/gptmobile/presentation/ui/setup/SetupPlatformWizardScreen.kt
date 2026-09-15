@@ -379,7 +379,7 @@ private fun BasicsStep(
                 enabled = clientType != ClientType.GOOGLE,
                 isError = isMistralUrlError,
                 supportingText = {
-                    if (isMistralUrlError) {
+                    if (clientType == ClientType.MISTRAL) {
                         Text(stringResource(R.string.mistral_api_url_requirement))
                     } else if (clientType == ClientType.GOOGLE) {
                         Text(stringResource(R.string.client_type_google_desc))

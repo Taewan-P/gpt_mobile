@@ -265,7 +265,7 @@ fun AddPlatformScreen(
                             isError = apiUrl.isBlank() || isMistralUrlError,
                             supportingText = {
                                 when {
-                                    isMistralUrlError -> {
+                                    clientType == ClientType.MISTRAL -> {
                                         Text(stringResource(R.string.mistral_api_url_requirement))
                                     }
 
