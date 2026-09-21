@@ -24,5 +24,11 @@ object LocalRuntimeModule {
     @Provides
     @Singleton
     @DeviceSocModel
-    fun provideDeviceSocModel(): String = Build.SOC_MODEL.orEmpty()
+    fun provideDeviceSocModel(): String {
+        return if (Build.VERSION.SDK_INT >= 31) {
+            Build.SOC_MODEL.orEmpty()
+        } else {
+            ""
+        }
+    }
 }
