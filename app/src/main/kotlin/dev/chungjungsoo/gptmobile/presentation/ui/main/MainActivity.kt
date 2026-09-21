@@ -4,6 +4,7 @@ import android.app.UiModeManager
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -33,6 +34,7 @@ import dev.chungjungsoo.gptmobile.presentation.theme.GPTMobileTheme
 import dev.chungjungsoo.gptmobile.presentation.theme.toApplicationNightMode
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.ToolConnectionsViewModel
 import kotlinx.coroutines.flow.first
+import androidx.appcompat.app.AppCompatDelegate
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -76,8 +78,15 @@ class MainActivity : ComponentActivity() {
 
             LaunchedEffect(isThemeResolved, themeMode) {
                 if (isThemeResolved) {
-                    getSystemService(UiModeManager::class.java)
-                        .setApplicationNightMode(themeMode.toApplicationNightMode())
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        getSystemService(UiModeManager::class.java)
+                            .setApplicationNightMode(themeMode.toApplicationNightMode())
+                    } else {
+                        AppCompatDelegate.setDefaultNightMode(
+                            themeMode.toApplicationNightMode()
+                        )
+                    }
+            
                     isThemeModeReady = true
                 }
             }
