@@ -23,7 +23,8 @@ data class AgentRunLimits(
 )
 
 class AgentRunner(
-    private val limits: AgentRunLimits = AgentRunLimits()
+    private val limits: AgentRunLimits = AgentRunLimits(),
+    private val afterCompleteExchange: (suspend (List<AgentToolExchange>) -> List<AgentToolExchange>)? = null
 ) {
     fun run(session: AgentProviderSession, tools: List<AgentTool>): Flow<AgentRunEvent> = flow {
         val toolByName = tools.associateBy { it.definition.name }
@@ -55,14 +56,20 @@ class AgentRunner(
                         .collect { event ->
                             when (event) {
                                 is ProviderEvent.ToolCall -> {
-                                    calls += event
+                                    if (!session.handlesToolsInternally) {
+                                        calls += event
+                                    }
                                     emit(AgentRunEvent.Provider(event))
                                 }
+
+                                is ProviderEvent.ToolResult -> emit(AgentRunEvent.ToolFinished(event.call, event.result))
 
                                 is ProviderEvent.Failed -> {
                                     failed = true
                                     emit(AgentRunEvent.Provider(event))
                                 }
+
+                                is ProviderEvent.Notice -> emit(AgentRunEvent.Notice(event.message, event.persistent))
 
                                 ProviderEvent.Completed -> completed = true
 
@@ -77,7 +84,7 @@ class AgentRunner(
                         exposedDefinitions = emptyList()
                         executableToolByName = emptyMap()
                         rounds -= 1
-                        emit(AgentRunEvent.Notice(TOOLS_UNAVAILABLE_MESSAGE))
+                        emit(AgentRunEvent.Notice(TOOLS_UNAVAILABLE_MESSAGE, persistent = true))
                         continue
                     }
                     emit(failed(error.message ?: "Tools are unavailable for this model."))
@@ -118,6 +125,11 @@ class AgentRunner(
                     emit(AgentRunEvent.ToolFinished(call, result))
                 }
                 exchanges += AgentToolExchange(calls, results)
+                afterCompleteExchange?.let { rewrite ->
+                    val rewritten = rewrite(exchanges.toList())
+                    exchanges.clear()
+                    exchanges.addAll(rewritten)
+                }
             }
         }
 

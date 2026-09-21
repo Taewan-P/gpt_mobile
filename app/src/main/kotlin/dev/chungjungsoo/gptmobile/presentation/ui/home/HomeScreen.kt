@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,6 +21,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Delete
@@ -28,12 +30,14 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -52,6 +56,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -73,6 +78,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
+import dev.chungjungsoo.gptmobile.presentation.common.EmptyErrorState
 import dev.chungjungsoo.gptmobile.presentation.common.PlatformCheckBoxItem
 import dev.chungjungsoo.gptmobile.util.getPlatformName
 
@@ -99,6 +105,14 @@ fun HomeScreen(
     val selectedChat = chatListState.chats.filterIndexed { index, _ -> chatListState.selectedChats.getOrElse(index) { false } }.singleOrNull()
     val duplicatedChatMessage = stringResource(R.string.duplicated_chat)
     val deletedChatsMessage = stringResource(R.string.deleted_chats, selectedChatCount)
+    val startChat = {
+        val enabledPlatformUids = platformState.filter { it.enabled }.map { it.uid }
+        if (enabledPlatformUids.size == 1) {
+            navigateToNewChat(enabledPlatformUids)
+        } else {
+            homeViewModel.openSelectModelDialog()
+        }
+    }
 
     LaunchedEffect(lifecycleState) {
         if (lifecycleState == Lifecycle.State.RESUMED && !chatListState.isSelectionMode && !chatListState.isSearchMode) {
@@ -152,16 +166,16 @@ fun HomeScreen(
             )
         },
         floatingActionButton = {
-            if (!chatListState.isSelectionMode && !chatListState.isSearchMode) {
-                NewChatButton(expanded = listState.isScrollingUp(), onClick = {
-                    val enabledApiTypes = platformState.filter { it.enabled }.map { it.uid }
-                    if (enabledApiTypes.size == 1) {
-                        // Navigate to new chat directly if only one platform is enabled
-                        navigateToNewChat(enabledApiTypes)
-                    } else {
-                        homeViewModel.openSelectModelDialog()
-                    }
-                })
+            if (!chatListState.isSelectionMode &&
+                !chatListState.isSearchMode &&
+                !chatListState.isLoading &&
+                chatListState.loadError == null &&
+                chatListState.chats.isNotEmpty()
+            ) {
+                NewChatButton(
+                    expanded = listState.isScrollingUp(),
+                    onClick = startChat
+                )
             }
         }
     ) { innerPadding ->
@@ -169,60 +183,95 @@ fun HomeScreen(
             modifier = Modifier.padding(innerPadding),
             state = listState
         ) {
-            if (!chatListState.isSearchMode) {
-                item { ChatsTitle(scrollBehavior) }
-            }
-            if (chatListState.isSearchMode && chatListState.chats.isEmpty() && searchQuery.isNotEmpty()) {
-                item {
-                    Text(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(32.dp),
-                        text = stringResource(R.string.no_search_results),
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+            when {
+                chatListState.isLoading -> item {
+                    Box(
+                        modifier = Modifier.fillParentMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+
+                chatListState.loadError != null -> item {
+                    EmptyErrorState(
+                        title = stringResource(R.string.chats_load_error),
+                        description = chatListState.loadError.orEmpty().takeIf { it.isNotBlank() }
+                            ?: stringResource(R.string.chats_load_error_description),
+                        modifier = Modifier.fillParentMaxSize(),
+                        primaryActionLabel = stringResource(R.string.retry),
+                        onPrimaryAction = homeViewModel::retryFetchChats,
+                        isError = true
                     )
                 }
-            }
-            itemsIndexed(chatListState.chats, key = { _, it -> it.id }) { idx, chatRoom ->
-                val usingPlatform = chatRoom.enabledPlatform.joinToString(", ") { uid -> platformState.getPlatformName(uid) }
-                ListItem(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .combinedClickable(
-                            onLongClick = {
-                                if (!chatListState.isSearchMode) {
-                                    homeViewModel.enableSelectionMode()
-                                    homeViewModel.selectChat(idx)
+
+                chatListState.isSearchMode && searchQuery.isNotBlank() && chatListState.chats.isEmpty() -> item {
+                    EmptyErrorState(
+                        title = stringResource(R.string.no_search_results),
+                        description = stringResource(R.string.no_search_results_description),
+                        modifier = Modifier.fillParentMaxSize()
+                    )
+                }
+
+                chatListState.chats.isEmpty() -> item {
+                    EmptyErrorState(
+                        title = stringResource(R.string.no_chats_title),
+                        description = stringResource(R.string.no_chats_description),
+                        modifier = Modifier.fillParentMaxSize(),
+                        primaryActionLabel = stringResource(R.string.start_a_chat),
+                        onPrimaryAction = startChat
+                    )
+                }
+
+                else -> {
+                    if (!chatListState.isSearchMode) {
+                        item { ChatsTitle(scrollBehavior) }
+                    }
+                    itemsIndexed(chatListState.chats, key = { _, it -> it.id }) { idx, chatRoom ->
+                        val usingPlatform = chatRoom.enabledPlatform.joinToString(", ") { uid -> platformState.getPlatformName(uid) }
+                        ListItem(
+                            modifier = Modifier
+                                .animateItem()
+                                .padding(horizontal = 16.dp, vertical = 4.dp)
+                                .clip(MaterialTheme.shapes.medium)
+                                .combinedClickable(
+                                    onLongClick = {
+                                        if (!chatListState.isSearchMode) {
+                                            homeViewModel.enableSelectionMode()
+                                            homeViewModel.selectChat(idx)
+                                        }
+                                    },
+                                    onClick = {
+                                        if (chatListState.isSelectionMode) {
+                                            homeViewModel.selectChat(idx)
+                                        } else {
+                                            onExistingChatClick(chatRoom)
+                                        }
+                                    }
+                                ),
+                            headlineContent = { Text(text = chatRoom.title) },
+                            leadingContent = {
+                                if (chatListState.isSelectionMode) {
+                                    Checkbox(
+                                        checked = chatListState.selectedChats[idx],
+                                        onCheckedChange = { homeViewModel.selectChat(idx) }
+                                    )
+                                } else {
+                                    Icon(
+                                        ImageVector.vectorResource(id = R.drawable.ic_rounded_chat),
+                                        contentDescription = null
+                                    )
                                 }
                             },
-                            onClick = {
-                                if (chatListState.isSelectionMode) {
-                                    homeViewModel.selectChat(idx)
-                                } else {
-                                    onExistingChatClick(chatRoom)
-                                }
-                            }
+                            supportingContent = {
+                                Text(text = stringResource(R.string.using_certain_platform, usingPlatform))
+                            },
+                            colors = ListItemDefaults.colors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                            )
                         )
-                        .padding(start = 8.dp, end = 8.dp)
-                        .animateItem(),
-                    headlineContent = { Text(text = chatRoom.title) },
-                    leadingContent = {
-                        if (chatListState.isSelectionMode) {
-                            Checkbox(
-                                checked = chatListState.selectedChats[idx],
-                                onCheckedChange = { homeViewModel.selectChat(idx) }
-                            )
-                        } else {
-                            Icon(
-                                ImageVector.vectorResource(id = R.drawable.ic_rounded_chat),
-                                contentDescription = stringResource(R.string.chat_icon)
-                            )
-                        }
-                    },
-                    supportingContent = { Text(text = stringResource(R.string.using_certain_platform, usingPlatform)) }
-                )
+                    }
+                }
             }
         }
 
@@ -342,8 +391,8 @@ fun HomeTopAppBar(
                         onClick = navigationOnClick
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Close,
-                            contentDescription = stringResource(R.string.close)
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.go_back)
                         )
                     }
                 }

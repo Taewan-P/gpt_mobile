@@ -94,7 +94,7 @@ For translations, we are using [Hosted Weblate](https://hosted.weblate.org/engag
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=Taewan-P/gpt_mobile&type=Timeline)](https://star-history.com/#Taewan-P/gpt_mobile&Timeline)
+[![Star History Chart](https://star-history.dera.page/svg?repos=Taewan-P/gpt_mobile&type=Timeline)](https://star-history.dera.page/#Taewan-P/gpt_mobile&Timeline)
 
 
 ## License

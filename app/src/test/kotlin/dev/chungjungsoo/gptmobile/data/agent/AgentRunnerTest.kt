@@ -221,7 +221,7 @@ class AgentRunnerTest {
         val events = AgentRunner().run(session, listOf(tool())).toList()
 
         assertEquals(listOf(1, 0), exposedTools.map { it.size })
-        assertTrue(events.contains(AgentRunEvent.Notice("Tools unavailable for this model.")))
+        assertTrue(events.contains(AgentRunEvent.Notice("Tools unavailable for this model.", persistent = true)))
         assertTrue(events.contains(AgentRunEvent.Provider(ProviderEvent.TextDelta("chat fallback"))))
     }
 
@@ -255,7 +255,7 @@ class AgentRunnerTest {
         val events = AgentRunner().run(session, listOf(tool)).toList()
 
         assertEquals(0, executions.get())
-        assertTrue(events.contains(AgentRunEvent.Notice("Tools unavailable for this model.")))
+        assertTrue(events.contains(AgentRunEvent.Notice("Tools unavailable for this model.", persistent = true)))
         assertTrue(events.contains(AgentRunEvent.Provider(ProviderEvent.TextDelta("chat fallback"))))
     }
 
@@ -354,6 +354,49 @@ class AgentRunnerTest {
 
         assertEquals(
             listOf(AgentRunEvent.Provider(ProviderEvent.TextDelta("partial"))),
+            events
+        )
+    }
+
+    @Test
+    fun `engine owned session forwards tool timeline events without another round`() = runBlocking {
+        val providerCalls = AtomicInteger()
+        val session = object : AgentProviderSession {
+            override val handlesToolsInternally: Boolean = true
+
+            override fun streamRound(
+                tools: List<AgentToolDefinition>,
+                exchanges: List<AgentToolExchange>
+            ): Flow<ProviderEvent> {
+                providerCalls.incrementAndGet()
+                assertTrue(exchanges.isEmpty())
+                return flow {
+                    emit(toolCall("engine_call"))
+                    emit(
+                        ProviderEvent.ToolResult(
+                            toolCall("engine_call"),
+                            AgentToolResult("engine_call", ToolResultContent.Text("from-engine"), isError = false)
+                        )
+                    )
+                    emit(ProviderEvent.TextDelta("final"))
+                    emit(ProviderEvent.Completed)
+                }
+            }
+        }
+
+        val events = AgentRunner().run(session, listOf(tool())).toList()
+
+        assertEquals(1, providerCalls.get())
+        assertEquals(
+            listOf(
+                AgentRunEvent.Provider(toolCall("engine_call")),
+                AgentRunEvent.ToolFinished(
+                    toolCall("engine_call"),
+                    AgentToolResult("engine_call", ToolResultContent.Text("from-engine"), isError = false)
+                ),
+                AgentRunEvent.Provider(ProviderEvent.TextDelta("final")),
+                AgentRunEvent.Provider(ProviderEvent.Completed)
+            ),
             events
         )
     }

@@ -2,7 +2,9 @@ package dev.chungjungsoo.gptmobile.presentation.theme
 
 import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -13,6 +15,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import dev.chungjungsoo.gptmobile.data.model.DynamicTheme
 import dev.chungjungsoo.gptmobile.data.model.ThemeMode
@@ -393,6 +396,12 @@ val unspecified_scheme = ColorFamily(
     Color.Unspecified
 )
 
+internal val AppShapes = Shapes(
+    small = RoundedCornerShape(12.dp),
+    medium = RoundedCornerShape(20.dp),
+    large = RoundedCornerShape(28.dp)
+)
+
 @Composable
 fun GPTMobileTheme(
     dynamicTheme: DynamicTheme = DynamicTheme.OFF,
@@ -428,6 +437,7 @@ fun GPTMobileTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = AppTypography,
+        shapes = AppShapes,
         content = content
     )
 }

@@ -22,6 +22,28 @@ import dev.chungjungsoo.gptmobile.data.database.entity.AgentRunStatus
 import dev.chungjungsoo.gptmobile.data.database.entity.AgentRunTerminalError
 
 @Composable
+fun RunNoticeChips(notices: List<String>, modifier: Modifier = Modifier) {
+    if (notices.isEmpty()) return
+    Column(modifier = modifier) {
+        notices.forEach { notice ->
+            Card(
+                modifier = Modifier
+                    .padding(bottom = 8.dp)
+                    .semantics { contentDescription = notice },
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Text(
+                    text = notice,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun AgentRunStatusBlock(run: AgentRun?, modifier: Modifier = Modifier) {
     if (run == null ||
         run.status == AgentRunStatus.COMPLETED ||

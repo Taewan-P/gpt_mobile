@@ -44,6 +44,42 @@ class AssistantTimelineTest {
     }
 
     @Test
+    fun `revision selection changes content thoughts timeline and run together`() {
+        val historicalTimeline = listOf(
+            AssistantTimelineItem(AssistantTimelineItemType.THINKING, content = "Old thinking"),
+            AssistantTimelineItem(AssistantTimelineItemType.TEXT, content = "Old answer")
+        )
+        val message = MessageV2(
+            content = "Latest answer",
+            thoughts = "Latest thinking",
+            timeline = timeline,
+            platformType = "profile",
+            currentRunId = "run-latest",
+            revisions = listOf(
+                AssistantRevision(
+                    content = "Old answer",
+                    thoughts = "Old thinking",
+                    createdAt = 1L,
+                    runId = "run-old",
+                    timeline = historicalTimeline
+                )
+            ),
+            activeRevisionIndex = 0
+        )
+
+        assertEquals("Old answer", message.effectiveContent())
+        assertEquals("Old thinking", message.effectiveThoughts())
+        assertEquals(historicalTimeline, message.effectiveTimeline())
+        assertEquals("run-old", message.effectiveRunId())
+
+        val latest = message.resetActiveRevision()
+        assertEquals("Latest answer", latest.effectiveContent())
+        assertEquals("Latest thinking", latest.effectiveThoughts())
+        assertEquals(timeline, latest.effectiveTimeline())
+        assertEquals("run-latest", latest.effectiveRunId())
+    }
+
+    @Test
     fun `editing assistant aggregates preserves tool markers and declares unknown chronology`() {
         val edited = rebuildAssistantTimelineForEdit(
             currentTimeline = timeline,

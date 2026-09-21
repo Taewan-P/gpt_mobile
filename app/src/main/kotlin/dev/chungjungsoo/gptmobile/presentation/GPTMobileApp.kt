@@ -1,15 +1,25 @@
 package dev.chungjungsoo.gptmobile.presentation
 
 import android.app.Application
+import android.content.ComponentCallbacks2
 import android.content.Context
 import android.util.Log
 import android.widget.Toast
+import androidx.hilt.work.HiltWorkerFactory
+import androidx.work.Configuration
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.android.HiltAndroidApp
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.backup.SanitizedChatBackup
 import dev.chungjungsoo.gptmobile.data.database.dao.AgentPersistenceDao
 import dev.chungjungsoo.gptmobile.data.database.dao.AgentRunDao
+import dev.chungjungsoo.gptmobile.data.localmodel.PendingLocalPlatformActivator
+import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
+import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
 import dev.chungjungsoo.gptmobile.data.repository.SecretMigrationError
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import javax.inject.Inject
@@ -21,20 +31,16 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @HiltAndroidApp
-class GPTMobileApp : Application() {
+class GPTMobileApp :
+    Application(),
+    Configuration.Provider {
     // TODO Delete when https://github.com/google/dagger/issues/3601 is resolved.
     @Inject
     @ApplicationContext
     lateinit var context: Context
 
     @Inject
-    lateinit var agentRunDao: AgentRunDao
-
-    @Inject
-    lateinit var agentPersistenceDao: AgentPersistenceDao
-
-    @Inject
-    lateinit var settingRepository: SettingRepository
+    lateinit var workerFactory: HiltWorkerFactory
 
     @Volatile
     var secretMigrationErrors: List<SecretMigrationError> = emptyList()
@@ -47,13 +53,15 @@ class GPTMobileApp : Application() {
         super.onCreate()
         registerActivityLifecycleCallbacks(AppForegroundTracker)
         StartupRecoveryGate.start(applicationScope) {
+            val startup = startupDependencies()
+            startup.pendingLocalPlatformActivator().start()
             secretMigrationErrors = runStartupMaintenance(
                 interruptPersistedWork = {
                     val interruptedAt = System.currentTimeMillis() / 1000
-                    agentRunDao.interruptActiveRuns(interruptedAt)
-                    agentPersistenceDao.cancelInterruptedToolEvents(interruptedAt)
+                    startup.agentRunDao().interruptActiveRuns(interruptedAt)
+                    startup.agentPersistenceDao().cancelInterruptedToolEvents(interruptedAt)
                 },
-                migrateSecrets = settingRepository::migrateSecrets
+                migrateSecrets = startup.settingRepository()::migrateSecrets
             )
             if (secretMigrationErrors.isNotEmpty()) {
                 runCatching {
@@ -68,12 +76,42 @@ class GPTMobileApp : Application() {
                     Log.e(TAG, "Unable to show credential migration warning.", error)
                 }
             }
+            startup.localModelRepository().reconcile()
+            startup.localModelRepository().awaitActiveDownloadScheduling()
         }
     }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        applicationScope.launch {
+            trimLocalRuntimeForMemory(level, startupDependencies().localRuntime())
+        }
+    }
+
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder()
+            .setWorkerFactory(workerFactory)
+            .build()
+
+    private fun startupDependencies(): StartupDependencies = EntryPointAccessors.fromApplication(
+        this,
+        StartupDependencies::class.java
+    )
 
     private companion object {
         const val TAG = "GPTMobileApp"
     }
+}
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface StartupDependencies {
+    fun pendingLocalPlatformActivator(): PendingLocalPlatformActivator
+    fun localModelRepository(): LocalModelRepository
+    fun settingRepository(): SettingRepository
+    fun agentRunDao(): AgentRunDao
+    fun agentPersistenceDao(): AgentPersistenceDao
+    fun localRuntime(): LocalRuntime
 }
 
 object StartupRecoveryGate {
@@ -86,6 +124,13 @@ object StartupRecoveryGate {
 
     suspend fun await() {
         job?.join()
+    }
+}
+
+@Suppress("DEPRECATION")
+internal suspend fun trimLocalRuntimeForMemory(level: Int, runtime: LocalRuntime) {
+    if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
+        runtime.trimIdleEngine()
     }
 }
 

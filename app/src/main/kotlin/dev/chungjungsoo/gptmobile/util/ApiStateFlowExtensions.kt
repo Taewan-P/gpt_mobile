@@ -34,7 +34,7 @@ suspend fun Flow<ApiState>.handleStates(
             onUpdate = { content, thoughts, timeline ->
                 messageFlow.setBufferedText(turnIndex, platformIdx, content, thoughts, timeline)
             },
-            onNotice = onNotice,
+            onNotice = { message, _ -> onNotice(message) },
             nanoTimeProvider = nanoTimeProvider
         )
         when (outcome) {
@@ -63,9 +63,10 @@ suspend fun Flow<ApiState>.handleStates(
 
 internal suspend fun Flow<ApiState>.collectApiStateUpdates(
     onUpdate: suspend (content: String, thoughts: String, timeline: List<AssistantTimelineItem>) -> Unit,
-    onNotice: (String) -> Unit = {},
+    onNotice: (String, Boolean) -> Unit = { _, _ -> },
     nanoTimeProvider: () -> Long = System::nanoTime,
-    publishIntervalMillis: Long = STREAM_PUBLISH_INTERVAL_MILLIS
+    publishIntervalMillis: Long = STREAM_PUBLISH_INTERVAL_MILLIS,
+    onCompactionState: (Boolean) -> Unit = {}
 ): ApiStateFlowOutcome {
     val buffer = StreamingMessageBuffer(nanoTimeProvider, publishIntervalMillis)
     var isCompletedSuccessfully = false
@@ -74,6 +75,8 @@ internal suspend fun Flow<ApiState>.collectApiStateUpdates(
     try {
         collect { chunk ->
             when (chunk) {
+                is ApiState.Compaction -> onCompactionState(chunk.active)
+
                 is ApiState.Thinking -> {
                     buffer.appendThought(chunk.thinkingChunk)
                     buffer.publishIfDue(onUpdate)
@@ -89,7 +92,15 @@ internal suspend fun Flow<ApiState>.collectApiStateUpdates(
                     buffer.publishIfDue(onUpdate)
                 }
 
-                is ApiState.Notice -> onNotice(chunk.message)
+                is ApiState.Notice -> {
+                    if (chunk.persistent) {
+                        buffer.appendNotice(chunk.message)
+                    }
+                    onNotice(chunk.message, chunk.persistent)
+                    if (chunk.persistent) {
+                        buffer.publishNow(onUpdate)
+                    }
+                }
 
                 ApiState.Done -> {
                     isCompletedSuccessfully = true
@@ -148,6 +159,12 @@ private class StreamingMessageBuffer(
         timelineVersion += 1
     }
 
+    fun appendNotice(message: String) {
+        if (message.isBlank()) return
+        timeline += AssistantTimelineItem(type = AssistantTimelineItemType.NOTICE, content = message)
+        timelineVersion += 1
+    }
+
     suspend fun publishIfDue(
         onUpdate: suspend (content: String, thoughts: String, timeline: List<AssistantTimelineItem>) -> Unit
     ) {
@@ -162,6 +179,13 @@ private class StreamingMessageBuffer(
     }
 
     suspend fun flush(
+        onUpdate: suspend (content: String, thoughts: String, timeline: List<AssistantTimelineItem>) -> Unit
+    ) {
+        if (!hasPendingChanges()) return
+        publish(onUpdate, nanoTimeProvider())
+    }
+
+    suspend fun publishNow(
         onUpdate: suspend (content: String, thoughts: String, timeline: List<AssistantTimelineItem>) -> Unit
     ) {
         if (!hasPendingChanges()) return

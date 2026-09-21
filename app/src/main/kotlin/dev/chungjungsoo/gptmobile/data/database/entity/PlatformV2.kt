@@ -43,6 +43,15 @@ data class PlatformV2(
     @ColumnInfo(name = "top_p")
     val topP: Float? = null,
 
+    @ColumnInfo(name = "top_k")
+    val topK: Int? = null,
+
+    @ColumnInfo(name = "max_tokens")
+    val maxTokens: Int? = null,
+
+    @ColumnInfo(name = "accelerator")
+    val accelerator: String? = null,
+
     @ColumnInfo(name = "system_prompt")
     val systemPrompt: String? = null,
 
@@ -65,5 +74,8 @@ data class PlatformV2(
     val sexuallyExplicitSafetyThreshold: String = GeminiSafetySettings.BLOCK_NONE,
 
     @ColumnInfo(name = "dangerous_content_safety_threshold", defaultValue = "'BLOCK_NONE'")
-    val dangerousContentSafetyThreshold: String = GeminiSafetySettings.BLOCK_NONE
+    val dangerousContentSafetyThreshold: String = GeminiSafetySettings.BLOCK_NONE,
+
+    @ColumnInfo(name = "resumable_replies", defaultValue = "0")
+    val resumableReplies: Boolean = false
 )

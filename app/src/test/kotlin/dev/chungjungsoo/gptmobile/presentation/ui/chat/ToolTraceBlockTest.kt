@@ -1,5 +1,7 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
+import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineItem
+import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineItemType
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEventStatus
 import java.util.Locale
@@ -9,6 +11,37 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ToolTraceBlockTest {
+    @Test
+    fun unresolvedToolReferencesIncludeMissingAndNullSequences() {
+        val event = event("one", sequence = 1)
+
+        assertFalse(
+            hasUnresolvedToolReferences(
+                timeline = listOf(AssistantTimelineItem(AssistantTimelineItemType.TOOL, toolSequence = 1)),
+                events = listOf(event)
+            )
+        )
+        assertTrue(
+            hasUnresolvedToolReferences(
+                timeline = listOf(AssistantTimelineItem(AssistantTimelineItemType.TOOL, toolSequence = 7)),
+                events = listOf(event)
+            )
+        )
+        assertTrue(
+            hasUnresolvedToolReferences(
+                timeline = listOf(AssistantTimelineItem(AssistantTimelineItemType.TOOL)),
+                events = listOf(event)
+            )
+        )
+    }
+
+    @Test
+    fun toolTextRequiresViewFullForCharacterOrLineTruncation() {
+        assertFalse(toolTextRequiresViewFull("short\nvalue"))
+        assertTrue(toolTextRequiresViewFull("a".repeat(1025)))
+        assertTrue(toolTextRequiresViewFull((1..7).joinToString("\n")))
+    }
+
     @Test
     fun filterToolEvents_ordersBySequenceAndSearchesPersistedDisplayFields() {
         val late = event(

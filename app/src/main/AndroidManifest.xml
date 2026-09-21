@@ -6,6 +6,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
 
     <queries>
@@ -26,6 +27,29 @@
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"
         tools:targetApi="upside_down_cake">
+        <uses-native-library
+            android:name="libedgetpu_util.so"
+            android:required="false" />
+        <uses-native-library
+            android:name="libedgetpu_tachyon.google.so"
+            android:required="false" />
+        <uses-native-library
+            android:name="libedgetpu_client.google.so"
+            android:required="false" />
+        <uses-native-library
+            android:name="libedgetpu_litert.so"
+            android:required="false" />
+        <uses-native-library
+            android:name="libvndksupport.so"
+            android:required="false" />
+        <uses-native-library
+            android:name="libOpenCL.so"
+            android:required="false" />
+        <uses-native-library
+            android:name="libcdsprpc.so"
+            android:required="false" />
+        <!-- AppAuth merges RedirectUriReceiverActivity using appAuthRedirectScheme.
+             Register a scheme distinct from the MCP callback (dev.chungjungsoo.gptmobile://oauth/mcp/). -->
         <activity
             android:name=".presentation.ui.main.MainActivity"
             android:exported="true"
@@ -62,6 +86,22 @@
             android:exported="false"
             android:foregroundServiceType="dataSync"
             android:stopWithTask="false" />
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:directBootAware="false"
+            android:exported="false"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
     </application>
 
 </manifest>

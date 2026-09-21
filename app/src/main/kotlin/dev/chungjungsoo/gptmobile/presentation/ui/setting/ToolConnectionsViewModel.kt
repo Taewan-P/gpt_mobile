@@ -16,6 +16,7 @@ import dev.chungjungsoo.gptmobile.data.security.SecretVault
 import java.util.Locale
 import java.util.UUID
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,18 +41,40 @@ class ToolConnectionsViewModel @Inject constructor(
     private val _oauthLaunches = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val oauthLaunches: SharedFlow<String> = _oauthLaunches.asSharedFlow()
     private var oauthStartJob: Job? = null
+    private var pendingOAuthConnectionUid: String? = null
+    private var refreshGeneration = 0
 
     init {
         refresh()
     }
 
     fun refresh() {
+        val generation = ++refreshGeneration
+        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
         viewModelScope.launch {
-            runCatching { toolConnectionRepository.listConnections() }
-                .onSuccess { connections ->
-                    _uiState.update { it.copy(connections = connections, errorMessage = null) }
+            try {
+                val connections = toolConnectionRepository.listConnections()
+                if (generation == refreshGeneration) {
+                    _uiState.update {
+                        it.copy(
+                            connections = connections,
+                            isLoading = false,
+                            errorMessage = null
+                        )
+                    }
                 }
-                .onFailure(::showError)
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (throwable: Throwable) {
+                if (generation == refreshGeneration) {
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = throwable.message ?: "Could not load tool connections."
+                        )
+                    }
+                }
+            }
         }
     }
 
@@ -68,6 +91,7 @@ class ToolConnectionsViewModel @Inject constructor(
         clearCredential: Boolean,
         onSuccess: () -> Unit = {}
     ) {
+        if (_uiState.value.isSaving) return
         val normalizedAlias = normalizeAlias(alias)
         if (!isValidAlias(normalizedAlias)) {
             _uiState.update { it.copy(errorMessage = "Alias must match [a-z][a-z0-9_]{0,31}.") }
@@ -83,6 +107,7 @@ class ToolConnectionsViewModel @Inject constructor(
             _uiState.update { it.copy(errorMessage = "MCP endpoint must be HTTP(S); cleartext HTTP requires explicit approval.") }
             return
         }
+        _uiState.update { it.copy(isSaving = true, errorMessage = null) }
         viewModelScope.launch {
             val now = System.currentTimeMillis() / 1000
             val clientId = oauthClientId.trim().takeIf { actualAuthType == ToolConnectionAuthType.OAUTH && it.isNotEmpty() }
@@ -111,7 +136,7 @@ class ToolConnectionsViewModel @Inject constructor(
             } else {
                 null
             }
-            runCatching {
+            try {
                 val shouldClearCredential = shouldClearCredential(
                     existingType = existing?.type,
                     providerType = provider.type,
@@ -123,68 +148,169 @@ class ToolConnectionsViewModel @Inject constructor(
                     credential = credentialBytes,
                     clearCredential = (shouldClear || shouldClearCredential) && credentialBytes == null
                 )
-            }.onSuccess {
-                runCatching { mcpClientManager.close(connection.connectionUid) }
+                mcpClientManager.close(connection.connectionUid)
                 refresh()
                 onSuccess()
-            }.onFailure(::showError)
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (throwable: Throwable) {
+                showError(throwable)
+            } finally {
+                _uiState.update { it.copy(isSaving = false) }
+            }
         }
     }
 
     fun deleteConnection(connectionUid: String) {
+        if (_uiState.value.busyConnectionUid != null) return
+        setRowBusy(connectionUid)
         viewModelScope.launch {
-            runCatching {
+            var didDelete = false
+            try {
                 mcpClientManager.close(connectionUid)
                 toolConnectionRepository.deleteConnection(connectionUid)
+                didDelete = true
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (throwable: Throwable) {
+                showRowError(connectionUid, throwable)
+            } finally {
+                clearRowBusy(connectionUid)
             }
-                .onSuccess { refresh() }
-                .onFailure(::showError)
+            if (didDelete) refresh()
         }
     }
 
     fun clearError() = _uiState.update { it.copy(errorMessage = null) }
 
+    fun clearRowError(connectionUid: String) {
+        _uiState.update { state ->
+            if (state.rowErrorConnectionUid == connectionUid) {
+                state.copy(rowErrorConnectionUid = null, rowErrorMessage = null)
+            } else {
+                state
+            }
+        }
+    }
+
     fun startOAuth(connectionUid: String) {
-        if (oauthStartJob?.isActive == true) return
+        if (oauthStartJob?.isActive == true ||
+            pendingOAuthConnectionUid != null ||
+            _uiState.value.busyConnectionUid != null
+        ) {
+            return
+        }
+        pendingOAuthConnectionUid = connectionUid
+        setRowBusy(connectionUid)
         oauthStartJob = viewModelScope.launch {
-            _uiState.update { it.copy(isOAuthBusy = true, errorMessage = null) }
-            runCatching { oauthCoordinator.begin(connectionUid, mcpOAuthRedirectUri(connectionUid)) }
-                .onSuccess { authorizationUri -> _oauthLaunches.emit(authorizationUri) }
-                .onFailure(::showError)
-            _uiState.update { it.copy(isOAuthBusy = false) }
+            try {
+                val authorizationUri = oauthCoordinator.begin(connectionUid, mcpOAuthRedirectUri(connectionUid))
+                _oauthLaunches.emit(authorizationUri)
+            } catch (exception: CancellationException) {
+                if (pendingOAuthConnectionUid == connectionUid) pendingOAuthConnectionUid = null
+                throw exception
+            } catch (throwable: Throwable) {
+                showRowError(connectionUid, throwable)
+                if (pendingOAuthConnectionUid == connectionUid) pendingOAuthConnectionUid = null
+            } finally {
+                clearRowBusy(connectionUid)
+            }
         }
     }
 
     fun completeOAuthCallback(callbackUri: String?) {
+        val pendingConnectionUid = pendingOAuthConnectionUid
         if (callbackUri == null) {
-            _uiState.update { it.copy(errorMessage = "OAuth authorization was canceled.") }
+            showOAuthCallbackError(pendingConnectionUid, "OAuth authorization was canceled.")
             return
         }
         val connectionUid = mcpOAuthConnectionUid(callbackUri)
         if (connectionUid == null) {
-            _uiState.update { it.copy(errorMessage = "OAuth callback URI is invalid.") }
+            showOAuthCallbackError(pendingConnectionUid, "OAuth callback URI is invalid.")
             return
         }
+        if (pendingConnectionUid != null && pendingConnectionUid != connectionUid) {
+            showOAuthCallbackError(pendingConnectionUid, "OAuth callback did not match this connection.")
+            return
+        }
+        if (_uiState.value.busyConnectionUid != null) return
+        pendingOAuthConnectionUid = null
+        setRowBusy(connectionUid)
         viewModelScope.launch {
-            _uiState.update { it.copy(isOAuthBusy = true, errorMessage = null) }
-            runCatching { oauthCoordinator.complete(connectionUid, callbackUri) }
-                .onSuccess { refresh() }
-                .onFailure(::showError)
-            _uiState.update { it.copy(isOAuthBusy = false) }
+            var didComplete = false
+            try {
+                oauthCoordinator.complete(connectionUid, callbackUri)
+                didComplete = true
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (throwable: Throwable) {
+                showRowError(connectionUid, throwable)
+            } finally {
+                clearRowBusy(connectionUid)
+            }
+            if (didComplete) refresh()
         }
     }
 
     fun failOAuthLaunch(message: String = "No browser is available for OAuth authorization.") {
-        _uiState.update { it.copy(isOAuthBusy = false, errorMessage = message) }
+        showOAuthCallbackError(pendingOAuthConnectionUid, message)
+    }
+
+    fun cancelPendingOAuth() {
+        val pendingConnectionUid = pendingOAuthConnectionUid ?: return
+        showOAuthCallbackError(pendingConnectionUid, "OAuth authorization was canceled.")
     }
 
     private fun showError(error: Throwable) {
         _uiState.update { it.copy(errorMessage = error.message ?: "Tool connection update failed.") }
     }
 
+    private fun showOAuthCallbackError(connectionUid: String?, message: String) {
+        if (connectionUid == null) {
+            _uiState.update { it.copy(errorMessage = message) }
+        } else {
+            showRowError(connectionUid, message)
+            if (pendingOAuthConnectionUid == connectionUid) pendingOAuthConnectionUid = null
+            clearRowBusy(connectionUid)
+        }
+    }
+
+    private fun setRowBusy(connectionUid: String) {
+        _uiState.update {
+            it.copy(
+                busyConnectionUid = connectionUid,
+                rowErrorConnectionUid = if (it.rowErrorConnectionUid == connectionUid) null else it.rowErrorConnectionUid,
+                rowErrorMessage = if (it.rowErrorConnectionUid == connectionUid) null else it.rowErrorMessage
+            )
+        }
+    }
+
+    private fun clearRowBusy(connectionUid: String) {
+        _uiState.update {
+            if (it.busyConnectionUid == connectionUid) it.copy(busyConnectionUid = null) else it
+        }
+    }
+
+    private fun showRowError(connectionUid: String, throwable: Throwable) {
+        showRowError(connectionUid, throwable.message ?: "Tool connection update failed.")
+    }
+
+    private fun showRowError(connectionUid: String, message: String) {
+        _uiState.update {
+            it.copy(
+                rowErrorConnectionUid = connectionUid,
+                rowErrorMessage = message
+            )
+        }
+    }
+
     data class ToolConnectionsUiState(
         val connections: List<ToolConnection> = emptyList(),
-        val isOAuthBusy: Boolean = false,
+        val isLoading: Boolean = true,
+        val busyConnectionUid: String? = null,
+        val rowErrorConnectionUid: String? = null,
+        val rowErrorMessage: String? = null,
+        val isSaving: Boolean = false,
         val errorMessage: String? = null
     )
 

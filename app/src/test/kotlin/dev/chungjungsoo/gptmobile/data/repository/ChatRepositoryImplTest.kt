@@ -1,10 +1,13 @@
 package dev.chungjungsoo.gptmobile.data.repository
 
 import android.content.ContextWrapper
+import dev.chungjungsoo.gptmobile.data.agent.provider.LiteRtLmAdapter
 import dev.chungjungsoo.gptmobile.data.agent.tool.AgentToolResolver
 import dev.chungjungsoo.gptmobile.data.agent.tool.McpClientManager
 import dev.chungjungsoo.gptmobile.data.agent.tool.McpOAuthClient
 import dev.chungjungsoo.gptmobile.data.agent.tool.McpOAuthCoordinator
+import dev.chungjungsoo.gptmobile.data.catalog.CatalogCapabilities
+import dev.chungjungsoo.gptmobile.data.catalog.CatalogEntry
 import dev.chungjungsoo.gptmobile.data.context.ContextBuilder
 import dev.chungjungsoo.gptmobile.data.database.dao.AgentToolBindingWithConnection
 import dev.chungjungsoo.gptmobile.data.database.dao.ToolConnectionDao
@@ -35,6 +38,10 @@ import dev.chungjungsoo.gptmobile.data.dto.openai.response.ChatToolCallDelta
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.Choice
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.Delta
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponsesStreamEvent
+import dev.chungjungsoo.gptmobile.data.localruntime.FakeLocalRuntime
+import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
+import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntimeEvent
+import dev.chungjungsoo.gptmobile.data.localruntime.ScriptedToolInvocation
 import dev.chungjungsoo.gptmobile.data.model.ChatAttachment
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.model.GeminiSafetySettings
@@ -138,6 +145,99 @@ class ChatRepositoryImplTest {
         assertEquals(1, groqAPI.streamCalls)
         assertEquals(0, openAIAPI.streamChatCompletionCalls)
         assertEquals(8_192, groqAPI.lastRequest?.maxCompletionTokens)
+    }
+
+    @Test
+    fun `litert lm path uses local runtime and streams thinking and text`() = runBlocking {
+        val runtime = FakeLocalRuntime().apply {
+            scriptedEvents = listOf(
+                listOf(
+                    LocalRuntimeEvent.ThinkingDelta("plan"),
+                    LocalRuntimeEvent.TextDelta("hello"),
+                    LocalRuntimeEvent.Done
+                )
+            )
+        }
+        val repository = createRepository(
+            localRuntime = runtime,
+            localModelRepository = FakeLocalModelRepository(
+                downloadedPaths = mapOf("gemma3-1b-it" to "/models/gemma.litertlm")
+            )
+        )
+
+        val states = repository.completeChat(
+            userMessages = listOf(MessageV2(content = "Hi", platformType = null)),
+            assistantMessages = emptyList(),
+            platform = localPlatform(),
+            runId = "local-run"
+        ).toList()
+
+        assertEquals(
+            listOf(
+                ApiState.Loading,
+                ApiState.Notice(LiteRtLmAdapter.DEFAULT_LOADING_MODEL),
+                ApiState.Thinking("plan"),
+                ApiState.Success("hello"),
+                ApiState.Done
+            ),
+            states
+        )
+        assertEquals(listOf("Hi"), runtime.sendMessageCalls)
+        assertEquals(1, runtime.loadEngineCalls.size)
+    }
+
+    @Test
+    fun `litert lm tool capable run records engine owned tool calls on the timeline`() = runBlocking {
+        val runtime = FakeLocalRuntime().apply {
+            scriptedEvents = listOf(
+                listOf(
+                    LocalRuntimeEvent.TextDelta("before"),
+                    LocalRuntimeEvent.TextDelta("after"),
+                    LocalRuntimeEvent.Done
+                )
+            )
+            scriptedToolInvocations = listOf(
+                listOf(ScriptedToolInvocation("current_date", "{}"))
+            )
+        }
+        val traceDao = RecordingToolEventDao()
+        val repository = createRepository(
+            localRuntime = runtime,
+            localModelRepository = FakeLocalModelRepository(
+                downloadedPaths = mapOf("gemma3-1b-it" to "/models/gemma.litertlm")
+            ),
+            modelCatalogRepository = FakeModelCatalogRepository(
+                listOf(CatalogEntry(id = "gemma3-1b-it", capabilities = CatalogCapabilities(tools = true)))
+            ),
+            toolEventRecorder = ToolEventRecorder(traceDao.asDao())
+        )
+
+        val states = repository.completeChat(
+            userMessages = listOf(MessageV2(content = "Hi", platformType = null)),
+            assistantMessages = emptyList(),
+            platform = localPlatform(),
+            runId = "run-local-tool"
+        ).toList()
+
+        assertEquals(
+            listOf(
+                ApiState.Loading,
+                ApiState.Notice(LiteRtLmAdapter.DEFAULT_LOADING_MODEL),
+                ApiState.Success("before"),
+                ApiState.ToolCall(toolSequence = 0),
+                ApiState.Success("after"),
+                ApiState.Done
+            ),
+            states
+        )
+        assertEquals(1, runtime.sendMessageCalls.size)
+        assertEquals(listOf("current_date"), runtime.createConversationCalls.single().tools.map { it.name })
+        assertTrue(runtime.createConversationCalls.single().isConstrainedDecodingEnabled)
+        val event = traceDao.events.single()
+        assertEquals("run-local-tool", event.runId)
+        assertEquals("current_date", event.toolName)
+        assertEquals(ToolEventStatus.COMPLETED, event.status)
+        assertFalse(event.isError)
     }
 
     @Test
@@ -469,12 +569,56 @@ class ChatRepositoryImplTest {
         assertTrue(event.result.orEmpty().contains("missing credential"))
     }
 
+    @Test
+    fun `mid reply compaction continues completed tool work without replaying the request`() = runBlocking {
+        val requests = mutableListOf<ChatCompletionRequest>()
+        var normalRounds = 0
+        val api = object : OpenAIAPI by RecordingOpenAIAPI() {
+            override fun streamChatCompletion(request: ChatCompletionRequest, timeoutSeconds: Int, config: ProviderRequestConfig): Flow<ChatCompletionChunk> {
+                requests += request
+                val delta = if (request.tools.isNullOrEmpty()) {
+                    Delta(content = "current_date completed successfully. Continue the outstanding reply with this result.")
+                } else if (++normalRounds == 1) {
+                    Delta(
+                        content = "before " + "x".repeat(5000),
+                        toolCalls = listOf(ChatToolCallDelta(0, "call_once", function = ChatFunctionDelta("current_date", "{}")))
+                    )
+                } else {
+                    Delta(content = "Finished with the date.")
+                }
+                return flowOf(ChatCompletionChunk(choices = listOf(Choice(0, delta, finishReason = if (delta.toolCalls.isNullOrEmpty()) "stop" else "tool_calls"))))
+            }
+        }
+        val trace = RecordingToolEventDao()
+        val store = dev.chungjungsoo.gptmobile.data.context.InMemoryCompactionStore()
+        val repository = createRepository(openAIAPI = api, toolEventRecorder = ToolEventRecorder(trace.asDao()), contextLimit = 1000, compactionStore = store)
+        val states = repository.completeChat(
+            listOf(MessageV2(chatId = 60, content = "CALL-ONCE: get the current date", platformType = null)),
+            emptyList(),
+            customPlatform().copy(maxTokens = 128),
+            "mid-run"
+        ).toList()
+        assertFalse(states.toString(), states.any { it is ApiState.Error })
+        assertEquals(2, normalRounds)
+        assertEquals(1, trace.events.size)
+        val continuation = NetworkClient.openAIJson.encodeToString(ChatCompletionRequest.serializer(), requests.last())
+        assertTrue(continuation, continuation.contains("current_date completed"))
+        assertFalse(continuation.contains("CALL-ONCE"))
+        assertEquals(null, store.getCheckpoint(60, "custom-platform"))
+        assertTrue(states.contains(ApiState.Compaction(true)))
+    }
+
     private fun createRepository(
         groqAPI: GroqAPI = FakeGroqAPI(emptyFlow()),
         openAIAPI: OpenAIAPI = RecordingOpenAIAPI(),
         googleAPI: GoogleAPI = FakeGoogleAPI(),
         agentToolResolver: AgentToolResolver = emptyToolResolver(),
-        toolEventRecorder: ToolEventRecorder = ToolEventRecorder(proxy())
+        toolEventRecorder: ToolEventRecorder = ToolEventRecorder(proxy()),
+        localRuntime: LocalRuntime = FakeLocalRuntime(),
+        localModelRepository: LocalModelRepository = FakeLocalModelRepository(),
+        modelCatalogRepository: ModelCatalogRepository = FakeModelCatalogRepository(),
+        contextLimit: Int = 128_000,
+        compactionStore: dev.chungjungsoo.gptmobile.data.context.CompactionStore = dev.chungjungsoo.gptmobile.data.context.InMemoryCompactionStore()
     ): ChatRepositoryImpl = ChatRepositoryImpl(
         context = ContextWrapper(null),
         chatRoomDao = proxy(),
@@ -496,7 +640,15 @@ class ChatRepositoryImplTest {
         ),
         contextBuilder = ContextBuilder(),
         agentToolResolver = agentToolResolver,
-        toolEventRecorder = toolEventRecorder
+        toolEventRecorder = toolEventRecorder,
+        localRuntime = localRuntime,
+        localModelRepository = localModelRepository,
+        modelCatalogRepository = modelCatalogRepository,
+        deviceSocModel = "",
+        compactionStore = compactionStore,
+        remoteContextWindowLookup = dev.chungjungsoo.gptmobile.data.context.RemoteContextWindowLookup { platform ->
+            if (platform.compatibleType == dev.chungjungsoo.gptmobile.data.model.ClientType.LITERT_LM) null else contextLimit
+        }
     )
 
     private fun emptyToolResolver(): AgentToolResolver {
@@ -536,6 +688,19 @@ class ChatRepositoryImplTest {
         hateSpeechSafetyThreshold = GeminiSafetySettings.BLOCK_MEDIUM_AND_ABOVE,
         sexuallyExplicitSafetyThreshold = GeminiSafetySettings.BLOCK_ONLY_HIGH,
         dangerousContentSafetyThreshold = GeminiSafetySettings.BLOCK_NONE
+    )
+
+    private fun localPlatform() = PlatformV2(
+        uid = "local-platform",
+        name = "Local",
+        compatibleType = ClientType.LITERT_LM,
+        apiUrl = "",
+        model = "gemma3-1b-it",
+        temperature = 1.0f,
+        topP = 0.95f,
+        topK = 40,
+        maxTokens = 1024,
+        accelerator = "gpu"
     )
 
     private fun customPlatform() = PlatformV2(
@@ -615,6 +780,12 @@ class ChatRepositoryImplTest {
         ): UploadedProviderFile = UploadedProviderFile(id = "file-uploaded", mimeType = mimeType)
 
         override suspend fun isFileAvailable(fileId: String, config: ProviderRequestConfig): Boolean = false
+
+        override suspend fun compactResponses(
+            request: dev.chungjungsoo.gptmobile.data.dto.openai.request.CompactResponsesRequest,
+            timeoutSeconds: Int,
+            config: ProviderRequestConfig
+        ) = dev.chungjungsoo.gptmobile.data.dto.openai.request.CompactResponsesResult()
     }
 
     private class FakeAnthropicAPI : AnthropicAPI {

@@ -5,7 +5,9 @@ import dev.chungjungsoo.gptmobile.data.agent.ToolDefinitionsRejectedException
 data class ProviderRequestConfig(
     val apiUrl: String,
     val token: String?,
-    val anthropicBetaFeatures: Set<String> = emptySet()
+    val anthropicBetaFeatures: Set<String> = emptySet(),
+    val resumableReplies: Boolean = false,
+    val onUnconfirmedRemoteCancellation: (suspend (responseId: String) -> Unit)? = null
 )
 
 internal fun throwIfToolDefinitionsRejected(

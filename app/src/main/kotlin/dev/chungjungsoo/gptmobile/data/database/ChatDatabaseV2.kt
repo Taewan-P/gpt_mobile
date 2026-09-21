@@ -7,6 +7,8 @@ import dev.chungjungsoo.gptmobile.data.database.dao.AgentPersistenceDao
 import dev.chungjungsoo.gptmobile.data.database.dao.AgentRunDao
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatPlatformModelV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomV2Dao
+import dev.chungjungsoo.gptmobile.data.database.dao.CompactionDao
+import dev.chungjungsoo.gptmobile.data.database.dao.LocalModelDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.PlatformV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.ToolConnectionDao
@@ -17,7 +19,10 @@ import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineListConv
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatAttachmentListConverter
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatPlatformModelV2
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
+import dev.chungjungsoo.gptmobile.data.database.entity.ContextCheckpointEntity
+import dev.chungjungsoo.gptmobile.data.database.entity.LocalModel
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
+import dev.chungjungsoo.gptmobile.data.database.entity.ModelCapacityEntity
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.StringListConverter
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolConnection
@@ -32,9 +37,12 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
         ToolConnection::class,
         AgentToolBinding::class,
         AgentRun::class,
-        ToolEvent::class
+        ToolEvent::class,
+        LocalModel::class,
+        ContextCheckpointEntity::class,
+        ModelCapacityEntity::class
     ],
-    version = 8,
+    version = 11,
     exportSchema = true
 )
 @TypeConverters(
@@ -52,4 +60,6 @@ abstract class ChatDatabaseV2 : RoomDatabase() {
     abstract fun agentRunDao(): AgentRunDao
     abstract fun agentPersistenceDao(): AgentPersistenceDao
     abstract fun toolConnectionDao(): ToolConnectionDao
+    abstract fun localModelDao(): LocalModelDao
+    abstract fun compactionDao(): CompactionDao
 }

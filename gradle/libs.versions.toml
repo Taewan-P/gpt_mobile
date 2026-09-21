@@ -23,6 +23,9 @@ room = "2.8.4"
 coroutines = "1.11.0"
 mcpKotlinSdk = "0.15.0"
 browser = "1.9.0"
+work = "2.11.2"
+appauth = "0.11.1"
+litertlm = "0.11.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -51,6 +54,9 @@ markdown-renderer-code = { group = "com.mikepenz", name = "multiplatform-markdow
 hilt = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hilt" }
 hilt-navigation = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "androidxHilt" }
+androidx-hilt-work = { group = "androidx.hilt", name = "hilt-work", version.ref = "androidxHilt" }
+androidx-hilt-compiler = { group = "androidx.hilt", name = "hilt-compiler", version.ref = "androidxHilt" }
+androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
 kotlin-serialization = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
 ktor-content-negotiation = { group = "io.ktor", name = "ktor-client-content-negotiation", version.ref = "ktor" }
 ktor-client-cio = { group = "io.ktor", name = "ktor-client-cio", version.ref = "ktor" }
@@ -67,6 +73,8 @@ kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-cor
 mcp-kotlin-sdk-client = { group = "io.modelcontextprotocol", name = "kotlin-sdk-client", version.ref = "mcpKotlinSdk" }
 androidx-browser = { group = "androidx.browser", name = "browser", version.ref = "browser" }
 androidx-lifecycle-runtime-compose-android = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose-android", version.ref = "lifecycleRuntime" }
+openid-appauth = { group = "net.openid", name = "appauth", version.ref = "appauth" }
+litertlm = { group = "com.google.ai.edge.litertlm", name = "litertlm-android", version.ref = "litertlm" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

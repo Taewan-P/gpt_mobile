@@ -1,6 +1,7 @@
 package dev.chungjungsoo.gptmobile.data.agent.provider
 
 import dev.chungjungsoo.gptmobile.data.agent.ProviderEvent
+import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.CompactionContent
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.MessageContent
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.RedactedThinkingContent
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.common.TextContent
@@ -11,9 +12,15 @@ import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ContentDeltaRespon
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ContentStartResponseChunk
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ContentStopResponseChunk
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ErrorResponseChunk
+import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.MessageDeltaResponseChunk
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.MessageResponseChunk
+import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.MessageStartResponseChunk
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.MessageStopResponseChunk
+import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.Usage
 import dev.chungjungsoo.gptmobile.data.dto.google.response.GenerateContentResponse
+import dev.chungjungsoo.gptmobile.data.dto.google.response.UsageMetadata
+import dev.chungjungsoo.gptmobile.data.dto.groq.response.GroqUsage
+import dev.chungjungsoo.gptmobile.data.dto.openai.response.ChatCompletionUsage
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ChatToolCallDelta
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.FunctionCallArgumentsDeltaEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.FunctionCallArgumentsDoneEvent
@@ -23,6 +30,7 @@ import dev.chungjungsoo.gptmobile.data.dto.openai.response.ReasoningSummaryTextD
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseCompletedEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseErrorEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseFailedEvent
+import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseUsage
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponsesStreamEvent
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -75,7 +83,10 @@ class OpenAIResponsesEventAssembler {
 
         is ResponseErrorEvent -> listOf(ProviderEvent.Failed(event.message))
 
-        is ResponseCompletedEvent -> listOf(ProviderEvent.Completed)
+        is ResponseCompletedEvent -> buildList {
+            event.response.usage.toProviderUsage()?.let(::add)
+            add(ProviderEvent.Completed)
+        }
 
         else -> emptyList()
     }
@@ -132,9 +143,30 @@ class AnthropicEventAssembler {
     private val pendingText = mutableMapOf<Int, StringBuilder>()
     private val pendingThinking = mutableMapOf<Int, Pair<StringBuilder, StringBuilder>>()
     private val pendingRedactedThinking = mutableMapOf<Int, String>()
+    private val pendingCompaction = mutableMapOf<Int, StringBuilder>()
     private val completed = sortedMapOf<Int, MessageContent>()
 
+    private var inputTokens: Int? = null
+    private var cacheCreationInputTokens = 0
+    private var cacheReadInputTokens = 0
+    private var outputTokens: Int? = null
+
     fun accept(event: MessageResponseChunk): List<ProviderEvent> = when (event) {
+        is MessageStartResponseChunk -> {
+            rememberAnthropicUsage(event.message.usage)
+            emptyList()
+        }
+
+        is MessageDeltaResponseChunk -> {
+            rememberAnthropicUsage(
+                inputTokens = event.usage.inputTokens,
+                cacheCreationInputTokens = event.usage.cacheCreationInputTokens,
+                cacheReadInputTokens = event.usage.cacheReadInputTokens,
+                outputTokens = event.usage.outputTokens
+            )
+            emptyList()
+        }
+
         is ContentStartResponseChunk -> {
             when (event.contentBlock.type) {
                 ContentBlockType.TEXT -> pendingText[event.index] = StringBuilder(event.contentBlock.text.orEmpty())
@@ -160,6 +192,10 @@ class AnthropicEventAssembler {
                         .orEmpty()
                     pending[event.index] = PendingCall(callId, name, StringBuilder(initialInput))
                 }
+
+                ContentBlockType.COMPACTION -> pendingCompaction[event.index] = StringBuilder(
+                    event.contentBlock.content ?: event.contentBlock.text.orEmpty()
+                )
 
                 else -> Unit
             }
@@ -198,6 +234,10 @@ class AnthropicEventAssembler {
             pendingRedactedThinking.remove(event.index)?.let { data ->
                 completed[event.index] = RedactedThinkingContent(data)
             }
+            pendingCompaction.remove(event.index)?.let { content ->
+                completed[event.index] = CompactionContent(content.toString())
+                return emptyList()
+            }
             val call = pending.remove(event.index) ?: return emptyList()
             val events = toolCall(call.callId, call.name, call.arguments.toString())
             if (events.singleOrNull() is ProviderEvent.ToolCall) {
@@ -212,12 +252,41 @@ class AnthropicEventAssembler {
 
         is ErrorResponseChunk -> listOf(ProviderEvent.Failed(event.error.message))
 
-        MessageStopResponseChunk -> listOf(ProviderEvent.Completed)
+        MessageStopResponseChunk -> buildList {
+            providerUsage(contextInputTokens(), outputTokens)?.let(::add)
+            add(ProviderEvent.Completed)
+        }
 
         else -> emptyList()
     }
 
     fun replayContent(): List<MessageContent> = completed.values.toList()
+
+    private fun rememberAnthropicUsage(usage: Usage) {
+        rememberAnthropicUsage(
+            inputTokens = usage.inputTokens,
+            cacheCreationInputTokens = usage.cacheCreationInputTokens,
+            cacheReadInputTokens = usage.cacheReadInputTokens,
+            outputTokens = usage.outputTokens
+        )
+    }
+
+    private fun rememberAnthropicUsage(
+        inputTokens: Int? = null,
+        cacheCreationInputTokens: Int? = null,
+        cacheReadInputTokens: Int? = null,
+        outputTokens: Int? = null
+    ) {
+        if (inputTokens != null) this.inputTokens = inputTokens
+        if (cacheCreationInputTokens != null) this.cacheCreationInputTokens = cacheCreationInputTokens
+        if (cacheReadInputTokens != null) this.cacheReadInputTokens = cacheReadInputTokens
+        if (outputTokens != null) this.outputTokens = outputTokens
+    }
+
+    private fun contextInputTokens(): Int? {
+        val input = inputTokens ?: return null
+        return input + cacheCreationInputTokens + cacheReadInputTokens
+    }
 }
 
 object GeminiEventMapper {
@@ -234,6 +303,8 @@ object GeminiEventMapper {
         }
         return events
     }
+
+    fun usage(response: GenerateContentResponse): ProviderEvent.Usage? = response.usageMetadata.toProviderUsage()
 }
 
 private fun toolCall(callId: String, name: String, arguments: String): List<ProviderEvent> = try {
@@ -245,4 +316,32 @@ private fun toolCall(callId: String, name: String, arguments: String): List<Prov
     }
 } catch (_: Exception) {
     listOf(ProviderEvent.Failed("Tool arguments were not valid JSON."))
+}
+
+internal fun providerUsage(inputTokens: Int?, outputTokens: Int?): ProviderEvent.Usage? {
+    if (inputTokens == null || outputTokens == null) return null
+    return ProviderEvent.Usage(inputTokens, outputTokens)
+}
+
+internal fun ResponseUsage?.toProviderUsage(): ProviderEvent.Usage? = providerUsage(this?.inputTokens, this?.outputTokens)
+
+internal fun ChatCompletionUsage?.toProviderUsage(): ProviderEvent.Usage? = providerUsage(this?.promptTokens, this?.completionTokens)
+
+internal fun GroqUsage?.toProviderUsage(): ProviderEvent.Usage? {
+    val usage = this ?: return null
+    val input = usage.promptTokens ?: return null
+    return providerUsage(
+        input + (usage.cacheCreationInputTokens ?: 0) + (usage.cacheReadInputTokens ?: 0),
+        usage.completionTokens
+    )
+}
+
+internal fun UsageMetadata?.toProviderUsage(): ProviderEvent.Usage? {
+    val metadata = this ?: return null
+    val input = metadata.promptTokenCount ?: return null
+    if (metadata.candidatesTokenCount == null && metadata.thoughtsTokenCount == null) return null
+    return ProviderEvent.Usage(
+        input,
+        (metadata.candidatesTokenCount ?: 0) + (metadata.thoughtsTokenCount ?: 0)
+    )
 }

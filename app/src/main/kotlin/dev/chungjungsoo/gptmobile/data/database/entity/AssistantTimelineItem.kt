@@ -7,6 +7,7 @@ enum class AssistantTimelineItemType {
     THINKING,
     TEXT,
     TOOL,
+    NOTICE,
     LEGACY_ORDER
 }
 
@@ -28,14 +29,16 @@ internal fun rebuildAssistantTimelineForEdit(
     hasToolTrace: Boolean = currentTimeline.any { it.type == AssistantTimelineItemType.TOOL }
 ): List<AssistantTimelineItem> {
     val toolMarkers = currentTimeline.filter { it.type == AssistantTimelineItemType.TOOL }
+    val noticeItems = currentTimeline.filter { it.type == AssistantTimelineItemType.NOTICE }
     val chronologyUnavailable = hasToolTrace ||
         toolMarkers.isNotEmpty() ||
         currentTimeline.any { it.type == AssistantTimelineItemType.LEGACY_ORDER }
     if (chronologyUnavailable) {
-        return listOf(AssistantTimelineItem(AssistantTimelineItemType.LEGACY_ORDER)) + toolMarkers
+        return listOf(AssistantTimelineItem(AssistantTimelineItemType.LEGACY_ORDER)) + noticeItems + toolMarkers
     }
 
     return buildList {
+        addAll(noticeItems)
         updatedThoughts.takeIf(String::isNotBlank)?.let {
             add(AssistantTimelineItem(AssistantTimelineItemType.THINKING, content = it))
         }

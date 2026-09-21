@@ -1,18 +1,19 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.setup
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
@@ -51,37 +52,51 @@ fun SetupPlatformListScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        topBar = { SetupAppBar(onBackAction) }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .padding(innerPadding)
-                .fillMaxSize()
-        ) {
-            // Header
-            PlatformListHeader()
-
-            // Platform list or empty state
-            if (platforms.isEmpty()) {
-                EmptyPlatformState(
-                    modifier = Modifier.weight(1f),
-                    onAddPlatform = onAddPlatform
-                )
-            } else {
-                PlatformList(
-                    modifier = Modifier.weight(1f),
-                    platforms = platforms,
-                    onDeletePlatform = { setupViewModel.deletePlatform(it) },
-                    onAddPlatform = onAddPlatform
+        topBar = { SetupAppBar(onBackAction) },
+        bottomBar = {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding(),
+                contentAlignment = Alignment.Center
+            ) {
+                PrimaryLongButton(
+                    modifier = Modifier
+                        .widthIn(max = 720.dp)
+                        .padding(horizontal = 24.dp, vertical = 12.dp),
+                    enabled = platforms.isNotEmpty(),
+                    onClick = onComplete,
+                    text = stringResource(R.string.next)
                 )
             }
-
-            // Next button
-            PrimaryLongButton(
-                enabled = platforms.isNotEmpty(),
-                onClick = onComplete,
-                text = stringResource(R.string.next)
-            )
+        }
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize(),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            Column(
+                modifier = Modifier
+                    .widthIn(max = 720.dp)
+                    .fillMaxSize()
+            ) {
+                PlatformListHeader()
+                if (platforms.isEmpty()) {
+                    EmptyPlatformState(
+                        modifier = Modifier.weight(1f),
+                        onAddPlatform = onAddPlatform
+                    )
+                } else {
+                    PlatformList(
+                        modifier = Modifier.weight(1f),
+                        platforms = platforms,
+                        onDeletePlatform = { setupViewModel.deletePlatform(it) },
+                        onAddPlatform = onAddPlatform
+                    )
+                }
+            }
         }
     }
 }
@@ -91,17 +106,15 @@ private fun PlatformListHeader(modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(20.dp)
+            .padding(horizontal = 24.dp, vertical = 16.dp)
     ) {
         Text(
-            modifier = Modifier
-                .padding(4.dp)
-                .semantics { heading() },
+            modifier = Modifier.semantics { heading() },
             text = stringResource(R.string.your_platforms),
             style = MaterialTheme.typography.headlineMedium
         )
         Text(
-            modifier = Modifier.padding(4.dp),
+            modifier = Modifier.padding(top = 8.dp),
             text = stringResource(R.string.platform_select_description),
             style = MaterialTheme.typography.bodyLarge
         )
@@ -116,7 +129,7 @@ private fun EmptyPlatformState(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp),
+            .padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -181,12 +194,12 @@ private fun PlatformCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
-        shape = RoundedCornerShape(16.dp)
+        shape = MaterialTheme.shapes.medium
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Check icon
@@ -222,7 +235,7 @@ private fun PlatformCard(
             IconButton(onClick = onDelete) {
                 Icon(
                     imageVector = Icons.Default.Delete,
-                    contentDescription = stringResource(R.string.delete),
+                    contentDescription = stringResource(R.string.delete_named_platform, platform.name),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -237,18 +250,17 @@ private fun AddPlatformCard(
     onClick: () -> Unit
 ) {
     Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
-        shape = RoundedCornerShape(16.dp)
+        shape = MaterialTheme.shapes.medium
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(20.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {

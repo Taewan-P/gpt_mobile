@@ -2,7 +2,6 @@ package dev.chungjungsoo.gptmobile.presentation.common
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -20,7 +19,6 @@ fun PrimaryLongButton(
 ) {
     Button(
         modifier = modifier
-            .padding(20.dp)
             .fillMaxWidth()
             .height(56.dp),
         onClick = onClick,

@@ -36,7 +36,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
+import dev.chungjungsoo.gptmobile.data.localruntime.AcceleratorOption
+import dev.chungjungsoo.gptmobile.data.localruntime.AcceleratorUnavailableReason
+import dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators
 import dev.chungjungsoo.gptmobile.data.model.GeminiSafetySettings
+import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
+import dev.chungjungsoo.gptmobile.presentation.ui.setup.DownloadedLocalModelOption
+import dev.chungjungsoo.gptmobile.presentation.ui.setup.LocalModelPicker
 import dev.chungjungsoo.gptmobile.util.isValidUrl
 import kotlin.math.roundToInt
 
@@ -101,6 +107,75 @@ fun ModelDialog(
         ) { m ->
             settingViewModel.updateApiModel(m)
         }
+    }
+}
+
+@Composable
+fun LocalModelDialog(
+    dialogState: PlatformSettingViewModel.DialogState,
+    selectedCatalogEntryId: String,
+    models: List<DownloadedLocalModelOption>,
+    onNavigateToLocalModels: () -> Unit,
+    settingViewModel: PlatformSettingViewModel
+) {
+    if (dialogState.isApiModelDialogOpen) {
+        LocalModelDialog(
+            selectedCatalogEntryId = selectedCatalogEntryId,
+            models = models,
+            onDismissRequest = settingViewModel::closeApiModelDialog,
+            onModelSelected = settingViewModel::updateApiModel,
+            onNavigateToLocalModels = onNavigateToLocalModels
+        )
+    }
+}
+
+@Composable
+fun TopKDialog(
+    dialogState: PlatformSettingViewModel.DialogState,
+    topK: Int?,
+    settingViewModel: PlatformSettingViewModel
+) {
+    if (dialogState.isTopKDialogOpen) {
+        TopKDialog(
+            topK = topK,
+            onDismissRequest = settingViewModel::closeTopKDialog
+        ) { value ->
+            settingViewModel.updateTopK(value)
+        }
+    }
+}
+
+@Composable
+fun MaxTokensDialog(
+    dialogState: PlatformSettingViewModel.DialogState,
+    maxTokens: Int?,
+    settingViewModel: PlatformSettingViewModel
+) {
+    if (dialogState.isMaxTokensDialogOpen) {
+        MaxTokensDialog(
+            maxTokens = maxTokens,
+            maxTokensCap = settingViewModel.maxTokensCap(),
+            onDismissRequest = settingViewModel::closeMaxTokensDialog
+        ) { value ->
+            settingViewModel.updateMaxTokens(value)
+        }
+    }
+}
+
+@Composable
+fun AcceleratorDialog(
+    dialogState: PlatformSettingViewModel.DialogState,
+    accelerator: String?,
+    options: List<AcceleratorOption>,
+    settingViewModel: PlatformSettingViewModel
+) {
+    if (dialogState.isAcceleratorDialogOpen) {
+        AcceleratorDialog(
+            accelerator = accelerator,
+            options = options,
+            onDismissRequest = settingViewModel::closeAcceleratorDialog,
+            onConfirmRequest = settingViewModel::updateAccelerator
+        )
     }
 }
 
@@ -437,6 +512,244 @@ private fun ModelDialog(
             }
         }
     )
+}
+
+@Composable
+private fun LocalModelDialog(
+    selectedCatalogEntryId: String,
+    models: List<DownloadedLocalModelOption>,
+    onDismissRequest: () -> Unit,
+    onModelSelected: (String) -> Unit,
+    onNavigateToLocalModels: () -> Unit
+) {
+    val configuration = LocalWindowInfo.current
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
+    val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
+
+    AlertDialog(
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier
+            .widthIn(max = screenWidth - 40.dp)
+            .heightIn(max = screenHeight - 80.dp),
+        title = { Text(text = stringResource(R.string.api_model)) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                LocalModelPicker(
+                    models = models,
+                    selectedCatalogEntryId = selectedCatalogEntryId,
+                    onModelSelected = onModelSelected,
+                    onNavigateToLocalModels = onNavigateToLocalModels
+                )
+            }
+        },
+        onDismissRequest = onDismissRequest,
+        confirmButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text(stringResource(R.string.close))
+            }
+        }
+    )
+}
+
+@Composable
+private fun TopKDialog(
+    topK: Int?,
+    onDismissRequest: () -> Unit,
+    onConfirmRequest: (topK: Int?) -> Unit
+) {
+    val configuration = LocalWindowInfo.current
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
+    val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
+    var textFieldTopK by remember { mutableStateOf(topK?.toString() ?: "") }
+    val parsedTopK = textFieldTopK.toIntOrNull()
+    val isUnset = textFieldTopK.isBlank()
+    val isValid = isUnset || (parsedTopK != null && parsedTopK in PlatformSettingViewModel.MIN_TOP_K..PlatformSettingViewModel.MAX_TOP_K)
+
+    AlertDialog(
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier
+            .widthIn(max = screenWidth - 40.dp)
+            .heightIn(max = screenHeight - 80.dp),
+        title = { Text(text = stringResource(R.string.top_k_setting)) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text(stringResource(R.string.top_k_setting_description))
+                OutlinedTextField(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 16.dp),
+                    value = textFieldTopK,
+                    onValueChange = { textFieldTopK = it },
+                    label = { Text(stringResource(R.string.top_k)) },
+                    singleLine = true,
+                    isError = !isValid,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Done
+                    ),
+                    placeholder = { Text(stringResource(R.string.not_set)) },
+                    supportingText = {
+                        if (!isValid) {
+                            Text(stringResource(R.string.top_k_invalid))
+                        }
+                    }
+                )
+            }
+        },
+        onDismissRequest = onDismissRequest,
+        confirmButton = {
+            TextButton(
+                enabled = isValid,
+                onClick = { onConfirmRequest(if (isUnset) null else parsedTopK) }
+            ) {
+                Text(stringResource(R.string.confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
+@Composable
+private fun MaxTokensDialog(
+    maxTokens: Int?,
+    maxTokensCap: Int = PlatformSettingViewModel.DEFAULT_MAX_TOKENS_CAP,
+    onDismissRequest: () -> Unit,
+    onConfirmRequest: (maxTokens: Int?) -> Unit
+) {
+    val configuration = LocalWindowInfo.current
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
+    val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
+    var textFieldMaxTokens by remember { mutableStateOf(maxTokens?.toString() ?: "") }
+    val parsedMaxTokens = textFieldMaxTokens.toIntOrNull()
+    val isUnset = textFieldMaxTokens.isBlank()
+    val isValid = isUnset ||
+        (
+            parsedMaxTokens != null &&
+                parsedMaxTokens in PlatformSettingViewModel.MIN_MAX_TOKENS..maxTokensCap
+            )
+
+    AlertDialog(
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier
+            .widthIn(max = screenWidth - 40.dp)
+            .heightIn(max = screenHeight - 80.dp),
+        title = { Text(text = stringResource(R.string.max_tokens_setting)) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text(stringResource(R.string.max_tokens_setting_description))
+                OutlinedTextField(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 16.dp),
+                    value = textFieldMaxTokens,
+                    onValueChange = { textFieldMaxTokens = it },
+                    label = { Text(stringResource(R.string.max_tokens)) },
+                    singleLine = true,
+                    isError = !isValid,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Done
+                    ),
+                    placeholder = { Text(stringResource(R.string.not_set)) },
+                    supportingText = {
+                        if (!isValid) {
+                            Text(
+                                stringResource(
+                                    R.string.max_tokens_invalid,
+                                    maxTokensCap
+                                )
+                            )
+                        }
+                    }
+                )
+            }
+        },
+        onDismissRequest = onDismissRequest,
+        confirmButton = {
+            TextButton(
+                enabled = isValid,
+                onClick = { onConfirmRequest(if (isUnset) null else parsedMaxTokens) }
+            ) {
+                Text(stringResource(R.string.confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
+@Composable
+private fun AcceleratorDialog(
+    accelerator: String?,
+    options: List<AcceleratorOption>,
+    onDismissRequest: () -> Unit,
+    onConfirmRequest: (String) -> Unit
+) {
+    val configuration = LocalWindowInfo.current
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
+    val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
+
+    AlertDialog(
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier
+            .widthIn(max = screenWidth - 40.dp)
+            .heightIn(max = screenHeight - 80.dp),
+        title = { Text(text = stringResource(R.string.accelerator_setting)) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text(stringResource(R.string.accelerator_setting_description))
+                options.forEach { option ->
+                    RadioItem(
+                        title = acceleratorTitle(option.accelerator),
+                        description = acceleratorUnavailableReason(option),
+                        value = option.accelerator,
+                        selected = LocalAccelerators.normalize(accelerator) == option.accelerator,
+                        enabled = option.enabled
+                    ) {
+                        if (option.enabled) {
+                            onConfirmRequest(option.accelerator)
+                        }
+                    }
+                }
+            }
+        },
+        onDismissRequest = onDismissRequest,
+        confirmButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text(stringResource(R.string.close))
+            }
+        }
+    )
+}
+
+@Composable
+private fun acceleratorTitle(accelerator: String): String = when (accelerator) {
+    LocalAccelerators.GPU -> stringResource(R.string.accelerator_gpu)
+    LocalAccelerators.NPU -> stringResource(R.string.accelerator_npu)
+    else -> stringResource(R.string.accelerator_cpu)
+}
+
+@Composable
+private fun acceleratorUnavailableReason(option: AcceleratorOption): String? {
+    if (option.enabled) return null
+    return when (option.unavailableReason) {
+        AcceleratorUnavailableReason.DEVICE_NOT_SUPPORTED -> stringResource(R.string.accelerator_unavailable_device_npu)
+
+        AcceleratorUnavailableReason.MODEL_HAS_NO_BUILD -> when (option.accelerator) {
+            LocalAccelerators.GPU -> stringResource(R.string.accelerator_unavailable_model_no_gpu_build)
+            LocalAccelerators.NPU -> stringResource(R.string.accelerator_unavailable_model_no_npu_build)
+            else -> stringResource(R.string.accelerator_unavailable_model_no_cpu_build)
+        }
+
+        null -> null
+    }
 }
 
 @Composable

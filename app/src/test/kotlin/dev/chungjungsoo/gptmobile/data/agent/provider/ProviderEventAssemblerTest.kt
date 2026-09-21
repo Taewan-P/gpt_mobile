@@ -3,7 +3,9 @@ package dev.chungjungsoo.gptmobile.data.agent.provider
 import dev.chungjungsoo.gptmobile.data.agent.ProviderEvent
 import dev.chungjungsoo.gptmobile.data.dto.anthropic.response.MessageResponseChunk
 import dev.chungjungsoo.gptmobile.data.dto.google.response.GenerateContentResponse
+import dev.chungjungsoo.gptmobile.data.dto.groq.response.GroqUsage
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ChatCompletionChunk
+import dev.chungjungsoo.gptmobile.data.dto.openai.response.ChatCompletionUsage
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponsesStreamEvent
 import dev.chungjungsoo.gptmobile.data.network.NetworkClient
 import kotlinx.serialization.json.buildJsonObject
@@ -118,5 +120,94 @@ class ProviderEventAssemblerTest {
         assertTrue(event.callId.isNotBlank())
         assertEquals("read_url", event.name)
         assertEquals(buildJsonObject { put("url", "https://example.com") }, event.arguments)
+    }
+
+    @Test
+    fun `responses assembler emits usage before completed and ignores cached subset`() {
+        val assembler = OpenAIResponsesEventAssembler()
+        val fixture = """{"type":"response.completed","response":{"id":"resp_1","status":"completed","usage":{"input_tokens":12,"output_tokens":4,"input_tokens_details":{"cached_tokens":5}}}}"""
+
+        assertEquals(
+            listOf(ProviderEvent.Usage(12, 4), ProviderEvent.Completed),
+            assembler.accept(NetworkClient.openAIJson.decodeFromString<ResponsesStreamEvent>(fixture))
+        )
+    }
+
+    @Test
+    fun `responses assembler does not fabricate usage`() {
+        val assembler = OpenAIResponsesEventAssembler()
+        val fixture = """{"type":"response.completed","response":{"id":"resp_1","status":"completed"}}"""
+
+        assertEquals(
+            listOf(ProviderEvent.Completed),
+            assembler.accept(NetworkClient.openAIJson.decodeFromString<ResponsesStreamEvent>(fixture))
+        )
+    }
+
+    @Test
+    fun `anthropic assembler adds cache tokens and emits usage before completed`() {
+        val assembler = AnthropicEventAssembler()
+        val events = listOf(
+            """{"type":"message_start","message":{"id":"msg_1","role":"assistant","content":[],"model":"claude","usage":{"input_tokens":10,"cache_creation_input_tokens":4,"cache_read_input_tokens":20,"output_tokens":1}}}""",
+            """{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":7}}""",
+            """{"type":"message_stop"}"""
+        ).flatMap { fixture ->
+            assembler.accept(NetworkClient.json.decodeFromString<MessageResponseChunk>(fixture))
+        }
+
+        assertEquals(listOf(ProviderEvent.Usage(34, 7), ProviderEvent.Completed), events)
+    }
+
+    @Test
+    fun `anthropic assembler does not fabricate usage without provider counts`() {
+        val assembler = AnthropicEventAssembler()
+
+        assertEquals(
+            listOf(ProviderEvent.Completed),
+            assembler.accept(NetworkClient.json.decodeFromString<MessageResponseChunk>("""{"type":"message_stop"}"""))
+        )
+    }
+
+    @Test
+    fun `gemini mapper reads usageMetadata without adding cached subset`() {
+        val response = NetworkClient.json.decodeFromString<GenerateContentResponse>(
+            """{"candidates":[{"index":0,"content":{"role":"model","parts":[{"text":"hi"}]}}],"usageMetadata":{"promptTokenCount":11,"cachedContentTokenCount":4,"candidatesTokenCount":2,"thoughtsTokenCount":3}}"""
+        )
+
+        assertEquals(listOf(ProviderEvent.TextDelta("hi")), GeminiEventMapper.accept(response))
+        assertEquals(ProviderEvent.Usage(11, 5), GeminiEventMapper.usage(response))
+    }
+
+    @Test
+    fun `gemini mapper does not fabricate usage`() {
+        val response = NetworkClient.json.decodeFromString<GenerateContentResponse>(
+            """{"candidates":[{"index":0,"content":{"role":"model","parts":[{"text":"hi"}]}}]}"""
+        )
+
+        assertEquals(null, GeminiEventMapper.usage(response))
+    }
+
+    @Test
+    fun `chat completion usage ignores cached subset and requires both counts`() {
+        assertEquals(
+            ProviderEvent.Usage(9, 2),
+            ChatCompletionUsage(promptTokens = 9, completionTokens = 2).toProviderUsage()
+        )
+        assertEquals(null, ChatCompletionUsage(promptTokens = 9).toProviderUsage())
+    }
+
+    @Test
+    fun `groq usage adds cache input tokens when the contract supplies them`() {
+        assertEquals(
+            ProviderEvent.Usage(14, 3),
+            GroqUsage(
+                promptTokens = 8,
+                completionTokens = 3,
+                cachedTokens = 2,
+                cacheCreationInputTokens = 1,
+                cacheReadInputTokens = 5
+            ).toProviderUsage()
+        )
+        assertEquals(null, GroqUsage(promptTokens = 8).toProviderUsage())
     }
 }

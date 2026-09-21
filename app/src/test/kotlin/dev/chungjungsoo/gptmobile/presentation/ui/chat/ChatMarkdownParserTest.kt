@@ -167,4 +167,12 @@ class ChatMarkdownParserTest {
     fun containsInlineMathPlaceholder_withoutToken_returnsFalse() {
         assertFalse(containsInlineMathPlaceholder("plain markdown"))
     }
+
+    @Test
+    fun parseChatMarkdown_plainProse_skipsMathExtraction() {
+        val parsed = parseChatMarkdown("Hello world without math")
+
+        assertEquals(listOf(ChatMarkdownBlock.Markdown("Hello world without math")), parsed.blocks)
+        assertTrue(parsed.inlineMath.isEmpty())
+    }
 }

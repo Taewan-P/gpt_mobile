@@ -1,5 +1,7 @@
 package dev.chungjungsoo.gptmobile.data.repository
 
+import dev.chungjungsoo.gptmobile.data.context.CompactionResult
+import dev.chungjungsoo.gptmobile.data.context.ModelContextSettings
 import dev.chungjungsoo.gptmobile.data.database.entity.AgentRun
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoom
 import dev.chungjungsoo.gptmobile.data.database.entity.ChatRoomV2
@@ -47,4 +49,8 @@ interface ChatRepository {
     suspend fun duplicateChatV2(chatRoom: ChatRoomV2): ChatRoomV2
     suspend fun deleteChats(chatRooms: List<ChatRoom>)
     suspend fun deleteChatsV2(chatRooms: List<ChatRoomV2>)
+    suspend fun getModelContextSettings(platform: PlatformV2): ModelContextSettings
+    suspend fun saveModelContextSettings(platform: PlatformV2, contextWindowTokens: Int?, resumableReplies: Boolean)
+    suspend fun compactNow(chatId: Int, platform: PlatformV2): CompactionResult
+    suspend fun validateDraftCapacity(platform: PlatformV2, message: MessageV2): CompactionResult?
 }

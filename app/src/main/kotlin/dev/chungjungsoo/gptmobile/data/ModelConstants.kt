@@ -53,6 +53,7 @@ object ModelConstants {
         ClientType.OLLAMA -> "Ollama"
         ClientType.OPENROUTER -> "OpenRouter"
         ClientType.CUSTOM -> ""
+        ClientType.LITERT_LM -> "Local"
     }
 
     fun defaultApiUrl(clientType: ClientType): String = when (clientType) {
@@ -63,6 +64,7 @@ object ModelConstants {
         ClientType.OLLAMA -> OLLAMA_API_URL
         ClientType.OPENROUTER -> OPENROUTER_API_URL
         ClientType.CUSTOM -> ""
+        ClientType.LITERT_LM -> ""
     }
 
     fun defaultModel(clientType: ClientType): String = when (clientType) {
@@ -73,6 +75,7 @@ object ModelConstants {
         ClientType.OLLAMA -> OLLAMA_DEFAULT_MODEL
         ClientType.OPENROUTER -> OPENROUTER_DEFAULT_MODEL
         ClientType.CUSTOM -> ""
+        ClientType.LITERT_LM -> ""
     }
 
     const val ANTHROPIC_MAXIMUM_TOKEN = 4096

@@ -6,6 +6,7 @@ import dev.chungjungsoo.gptmobile.data.agent.tool.McpOAuthClient
 import dev.chungjungsoo.gptmobile.data.agent.tool.McpOAuthClientTest
 import dev.chungjungsoo.gptmobile.data.agent.tool.McpOAuthCoordinator
 import dev.chungjungsoo.gptmobile.data.agent.tool.McpOAuthCredential
+import dev.chungjungsoo.gptmobile.data.database.dao.ToolConnectionDao
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolConnection
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolConnectionAuthType
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolConnectionType
@@ -16,6 +17,7 @@ import java.net.URI
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import java.util.Locale
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -45,6 +47,153 @@ class ToolConnectionsViewModelTest {
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+    }
+
+    @Test
+    fun `initial refresh clears loading and failed refresh can retry`() = runTest {
+        val delegate = FakeToolConnectionDao()
+        val dao = ControllableToolConnectionDao(delegate, listFailure = IllegalStateException("Refresh failed"))
+        val vault = FakeSecretVault()
+        val networkClient = NetworkClient(CIO)
+        val manager = McpClientManager(networkClient())
+        val repository = ToolConnectionRepository(dao, vault)
+        val coordinator = McpOAuthCoordinator(McpOAuthClient(networkClient()), repository, vault, manager)
+        val viewModel = ToolConnectionsViewModel(dao, vault, coordinator, manager)
+
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertEquals("Refresh failed", viewModel.uiState.value.errorMessage)
+
+        delegate.upsertConnection(testMcpConnection("mcp-1"))
+        dao.listFailure = null
+        viewModel.refresh()
+
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertNull(viewModel.uiState.value.errorMessage)
+        assertEquals(listOf("mcp-1"), viewModel.uiState.value.connections.map { it.connectionUid })
+        manager.closeAll()
+        networkClient().close()
+    }
+
+    @Test
+    fun `save busy state clears and callback waits for persistence`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        val dao = ControllableToolConnectionDao(FakeToolConnectionDao(), upsertGate = gate)
+        val vault = FakeSecretVault()
+        val networkClient = NetworkClient(CIO)
+        val manager = McpClientManager(networkClient())
+        val repository = ToolConnectionRepository(dao, vault)
+        val coordinator = McpOAuthCoordinator(McpOAuthClient(networkClient()), repository, vault, manager)
+        val viewModel = ToolConnectionsViewModel(dao, vault, coordinator, manager)
+        var completed = false
+
+        viewModel.saveConnection(
+            existing = null,
+            provider = ToolConnectionsViewModel.providers.first { it.type == ToolConnectionType.FIRECRAWL },
+            name = "Search",
+            alias = "search",
+            endpointUrl = "",
+            authType = ToolConnectionAuthType.BEARER,
+            credential = "key",
+            oauthClientId = "",
+            allowCleartext = false,
+            clearCredential = false,
+            onSuccess = { completed = true }
+        )
+
+        assertTrue(viewModel.uiState.value.isSaving)
+        assertFalse(completed)
+
+        gate.complete(Unit)
+
+        assertFalse(viewModel.uiState.value.isSaving)
+        assertTrue(completed)
+        manager.closeAll()
+        networkClient().close()
+    }
+
+    @Test
+    fun `save stays busy through close and rejects a second new save`() = runTest {
+        val dao = FakeToolConnectionDao()
+        val vault = FakeSecretVault()
+        val networkClient = NetworkClient(CIO)
+        val manager = McpClientManager(networkClient())
+        val repository = ToolConnectionRepository(dao, vault)
+        val coordinator = McpOAuthCoordinator(McpOAuthClient(networkClient()), repository, vault, manager)
+        val viewModel = ToolConnectionsViewModel(dao, vault, coordinator, manager)
+        val provider = ToolConnectionsViewModel.providers.first { it.type == ToolConnectionType.FIRECRAWL }
+        var firstCompleted = false
+        var secondCompleted = false
+
+        viewModel.saveConnection(
+            existing = null,
+            provider = provider,
+            name = "Search",
+            alias = "search",
+            endpointUrl = "",
+            authType = ToolConnectionAuthType.BEARER,
+            credential = "key",
+            oauthClientId = "",
+            allowCleartext = false,
+            clearCredential = false,
+            onSuccess = {
+                firstCompleted = true
+                viewModel.saveConnection(
+                    existing = null,
+                    provider = provider,
+                    name = "Search Two",
+                    alias = "search_two",
+                    endpointUrl = "",
+                    authType = ToolConnectionAuthType.BEARER,
+                    credential = "key-two",
+                    oauthClientId = "",
+                    allowCleartext = false,
+                    clearCredential = false,
+                    onSuccess = { secondCompleted = true }
+                )
+            }
+        )
+
+        assertTrue(firstCompleted)
+        assertFalse(secondCompleted)
+        assertFalse(viewModel.uiState.value.isSaving)
+        assertEquals(1, dao.listConnections().size)
+        manager.closeAll()
+        networkClient().close()
+    }
+
+    @Test
+    fun `save failure clears busy state and does not invoke callback`() = runTest {
+        val dao = ControllableToolConnectionDao(
+            FakeToolConnectionDao(),
+            upsertFailure = IllegalStateException("Save failed")
+        )
+        val vault = FakeSecretVault()
+        val networkClient = NetworkClient(CIO)
+        val manager = McpClientManager(networkClient())
+        val repository = ToolConnectionRepository(dao, vault)
+        val coordinator = McpOAuthCoordinator(McpOAuthClient(networkClient()), repository, vault, manager)
+        val viewModel = ToolConnectionsViewModel(dao, vault, coordinator, manager)
+        var completed = false
+
+        viewModel.saveConnection(
+            existing = null,
+            provider = ToolConnectionsViewModel.providers.first { it.type == ToolConnectionType.FIRECRAWL },
+            name = "Search",
+            alias = "search",
+            endpointUrl = "",
+            authType = ToolConnectionAuthType.BEARER,
+            credential = "key",
+            oauthClientId = "",
+            allowCleartext = false,
+            clearCredential = false,
+            onSuccess = { completed = true }
+        )
+
+        assertFalse(viewModel.uiState.value.isSaving)
+        assertFalse(completed)
+        assertEquals("Save failed", viewModel.uiState.value.errorMessage)
+        manager.closeAll()
+        networkClient().close()
     }
 
     @Test
@@ -270,21 +419,67 @@ class ToolConnectionsViewModelTest {
     }
 
     @Test
-    fun `browser launch failure surfaces OAuth error`() = runTest {
-        val dao = FakeToolConnectionDao()
-        val vault = FakeSecretVault()
-        val networkClient = NetworkClient(CIO)
-        val manager = McpClientManager(networkClient())
-        val repository = ToolConnectionRepository(dao, vault)
-        val coordinator = McpOAuthCoordinator(McpOAuthClient(networkClient()), repository, vault, manager)
-        val viewModel = ToolConnectionsViewModel(dao, vault, coordinator, manager)
+    fun `OAuth busy and browser failure stay with initiating row`() = runBlocking {
+        McpOAuthClientTest.OAuthFixtureServer().use { server ->
+            val dao = FakeToolConnectionDao(
+                connections = mutableMapOf(
+                    "mcp-1" to testMcpConnection("mcp-1", server.mcpUrl),
+                    "mcp-2" to testMcpConnection("mcp-2", server.mcpUrl)
+                )
+            )
+            val vault = FakeSecretVault()
+            val networkClient = NetworkClient(CIO)
+            val manager = McpClientManager(networkClient())
+            val repository = ToolConnectionRepository(dao, vault)
+            val coordinator = McpOAuthCoordinator(McpOAuthClient(networkClient()), repository, vault, manager)
+            val viewModel = ToolConnectionsViewModel(dao, vault, coordinator, manager)
+            val launch = async(start = CoroutineStart.UNDISPATCHED) { viewModel.oauthLaunches.first() }
+            val busy = async(start = CoroutineStart.UNDISPATCHED) {
+                viewModel.uiState.first { it.busyConnectionUid != null }
+            }
 
-        viewModel.failOAuthLaunch()
+            viewModel.startOAuth("mcp-1")
 
-        assertFalse(viewModel.uiState.value.isOAuthBusy)
-        assertTrue(viewModel.uiState.value.errorMessage!!.contains("browser"))
-        manager.closeAll()
-        networkClient().close()
+            assertEquals("mcp-1", busy.await().busyConnectionUid)
+            assertFalse(busy.await().busyConnectionUid == "mcp-2")
+            launch.await()
+            viewModel.failOAuthLaunch()
+
+            assertNull(viewModel.uiState.value.busyConnectionUid)
+            assertEquals("mcp-1", viewModel.uiState.value.rowErrorConnectionUid)
+            assertTrue(viewModel.uiState.value.rowErrorMessage!!.contains("browser"))
+            viewModel.clearRowError("mcp-2")
+            assertEquals("mcp-1", viewModel.uiState.value.rowErrorConnectionUid)
+            viewModel.clearRowError("mcp-1")
+            assertNull(viewModel.uiState.value.rowErrorConnectionUid)
+            manager.closeAll()
+            networkClient().close()
+        }
+    }
+
+    @Test
+    fun `OAuth callback cancellation stays with initiating row`() = runBlocking {
+        McpOAuthClientTest.OAuthFixtureServer().use { server ->
+            val dao = FakeToolConnectionDao(
+                connections = mutableMapOf("mcp-1" to testMcpConnection("mcp-1", server.mcpUrl))
+            )
+            val vault = FakeSecretVault()
+            val networkClient = NetworkClient(CIO)
+            val manager = McpClientManager(networkClient())
+            val repository = ToolConnectionRepository(dao, vault)
+            val coordinator = McpOAuthCoordinator(McpOAuthClient(networkClient()), repository, vault, manager)
+            val viewModel = ToolConnectionsViewModel(dao, vault, coordinator, manager)
+            val launch = async(start = CoroutineStart.UNDISPATCHED) { viewModel.oauthLaunches.first() }
+
+            viewModel.startOAuth("mcp-1")
+            launch.await()
+            viewModel.completeOAuthCallback(null)
+
+            assertEquals("mcp-1", viewModel.uiState.value.rowErrorConnectionUid)
+            assertTrue(viewModel.uiState.value.rowErrorMessage!!.contains("canceled"))
+            manager.closeAll()
+            networkClient().close()
+        }
     }
 
     @Test
@@ -440,12 +635,14 @@ class ToolConnectionsViewModelTest {
             val state = URI(authorizationUri).rawQuery.formValues().getValue("state")
             val completion = async(start = CoroutineStart.UNDISPATCHED) {
                 viewModel.uiState.first { uiState ->
-                    !uiState.isOAuthBusy && uiState.connections.any { it.connectionUid == "connection-1" && it.secretRef != null }
+                    uiState.busyConnectionUid == null &&
+                        uiState.connections.any { it.connectionUid == "connection-1" && it.secretRef != null }
                 }
             }
             viewModel.completeOAuthCallback(
                 "$MCP_OAUTH_SCHEME://oauth/mcp/connection-1?code=auth-code&state=$state"
             )
+            viewModel.cancelPendingOAuth()
             completion.await()
 
             val saved = dao.getConnection("connection-1")!!
@@ -458,6 +655,8 @@ class ToolConnectionsViewModelTest {
             assertEquals("fixture-client", saved.oauthClientId)
             assertEquals("access-1", credential.accessToken)
             assertNull(viewModel.uiState.value.errorMessage)
+            assertNull(viewModel.uiState.value.rowErrorConnectionUid)
+            assertNull(viewModel.uiState.value.rowErrorMessage)
             assertTrue(viewModel.uiState.value.connections.any { it.connectionUid == "connection-1" && it.secretRef != null })
             manager.closeAll()
             networkClient().close()
@@ -492,14 +691,92 @@ class ToolConnectionsViewModelTest {
             viewModel.startOAuth("connection-1")
             viewModel.startOAuth("connection-1")
             launch.await()
-            viewModel.uiState.first { !it.isOAuthBusy }
+            viewModel.uiState.first { it.busyConnectionUid == null }
 
             assertEquals(1, server.protectedResourceRequests.get())
             manager.closeAll()
             networkClient().close()
         }
     }
+
+    @Test
+    fun `OAuth cancel reset permits a second launch`() = runBlocking {
+        McpOAuthClientTest.OAuthFixtureServer().use { server ->
+            val dao = FakeToolConnectionDao()
+            val vault = FakeSecretVault()
+            val repository = ToolConnectionRepository(dao, vault)
+            val networkClient = NetworkClient(CIO)
+            val manager = McpClientManager(networkClient())
+            val coordinator = McpOAuthCoordinator(McpOAuthClient(networkClient()), repository, vault, manager)
+            dao.upsertConnection(
+                ToolConnection(
+                    connectionUid = "connection-1",
+                    name = "OAuth MCP",
+                    alias = "oauth_mcp",
+                    type = ToolConnectionType.MCP,
+                    endpointUrl = server.mcpUrl,
+                    authType = ToolConnectionAuthType.OAUTH,
+                    secretRef = null,
+                    oauthClientId = null,
+                    allowCleartext = true
+                )
+            )
+            val viewModel = ToolConnectionsViewModel(dao, vault, coordinator, manager)
+            val firstLaunch = async(start = CoroutineStart.UNDISPATCHED) { viewModel.oauthLaunches.first() }
+
+            viewModel.startOAuth("connection-1")
+            firstLaunch.await()
+            viewModel.uiState.first { it.busyConnectionUid == null }
+            viewModel.cancelPendingOAuth()
+
+            assertEquals("connection-1", viewModel.uiState.value.rowErrorConnectionUid)
+            assertTrue(viewModel.uiState.value.rowErrorMessage!!.contains("canceled"))
+
+            viewModel.clearRowError("connection-1")
+            val secondLaunch = async(start = CoroutineStart.UNDISPATCHED) { viewModel.oauthLaunches.first() }
+            viewModel.startOAuth("connection-1")
+            secondLaunch.await()
+            viewModel.uiState.first { it.busyConnectionUid == null }
+
+            assertEquals(2, server.protectedResourceRequests.get())
+            manager.closeAll()
+            networkClient().close()
+        }
+    }
 }
+
+private class ControllableToolConnectionDao(
+    private val delegate: FakeToolConnectionDao,
+    var listFailure: Throwable? = null,
+    private val upsertGate: CompletableDeferred<Unit>? = null,
+    private val upsertFailure: Throwable? = null
+) : ToolConnectionDao by delegate {
+    override suspend fun listConnections(): List<ToolConnection> {
+        listFailure?.let { throw it }
+        return delegate.listConnections()
+    }
+
+    override suspend fun upsertConnection(connection: ToolConnection) {
+        upsertGate?.await()
+        upsertFailure?.let { throw it }
+        delegate.upsertConnection(connection)
+    }
+}
+
+private fun testMcpConnection(
+    connectionUid: String,
+    endpointUrl: String = "https://example.com/mcp"
+) = ToolConnection(
+    connectionUid = connectionUid,
+    name = connectionUid,
+    alias = connectionUid.replace('-', '_'),
+    type = ToolConnectionType.MCP,
+    endpointUrl = endpointUrl,
+    authType = ToolConnectionAuthType.OAUTH,
+    secretRef = null,
+    oauthClientId = null,
+    allowCleartext = endpointUrl.startsWith("http://")
+)
 
 private fun String.formValues(): Map<String, String> = split('&')
     .filter(String::isNotBlank)

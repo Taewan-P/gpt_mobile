@@ -3,6 +3,8 @@ package dev.chungjungsoo.gptmobile.presentation.ui.chat
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -21,11 +23,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,6 +48,8 @@ import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEventError
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEventStatus
+import dev.chungjungsoo.gptmobile.presentation.theme.defaultSpatialSpec
+import dev.chungjungsoo.gptmobile.presentation.theme.fastEffectsSpec
 import java.time.Instant
 import java.util.Locale
 
@@ -53,15 +59,17 @@ private const val TOOL_TRACE_TEXT_LIMIT = 1024
 fun ToolTraceBlock(
     events: List<ToolEvent>,
     modifier: Modifier = Modifier,
-    contentIdentity: Any = events
+    contentIdentity: Any = events,
+    onViewFull: (String) -> Unit = {}
 ) {
     if (events.isEmpty()) return
 
     val labels = toolTraceLabels()
-    var isExpanded by remember(contentIdentity) { mutableStateOf(false) }
-    var query by remember(contentIdentity) { mutableStateOf("") }
+    var isExpanded by rememberSaveable(contentIdentity) { mutableStateOf(false) }
+    var query by rememberSaveable(contentIdentity) { mutableStateOf("") }
     val rotationAngle by animateFloatAsState(
         targetValue = if (isExpanded) 180f else 0f,
+        animationSpec = fastEffectsSpec(),
         label = "tool trace rotation"
     )
     val summary = toolTraceStatusSummary(events, labels)
@@ -95,7 +103,7 @@ fun ToolTraceBlock(
             )
             Icon(
                 imageVector = Icons.Rounded.KeyboardArrowDown,
-                contentDescription = if (isExpanded) labels.collapse else labels.expand,
+                contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.rotate(rotationAngle)
             )
@@ -103,8 +111,10 @@ fun ToolTraceBlock(
 
         AnimatedVisibility(
             visible = isExpanded,
-            enter = expandVertically(),
-            exit = shrinkVertically()
+            enter = expandVertically(animationSpec = defaultSpatialSpec()) +
+                fadeIn(animationSpec = fastEffectsSpec()),
+            exit = shrinkVertically(animationSpec = defaultSpatialSpec()) +
+                fadeOut(animationSpec = fastEffectsSpec())
         ) {
             key(contentIdentity) {
                 Column(
@@ -132,7 +142,7 @@ fun ToolTraceBlock(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     } else {
-                        filteredEvents.forEach { event -> ToolTraceEventCard(event, labels) }
+                        filteredEvents.forEach { event -> ToolTraceEventCard(event, labels, onViewFull) }
                     }
                 }
             }
@@ -167,7 +177,11 @@ private fun toolTraceLabels(): ToolTraceLabels = ToolTraceLabels(
 )
 
 @Composable
-private fun ToolTraceEventCard(event: ToolEvent, labels: ToolTraceLabels) {
+private fun ToolTraceEventCard(
+    event: ToolEvent,
+    labels: ToolTraceLabels,
+    onViewFull: (String) -> Unit
+) {
     val callDescription = stringResource(
         R.string.tool_trace_call_content_description,
         event.callId,
@@ -194,9 +208,18 @@ private fun ToolTraceEventCard(event: ToolEvent, labels: ToolTraceLabels) {
             ToolTraceLine(labels.callId, event.callId)
             connectionLabel(event)?.let { ToolTraceLine(labels.connection, it) }
             toolTimingLabel(event, labels)?.let { ToolTraceLine(labels.timing, it) }
-            event.error?.takeIf { it.isNotBlank() }?.let { ToolTraceLine(labels.error, toolEventErrorText(it)) }
-            ToolTraceBlockText(labels.arguments, event.arguments)
-            event.result?.takeIf { it.isNotBlank() }?.let { ToolTraceBlockText(labels.result, it) }
+            event.error?.takeIf { it.isNotBlank() }?.let {
+                ToolTraceBlockText(
+                    label = labels.error,
+                    value = toolEventErrorText(it),
+                    onViewFull = onViewFull,
+                    fullValue = it
+                )
+            }
+            ToolTraceBlockText(labels.arguments, event.arguments, onViewFull)
+            event.result?.takeIf { it.isNotBlank() }?.let {
+                ToolTraceBlockText(labels.result, it, onViewFull)
+            }
         }
     }
 }
@@ -213,7 +236,14 @@ private fun ToolTraceLine(label: String, value: String) {
 }
 
 @Composable
-private fun ToolTraceBlockText(label: String, value: String) {
+private fun ToolTraceBlockText(
+    label: String,
+    value: String,
+    onViewFull: (String) -> Unit,
+    fullValue: String = value
+) {
+    var hasVisualOverflow by remember(value) { mutableStateOf(false) }
+    val viewFullDescription = stringResource(R.string.view_full_value, label)
     Text(
         text = "$label:",
         style = MaterialTheme.typography.labelSmall,
@@ -225,8 +255,22 @@ private fun ToolTraceBlockText(label: String, value: String) {
         style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 6,
-        overflow = TextOverflow.Ellipsis
+        overflow = TextOverflow.Ellipsis,
+        onTextLayout = { hasVisualOverflow = it.hasVisualOverflow }
     )
+    if (toolTextRequiresViewFull(fullValue) || hasVisualOverflow) {
+        TextButton(
+            modifier = Modifier.semantics { contentDescription = viewFullDescription },
+            onClick = { onViewFull(fullValue) }
+        ) {
+            Text(stringResource(R.string.view_full))
+        }
+    }
+}
+
+internal fun toolTextRequiresViewFull(value: String): Boolean {
+    val normalized = normalizeToolText(value)
+    return normalized.length > TOOL_TRACE_TEXT_LIMIT || normalized.count { it == '\n' } >= 6
 }
 
 internal fun filterToolEvents(events: List<ToolEvent>, query: String): List<ToolEvent> {
@@ -340,7 +384,7 @@ private fun timingLabel(event: ToolEvent, labels: ToolTraceLabels): String? {
 @Composable
 private fun toolEventErrorText(error: String): String = when (error) {
     ToolEventError.INTERRUPTED_APP_STOPPED -> stringResource(R.string.tool_event_error_interrupted_app_stopped)
-    else -> boundedText(error)
+    else -> error
 }
 
 private fun connectionLabel(event: ToolEvent): String? {
@@ -355,10 +399,12 @@ private fun connectionLabel(event: ToolEvent): String? {
 }
 
 private fun boundedText(value: String): String {
-    val normalized = value.replace("\r\n", "\n").replace('\r', '\n')
+    val normalized = normalizeToolText(value)
     if (normalized.length <= TOOL_TRACE_TEXT_LIMIT) return normalized
     return normalized.take(TOOL_TRACE_TEXT_LIMIT) + "..."
 }
+
+private fun normalizeToolText(value: String): String = value.replace("\r\n", "\n").replace('\r', '\n')
 
 data class ToolTraceLabels(
     val expandToolTrace: String,

@@ -63,3 +63,17 @@ GPT Mobile is an Android chat application that supports chatting with multiple A
 - **Build System**: Gradle with Kotlin DSL
 - **Material You**: Dynamic theming support without activity restart
 - **Internationalization**: Multiple language support via string resources
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in this repo's GitHub Issues (`gh` CLI). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default role labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: root `CONTEXT.md` plus `docs/adr/`. See `docs/agents/domain.md`.

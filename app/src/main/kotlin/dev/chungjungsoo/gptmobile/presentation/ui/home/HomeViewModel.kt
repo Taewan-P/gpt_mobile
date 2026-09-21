@@ -10,12 +10,15 @@ import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
@@ -35,6 +38,8 @@ class HomeViewModel @Inject constructor(
 
     data class ChatListState(
         val chats: List<ChatRoomV2> = listOf(),
+        val isLoading: Boolean = true,
+        val loadError: String? = null,
         val isSelectionMode: Boolean = false,
         val isSearchMode: Boolean = false,
         val selectedPlatforms: List<Boolean> = listOf(),
@@ -58,10 +63,12 @@ class HomeViewModel @Inject constructor(
 
     private val _activeChatIds = MutableStateFlow<Set<Int>>(emptySet())
     val activeChatIds = _activeChatIds.asStateFlow()
+    private var fetchChatsJob: Job? = null
 
     init {
         // Set up debounced search
         _searchQuery
+            .drop(1)
             .debounce(SEARCH_DEBOUNCE_MS)
             .distinctUntilChanged()
             .onEach { query -> searchChats(query) }
@@ -97,7 +104,8 @@ class HomeViewModel @Inject constructor(
             _chatListState.update {
                 it.copy(
                     chats = chats,
-                    selectedChats = List(chats.size) { false }
+                    selectedChats = List(chats.size) { false },
+                    loadError = null
                 )
             }
         }
@@ -179,20 +187,35 @@ class HomeViewModel @Inject constructor(
     }
 
     fun fetchChats() {
-        viewModelScope.launch {
-            val chats = chatRepository.fetchChatListV2()
-
-            _chatListState.update {
-                it.copy(
-                    chats = chats,
-                    selectedChats = List(chats.size) { false },
-                    isSelectionMode = false
-                )
+        fetchChatsJob?.cancel()
+        _chatListState.update { it.copy(isLoading = it.chats.isEmpty(), loadError = null) }
+        fetchChatsJob = viewModelScope.launch {
+            try {
+                val chats = chatRepository.fetchChatListV2()
+                _chatListState.update {
+                    it.copy(
+                        chats = chats,
+                        isLoading = false,
+                        loadError = null,
+                        selectedChats = List(chats.size) { false },
+                        isSelectionMode = false
+                    )
+                }
+                Log.d("chats", "${_chatListState.value.chats}")
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (throwable: Throwable) {
+                _chatListState.update {
+                    it.copy(
+                        isLoading = false,
+                        loadError = throwable.message.orEmpty()
+                    )
+                }
             }
-
-            Log.d("chats", "${_chatListState.value.chats}")
         }
     }
+
+    fun retryFetchChats() = fetchChats()
 
     fun fetchPlatformStatus() {
         viewModelScope.launch {

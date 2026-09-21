@@ -1,6 +1,8 @@
 package dev.chungjungsoo.gptmobile.data.network
 
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatCompletionRequest
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.CompactResponsesRequest
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.CompactResponsesResult
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponsesRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ChatCompletionChunk
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponsesStreamEvent
@@ -27,4 +29,10 @@ interface OpenAIAPI {
     ): UploadedProviderFile
 
     suspend fun isFileAvailable(fileId: String, config: ProviderRequestConfig): Boolean
+
+    suspend fun compactResponses(
+        request: CompactResponsesRequest,
+        timeoutSeconds: Int,
+        config: ProviderRequestConfig
+    ): CompactResponsesResult
 }

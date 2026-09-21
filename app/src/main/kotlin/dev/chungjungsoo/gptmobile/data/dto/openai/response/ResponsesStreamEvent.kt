@@ -285,7 +285,34 @@ data class ResponseObject(
     val status: String? = null,
 
     @SerialName("error")
-    val error: ResponseError? = null
+    val error: ResponseError? = null,
+
+    @SerialName("usage")
+    val usage: ResponseUsage? = null
+)
+
+@Serializable
+data class ResponseUsage(
+    @SerialName("input_tokens")
+    val inputTokens: Int? = null,
+
+    @SerialName("output_tokens")
+    val outputTokens: Int? = null,
+
+    @SerialName("total_tokens")
+    val totalTokens: Int? = null,
+
+    @SerialName("input_tokens_details")
+    val inputTokensDetails: ResponseInputTokensDetails? = null
+)
+
+@Serializable
+data class ResponseInputTokensDetails(
+    @SerialName("cached_tokens")
+    val cachedTokens: Int? = null,
+
+    @SerialName("cache_write_tokens")
+    val cacheWriteTokens: Int? = null
 )
 
 @Serializable

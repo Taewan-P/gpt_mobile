@@ -47,7 +47,7 @@ interface AgentPersistenceDao {
     @Query("SELECT * FROM chats_v2 WHERE chat_id = :chatId")
     suspend fun getChatRoom(chatId: Int): ChatRoomV2?
 
-    @Query("SELECT * FROM messages_v2 WHERE chat_id = :chatId ORDER BY created_at, message_id")
+    @Query("SELECT * FROM messages_v2 WHERE chat_id = :chatId ORDER BY message_id")
     suspend fun getMessages(chatId: Int): List<MessageV2>
 
     @Query("SELECT * FROM chat_platform_model_v2 WHERE chat_id = :chatId")

@@ -101,6 +101,42 @@ class ApiStateFlowExtensionsTest {
     }
 
     @Test
+    fun `collectApiStateUpdates persists informational notices on the timeline`() = runBlocking {
+        data class Update(
+            val content: String,
+            val thoughts: String,
+            val timeline: List<AssistantTimelineItem>
+        )
+
+        val updates = mutableListOf<Update>()
+        val notices = mutableListOf<Pair<String, Boolean>>()
+
+        flowOf(
+            ApiState.Notice("Loading local model…", persistent = false),
+            ApiState.Notice("The local platform ignored attachments", persistent = true),
+            ApiState.Success("hello"),
+            ApiState.Done
+        ).collectApiStateUpdates(
+            onUpdate = { content, thoughts, timeline -> updates += Update(content, thoughts, timeline) },
+            onNotice = { message, persistent -> notices += message to persistent },
+            nanoTimeProvider = { 1L },
+            publishIntervalMillis = 0L
+        )
+
+        assertEquals(
+            listOf("Loading local model…" to false, "The local platform ignored attachments" to true),
+            notices
+        )
+        assertEquals(
+            listOf(
+                AssistantTimelineItem(AssistantTimelineItemType.NOTICE, content = "The local platform ignored attachments"),
+                AssistantTimelineItem(AssistantTimelineItemType.TEXT, content = "hello")
+            ),
+            updates.last().timeline
+        )
+    }
+
+    @Test
     fun `handleStates surfaces nonterminal agent notices`() = runBlocking {
         val notices = mutableListOf<String>()
         val messageFlow = MutableStateFlow(

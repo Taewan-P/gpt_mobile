@@ -35,6 +35,23 @@ import org.junit.Test
 class ChatViewModelRetryTest {
 
     @Test
+    fun `linked replies stay with the original question after a later completion timestamp`() {
+        val grouped = groupPersistedMessages(
+            messages = listOf(
+                MessageV2(id = 1, chatId = 7, content = "First question", platformType = null, createdAt = 10),
+                MessageV2(id = 3, chatId = 7, content = "Second question", platformType = null, createdAt = 20),
+                MessageV2(id = 4, chatId = 7, content = "Second answer", platformType = "profile", linkedMessageId = 3, createdAt = 21),
+                MessageV2(id = 5, chatId = 7, content = "Retried first answer", platformType = "profile", linkedMessageId = 1, createdAt = 30)
+            ),
+            enabledPlatformsInChat = listOf("profile"),
+            chatId = 7
+        )
+
+        assertEquals("Retried first answer", grouped.assistantMessages[0].single().content)
+        assertEquals("Second answer", grouped.assistantMessages[1].single().content)
+    }
+
+    @Test
     fun `loading state reattaches to queued and running profile runs`() {
         val latestRow = listOf(
             MessageV2(id = 10, chatId = 7, content = "", platformType = "profile-1", currentRunId = "run-1"),
@@ -68,6 +85,22 @@ class ChatViewModelRetryTest {
     }
 
     @Test
+    fun `reply loading indicator follows platform loading state`() {
+        assertFalse(
+            shouldShowReplyLoadingIndicator(
+                isActiveMessage = true,
+                loadingStates = listOf(ChatViewModel.LoadingState.Idle)
+            )
+        )
+        assertTrue(
+            shouldShowReplyLoadingIndicator(
+                isActiveMessage = true,
+                loadingStates = listOf(ChatViewModel.LoadingState.Loading)
+            )
+        )
+    }
+
+    @Test
     fun `persisted message observer rebuilds normalized comparison rows`() {
         val grouped = groupPersistedMessages(
             messages = listOf(
@@ -84,6 +117,26 @@ class ChatViewModelRetryTest {
         assertEquals(listOf("First", "Again"), grouped.userMessages.map { it.content })
         assertEquals(listOf("First profile", "Second profile"), grouped.assistantMessages[0].map { it.content })
         assertEquals(listOf("Latest", ""), grouped.assistantMessages[1].map { it.content })
+    }
+
+    @Test
+    fun `per-chat model override for a local platform is applied to the resolved platform`() {
+        val platform = PlatformV2(
+            uid = "local-1",
+            name = "Local",
+            compatibleType = ClientType.LITERT_LM,
+            enabled = true,
+            apiUrl = "",
+            model = "gemma3-1b-it"
+        )
+
+        val resolved = resolvePlatformModel(
+            platform = platform,
+            chatPlatformModels = mapOf("local-1" to "gemma-3n-e2b-it")
+        )
+
+        assertEquals("gemma-3n-e2b-it", resolved.model)
+        assertEquals(ClientType.LITERT_LM, resolved.compatibleType)
     }
 
     @Test

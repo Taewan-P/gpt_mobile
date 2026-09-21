@@ -32,5 +32,8 @@ data class ContentBlock(
     val input: JsonObject? = null,
 
     @SerialName("partial_json")
-    val partialJson: String? = null
+    val partialJson: String? = null,
+
+    @SerialName("content")
+    val content: String? = null
 )
