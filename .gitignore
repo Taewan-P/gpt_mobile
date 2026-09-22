@@ -32,3 +32,7 @@ app/build/**
 .idea/copilot.data.migration.agent.xml
 .idea/copilot.data.migration.edit.xml
 .idea/copilot.data.migration.ask2agent.xml
+
+# Fetched NPU native runtimes. See scripts/prepare_npu_runtime.py
+/third_party/npu/jni/
+/third_party/npu/cache/

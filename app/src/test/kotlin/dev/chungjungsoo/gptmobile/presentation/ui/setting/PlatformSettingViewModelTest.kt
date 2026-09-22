@@ -18,8 +18,10 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ToolConnectionAuthType
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolConnectionType
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.data.dto.ThemeSetting
+import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelReplacementCoordinator
 import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelStatus
 import dev.chungjungsoo.gptmobile.data.localruntime.AcceleratorUnavailableReason
+import dev.chungjungsoo.gptmobile.data.localruntime.FakeLocalRuntime
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.network.NetworkClient
@@ -31,6 +33,7 @@ import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import dev.chungjungsoo.gptmobile.data.repository.ToolConnectionRepository
 import dev.chungjungsoo.gptmobile.data.security.SecretVault
 import io.ktor.client.engine.cio.CIO
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -269,6 +272,27 @@ class PlatformSettingViewModelTest {
     }
 
     @Test
+    fun `updating accelerator persists Auto`() = runTest {
+        val settings = FakeSettingRepository(localPlatform(accelerator = LocalAccelerators.GPU))
+        val viewModel = localSettingsViewModel(settings)
+
+        viewModel.updateAccelerator(LocalAccelerators.AUTO)
+
+        assertEquals(LocalAccelerators.AUTO, viewModel.platformState.value?.accelerator)
+        assertEquals(LocalAccelerators.AUTO, settings.updatedPlatforms.single().accelerator)
+        assertFalse(viewModel.dialogState.value.isAcceleratorDialogOpen)
+    }
+
+    @Test
+    fun `existing GPU accelerator is preserved until the user changes it`() = runTest {
+        val viewModel = localSettingsViewModel(
+            FakeSettingRepository(localPlatform(accelerator = LocalAccelerators.GPU))
+        )
+
+        assertEquals(LocalAccelerators.GPU, viewModel.platformState.value?.accelerator)
+    }
+
+    @Test
     fun `accelerator options always list CPU GPU and NPU with enabled flags`() = runTest {
         val viewModel = localSettingsViewModel(
             settings = FakeSettingRepository(localPlatform(model = "gpu-only")),
@@ -282,9 +306,10 @@ class PlatformSettingViewModelTest {
 
         val options = viewModel.acceleratorOptions.value
         assertEquals(
-            listOf(LocalAccelerators.CPU, LocalAccelerators.GPU, LocalAccelerators.NPU),
+            listOf(LocalAccelerators.AUTO, LocalAccelerators.CPU, LocalAccelerators.GPU, LocalAccelerators.NPU),
             options.map { it.accelerator }
         )
+        assertTrue(options.single { it.accelerator == LocalAccelerators.AUTO }.enabled)
         assertFalse(options.single { it.accelerator == LocalAccelerators.CPU }.enabled)
         assertTrue(options.single { it.accelerator == LocalAccelerators.GPU }.enabled)
         assertFalse(options.single { it.accelerator == LocalAccelerators.NPU }.enabled)
@@ -346,12 +371,13 @@ class PlatformSettingViewModelTest {
                     )
                 )
             ),
+            localRuntime = FakeLocalRuntime().apply { isNpuRuntimeAvailable = true },
             deviceSocModel = "SM8650"
         )
 
         val options = viewModel.acceleratorOptions.value
         assertEquals(
-            listOf(LocalAccelerators.CPU, LocalAccelerators.GPU, LocalAccelerators.NPU),
+            listOf(LocalAccelerators.AUTO, LocalAccelerators.CPU, LocalAccelerators.GPU, LocalAccelerators.NPU),
             options.map { it.accelerator }
         )
         assertTrue(options.all { it.enabled })
@@ -371,6 +397,7 @@ class PlatformSettingViewModelTest {
                     )
                 )
             ),
+            localRuntime = FakeLocalRuntime().apply { isNpuRuntimeAvailable = true },
             deviceSocModel = "SM8650"
         )
 
@@ -379,6 +406,60 @@ class PlatformSettingViewModelTest {
         assertEquals(LocalAccelerators.NPU, viewModel.platformState.value?.accelerator)
         assertEquals(LocalAccelerators.NPU, settings.updatedPlatforms.single().accelerator)
         assertFalse(viewModel.dialogState.value.isAcceleratorDialogOpen)
+    }
+
+    @Test
+    fun `accelerator replacement waits for persistence`() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val persistenceGate = CompletableDeferred<Unit>()
+        val settings = FakeSettingRepository(
+            initialPlatform = localPlatform(model = "cpu-gpu", accelerator = LocalAccelerators.GPU),
+            updateGate = persistenceGate
+        )
+        val replacementCoordinator = LocalModelReplacementCoordinator()
+        val localModels = FakeLocalModelRepository(
+            listOf(
+                LocalModel(
+                    catalogEntryId = "cpu-gpu",
+                    commitHash = "default-hash",
+                    fileName = "default.litertlm",
+                    relativeDirectory = "models/cpu-gpu/default-hash",
+                    totalBytes = 10L,
+                    status = LocalModelStatus.READY
+                )
+            )
+        )
+        val viewModel = localSettingsViewModel(
+            settings = settings,
+            catalog = FakeModelCatalogRepository(
+                listOf(
+                    catalogEntry(
+                        id = "cpu-gpu",
+                        supportedAccelerators = listOf("cpu", "gpu", "npu"),
+                        socToModelFiles = mapOf(
+                            "SM8650" to SocVariant(
+                                modelFile = "npu.litertlm",
+                                commitHash = "npu-hash",
+                                sizeInBytes = 20L
+                            )
+                        )
+                    )
+                )
+            ),
+            localModels = localModels,
+            localRuntime = FakeLocalRuntime().apply { isNpuRuntimeAvailable = true },
+            replacementCoordinator = replacementCoordinator,
+            deviceSocModel = "SM8650"
+        )
+        runCurrent()
+
+        viewModel.updateAccelerator(LocalAccelerators.NPU)
+        runCurrent()
+
+        assertTrue(replacementCoordinator.pending.value.isEmpty())
+        persistenceGate.complete(Unit)
+        runCurrent()
+        assertEquals(listOf("cpu-gpu"), replacementCoordinator.pending.value.map { it.entry.id })
     }
 
     @Test
@@ -399,6 +480,7 @@ class PlatformSettingViewModelTest {
                     )
                 )
             ),
+            localRuntime = FakeLocalRuntime().apply { isNpuRuntimeAvailable = true },
             deviceSocModel = "SM8750"
         )
 
@@ -462,7 +544,7 @@ class PlatformSettingViewModelTest {
         assertEquals(0.8f, updated.topP)
         assertEquals(20, updated.topK)
         assertEquals(4096, updated.maxTokens)
-        assertEquals(LocalAccelerators.CPU, updated.accelerator)
+        assertEquals(LocalAccelerators.AUTO, updated.accelerator)
     }
 
     @Test
@@ -545,12 +627,16 @@ class PlatformSettingViewModelTest {
             listOf(catalogEntry("gemma3-1b-it", supportedAccelerators = listOf("cpu", "gpu")))
         ),
         localModels: LocalModelRepository = FakeLocalModelRepository(),
+        localRuntime: FakeLocalRuntime = FakeLocalRuntime(),
+        replacementCoordinator: LocalModelReplacementCoordinator = LocalModelReplacementCoordinator(),
         deviceSocModel: String = ""
     ): PlatformSettingViewModel = testViewModel(
         dao = FakeToolConnectionDao(),
         settingRepository = settings,
         catalogRepository = catalog,
         localModelRepository = localModels,
+        localRuntime = localRuntime,
+        replacementCoordinator = replacementCoordinator,
         platformUid = "local-1",
         deviceSocModel = deviceSocModel
     )
@@ -560,6 +646,8 @@ class PlatformSettingViewModelTest {
         settingRepository: SettingRepository = FakeSettingRepository(),
         catalogRepository: ModelCatalogRepository = FakeModelCatalogRepository(),
         localModelRepository: LocalModelRepository = FakeLocalModelRepository(),
+        localRuntime: FakeLocalRuntime = FakeLocalRuntime(),
+        replacementCoordinator: LocalModelReplacementCoordinator = LocalModelReplacementCoordinator(),
         platformUid: String = "profile-1",
         deviceSocModel: String = ""
     ): PlatformSettingViewModel {
@@ -581,6 +669,8 @@ class PlatformSettingViewModelTest {
             agentToolResolver = resolver,
             modelCatalogRepository = catalogRepository,
             localModelRepository = localModelRepository,
+            localRuntime = localRuntime,
+            localModelReplacementCoordinator = replacementCoordinator,
             deviceSocModel = deviceSocModel,
             savedStateHandle = SavedStateHandle(mapOf("platformUid" to platformUid))
         )
@@ -686,7 +776,8 @@ private class FakeSettingRepository(
         model = "gpt"
     ),
     private val fetchPlatformsResult: List<PlatformV2> = listOf(initialPlatform),
-    var fetchFailure: Throwable? = null
+    var fetchFailure: Throwable? = null,
+    private val updateGate: CompletableDeferred<Unit>? = null
 ) : SettingRepository {
     private var platform = initialPlatform
     val updatedPlatforms = mutableListOf<PlatformV2>()
@@ -705,6 +796,7 @@ private class FakeSettingRepository(
     override suspend fun updateThemes(themeSetting: ThemeSetting) = Unit
     override suspend fun addPlatformV2(platform: PlatformV2) = Unit
     override suspend fun updatePlatformV2(platform: PlatformV2) {
+        updateGate?.await()
         this.platform = platform
         updatedPlatforms += platform
     }

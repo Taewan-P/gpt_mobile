@@ -8,6 +8,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+    <uses-feature android:name="android.hardware.npu" android:required="false" />
 
     <queries>
         <package android:name="com.google.android.aicore" />
@@ -48,6 +49,15 @@
         <uses-native-library
             android:name="libcdsprpc.so"
             android:required="false" />
+        <uses-native-library
+            android:name="libneuron_adapter.so"
+            android:required="false" />
+        <uses-native-library android:name="libneuron_adapter_mgvi.so" android:required="false" />
+        <uses-native-library android:name="libneuronusdk_adapter.10.mtk.so" android:required="false" />
+        <uses-native-library android:name="libneuronusdk_adapter.9.mtk.so" android:required="false" />
+        <uses-native-library android:name="libneuronusdk_adapter.mtk.so" android:required="false" />
+        <uses-native-library android:name="libneuronusdk_adapter.so" android:required="false" />
+        <uses-native-library android:name="libneuron_sys_util.mtk.so" android:required="false" />
         <!-- AppAuth merges RedirectUriReceiverActivity using appAuthRedirectScheme.
              Register a scheme distinct from the MCP callback (dev.chungjungsoo.gptmobile://oauth/mcp/). -->
         <activity

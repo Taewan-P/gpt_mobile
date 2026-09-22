@@ -1,6 +1,7 @@
 package dev.chungjungsoo.gptmobile.data.localruntime
 
 import android.content.Context
+import android.os.Build
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Contents
@@ -34,6 +35,10 @@ import kotlinx.serialization.json.put
 class LocalRuntimeImpl(
     private val context: Context
 ) : LocalRuntime {
+    private val npuLibraries = NpuRuntimeLibraries(context)
+
+    override fun isNpuAvailable(): Boolean = npuLibraries.isAvailable(Build.SOC_MODEL.orEmpty())
+
     private var engine: Engine? = null
     private var conversation: Conversation? = null
     private var loadedAccelerator: String = LocalAccelerators.CPU
@@ -51,7 +56,12 @@ class LocalRuntimeImpl(
                 maxNumImages = if (spec.isVisionEnabled) MAX_IMAGES_PER_MESSAGE else null
             )
             val nextEngine = Engine(engineConfig)
-            nextEngine.initialize()
+            try {
+                nextEngine.initialize()
+            } catch (error: Throwable) {
+                runCatching { nextEngine.close() }
+                throw error
+            }
             engine = nextEngine
             loadedSpec = spec
         }
@@ -71,7 +81,7 @@ class LocalRuntimeImpl(
                 conversation = currentEngine.createConversation(
                     ConversationConfig(
                         systemInstruction = config.systemPrompt?.takeIf { it.isNotBlank() }?.let { Contents.of(it) },
-                        // LiteRT-LM 0.11.0 Message.user/model(Contents) accept Content.ImageBytes,
+                        // Message.user/model(Contents) accept Content.ImageBytes,
                         // so rebuilds re-seed prior image turns instead of dropping them to text-only.
                         initialMessages = config.initialMessages.map { message ->
                             when (message.role) {
@@ -172,15 +182,16 @@ class LocalRuntimeImpl(
 
     private fun backendFor(accelerator: String): Backend = when (LocalAccelerators.normalize(accelerator)) {
         LocalAccelerators.GPU -> Backend.GPU()
-        LocalAccelerators.NPU -> Backend.NPU(nativeLibraryDir = context.applicationInfo.nativeLibraryDir)
-        else -> Backend.CPU()
+        LocalAccelerators.NPU -> Backend.NPU(nativeLibraryDir = npuLibraries.prepare(Build.SOC_MODEL.orEmpty()))
+        LocalAccelerators.CPU -> Backend.CPU()
+        else -> error("Resolve Auto before creating a local engine")
     }
 
     private fun visionBackendFor(spec: LocalEngineSpec): Backend? {
         if (!spec.isVisionEnabled) return null
         return when (LocalAccelerators.normalize(spec.accelerator)) {
             LocalAccelerators.CPU -> Backend.CPU()
-            LocalAccelerators.NPU -> Backend.NPU(nativeLibraryDir = context.applicationInfo.nativeLibraryDir)
+            LocalAccelerators.NPU -> Backend.NPU(nativeLibraryDir = npuLibraries.prepare(Build.SOC_MODEL.orEmpty()))
             else -> Backend.GPU()
         }
     }

@@ -61,6 +61,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveRunId
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
+import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelReplacementCoordinator
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.data.model.ClientType
@@ -103,7 +104,8 @@ class ChatRepositoryImpl @Inject constructor(
     private val modelCatalogRepository: ModelCatalogRepository,
     @param:DeviceSocModel private val deviceSocModel: String,
     private val compactionStore: CompactionStore,
-    private val remoteContextWindowLookup: RemoteContextWindowLookup
+    private val remoteContextWindowLookup: RemoteContextWindowLookup,
+    private val localModelReplacementCoordinator: LocalModelReplacementCoordinator = LocalModelReplacementCoordinator()
 ) : ChatRepository {
     private val providerAttachmentEncoder = ProviderAttachmentEncoder(context)
     private val openAIResponsesAdapter = OpenAIResponsesAdapter(openAIAPI, providerAttachmentEncoder)
@@ -147,6 +149,15 @@ class ChatRepositoryImpl @Inject constructor(
         ),
         modelCatalogRepository = modelCatalogRepository,
         deviceSocModel = deviceSocModel,
+        npuUnavailableGpuNotice = contextString(
+            R.string.local_platform_npu_unavailable_gpu,
+            LiteRtLmAdapter.DEFAULT_NPU_UNAVAILABLE_GPU
+        ),
+        requestModelReplacement = localModelReplacementCoordinator::request,
+        modelReplacementRequiredError = contextString(
+            R.string.local_platform_model_replacement_required,
+            LiteRtLmAdapter.DEFAULT_MODEL_REPLACEMENT_REQUIRED
+        ),
         loadImageBytes = { attachment ->
             val filePath = attachment.preparedFilePath.ifBlank { attachment.localFilePath }
             FileUtils.readImageBytesForLocalInference(context, filePath)
@@ -156,7 +167,8 @@ class ChatRepositoryImpl @Inject constructor(
         compactionStore,
         modelCatalogRepository,
         deviceSocModel,
-        remoteContextWindowLookup
+        remoteContextWindowLookup,
+        localAccelerator = liteRtLmAdapter::resolvedAccelerator
     )
     private val compactionCoordinator = CompactionCoordinator(
         store = compactionStore,

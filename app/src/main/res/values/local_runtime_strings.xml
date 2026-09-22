@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="local_platform_model_replacement_required">A compatible model download is needed. Confirm the replacement, then retry your message after downloading.</string>
+    <string name="local_platform_npu_unavailable_gpu">NPU unavailable on this device — running on GPU</string>
+</resources>

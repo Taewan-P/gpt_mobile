@@ -8,6 +8,7 @@ import dev.chungjungsoo.gptmobile.data.catalog.CatalogEntry
 import dev.chungjungsoo.gptmobile.data.huggingface.HuggingFaceTokenStore
 import dev.chungjungsoo.gptmobile.data.localmodel.GatedDownloadCoordinator
 import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelStatus
+import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
 import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
 import dev.chungjungsoo.gptmobile.data.repository.ModelCatalogRepository
 import dev.chungjungsoo.gptmobile.di.DeviceSocModel
@@ -34,7 +35,8 @@ class LocalModelsViewModel @Inject constructor(
     private val huggingFaceTokenStore: HuggingFaceTokenStore,
     downloadGuards: LocalDownloadGuards,
     huggingFaceAuthClient: HuggingFaceAuthClient,
-    @param:DeviceSocModel private val deviceSocModel: String
+    @param:DeviceSocModel private val deviceSocModel: String,
+    private val localRuntime: LocalRuntime
 ) : ViewModel() {
 
     private val downloadActions = LocalModelDownloadActions(
@@ -44,7 +46,8 @@ class LocalModelsViewModel @Inject constructor(
         downloadGuards = downloadGuards,
         huggingFaceAuthClient = huggingFaceAuthClient,
         scope = viewModelScope,
-        deviceSocModel = deviceSocModel
+        deviceSocModel = deviceSocModel,
+        isNpuAvailable = { localRuntime.isNpuAvailable() }
     )
 
     private val _listState = MutableStateFlow(LocalModelsListState())
@@ -95,7 +98,8 @@ class LocalModelsViewModel @Inject constructor(
                         localModels,
                         workInfos,
                         localModels.associate { it.catalogEntryId to localModelRepository.diskPartialBytes(it) },
-                        deviceSocModel = deviceSocModel
+                        deviceSocModel = deviceSocModel,
+                        isNpuAvailable = localRuntime.isNpuAvailable()
                     )
                     val storage = localModels
                         .filter { it.status == LocalModelStatus.READY }

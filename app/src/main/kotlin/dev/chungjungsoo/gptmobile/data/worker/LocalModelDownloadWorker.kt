@@ -24,15 +24,21 @@ import dev.chungjungsoo.gptmobile.data.localmodel.DownloadFailureKind
 import dev.chungjungsoo.gptmobile.data.localmodel.DownloadProgress
 import dev.chungjungsoo.gptmobile.data.localmodel.HuggingFaceDownloadAuth
 import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelDownloadPaths
+import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelFileAccess
 import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelStatus
 import dev.chungjungsoo.gptmobile.data.localmodel.PendingLocalPlatformActivator
+import dev.chungjungsoo.gptmobile.data.localmodel.ResolvedModelDownload
+import dev.chungjungsoo.gptmobile.data.localmodel.commitLocalModelDownload
+import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
 import dev.chungjungsoo.gptmobile.presentation.ui.main.MainActivity
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.net.HttpURLConnection
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
 @HiltWorker
@@ -41,7 +47,8 @@ class LocalModelDownloadWorker @AssistedInject constructor(
     @Assisted params: WorkerParameters,
     private val localModelDao: LocalModelDao,
     private val huggingFaceTokenStore: HuggingFaceTokenStore,
-    private val pendingLocalPlatformActivator: PendingLocalPlatformActivator
+    private val pendingLocalPlatformActivator: PendingLocalPlatformActivator,
+    private val localRuntime: LocalRuntime
 ) : CoroutineWorker(context, params) {
 
     private val notificationManager = context.getSystemService(NotificationManager::class.java)
@@ -70,45 +77,61 @@ class LocalModelDownloadWorker @AssistedInject constructor(
         runCatching { setForeground(createForegroundInfo(progress = seededPercent, modelName = displayName)) }
 
         return withContext(Dispatchers.IO) {
-            try {
-                markStatus(catalogEntryId, LocalModelStatus.DOWNLOADING)
-                downloadFile(
-                    catalogEntryId = catalogEntryId,
-                    displayName = displayName,
-                    downloadUrl = downloadUrl,
-                    commitHash = commitHash,
-                    fileName = fileName,
-                    totalBytes = totalBytes,
-                    accessToken = accessToken
-                )
-                markStatus(catalogEntryId, LocalModelStatus.READY)
-                runCatching { pendingLocalPlatformActivator.onModelsBecameReady(setOf(catalogEntryId)) }
-                Result.success()
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (error: DownloadAuthException) {
-                Log.e(TAG, error.message, error)
-                markStatus(catalogEntryId, LocalModelStatus.FAILED)
-                Result.failure(
-                    Data.Builder()
-                        .putString(KEY_ERROR_MESSAGE, error.message)
-                        .putString(KEY_FAILURE_KIND, error.kind.name)
-                        .build()
-                )
-            } catch (error: IOException) {
-                Log.e(TAG, error.message, error)
-                val hadProgress = hadPartialProgress(catalogEntryId, commitHash, fileName)
-                val classification = DownloadErrorClassifier.classify(error, hadProgress)
-                if (DownloadErrorClassifier.shouldRetry(classification, runAttemptCount)) {
-                    Result.retry()
-                } else {
+            LocalModelFileAccess.withLock {
+                coroutineContext.ensureActive()
+                try {
+                    markStatus(catalogEntryId, LocalModelStatus.DOWNLOADING)
+                    val partial = downloadFile(
+                        catalogEntryId = catalogEntryId,
+                        displayName = displayName,
+                        downloadUrl = downloadUrl,
+                        commitHash = commitHash,
+                        fileName = fileName,
+                        totalBytes = totalBytes,
+                        accessToken = accessToken
+                    )
+                    coroutineContext.ensureActive()
+                    if (isStopped) throw CancellationException("Local Model download cancelled")
+                    localRuntime.runExclusive {
+                        coroutineContext.ensureActive()
+                        unloadEngine()
+                        commitLocalModelDownload(
+                            applicationContext.noBackupFilesDir,
+                            localModelDao,
+                            catalogEntryId,
+                            ResolvedModelDownload(fileName, downloadUrl, commitHash, totalBytes),
+                            partial,
+                            legacyRoot = applicationContext.getExternalFilesDir(null)
+                        )
+                    }
+                    runCatching { pendingLocalPlatformActivator.onModelsBecameReady(setOf(catalogEntryId)) }
+                    Result.success()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: DownloadAuthException) {
+                    Log.e(TAG, error.message, error)
                     markStatus(catalogEntryId, LocalModelStatus.FAILED)
                     Result.failure(
                         Data.Builder()
                             .putString(KEY_ERROR_MESSAGE, error.message)
-                            .putString(KEY_FAILURE_KIND, DownloadFailureKind.GENERIC.name)
+                            .putString(KEY_FAILURE_KIND, error.kind.name)
                             .build()
                     )
+                } catch (error: IOException) {
+                    Log.e(TAG, error.message, error)
+                    val hadProgress = hadPartialProgress(catalogEntryId, commitHash, fileName)
+                    val classification = DownloadErrorClassifier.classify(error, hadProgress)
+                    if (DownloadErrorClassifier.shouldRetry(classification, runAttemptCount)) {
+                        Result.retry()
+                    } else {
+                        markStatus(catalogEntryId, LocalModelStatus.FAILED)
+                        Result.failure(
+                            Data.Builder()
+                                .putString(KEY_ERROR_MESSAGE, error.message)
+                                .putString(KEY_FAILURE_KIND, DownloadFailureKind.GENERIC.name)
+                                .build()
+                        )
+                    }
                 }
             }
         }
@@ -133,9 +156,9 @@ class LocalModelDownloadWorker @AssistedInject constructor(
         fileName: String,
         totalBytes: Long,
         accessToken: String?
-    ) {
+    ): File {
         LocalModelDownloadPaths.requireValidPathSegments(catalogEntryId, commitHash, fileName)
-        val storageRoot = applicationContext.getExternalFilesDir(null) ?: applicationContext.filesDir
+        val storageRoot = applicationContext.noBackupFilesDir
         val outputDir = File(storageRoot, LocalModelDownloadPaths.relativeDirectory(catalogEntryId, commitHash))
         if (!outputDir.exists() && !outputDir.mkdirs()) {
             throw IOException("Unable to create Local Model directory")
@@ -143,6 +166,8 @@ class LocalModelDownloadWorker @AssistedInject constructor(
 
         val outputTmpFile = File(outputDir, LocalModelDownloadPaths.partialFileName(fileName))
         val partialLength = outputTmpFile.length()
+        if (totalBytes <= 0L) throw IOException("Local Model download size is missing")
+        if (outputDir.usableSpace < (totalBytes - partialLength).coerceAtLeast(0L)) throw IOException("Not enough space for the model download")
         publishSeededProgress(partialLength, totalBytes, displayName)
         val connection = HuggingFaceDownloadAuth.openConnection(
             url = downloadUrl,
@@ -187,6 +212,7 @@ class LocalModelDownloadWorker @AssistedInject constructor(
                         if (isStopped) {
                             throw CancellationException("Local Model download cancelled")
                         }
+                        if (downloadedBytes + bytesRead > totalBytes) throw IOException("Local Model download exceeds expected size")
                         outputStream.write(buffer, 0, bytesRead)
                         downloadedBytes += bytesRead
                         deltaBytes += bytesRead
@@ -214,6 +240,7 @@ class LocalModelDownloadWorker @AssistedInject constructor(
 
                             setProgress(
                                 Data.Builder()
+                                    .putLong(KEY_TOTAL_BYTES, totalBytes)
                                     .putLong(KEY_RECEIVED_BYTES, downloadedBytes)
                                     .putLong(KEY_DOWNLOAD_RATE, (bytesPerMs * 1000).toLong())
                                     .putLong(KEY_REMAINING_MS, remainingMs.toLong())
@@ -234,13 +261,7 @@ class LocalModelDownloadWorker @AssistedInject constructor(
             throw IOException("Incomplete Local Model download")
         }
 
-        val originalFile = File(outputDir, fileName)
-        if (originalFile.exists() && !originalFile.delete()) {
-            throw IOException("Unable to replace existing Local Model file")
-        }
-        if (!outputTmpFile.renameTo(originalFile)) {
-            throw IOException("Unable to finalize Local Model file")
-        }
+        return outputTmpFile
     }
 
     private suspend fun resolveAccessToken(): String? {
@@ -251,7 +272,9 @@ class LocalModelDownloadWorker @AssistedInject constructor(
     }
 
     private suspend fun markStatus(catalogEntryId: String, status: String) {
-        localModelDao.updateStatus(catalogEntryId, status, System.currentTimeMillis() / 1000)
+        if (localModelDao.getById(catalogEntryId)?.status != LocalModelStatus.READY) {
+            localModelDao.updateStatus(catalogEntryId, status, System.currentTimeMillis() / 1000)
+        }
     }
 
     private fun ensureNotificationChannel() {
@@ -341,16 +364,16 @@ class LocalModelDownloadWorker @AssistedInject constructor(
     private fun hadPartialProgress(catalogEntryId: String, commitHash: String, fileName: String): Boolean = partialFileBytes(catalogEntryId, commitHash, fileName) > 0L
 
     private fun partialFileBytes(catalogEntryId: String, commitHash: String, fileName: String): Long {
-        val storageRoot = applicationContext.getExternalFilesDir(null) ?: applicationContext.filesDir
+        val storageRoot = applicationContext.noBackupFilesDir
         val file = File(storageRoot, LocalModelDownloadPaths.relativePartialFilePath(catalogEntryId, commitHash, fileName))
         return file.takeIf { it.exists() }?.length() ?: 0L
     }
 
     private suspend fun publishSeededProgress(partialLength: Long, totalBytes: Long, displayName: String) {
-        if (partialLength <= 0L) return
         val percent = DownloadProgress.percent(partialLength, totalBytes)
         setProgress(
             Data.Builder()
+                .putLong(KEY_TOTAL_BYTES, totalBytes)
                 .putLong(KEY_RECEIVED_BYTES, partialLength)
                 .putLong(KEY_DOWNLOAD_RATE, 0L)
                 .putLong(KEY_REMAINING_MS, 0L)

@@ -23,11 +23,19 @@ sealed class ReconcileAction {
 data class UserCancelPlan(
     val newStatus: String = LocalModelStatus.FAILED,
     val deleteRow: Boolean = false,
-    val deleteFiles: Boolean = false
+    val deleteFiles: Boolean = false,
+    val deleteNonRetainedFiles: Boolean = false
 )
 
 object LocalModelReconciler {
-    fun planUserCancel(): UserCancelPlan = UserCancelPlan()
+    fun planUserCancel(status: String = LocalModelStatus.DOWNLOADING): UserCancelPlan = if (status == LocalModelStatus.READY) {
+        UserCancelPlan(
+            newStatus = LocalModelStatus.READY,
+            deleteNonRetainedFiles = true
+        )
+    } else {
+        UserCancelPlan()
+    }
 
     fun reconcile(
         rows: List<LocalModelRecord>,

@@ -4,6 +4,7 @@ import androidx.work.WorkInfo
 import dev.chungjungsoo.gptmobile.data.catalog.CatalogEntry
 import dev.chungjungsoo.gptmobile.data.database.entity.LocalModel
 import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelStatus
+import dev.chungjungsoo.gptmobile.data.localmodel.ResolvedModelDownload
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,6 +16,7 @@ class FakeLocalModelRepository(
     private val models = MutableStateFlow(initialModels)
     val startDownloadCalls = mutableListOf<String>()
     val cancelDownloadCalls = mutableListOf<String>()
+    val startDownloadResolved = mutableListOf<ResolvedModelDownload>()
 
     override fun observeAll(): Flow<List<LocalModel>> = models.asStateFlow()
 
@@ -39,6 +41,11 @@ class FakeLocalModelRepository(
             updatedAt = now
         )
         models.value = models.value.filterNot { it.catalogEntryId == entry.id } + downloading
+    }
+
+    override suspend fun startDownload(entry: CatalogEntry, resolved: ResolvedModelDownload) {
+        startDownloadResolved += resolved
+        startDownload(entry)
     }
 
     override suspend fun cancelDownload(catalogEntryId: String) {

@@ -87,7 +87,8 @@ class LocalModelRepositoryImplTest {
         ioDispatcher = ioDispatcher,
         diskFiles = diskFiles,
         workInfos = workInfos,
-        externalFilesDir = externalFilesDir
+        externalFilesDir = externalFilesDir,
+        internalFilesDir = { File("/tmp/gpt-mobile-test-internal") }
     )
 }
 

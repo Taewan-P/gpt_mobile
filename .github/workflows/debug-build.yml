@@ -1,7 +1,7 @@
 name: Debug build APK
 
 on:
-  pull_request_target:
+  pull_request:
     branches:
       - "main"
     paths-ignore:
@@ -20,13 +20,10 @@ jobs:
     runs-on: macos-14
 
     permissions:
-      pull-requests: write
+      contents: read
 
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
 
       - name: Setup JDK
         uses: actions/setup-java@v5
@@ -34,6 +31,19 @@ jobs:
           distribution: "oracle"
           java-version: "17"
           cache: "gradle"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Set up Python for native libraries
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Prepare NPU libraries
+        run: |
+          sdkmanager "ndk;28.1.13356709"
+          python3 scripts/prepare_npu_runtime.py
 
       - name: Build debug APK
         run: |
@@ -45,10 +55,3 @@ jobs:
         with:
           name: debug-${{ github.sha }}
           path: ${{ github.workspace }}/app/build/outputs/apk/debug/app-debug.apk
-
-      - name: Comment APK Link
-        uses: thollander/actions-comment-pull-request@v3
-        with:
-          comment_tag: apk
-          message: |
-            Build complete! Here's the debug APK: ${{ steps.artifact-upload-step.outputs.artifact-url }}

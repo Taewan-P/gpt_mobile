@@ -1,5 +1,6 @@
 {
   "schemaVersion": 1,
+  "catalogVersion": 1,
   "models": [
     {
       "id": "gemma3-1b-it",
@@ -143,6 +144,14 @@
           "commitHash": "6b78abd019e61a1ca4cbe3b212d2c9ce8ff38a94",
           "sizeInBytes": 3113545589,
           "contextSize": 1280
+        },
+        "Tensor G6": {
+          "modelFile": "gemma-4-E2B-it_Google_Tensor_G6.litertlm",
+          "downloadUrl": "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/b3ca0d2f076785a8f4b2219ddbd2bdb99954eae1/gemma-4-E2B-it_Google_Tensor_G6.litertlm?download=true",
+          "commitHash": "b3ca0d2f076785a8f4b2219ddbd2bdb99954eae1",
+          "sizeInBytes": 3313938293,
+          "contextSize": 4096,
+          "quantization": "q4"
         }
       }
     },

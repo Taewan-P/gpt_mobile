@@ -175,6 +175,14 @@ fun LocalModelDownloadDialogHost(
             )
         }
 
+        is LocalModelsDialog.DownloadError -> {
+            MessageDialog(
+                title = stringResource(R.string.local_model_failed),
+                text = dialog.message,
+                onDismiss = onDismissDialog
+            )
+        }
+
         LocalModelsDialog.ProbeError -> {
             MessageDialog(
                 title = stringResource(R.string.local_model_probe_error_title),
@@ -193,6 +201,28 @@ fun LocalModelDownloadDialogHost(
 
         LocalModelsDialog.Hidden -> Unit
     }
+}
+
+@Composable
+fun LocalModelReplacementConfirmDialog(
+    modelName: String,
+    accelerator: String,
+    downloadSize: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    ConfirmDialog(
+        title = stringResource(R.string.local_model_replacement_title),
+        text = stringResource(
+            R.string.local_model_replacement_message,
+            modelName,
+            accelerator,
+            downloadSize
+        ),
+        confirmLabel = stringResource(R.string.local_model_replacement_confirm),
+        onConfirm = onConfirm,
+        onDismiss = onDismiss
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

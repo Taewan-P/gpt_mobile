@@ -18,6 +18,7 @@ import dev.chungjungsoo.gptmobile.data.database.dao.ChatRoomV2Dao
 import dev.chungjungsoo.gptmobile.data.database.dao.CompactionDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageDao
 import dev.chungjungsoo.gptmobile.data.database.dao.MessageV2Dao
+import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelReplacementCoordinator
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
 import dev.chungjungsoo.gptmobile.data.network.AnthropicAPI
 import dev.chungjungsoo.gptmobile.data.network.GoogleAPI
@@ -62,7 +63,8 @@ object ChatRepositoryModule {
         @DeviceSocModel
         deviceSocModel: String,
         compactionDao: CompactionDao,
-        networkClient: NetworkClient
+        networkClient: NetworkClient,
+        localModelReplacementCoordinator: LocalModelReplacementCoordinator
     ): ChatRepository = ChatRepositoryImpl(
         context,
         chatRoomDao,
@@ -86,6 +88,7 @@ object ChatRepositoryModule {
         modelCatalogRepository,
         deviceSocModel,
         RoomCompactionStore(compactionDao),
-        HttpRemoteContextWindowLookup(networkClient)
+        HttpRemoteContextWindowLookup(networkClient),
+        localModelReplacementCoordinator
     )
 }

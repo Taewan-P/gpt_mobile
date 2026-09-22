@@ -34,6 +34,16 @@ jobs:
           sdkmanager "$latest_stable_version"
           echo "$ANDROID_SDK_ROOT/build-tools/$latest_version_number" >> $GITHUB_PATH
 
+      - name: Set up Python for native libraries
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Prepare NPU libraries
+        run: |
+          sdkmanager "ndk;28.1.13356709"
+          python3 scripts/prepare_npu_runtime.py
+
       - name: Build Unsigned Release APK
         run: ./gradlew assembleRelease
 

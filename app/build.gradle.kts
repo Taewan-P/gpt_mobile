@@ -2,6 +2,9 @@
 
 import com.android.build.api.dsl.ApplicationExtension
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
+import java.io.File
+import java.security.MessageDigest
+import java.util.HexFormat
 import org.gradle.kotlin.dsl.aboutLibraries
 import org.gradle.kotlin.dsl.configure
 
@@ -74,12 +77,15 @@ extensions.configure<ApplicationExtension> {
         buildConfig = true
     }
     packaging {
+        jniLibs.useLegacyPackaging = true
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
             excludes += "META-INF/INDEX.LIST"
             excludes += "META-INF/io.netty.versions.properties"
         }
     }
+    sourceSets.getByName("main").jniLibs.srcDir(rootProject.file("third_party/npu/jni"))
+    sourceSets.getByName("main").assets.srcDir(rootProject.file("third_party/npu/notices"))
 }
 
 extensions.configure<ApplicationAndroidComponentsExtension> {
@@ -176,4 +182,36 @@ aboutLibraries {
     export {
         excludeFields.add("generated")
     }
+}
+
+val verifyNpuLibraries by tasks.registering {
+    val npuDirectory = rootProject.file("third_party/npu/jni/arm64-v8a")
+    val checksumManifest = rootProject.file("third_party/npu/native-sha256.json")
+    doLast {
+        check(checksumManifest.isFile) { "NPU checksum manifest is missing." }
+        val checksums = groovy.json.JsonSlurper().parse(checksumManifest) as? Map<*, *>
+        check(!checksums.isNullOrEmpty()) { "NPU checksum manifest is empty." }
+        checksums.forEach { (rawName, rawExpected) ->
+            val name = rawName.toString()
+            check(name == File(name).name) { "Invalid NPU library name: $name" }
+            val library = npuDirectory.resolve(name)
+            check(library.isFile) {
+                "NPU library $name is missing. Run python3 scripts/prepare_npu_runtime.py before assembling the APK."
+            }
+            val digest = MessageDigest.getInstance("SHA-256")
+            library.inputStream().use { input ->
+                val buffer = ByteArray(8192)
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    digest.update(buffer, 0, count)
+                }
+            }
+            val actual = HexFormat.of().formatHex(digest.digest())
+            check(actual == rawExpected.toString()) { "NPU library $name failed SHA-256 verification." }
+        }
+    }
+}
+tasks.configureEach {
+    if (name.startsWith("merge") && name.endsWith("NativeLibs")) dependsOn(verifyNpuLibraries)
 }

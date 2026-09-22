@@ -7,7 +7,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.LocalModel
 import dev.chungjungsoo.gptmobile.data.localmodel.DownloadFailureKind
 import dev.chungjungsoo.gptmobile.data.localmodel.DownloadProgress
 import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelStatus
-import dev.chungjungsoo.gptmobile.data.localmodel.SocVariantResolver
+import dev.chungjungsoo.gptmobile.data.localruntime.localModelExecutionTargets
 import dev.chungjungsoo.gptmobile.data.worker.LocalModelDownloadWorker
 
 data class LocalModelsUiState(
@@ -54,6 +54,7 @@ sealed class LocalModelsDialog {
     data class OAuthNotConfigured(val isSessionExpired: Boolean = false) : LocalModelsDialog()
     data class EnterAccessToken(val isSessionExpired: Boolean = false) : LocalModelsDialog()
     data object ProbeError : LocalModelsDialog()
+    data class DownloadError(val message: String) : LocalModelsDialog()
     data object SignInFailed : LocalModelsDialog()
 }
 
@@ -62,7 +63,8 @@ fun catalogLocalModelItems(
     records: List<LocalModel>,
     workInfos: List<WorkInfo>,
     partialBytesById: Map<String, Long> = emptyMap(),
-    deviceSocModel: String = ""
+    deviceSocModel: String = "",
+    isNpuAvailable: Boolean = false
 ): List<LocalModelListItem> {
     val workById = workInfos.mapNotNull { info ->
         val id = info.tags.firstNotNullOfOrNull(LocalModelDownloadWorker::catalogEntryIdFromTag)
@@ -75,7 +77,8 @@ fun catalogLocalModelItems(
             modelsById[entry.id],
             workById[entry.id],
             diskPartialBytes = partialBytesById[entry.id] ?: 0L,
-            downloadSizeBytes = SocVariantResolver.resolve(entry, deviceSocModel).sizeInBytes
+            downloadSizeBytes = localModelExecutionTargets(entry, "auto", deviceSocModel, isNpuAvailable)
+                .firstOrNull()?.download?.sizeInBytes ?: entry.sizeInBytes
         )
     }
 }
@@ -99,15 +102,10 @@ fun toLocalModelListItem(
     val isWorkActive = workState == WorkInfo.State.RUNNING ||
         workState == WorkInfo.State.ENQUEUED ||
         workState == WorkInfo.State.BLOCKED
-    val resolvedDownloadSize = if (downloadSizeBytes > 0L) downloadSizeBytes else entry.sizeInBytes
+    val workTotal = workInfo?.progress?.getLong(LocalModelDownloadWorker.KEY_TOTAL_BYTES, 0L) ?: 0L
+    val resolvedDownloadSize = workTotal.takeIf { isWorkActive && it > 0L }
+        ?: downloadSizeBytes.takeIf { it > 0L } ?: entry.sizeInBytes
     return when {
-        record?.status == LocalModelStatus.READY -> LocalModelListItem(
-            entry = entry,
-            status = LocalModelItemStatus.READY,
-            diskBytes = record.totalBytes,
-            downloadSizeBytes = resolvedDownloadSize
-        )
-
         record?.status == LocalModelStatus.DOWNLOADING || isWorkActive -> LocalModelListItem(
             entry = entry,
             status = LocalModelItemStatus.DOWNLOADING,
@@ -115,6 +113,13 @@ fun toLocalModelListItem(
             bytesPerSecond = bytesPerSecond,
             remainingMs = remainingMs,
             diskBytes = resolvedDownloadSize,
+            downloadSizeBytes = resolvedDownloadSize
+        )
+
+        record?.status == LocalModelStatus.READY -> LocalModelListItem(
+            entry = entry,
+            status = LocalModelItemStatus.READY,
+            diskBytes = record.totalBytes,
             downloadSizeBytes = resolvedDownloadSize
         )
 

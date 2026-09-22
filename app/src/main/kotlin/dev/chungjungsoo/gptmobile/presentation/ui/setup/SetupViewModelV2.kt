@@ -9,6 +9,7 @@ import dev.chungjungsoo.gptmobile.data.catalog.CatalogEntry
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.huggingface.HuggingFaceTokenStore
 import dev.chungjungsoo.gptmobile.data.localmodel.GatedDownloadCoordinator
+import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
 import dev.chungjungsoo.gptmobile.data.localruntime.localSamplingDefaults
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
@@ -53,6 +54,7 @@ class SetupViewModelV2 @Inject constructor(
     huggingFaceTokenStore: HuggingFaceTokenStore,
     downloadGuards: LocalDownloadGuards,
     huggingFaceAuthClient: HuggingFaceAuthClient,
+    private val localRuntime: LocalRuntime,
     @param:DeviceSocModel private val deviceSocModel: String
 ) : ViewModel() {
 
@@ -63,7 +65,8 @@ class SetupViewModelV2 @Inject constructor(
         downloadGuards = downloadGuards,
         huggingFaceAuthClient = huggingFaceAuthClient,
         scope = viewModelScope,
-        deviceSocModel = deviceSocModel
+        deviceSocModel = deviceSocModel,
+        isNpuAvailable = { localRuntime.isNpuAvailable() }
     )
 
     private val _platforms = MutableStateFlow<List<PlatformV2>>(emptyList())
@@ -355,7 +358,7 @@ class SetupViewModelV2 @Inject constructor(
 
     private fun catalogDefaultsFor(modelId: String) = _catalogEntries.value
         .firstOrNull { it.id == modelId }
-        ?.let { localSamplingDefaults(it, deviceSocModel) }
+        ?.let { localSamplingDefaults(it, deviceSocModel, localRuntime.isNpuAvailable()) }
 
     private fun getDefaultPlatformName(clientType: ClientType): String = ModelConstants.defaultPlatformName(clientType)
 

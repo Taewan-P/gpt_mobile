@@ -99,7 +99,7 @@ class LocalAcceleratorsTest {
     @Test
     fun `default accelerator prefers GPU and never picks ineligible NPU`() {
         assertEquals(
-            LocalAccelerators.GPU,
+            LocalAccelerators.AUTO,
             LocalAccelerators.defaultFrom(
                 supported = listOf("cpu", "gpu", "npu"),
                 socToModelFiles = mapOf("SM8650" to VARIANT),
@@ -107,7 +107,7 @@ class LocalAcceleratorsTest {
             )
         )
         assertEquals(
-            LocalAccelerators.NPU,
+            LocalAccelerators.AUTO,
             LocalAccelerators.defaultFrom(
                 supported = listOf("npu", "cpu"),
                 socToModelFiles = mapOf("SM8650" to VARIANT),
@@ -115,13 +115,69 @@ class LocalAcceleratorsTest {
             )
         )
         assertEquals(
-            LocalAccelerators.CPU,
+            LocalAccelerators.AUTO,
             LocalAccelerators.defaultFrom(
                 supported = listOf("npu", "cpu"),
                 socToModelFiles = emptyMap<String, Any>(),
                 deviceSocModel = "SM8650"
             )
         )
+    }
+
+    @Test
+    fun `default accelerator falls back to CPU when nothing is selectable`() {
+        assertEquals(
+            LocalAccelerators.CPU,
+            LocalAccelerators.defaultFrom(
+                supported = emptyList(),
+                socToModelFiles = emptyMap<String, Any>(),
+                deviceSocModel = "SM8650"
+            )
+        )
+    }
+
+    @Test
+    fun `normalize preserves auto and existing backends and falls unknown values to CPU`() {
+        assertEquals(LocalAccelerators.AUTO, LocalAccelerators.normalize("AUTO"))
+        assertEquals(LocalAccelerators.GPU, LocalAccelerators.normalize("GPU"))
+        assertEquals(LocalAccelerators.CPU, LocalAccelerators.normalize("cpu"))
+        assertEquals(LocalAccelerators.NPU, LocalAccelerators.normalize("npu"))
+        assertEquals(LocalAccelerators.CPU, LocalAccelerators.normalize(null))
+        assertEquals(LocalAccelerators.CPU, LocalAccelerators.normalize("tpu"))
+    }
+
+    @Test
+    fun `preference choices offer Auto plus CPU GPU and NPU`() {
+        val choices = LocalAccelerators.preferenceChoices(
+            supported = listOf("gpu"),
+            socToModelFiles = emptyMap<String, Any>(),
+            deviceSocModel = "SM8650"
+        )
+        assertEquals(LocalAccelerators.PREFERENCES, choices.map { it.accelerator })
+        assertTrue(choices.single { it.accelerator == LocalAccelerators.AUTO }.enabled)
+        assertFalse(choices.single { it.accelerator == LocalAccelerators.CPU }.enabled)
+        assertTrue(choices.single { it.accelerator == LocalAccelerators.GPU }.enabled)
+        assertFalse(choices.single { it.accelerator == LocalAccelerators.NPU }.enabled)
+    }
+
+    @Test
+    fun `NPU is not eligible when parent marks runtime unavailable`() {
+        assertFalse(
+            LocalAccelerators.isNpuEligible(
+                supported = listOf("cpu", "gpu", "npu"),
+                socToModelFiles = mapOf("SM8650" to VARIANT),
+                deviceSocModel = "SM8650",
+                isNpuAvailable = false
+            )
+        )
+        val npu = LocalAccelerators.choices(
+            supported = listOf("cpu", "gpu", "npu"),
+            socToModelFiles = mapOf("SM8650" to VARIANT),
+            deviceSocModel = "SM8650",
+            isNpuAvailable = false
+        ).single { it.accelerator == LocalAccelerators.NPU }
+        assertFalse(npu.enabled)
+        assertEquals(AcceleratorUnavailableReason.DEVICE_NOT_SUPPORTED, npu.unavailableReason)
     }
 
     @Test
@@ -214,6 +270,7 @@ class LocalAcceleratorsTest {
         assertFalse(LocalAccelerators.shouldApplySampler(LocalAccelerators.NPU))
         assertTrue(LocalAccelerators.shouldApplySampler(LocalAccelerators.CPU))
         assertTrue(LocalAccelerators.shouldApplySampler(LocalAccelerators.GPU))
+        assertTrue(LocalAccelerators.shouldApplySampler(LocalAccelerators.AUTO))
     }
 
     private fun hostedEntry(id: String) = ModelCatalogParser.parse(readCatalogFile()).models.single { it.id == id }

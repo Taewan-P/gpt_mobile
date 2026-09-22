@@ -3,6 +3,7 @@ package dev.chungjungsoo.gptmobile.data.repository
 import androidx.work.WorkInfo
 import dev.chungjungsoo.gptmobile.data.catalog.CatalogEntry
 import dev.chungjungsoo.gptmobile.data.database.entity.LocalModel
+import dev.chungjungsoo.gptmobile.data.localmodel.ResolvedModelDownload
 import kotlinx.coroutines.flow.Flow
 
 interface LocalModelRepository {
@@ -11,6 +12,7 @@ interface LocalModelRepository {
     suspend fun getById(catalogEntryId: String): LocalModel?
     suspend fun resolveDownloadedPath(catalogEntryId: String): String?
     suspend fun startDownload(entry: CatalogEntry)
+    suspend fun startDownload(entry: CatalogEntry, resolved: ResolvedModelDownload)
     suspend fun cancelDownload(catalogEntryId: String)
     suspend fun deleteModel(catalogEntryId: String)
     suspend fun totalStorageUsed(): Long

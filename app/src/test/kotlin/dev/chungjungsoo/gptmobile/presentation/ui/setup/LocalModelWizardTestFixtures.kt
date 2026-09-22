@@ -10,6 +10,7 @@ import dev.chungjungsoo.gptmobile.data.huggingface.HuggingFaceTokenStore
 import dev.chungjungsoo.gptmobile.data.localmodel.GatedDownloadCoordinator
 import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelDownloadProber
 import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelStatus
+import dev.chungjungsoo.gptmobile.data.localruntime.FakeLocalRuntime
 import dev.chungjungsoo.gptmobile.data.repository.FakeLocalModelRepository
 import dev.chungjungsoo.gptmobile.data.repository.FakeModelCatalogRepository
 import dev.chungjungsoo.gptmobile.data.repository.SecretMigrationError
@@ -159,6 +160,7 @@ internal fun setupViewModel(
     huggingFaceTokenStore = tokenStore,
     downloadGuards = guards,
     huggingFaceAuthClient = authClient,
+    localRuntime = FakeLocalRuntime(),
     deviceSocModel = deviceSocModel
 )
 
@@ -177,6 +179,7 @@ internal fun addPlatformViewModel(
     huggingFaceTokenStore = tokenStore,
     downloadGuards = guards,
     huggingFaceAuthClient = authClient,
+    localRuntime = FakeLocalRuntime(),
     deviceSocModel = deviceSocModel
 )
 
@@ -195,5 +198,6 @@ internal fun localModelsViewModel(
     huggingFaceTokenStore = tokenStore,
     downloadGuards = guards,
     huggingFaceAuthClient = authClient,
-    deviceSocModel = deviceSocModel
+    deviceSocModel = deviceSocModel,
+    localRuntime = dev.chungjungsoo.gptmobile.data.localruntime.FakeLocalRuntime()
 )

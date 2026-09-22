@@ -173,7 +173,8 @@
     <string name="max_tokens_setting_description">Maximum number of tokens the Local Model can generate in one response.</string>
     <string name="max_tokens_invalid">Enter a whole number from 1 to %d.</string>
     <string name="accelerator_setting">Accelerator</string>
-    <string name="accelerator_setting_description">Choose the hardware this Local Platform uses for inference. The change applies the next time the engine loads.</string>
+    <string name="accelerator_setting_description">Auto prefers a compatible NPU, then GPU, then CPU. You can choose a specific accelerator. A different model file may require a confirmed download.</string>
+    <string name="accelerator_auto">Auto</string>
     <string name="accelerator_cpu">CPU</string>
     <string name="accelerator_gpu">GPU</string>
     <string name="accelerator_npu">NPU</string>
