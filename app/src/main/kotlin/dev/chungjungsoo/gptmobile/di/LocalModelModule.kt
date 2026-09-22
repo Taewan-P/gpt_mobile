@@ -66,7 +66,8 @@ object LocalModelModule {
     fun provideLocalModelRepository(
         @ApplicationContext context: Context,
         localModelDao: LocalModelDao,
-        @DeviceSocModel deviceSocModel: String,
+        @DeviceSocModel
+        deviceSocModel: String,
         localRuntime: LocalRuntime
     ): LocalModelRepository = LocalModelRepositoryImpl(
         context = context,

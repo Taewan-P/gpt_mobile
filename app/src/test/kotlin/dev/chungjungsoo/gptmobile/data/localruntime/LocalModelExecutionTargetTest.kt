@@ -28,6 +28,15 @@ class LocalModelExecutionTargetTest {
         assertEquals("default.litertlm", target.download.fileName)
     }
 
+    @Test
+    fun manualNpu_neverFallsBackToAnotherAccelerator() {
+        assertEquals(
+            listOf("npu"),
+            localModelExecutionTargets(entry(), "npu", "SM8750", true).map { it.accelerator }
+        )
+        assertEquals(emptyList<LocalModelExecutionTarget>(), localModelExecutionTargets(entry(), "npu", "SM8750", false))
+    }
+
     private fun entry() = CatalogEntry(
         id = "model",
         downloadUrl = "https://huggingface.co/test/model/resolve/hash/default.litertlm",

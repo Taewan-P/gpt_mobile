@@ -137,6 +137,29 @@ class LocalModelReplacementViewModelTest {
         assertEquals(listOf(target), localModels.startDownloadResolved)
         assertTrue(coordinator.pending.value.isEmpty())
     }
+
+    @Test
+    fun confirmedReplacement_activeDownloadStaysPendingAndShowsError() = runTest {
+        val localModels = FakeLocalModelRepository(
+            listOf(wizardStoredModel("pending-model", LocalModelStatus.DOWNLOADING))
+        )
+        val coordinator = LocalModelReplacementCoordinator()
+        val viewModel = replacementViewModel(coordinator = coordinator, localModels = localModels)
+        val entry = wizardCatalogEntry("pending-model")
+        val target = ResolvedModelDownload(
+            fileName = "pending-npu.litertlm",
+            downloadUrl = "https://example/pending-npu.litertlm",
+            commitHash = "npu",
+            sizeInBytes = 3_000_000L
+        )
+
+        coordinator.request(entry, target, "npu")
+        viewModel.confirmReplacement()
+
+        assertEquals(listOf("pending-model"), coordinator.pending.value.map { it.entry.id })
+        assertTrue(viewModel.uiState.value.download.dialog is LocalModelsDialog.DownloadError)
+        assertTrue(localModels.startDownloadCalls.isEmpty())
+    }
 }
 
 private fun replacementViewModel(

@@ -33,6 +33,7 @@ import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import dev.chungjungsoo.gptmobile.data.repository.ToolConnectionRepository
 import dev.chungjungsoo.gptmobile.data.security.SecretVault
 import io.ktor.client.engine.cio.CIO
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -370,7 +371,7 @@ class PlatformSettingViewModelTest {
                     )
                 )
             ),
-            localRuntime = FakeLocalRuntime().apply { npuAvailable = true },
+            localRuntime = FakeLocalRuntime().apply { isNpuRuntimeAvailable = true },
             deviceSocModel = "SM8650"
         )
 
@@ -396,7 +397,7 @@ class PlatformSettingViewModelTest {
                     )
                 )
             ),
-            localRuntime = FakeLocalRuntime().apply { npuAvailable = true },
+            localRuntime = FakeLocalRuntime().apply { isNpuRuntimeAvailable = true },
             deviceSocModel = "SM8650"
         )
 
@@ -405,6 +406,60 @@ class PlatformSettingViewModelTest {
         assertEquals(LocalAccelerators.NPU, viewModel.platformState.value?.accelerator)
         assertEquals(LocalAccelerators.NPU, settings.updatedPlatforms.single().accelerator)
         assertFalse(viewModel.dialogState.value.isAcceleratorDialogOpen)
+    }
+
+    @Test
+    fun `accelerator replacement waits for persistence`() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val persistenceGate = CompletableDeferred<Unit>()
+        val settings = FakeSettingRepository(
+            initialPlatform = localPlatform(model = "cpu-gpu", accelerator = LocalAccelerators.GPU),
+            updateGate = persistenceGate
+        )
+        val replacementCoordinator = LocalModelReplacementCoordinator()
+        val localModels = FakeLocalModelRepository(
+            listOf(
+                LocalModel(
+                    catalogEntryId = "cpu-gpu",
+                    commitHash = "default-hash",
+                    fileName = "default.litertlm",
+                    relativeDirectory = "models/cpu-gpu/default-hash",
+                    totalBytes = 10L,
+                    status = LocalModelStatus.READY
+                )
+            )
+        )
+        val viewModel = localSettingsViewModel(
+            settings = settings,
+            catalog = FakeModelCatalogRepository(
+                listOf(
+                    catalogEntry(
+                        id = "cpu-gpu",
+                        supportedAccelerators = listOf("cpu", "gpu", "npu"),
+                        socToModelFiles = mapOf(
+                            "SM8650" to SocVariant(
+                                modelFile = "npu.litertlm",
+                                commitHash = "npu-hash",
+                                sizeInBytes = 20L
+                            )
+                        )
+                    )
+                )
+            ),
+            localModels = localModels,
+            localRuntime = FakeLocalRuntime().apply { isNpuRuntimeAvailable = true },
+            replacementCoordinator = replacementCoordinator,
+            deviceSocModel = "SM8650"
+        )
+        runCurrent()
+
+        viewModel.updateAccelerator(LocalAccelerators.NPU)
+        runCurrent()
+
+        assertTrue(replacementCoordinator.pending.value.isEmpty())
+        persistenceGate.complete(Unit)
+        runCurrent()
+        assertEquals(listOf("cpu-gpu"), replacementCoordinator.pending.value.map { it.entry.id })
     }
 
     @Test
@@ -425,7 +480,7 @@ class PlatformSettingViewModelTest {
                     )
                 )
             ),
-            localRuntime = FakeLocalRuntime().apply { npuAvailable = true },
+            localRuntime = FakeLocalRuntime().apply { isNpuRuntimeAvailable = true },
             deviceSocModel = "SM8750"
         )
 
@@ -721,7 +776,8 @@ private class FakeSettingRepository(
         model = "gpt"
     ),
     private val fetchPlatformsResult: List<PlatformV2> = listOf(initialPlatform),
-    var fetchFailure: Throwable? = null
+    var fetchFailure: Throwable? = null,
+    private val updateGate: CompletableDeferred<Unit>? = null
 ) : SettingRepository {
     private var platform = initialPlatform
     val updatedPlatforms = mutableListOf<PlatformV2>()
@@ -740,6 +796,7 @@ private class FakeSettingRepository(
     override suspend fun updateThemes(themeSetting: ThemeSetting) = Unit
     override suspend fun addPlatformV2(platform: PlatformV2) = Unit
     override suspend fun updatePlatformV2(platform: PlatformV2) {
+        updateGate?.await()
         this.platform = platform
         updatedPlatforms += platform
     }

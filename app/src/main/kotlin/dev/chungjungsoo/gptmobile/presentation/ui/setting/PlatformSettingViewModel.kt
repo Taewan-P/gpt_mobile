@@ -361,7 +361,7 @@ class PlatformSettingViewModel @Inject constructor(
         ).firstOrNull()?.accelerator ?: LocalAccelerators.normalize(platform.accelerator)
     }
 
-    private fun requestReplacementIfNeeded(platform: PlatformV2) {
+    private suspend fun requestReplacementIfNeeded(platform: PlatformV2) {
         val entry = catalogEntryFor(platform) ?: return
         val desired = localModelExecutionTargets(
             entry,
@@ -369,12 +369,10 @@ class PlatformSettingViewModel @Inject constructor(
             deviceSocModel,
             localRuntime.isNpuAvailable()
         ).firstOrNull() ?: return
-        viewModelScope.launch {
-            val retained = localModelRepository.getById(platform.model) ?: return@launch
-            if (retained.status != LocalModelStatus.READY) return@launch
-            if (!desired.download.matches(retained)) {
-                localModelReplacementCoordinator.request(entry, desired.download, desired.accelerator)
-            }
+        val retained = localModelRepository.getById(platform.model) ?: return
+        if (retained.status != LocalModelStatus.READY) return
+        if (!desired.download.matches(retained)) {
+            localModelReplacementCoordinator.request(entry, desired.download, desired.accelerator)
         }
     }
 
@@ -391,8 +389,11 @@ class PlatformSettingViewModel @Inject constructor(
         if (option?.enabled != true) return
         _platformState.value?.let { platform ->
             val updated = platform.copy(accelerator = normalized)
-            updatePlatform(updated)
-            requestReplacementIfNeeded(updated)
+            viewModelScope.launch {
+                settingRepository.updatePlatformV2(updated)
+                _platformState.update { updated }
+                requestReplacementIfNeeded(updated)
+            }
             closeAcceleratorDialog()
         }
     }

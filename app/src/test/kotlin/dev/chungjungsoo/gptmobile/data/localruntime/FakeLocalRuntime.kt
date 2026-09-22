@@ -10,9 +10,9 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.yield
 
 class FakeLocalRuntime : LocalRuntime {
-    var npuAvailable = false
+    var isNpuRuntimeAvailable = false
 
-    override fun isNpuAvailable(): Boolean = npuAvailable
+    override fun isNpuAvailable(): Boolean = isNpuRuntimeAvailable
 
     val loadEngineCalls = mutableListOf<LocalEngineSpec>()
     val createConversationCalls = mutableListOf<LocalConversationConfig>()

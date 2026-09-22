@@ -17,7 +17,8 @@ fun localModelExecutionTargets(
     isNpuAvailable: Boolean
 ): List<LocalModelExecutionTarget> {
     val order = when (preference?.lowercase()) {
-        "auto", LocalAccelerators.NPU -> listOf(LocalAccelerators.NPU, LocalAccelerators.GPU, LocalAccelerators.CPU)
+        "auto" -> listOf(LocalAccelerators.NPU, LocalAccelerators.GPU, LocalAccelerators.CPU)
+        LocalAccelerators.NPU -> listOf(LocalAccelerators.NPU)
         LocalAccelerators.GPU -> listOf(LocalAccelerators.GPU, LocalAccelerators.CPU)
         else -> listOf(LocalAccelerators.CPU)
     }

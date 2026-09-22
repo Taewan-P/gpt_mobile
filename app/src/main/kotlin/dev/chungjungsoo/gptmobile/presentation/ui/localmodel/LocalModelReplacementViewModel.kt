@@ -33,7 +33,8 @@ class LocalModelReplacementViewModel @Inject constructor(
     huggingFaceTokenStore: HuggingFaceTokenStore,
     downloadGuards: LocalDownloadGuards,
     huggingFaceAuthClient: HuggingFaceAuthClient,
-    @param:DeviceSocModel deviceSocModel: String,
+    @DeviceSocModel
+    deviceSocModel: String,
     localRuntime: LocalRuntime
 ) : ViewModel() {
     private val activeRequest = MutableStateFlow<LocalModelReplacementRequest?>(null)

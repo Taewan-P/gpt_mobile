@@ -15,7 +15,8 @@ fi
 python3 - "$archive" "$cache" <<'PY'
 import hashlib, pathlib, sys, tarfile
 archive, cache = map(pathlib.Path, sys.argv[1:])
-assert hashlib.sha256(archive.read_bytes()).hexdigest() == '5dbb113744e103f899c7b1b7c5479126b36a0b7414c3d971185c1f02041bfa39', 'LiteRT source checksum mismatch'
+if hashlib.sha256(archive.read_bytes()).hexdigest() != '5dbb113744e103f899c7b1b7c5479126b36a0b7414c3d971185c1f02041bfa39':
+    raise ValueError('LiteRT source checksum mismatch')
 with tarfile.open(archive) as tar:
     tar.extractall(cache, filter='data')
 PY

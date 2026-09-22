@@ -53,7 +53,7 @@ class LiteRtLmAdapterTest {
     @Test
     fun npuArtifact_onInitializationFailure_neverLoadsOnCpuOrGpu() = runBlocking {
         val runtime = FakeLocalRuntime().apply {
-            npuAvailable = true
+            isNpuRuntimeAvailable = true
             failLoadEngineIf = { IllegalStateException("NPU unavailable") }
         }
         val catalog = FakeModelCatalogRepository(
@@ -91,7 +91,7 @@ class LiteRtLmAdapterTest {
 
     @Test
     fun auto_npuArtifactMissing_requestsReplacementWithoutStartingInference() = runBlocking {
-        val runtime = FakeLocalRuntime().apply { npuAvailable = true }
+        val runtime = FakeLocalRuntime().apply { isNpuRuntimeAvailable = true }
         val entry = CatalogEntry(
             id = "gemma3-1b-it",
             downloadUrl = "https://huggingface.co/test/model/resolve/hash/default.litertlm",
@@ -1203,7 +1203,7 @@ class LiteRtLmAdapterTest {
     @Test
     fun `NPU engine spec clamps max tokens to the matching SOC variant context`() = runBlocking {
         val runtime = FakeLocalRuntime().apply {
-            npuAvailable = true
+            isNpuRuntimeAvailable = true
             scriptedEvents = listOf(listOf(LocalRuntimeEvent.TextDelta("ok"), LocalRuntimeEvent.Done))
         }
         val adapter = adapter(

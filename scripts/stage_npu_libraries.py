@@ -13,14 +13,27 @@ QNN_SHA256 = "de56e38f90441eaf9cbb2d4f929968894f4a02b1c3717d4741e12d3a4ea1ff9e"
 QNN_URL = "https://repo.maven.apache.org/maven2/com/qualcomm/qti/qnn-runtime/2.47.0/qnn-runtime-2.47.0.aar"
 
 
+def fetch_verified(url: str, archive: Path, expected_sha256: str):
+    if archive.exists() and hashlib.sha256(archive.read_bytes()).hexdigest() != expected_sha256:
+        archive.unlink()
+    if archive.exists():
+        return
+    partial = archive.with_suffix(archive.suffix + ".part")
+    partial.unlink(missing_ok=True)
+    try:
+        urllib.request.urlretrieve(url, partial)
+        if hashlib.sha256(partial.read_bytes()).hexdigest() != expected_sha256:
+            raise ValueError("Downloaded archive checksum mismatch")
+        partial.replace(archive)
+    finally:
+        partial.unlink(missing_ok=True)
+
+
 def stage(vendors: Path):
     cache = BASE / "cache"
     cache.mkdir(parents=True, exist_ok=True)
     archive = cache / "qnn-runtime-2.47.0.aar"
-    if not archive.exists():
-        urllib.request.urlretrieve(QNN_URL, archive)
-    if hashlib.sha256(archive.read_bytes()).hexdigest() != QNN_SHA256:
-        raise ValueError("Qualcomm runtime checksum mismatch")
+    fetch_verified(QNN_URL, archive, QNN_SHA256)
     destination = BASE / "jni/arm64-v8a"
     destination.mkdir(parents=True, exist_ok=True)
     for vendor, name in [("google_tensor", "GoogleTensor"), ("mediatek", "MediaTek"), ("qualcomm", "Qualcomm")]:

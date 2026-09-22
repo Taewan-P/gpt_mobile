@@ -36,6 +36,7 @@ class LocalModelDownloadActions(
     private var pendingResolvedTarget: ResolvedModelDownload? = null
     private var allowReadyReplacement: Boolean = false
     private var beginGeneration: Int = 0
+    private var isStartingDownload: Boolean = false
 
     private val _uiState = MutableStateFlow(LocalModelDownloadUiState())
     val uiState: StateFlow<LocalModelDownloadUiState> = _uiState.asStateFlow()
@@ -64,7 +65,7 @@ class LocalModelDownloadActions(
         resolved: ResolvedModelDownload?,
         allowReadyReplacement: Boolean
     ) {
-        if (_uiState.value.checkingAccessEntryId != null || _uiState.value.dialog !is LocalModelsDialog.Hidden) return
+        if (isStartingDownload || _uiState.value.checkingAccessEntryId != null || _uiState.value.dialog !is LocalModelsDialog.Hidden) return
         beginGeneration += 1
         if (currentStatus == LocalModelItemStatus.DOWNLOADING) return
         if (currentStatus == LocalModelItemStatus.READY && !allowReadyReplacement) {
@@ -115,6 +116,7 @@ class LocalModelDownloadActions(
         pendingResolvedTarget = null
         allowReadyReplacement = false
         beginGeneration += 1
+        isStartingDownload = false
         _uiState.update { it.copy(dialog = LocalModelsDialog.Hidden) }
     }
 
@@ -216,13 +218,18 @@ class LocalModelDownloadActions(
     )
 
     private fun beginDownload(entry: CatalogEntry) {
+        if (isStartingDownload) return
+        isStartingDownload = true
         val requestGeneration = beginGeneration
         scope.launch {
             if (requestGeneration != beginGeneration) return@launch
             val existing = localModelRepository.getById(entry.id)
             val isReadyReplacement = allowReadyReplacement && pendingResolvedTarget != null
             if (existing?.status == LocalModelStatus.DOWNLOADING) {
-                finishStartedFlow()
+                isStartingDownload = false
+                _uiState.update {
+                    it.copy(dialog = LocalModelsDialog.DownloadError("A download for this model is already running. Wait for it to finish, then try again."))
+                }
                 return@launch
             }
             if (existing?.status == LocalModelStatus.READY && !isReadyReplacement) {
@@ -246,24 +253,28 @@ class LocalModelDownloadActions(
                 GatedDownloadStep.Proceed -> startResolvedDownload(entry, resolved, requestGeneration)
 
                 is GatedDownloadStep.NeedsSignIn -> {
+                    isStartingDownload = false
                     pendingGatedEntry = entry
                     _uiState.update { it.copy(dialog = LocalModelsDialog.SignIn(entry, step.isSessionExpired)) }
                 }
 
                 is GatedDownloadStep.NeedsLicense -> {
+                    isStartingDownload = false
                     pendingGatedEntry = entry
                     _uiState.update { it.copy(dialog = LocalModelsDialog.License(entry, step.modelPageUrl)) }
                 }
 
                 is GatedDownloadStep.OAuthNotConfigured -> {
+                    isStartingDownload = false
                     pendingGatedEntry = entry
                     _uiState.update {
                         it.copy(dialog = LocalModelsDialog.OAuthNotConfigured(step.isSessionExpired))
                     }
                 }
 
-                GatedDownloadStep.Error -> _uiState.update {
-                    it.copy(dialog = LocalModelsDialog.ProbeError)
+                GatedDownloadStep.Error -> {
+                    isStartingDownload = false
+                    _uiState.update { it.copy(dialog = LocalModelsDialog.ProbeError) }
                 }
             }
         }
@@ -288,6 +299,7 @@ class LocalModelDownloadActions(
             throw exception
         } catch (error: Exception) {
             if (requestGeneration != beginGeneration) return
+            isStartingDownload = false
             _uiState.update {
                 it.copy(dialog = LocalModelsDialog.DownloadError(error.message ?: "Could not start the model download"), checkingAccessEntryId = null)
             }
@@ -295,6 +307,7 @@ class LocalModelDownloadActions(
     }
 
     private fun finishStartedFlow() {
+        isStartingDownload = false
         pendingResolvedTarget = null
         allowReadyReplacement = false
         onDownloadStarted()
