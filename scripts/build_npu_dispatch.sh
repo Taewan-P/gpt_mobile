@@ -23,7 +23,7 @@ PY
 cd "$cache/LiteRT-$ref"
 # macOS Command Line Tools work without selecting a full Xcode installation.
 if [[ "$(uname)" == Darwin ]]; then
-    export DEVELOPER_DIR="${DEVELOPER_DIR:-/Library/Developer/CommandLineTools}"
+    export DEVELOPER_DIR=/Library/Developer/CommandLineTools
     export BAZEL_USE_CPP_ONLY_TOOLCHAIN=1
 fi
 "${BAZEL:-bazel}" build --config=android_arm64 --jobs=6 \
