@@ -154,17 +154,17 @@ class OpenAICompatibleAdapter @Inject constructor(
 ) {
     suspend fun openSession(turns: List<ConversationTurn>, platform: PlatformV2): AgentProviderSession {
         val initialMessages = attachmentEncoder.openAIChatMessages(turns, platform.systemPrompt)
-        val config = ProviderRequestConfig(platform.apiUrl, platform.token)
-        return object : AgentProviderSession {
-            override fun streamRound(
-                tools: List<AgentToolDefinition>,
-                exchanges: List<AgentToolExchange>
-            ): Flow<ProviderEvent> = flow {
-                val messages = initialMessages + exchanges.flatMap { it.toChatMessages() }
-                val requestTools = tools.takeIf { it.isNotEmpty() }?.map { definition ->
-                    ChatFunctionTool(definition.name, definition.description, definition.inputSchema)
-                }
-                if (platform.compatibleType == ClientType.GROQ) {
+        if (platform.compatibleType == ClientType.GROQ) {
+            val config = ProviderRequestConfig(platform.apiUrl, platform.token)
+            return object : AgentProviderSession {
+                override fun streamRound(
+                    tools: List<AgentToolDefinition>,
+                    exchanges: List<AgentToolExchange>
+                ): Flow<ProviderEvent> = flow {
+                    val messages = initialMessages + exchanges.flatMap { it.toChatMessages() }
+                    val requestTools = tools.takeIf { it.isNotEmpty() }?.map { definition ->
+                        ChatFunctionTool(definition.name, definition.description, definition.inputSchema)
+                    }
                     val request = createGroqChatCompletionRequest(messages, platform).copy(tools = requestTools)
                     val assembler = ChatCompletionsEventAssembler()
                     val reasoningParser = GroqReasoningParser()
@@ -204,41 +204,72 @@ class OpenAICompatibleAdapter @Inject constructor(
                         usage?.let { emit(it) }
                         emit(ProviderEvent.Completed)
                     }
-                    return@flow
                 }
+            }
+        }
+        return openChatCompletionsSession(openAIAPI, initialMessages, platform)
+    }
+}
 
-                val request = ChatCompletionRequest(
-                    model = platform.model,
-                    messages = messages,
-                    stream = platform.stream,
-                    temperature = platform.temperature,
-                    topP = platform.topP,
-                    maxTokens = resolvedOutputTokenCap(platform, tools.isNotEmpty()),
-                    tools = requestTools
-                )
-                val assembler = ChatCompletionsEventAssembler()
-                var failed = false
-                var usage: ProviderEvent.Usage? = null
-                openAIAPI.streamChatCompletion(request, platform.timeout, config).collect { chunk ->
-                    chunk.error?.let { error ->
-                        failed = true
-                        emit(ProviderEvent.Failed(error.message))
-                    } ?: run {
-                        chunk.usage.toProviderUsage()?.let { usage = it }
-                        chunk.choices.orEmpty().forEach { choice ->
-                            assembler.accept(
-                                content = choice.delta.content,
-                                reasoning = choice.delta.reasoning,
-                                toolCalls = choice.delta.toolCalls,
-                                finishReason = choice.finishReason
-                            ).forEach { emit(it) }
-                        }
+class MistralAdapter @Inject constructor(
+    private val openAIAPI: OpenAIAPI,
+    private val attachmentEncoder: ProviderAttachmentEncoder
+) {
+    suspend fun openSession(
+        turns: List<ConversationTurn>,
+        platform: PlatformV2
+    ): AgentProviderSession = openChatCompletionsSession(
+        openAIAPI,
+        attachmentEncoder.openAIChatMessages(turns, platform.systemPrompt),
+        platform
+    )
+}
+
+private fun openChatCompletionsSession(
+    api: OpenAIAPI,
+    initialMessages: List<ChatMessage>,
+    platform: PlatformV2
+): AgentProviderSession {
+    val config = ProviderRequestConfig(platform.apiUrl, platform.token)
+    return object : AgentProviderSession {
+        override fun streamRound(
+            tools: List<AgentToolDefinition>,
+            exchanges: List<AgentToolExchange>
+        ): Flow<ProviderEvent> = flow {
+            val messages = initialMessages + exchanges.flatMap { it.toChatMessages() }
+            val request = ChatCompletionRequest(
+                model = platform.model,
+                messages = messages,
+                stream = platform.stream,
+                temperature = platform.temperature,
+                topP = platform.topP,
+                maxTokens = resolvedOutputTokenCap(platform, tools.isNotEmpty()),
+                tools = tools.takeIf { it.isNotEmpty() }?.map { definition ->
+                    ChatFunctionTool(definition.name, definition.description, definition.inputSchema)
+                }
+            )
+            val assembler = ChatCompletionsEventAssembler()
+            var failed = false
+            var usage: ProviderEvent.Usage? = null
+            api.streamChatCompletion(request, platform.timeout, config).collect { chunk ->
+                chunk.error?.let { error ->
+                    failed = true
+                    emit(ProviderEvent.Failed(error.message))
+                } ?: run {
+                    chunk.usage.toProviderUsage()?.let { usage = it }
+                    chunk.choices.orEmpty().forEach { choice ->
+                        assembler.accept(
+                            content = choice.delta.content,
+                            reasoning = choice.delta.reasoning,
+                            toolCalls = choice.delta.toolCalls,
+                            finishReason = choice.finishReason
+                        ).forEach { emit(it) }
                     }
                 }
-                if (!failed) {
-                    usage?.let { emit(it) }
-                    emit(ProviderEvent.Completed)
-                }
+            }
+            if (!failed) {
+                usage?.let { emit(it) }
+                emit(ProviderEvent.Completed)
             }
         }
     }

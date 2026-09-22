@@ -14,6 +14,7 @@ import dev.chungjungsoo.gptmobile.data.agent.ToolResultContent
 import dev.chungjungsoo.gptmobile.data.agent.provider.AnthropicMessagesAdapter
 import dev.chungjungsoo.gptmobile.data.agent.provider.GeminiAdapter
 import dev.chungjungsoo.gptmobile.data.agent.provider.LiteRtLmAdapter
+import dev.chungjungsoo.gptmobile.data.agent.provider.MistralAdapter
 import dev.chungjungsoo.gptmobile.data.agent.provider.OpenAICompatibleAdapter
 import dev.chungjungsoo.gptmobile.data.agent.provider.OpenAIResponsesAdapter
 import dev.chungjungsoo.gptmobile.data.agent.provider.ProviderAttachmentEncoder
@@ -108,6 +109,7 @@ class ChatRepositoryImpl @Inject constructor(
     private val providerAttachmentEncoder = ProviderAttachmentEncoder(context)
     private val openAIResponsesAdapter = OpenAIResponsesAdapter(openAIAPI, providerAttachmentEncoder)
     private val openAICompatibleAdapter = OpenAICompatibleAdapter(openAIAPI, groqAPI, providerAttachmentEncoder)
+    private val mistralAdapter = MistralAdapter(openAIAPI, providerAttachmentEncoder)
     private val anthropicMessagesAdapter = AnthropicMessagesAdapter(anthropicAPI, providerAttachmentEncoder)
     private val geminiAdapter = GeminiAdapter(googleAPI, providerAttachmentEncoder)
     private val liteRtLmAdapter = LiteRtLmAdapter(
@@ -738,6 +740,8 @@ class ChatRepositoryImpl @Inject constructor(
 
             ClientType.GROQ, ClientType.OLLAMA, ClientType.OPENROUTER, ClientType.CUSTOM ->
                 openAICompatibleAdapter.openSession(preparedTurns, platform)
+
+            ClientType.MISTRAL -> mistralAdapter.openSession(preparedTurns, platform)
 
             ClientType.ANTHROPIC -> anthropicMessagesAdapter.openSession(preparedTurns, platform, prepared)
 

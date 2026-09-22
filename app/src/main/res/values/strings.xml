@@ -319,6 +319,7 @@
     <string name="api_type">API Type</string>
     <string name="client_type_openai_desc">OpenAI chat completions API</string>
     <string name="client_type_anthropic_desc">Anthropic Messages API</string>
+    <string name="client_type_mistral_desc">Mistral OpenAI-compatible Chat Completions API</string>
     <string name="client_type_google_desc">Google Gemini Generative AI API</string>
     <string name="client_type_groq_desc">Groq OpenAI-compatible API</string>
     <string name="client_type_ollama_desc">Ollama OpenAI-compatible API</string>
@@ -384,6 +385,9 @@
     <string name="finish">Finish</string>
     <string name="openrouter" translatable="false">OpenRouter</string>
     <string name="openrouter_description">Access multiple AI models through one API</string>
+    <string name="mistral" translatable="false">Mistral</string>
+    <string name="mistral_description">Chat with Mistral models through the Mistral API.</string>
+    <string name="mistral_api_url_requirement">Mistral API URLs must end with /v1/.</string>
     <string name="custom_provider">Custom Provider</string>
     <string name="custom_provider_description">Connect to any OpenAI-compatible API</string>
     <string name="platform_added_successfully">Platform added successfully</string>
