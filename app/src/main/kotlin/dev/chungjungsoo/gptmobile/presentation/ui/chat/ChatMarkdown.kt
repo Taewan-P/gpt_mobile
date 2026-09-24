@@ -195,6 +195,15 @@ fun ChatMarkdown(
                 } else {
                     DefaultParagraph(model.content, model.node, model.typography.paragraph, annotator)
                 }
+            },
+            table = { model ->
+                MarkdownTableWrapped(                 // your own implementation
+                    content = model.content,
+                    node = model.node,
+                    modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    annotator = annotator             // keeps inline‑math / link spans working
+                )
             }
         )
     }
