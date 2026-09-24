@@ -42,6 +42,11 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.style.TextOverflow
+import com.mikepenz.markdown.compose.elements.MarkdownTable
+import com.mikepenz.markdown.compose.elements.MarkdownTableHeader
+import com.mikepenz.markdown.compose.elements.MarkdownTableRow
 import com.mikepenz.markdown.annotator.annotatorSettings
 import com.mikepenz.markdown.compose.LocalMarkdownTypography
 import com.mikepenz.markdown.compose.LocalReferenceLinkHandler
@@ -197,12 +202,46 @@ fun ChatMarkdown(
                 }
             },
             table = { model ->
-                MarkdownTableWrapped(                 // your own implementation
+                // Must be built here (composable scope) so it reads the CompositionLocals,
+                // exactly like your DefaultParagraph does.
+                val tableAnnotatorSettings = annotatorSettings(
+                    LocalMarkdownTypography.current.textLink,
+                    LocalMarkdownTypography.current.inlineCode.toSpanStyle(),
+                    annotator,                              // keeps CHAT_MATH_INLINE_* working
+                    LocalReferenceLinkHandler.current,
+                    LocalUriHandler.current,
+                    null
+                )
+            
+                MarkdownTable(
                     content = model.content,
                     node = model.node,
-                    modifier = Modifier.fillMaxWidth(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    annotator = annotator             // keeps inline‑math / link spans working
+                    style = model.typography.text,          // bodyMedium via chatMarkdownTypography()
+                    annotatorSettings = tableAnnotatorSettings,
+                    headerBlock = { content, header, tableWidth, style ->
+                        MarkdownTableHeader(
+                            content = content,
+                            header = header,
+                            tableWidth = tableWidth,
+                            style = style,
+                            verticalAlignment = Alignment.Top,   // nicer once rows wrap
+                            maxLines = Int.MAX_VALUE,            // ← was 1
+                            overflow = TextOverflow.Clip,        // ← was TextOverflow.Ellipsis
+                            annotatorSettings = tableAnnotatorSettings,
+                        )
+                    },
+                    rowBlock = { content, row, tableWidth, style ->
+                        MarkdownTableRow(
+                            content = content,
+                            header = row,                   // yes, the lib names the ROW param "header"
+                            tableWidth = tableWidth,
+                            style = style,
+                            verticalAlignment = Alignment.Top,
+                            maxLines = Int.MAX_VALUE,            // ← was 1
+                            overflow = TextOverflow.Clip,        // ← was TextOverflow.Ellipsis
+                            annotatorSettings = tableAnnotatorSettings,
+                        )
+                    },
                 )
             }
         )
