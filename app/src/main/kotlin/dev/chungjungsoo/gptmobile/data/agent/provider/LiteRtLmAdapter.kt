@@ -244,7 +244,10 @@ class LiteRtLmAdapter(
                 } catch (error: LocalEngineLoadException) {
                     isConversationDirty = true
                     send(ProviderEvent.Failed(error.message ?: engineLoadFailedError))
-                } catch (error: Exception) {
+                } catch (error: Throwable) {
+                    // LiteRT-LM failures can surface as Error (UnsatisfiedLinkError,
+                    // OutOfMemoryError), which Exception handlers never see and which
+                    // would otherwise take the whole process down.
                     isConversationDirty = true
                     send(ProviderEvent.Failed(error.message ?: "Local inference failed"))
                 }
@@ -338,7 +341,7 @@ class LiteRtLmAdapter(
             return requested
         } catch (error: CancellationException) {
             throw error
-        } catch (error: Exception) {
+        } catch (error: Throwable) {
             logEngineFailure(requested, error)
             if (LocalAccelerators.normalize(requested.accelerator) == LocalAccelerators.CPU) {
                 throw LocalEngineLoadException(engineLoadFailedError)
@@ -348,7 +351,7 @@ class LiteRtLmAdapter(
                 loadEngine(cpuSpec)
             } catch (cpuCancelled: CancellationException) {
                 throw cpuCancelled
-            } catch (cpuError: Exception) {
+            } catch (cpuError: Throwable) {
                 logEngineFailure(cpuSpec, cpuError)
                 throw LocalEngineLoadException(engineLoadFailedError)
             }
