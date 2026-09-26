@@ -336,6 +336,7 @@ private fun BasicsStep(
         // Platform Name
         OutlinedTextField(
             value = platformName,
+            readOnly = clientType == ClientType.FREE,
             onValueChange = onPlatformNameChange,
             label = { Text(stringResource(R.string.platform_name)) },
             placeholder = { Text(stringResource(R.string.platform_name_hint)) },

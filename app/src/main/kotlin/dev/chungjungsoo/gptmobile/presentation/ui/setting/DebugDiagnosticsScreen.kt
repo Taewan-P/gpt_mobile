@@ -166,20 +166,27 @@ internal fun RequestDiagnostic(request: ModelInvocation, now: Long, settings: Ap
         if (settings.debugShowNetwork || settings.debugShowRuntime) MetricLine("Request elapsed", formatLatency(if (request.status == "RUNNING") (now - request.startedAt).coerceAtLeast(0) else request.durationMs))
         if (settings.debugShowTotalTokens) MetricLine(if (request.estimated) "Input / output estimate" else "Reported input / output", "${request.inputTokens} / ${request.outputTokens}")
         if (settings.debugShowTimeToFirstToken) MetricLine("First text token", formatLatency(request.firstTokenMs))
-        if (settings.debugShowTokenSpeed && request.status != "RUNNING") MetricLine("Reported output / second", request.reportedThroughput()?.let { "%.1f tok/s".format(it) } ?: "Not measured")
+        if (settings.debugShowTokenSpeed) {
+            if (request.status == "RUNNING") {
+                val speed = request.durationMs.takeIf { it > 0 }?.let { request.outputTokens * 1000.0 / it }
+                MetricLine(if (request.estimated) "Live estimated output / second" else "Live reported output / second", speed?.let { "%.1f tok/s".format(it) } ?: "Waiting")
+            } else {
+                MetricLine("Reported output / second", request.reportedThroughput()?.let { "%.1f tok/s".format(it) } ?: "Not measured")
+            }
+        }
         Text("Request ${request.id}", style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace)
     }
 }
 
 @Composable
-internal fun HardwareDiagnostic(snapshot: DiagnosticsTelemetryProvider.DiagnosticsSnapshot) {
+internal fun HardwareDiagnostic(snapshot: DiagnosticsTelemetryProvider.DiagnosticsSnapshot, showNetwork: Boolean = true) {
     MetricLine("Local runtime", "${snapshot.backendName} · ${snapshot.accelerator}")
     MetricLine("Processor", snapshot.socModel)
     MetricLine("Available / total device RAM", "${snapshot.availableRamMb} MB / ${snapshot.totalRamGb} GB")
     MetricLine("App PSS / Java heap", "${snapshot.processMemoryMb} / ${snapshot.javaHeapMb} MB")
     MetricLine("Thermal state", snapshot.thermalStatus)
     MetricLine("Battery", "${snapshot.batteryPct.takeIf { it >= 0 }?.let { "$it%" } ?: "Unknown"}${if (snapshot.isCharging) " · charging" else ""}")
-    MetricLine("Network transport", snapshot.network)
+    if (showNetwork) MetricLine("Network transport", snapshot.network)
     if (snapshot.qnnReady && QnnEnvironment.isQualcommPlatform()) MetricLine("QNN prerequisites", "Available · execution unverified")
 }
 

@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Open conversations at the bottom and align Favourite links to the selected response.
 - Rebuild live diagnostics and usage with scatter/trend/outcome charts, profile rankings and request detail.
 - Track actual profile attribution and terminal outcomes; migrate database 30 to 31 without losing backup compatibility.
+- Acquire fresh native locations across enabled providers with a bounded cold-start window and reliable cancellation cleanup.
 
 ## [0.9.16.0] - 2026-09-26
 

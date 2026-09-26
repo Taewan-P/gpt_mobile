@@ -165,17 +165,20 @@ class InvocationLedger @Inject constructor(database: ChatDatabaseV2) {
             } finally {
                 withContext(NonCancellable) {
                     dev.chungjungsoo.gptmobile.data.diagnostics.AppLogRecorder.record("Model", "Finished ${record.id} · status=$status · durationMs=${(System.nanoTime() - started) / 1_000_000} · output=${output ?: -1}", if (status == "COMPLETED") "I" else "W")
-                    dao.save(
-                        record.copy(
-                            inputTokens = input ?: record.inputTokens,
-                            outputTokens = output ?: ((characters + 2) / 3).coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
-                            estimated = input == null || output == null,
-                            status = status,
-                            durationMs = (System.nanoTime() - started) / 1_000_000,
-                            firstTokenMs = first
+                    try {
+                        dao.save(
+                            record.copy(
+                                inputTokens = input ?: record.inputTokens,
+                                outputTokens = output ?: ((characters + 2) / 3).coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+                                estimated = input == null || output == null,
+                                status = status,
+                                durationMs = (System.nanoTime() - started) / 1_000_000,
+                                firstTokenMs = first
+                            )
                         )
-                    )
-                    liveRequests.update { it - record.id }
+                    } finally {
+                        liveRequests.update { it - record.id }
+                    }
                 }
             }
         }

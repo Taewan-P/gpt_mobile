@@ -13,6 +13,11 @@
 - User prompt text is 30% more transparent. Archived history, overflow menus and their icons use theme colors.
 - The composer uses one solid theme color throughout its text field and container.
 
+## Device location
+- Request a fresh location directly from Android's available fused, network and GPS providers, with up to 30 seconds for a cold fix instead of a five-second GPS-only attempt.
+- Support approximate permission without requiring GPS, reject stale fixes, and release subscriptions on success, timeout or cancellation. Google Maps does not need to be opened to populate the location cache.
+- Provide clearer guidance when permissions, disabled location, background restrictions or poor reception prevent a fix. No new background location permission is requested.
+
 ## Debug and Statistics
 - Separate **Live**, **Runs** and **Logs** views, live request timing and token observations, device memory, thermal, battery and network state, and pause/resume inspection.
 - Show one response diagnostics panel inside expanded activity. Group repeated log rows while preserving every recorded event in exported logs.

@@ -48,6 +48,7 @@ jobs:
           ./gradlew :app:testDebugUnitTest :app:jacocoTestReport --no-daemon --info 2>&1 | tee test.log || (echo "=== TEST FAILURE LOG ===" && tail -n 100 test.log && exit 1)
 
       - name: Verify exported Room schemas
+        if: always()
         run: python3 scripts/check_room_schemas.py
 
       - name: Run Android Lint

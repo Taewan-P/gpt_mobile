@@ -6,17 +6,16 @@ import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
-import android.os.Build
-import android.os.Bundle
-import android.os.CancellationSignal
-import android.os.Looper
+import android.location.LocationRequest
+import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.util.concurrent.Executors
+import dev.chungjungsoo.gptmobile.data.diagnostics.AppLogRecorder
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.coroutines.resume
-import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.withTimeoutOrNull
 
 data class DeviceLocation(
@@ -32,153 +31,83 @@ data class DeviceLocation(
 class DeviceLocationProvider @Inject constructor(
     @param:ApplicationContext private val context: Context
 ) {
-    fun hasPermission(): Boolean {
-        val fineLocation = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-        val coarseLocation = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-        return fineLocation || coarseLocation
-    }
+    private fun hasFinePermission() = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
-    suspend fun getCurrentLocation(timeoutMillis: Long = 5000L): DeviceLocation? {
-        if (!hasPermission()) {
-            return null
-        }
+    fun hasPermission(): Boolean = hasFinePermission() ||
+        ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
-        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
-            ?: return null
-
-        val lastKnown = getLastKnownLocation(locationManager)
-        if (lastKnown != null && isRecentLocation(lastKnown.time, System.currentTimeMillis())) {
-            return lastKnown.toDeviceLocation()
-        }
-
-        val freshLocation = withTimeoutOrNull(timeoutMillis) {
-            requestSingleUpdate(locationManager)
-        }
-
-        return (freshLocation ?: lastKnown)
-            ?.takeIf { isRecentLocation(it.time, System.currentTimeMillis()) }
-            ?.toDeviceLocation()
-    }
-
-    private fun getLastKnownLocation(locationManager: LocationManager): Location? {
-        val providers = listOf(
-            LocationManager.GPS_PROVIDER,
-            LocationManager.NETWORK_PROVIDER,
-            LocationManager.PASSIVE_PROVIDER
-        )
-
-        var bestLocation: Location? = null
-        for (provider in providers) {
+    suspend fun getCurrentLocation(timeoutMillis: Long = 30_000L): DeviceLocation? {
+        if (!hasPermission()) return null
+        val manager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return null
+        if (!manager.isLocationEnabled) return null
+        val fine = hasFinePermission()
+        val providers = listOf(LocationManager.FUSED_PROVIDER, LocationManager.NETWORK_PROVIDER) +
+            if (fine) listOf(LocationManager.GPS_PROVIDER) else emptyList()
+        val enabled = providers.filter { runCatching { manager.isProviderEnabled(it) }.getOrDefault(false) }
+        val cached = (enabled + LocationManager.PASSIVE_PROVIDER).mapNotNull { provider ->
             try {
-                if (locationManager.isProviderEnabled(provider)) {
-                    val location = locationManager.getLastKnownLocation(provider)
-                    if (location != null) {
-                        if (bestLocation == null || location.time > bestLocation.time) {
-                            bestLocation = location
+                manager.getLastKnownLocation(provider)?.takeIf(::isFresh)
+            } catch (_: SecurityException) {
+                null
+            } catch (_: IllegalArgumentException) {
+                null
+            }
+        }.maxByOrNull { it.time }
+        if (cached != null) {
+            AppLogRecorder.record("Location", "Using recent Android fix · provider=${cached.provider} · accuracy=${cached.accuracy}")
+            return cached.toDeviceLocation()
+        }
+        if (enabled.isEmpty()) return null
+        val timeout = timeoutMillis.coerceIn(1L, 30_000L)
+        AppLogRecorder.record("Location", "Requesting fresh fix · providers=$enabled · precise=$fine · deadline=${timeout}ms")
+        // A bounded active request wakes a cold provider, instead of waiting for another app
+        // to populate its cache. The native fused provider does not require Google Play services.
+        val location = withTimeoutOrNull(timeout) {
+            callbackFlow {
+                val listeners = mutableListOf<LocationListener>()
+                val request = LocationRequest.Builder(1000L)
+                    .setQuality(if (fine) LocationRequest.QUALITY_HIGH_ACCURACY else LocationRequest.QUALITY_BALANCED_POWER_ACCURACY)
+                    .setMinUpdateIntervalMillis(1000L)
+                    .setMaxUpdateDelayMillis(0L)
+                    .setDurationMillis(timeout)
+                    .setMaxUpdates(30)
+                    .build()
+                try {
+                    enabled.forEach { provider ->
+                        val listener = object : LocationListener {
+                            override fun onLocationChanged(location: Location) {
+                                if (isFresh(location)) trySend(location)
+                            }
+                        }
+                        try {
+                            manager.requestLocationUpdates(provider, request, context.mainExecutor, listener)
+                            listeners.add(listener)
+                        } catch (_: SecurityException) {
+                            AppLogRecorder.record("Location", "Permission unavailable for $provider", "W")
+                        } catch (_: IllegalArgumentException) {
+                            AppLogRecorder.record("Location", "Provider unavailable: $provider", "W")
                         }
                     }
+                    if (listeners.isEmpty()) close()
+                    awaitClose()
+                } finally {
+                    // firstOrNull, timeout and caller cancellation all release every subscription.
+                    listeners.forEach { listener -> runCatching { manager.removeUpdates(listener) } }
                 }
-            } catch (_: SecurityException) {
-                // Ignore if permission lost
-            } catch (_: IllegalArgumentException) {
-                // Ignore unsupported provider
-            }
+            }.firstOrNull()
         }
-        return bestLocation
+        AppLogRecorder.record("Location", if (location == null) "Fresh fix deadline reached; no location returned" else "Fresh Android fix · provider=${location.provider} · accuracy=${location.accuracy}", if (location == null) "W" else "I")
+        return location?.toDeviceLocation()
     }
 
-    @Suppress("DEPRECATION")
-    private suspend fun requestSingleUpdate(locationManager: LocationManager): Location? =
-        suspendCancellableCoroutine { continuation ->
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                val cancellationSignal = CancellationSignal()
-                continuation.invokeOnCancellation {
-                    cancellationSignal.cancel()
-                }
+    private fun isFresh(location: Location): Boolean {
+        if (!location.latitude.isFinite() || !location.longitude.isFinite() || location.latitude !in -90.0..90.0 || location.longitude !in -180.0..180.0) return false
+        // Monotonic age survives a wall-clock correction during GPS acquisition.
+        val timestamp = location.elapsedRealtimeNanos
+        return if (timestamp > 0) SystemClock.elapsedRealtimeNanos() - timestamp in 0..120_000_000_000L else isRecentLocation(location.time, System.currentTimeMillis())
+    }
 
-                val executor = Executors.newSingleThreadExecutor()
-                val provider = when {
-                    locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) -> LocationManager.GPS_PROVIDER
-                    locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) -> LocationManager.NETWORK_PROVIDER
-                    else -> null
-                }
-
-                if (provider == null) {
-                    executor.shutdown()
-                    if (continuation.isActive) continuation.resume(null)
-                    return@suspendCancellableCoroutine
-                }
-
-                try {
-                    locationManager.getCurrentLocation(
-                        provider,
-                        cancellationSignal,
-                        executor
-                    ) { location ->
-                        executor.shutdown()
-                        if (continuation.isActive) {
-                            continuation.resume(location)
-                        }
-                    }
-                } catch (_: SecurityException) {
-                    executor.shutdown()
-                    if (continuation.isActive) continuation.resume(null)
-                } catch (_: IllegalArgumentException) {
-                    executor.shutdown()
-                    if (continuation.isActive) continuation.resume(null)
-                }
-            } else {
-                val listener = object : LocationListener {
-                    override fun onLocationChanged(location: Location) {
-                        locationManager.removeUpdates(this)
-                        if (continuation.isActive) {
-                            continuation.resume(location)
-                        }
-                    }
-
-                    @Deprecated("Deprecated in Java")
-                    override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) = Unit
-                    override fun onProviderEnabled(provider: String) = Unit
-                    override fun onProviderDisabled(provider: String) = Unit
-                }
-
-                try {
-                    var requested = false
-                    val providers = listOf(LocationManager.NETWORK_PROVIDER, LocationManager.GPS_PROVIDER)
-                    for (p in providers) {
-                        if (locationManager.isProviderEnabled(p)) {
-                            locationManager.requestSingleUpdate(p, listener, Looper.getMainLooper())
-                            requested = true
-                            break
-                        }
-                    }
-                    if (!requested) {
-                        if (continuation.isActive) {
-                            continuation.resume(null)
-                        }
-                    }
-                } catch (_: SecurityException) {
-                    if (continuation.isActive) continuation.resume(null)
-                } catch (_: IllegalArgumentException) {
-                    if (continuation.isActive) continuation.resume(null)
-                }
-
-                continuation.invokeOnCancellation {
-                    try {
-                        locationManager.removeUpdates(listener)
-                    } catch (_: Exception) {
-                    }
-                }
-            }
-        }
-
-    private fun Location.toDeviceLocation(): DeviceLocation = DeviceLocation(
+    private fun Location.toDeviceLocation() = DeviceLocation(
         latitude = latitude,
         longitude = longitude,
         accuracy = if (hasAccuracy()) accuracy else null,

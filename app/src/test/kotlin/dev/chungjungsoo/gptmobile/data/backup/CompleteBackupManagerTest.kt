@@ -230,6 +230,7 @@ class CompleteBackupManagerTest {
         }
         val sources = manifest.files.mapValues { (path, _) -> File(stage, path) }
         CompleteBackupArchive.write(archive, manifest.copy(files = sources.mapValues { it.value.length() }), sources)
+        database.agentRunDao().updateStatus("run", "COMPLETED", null, null, null)
         val result = manager.restore(Uri.fromFile(archive))
         assertTrue(result.message, result.success)
         val records = database.invocationDao().statistics().first().associateBy { it.id }

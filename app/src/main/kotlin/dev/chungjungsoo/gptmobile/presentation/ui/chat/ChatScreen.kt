@@ -1230,14 +1230,14 @@ fun ChatDropdownMenu(
         onDismissRequest = onDismissRequest
     ) {
         DropdownMenuItem(
-            colors = androidx.compose.material3.MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.primary, leadingIconColor = MaterialTheme.colorScheme.primary, trailingIconColor = MaterialTheme.colorScheme.primary),
+            colors = androidx.compose.material3.MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.primary, leadingIconColor = MaterialTheme.colorScheme.primary, trailingIconColor = MaterialTheme.colorScheme.primary, disabledTextColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f), disabledLeadingIconColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f), disabledTrailingIconColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f)),
             enabled = isMenuItemEnabled,
             text = { Text(text = stringResource(R.string.update_chat_title)) },
             onClick = onChatTitleItemClick
         )
         /* Export Chat */
         DropdownMenuItem(
-            colors = androidx.compose.material3.MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.primary, leadingIconColor = MaterialTheme.colorScheme.primary, trailingIconColor = MaterialTheme.colorScheme.primary),
+            colors = androidx.compose.material3.MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.primary, leadingIconColor = MaterialTheme.colorScheme.primary, trailingIconColor = MaterialTheme.colorScheme.primary, disabledTextColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f), disabledLeadingIconColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f), disabledTrailingIconColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f)),
             enabled = isMenuItemEnabled,
             text = { Text(text = stringResource(R.string.export_chat)) },
             onClick = {
@@ -1247,7 +1247,7 @@ fun ChatDropdownMenu(
         )
         /* Disable Platform in current session */
         DropdownMenuItem(
-            colors = androidx.compose.material3.MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.primary, leadingIconColor = MaterialTheme.colorScheme.primary, trailingIconColor = MaterialTheme.colorScheme.primary),
+            colors = androidx.compose.material3.MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.primary, leadingIconColor = MaterialTheme.colorScheme.primary, trailingIconColor = MaterialTheme.colorScheme.primary, disabledTextColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f), disabledLeadingIconColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f), disabledTrailingIconColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f)),
             enabled = isMenuItemEnabled,
             text = { Text(text = stringResource(R.string.disable_platform)) },
             onClick = {
@@ -1272,7 +1272,7 @@ fun ChatBubbleDropdownMenu(
         onDismissRequest = onDismissRequest
     ) {
         DropdownMenuItem(
-            colors = androidx.compose.material3.MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.primary, leadingIconColor = MaterialTheme.colorScheme.primary, trailingIconColor = MaterialTheme.colorScheme.primary),
+            colors = androidx.compose.material3.MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.primary, leadingIconColor = MaterialTheme.colorScheme.primary, trailingIconColor = MaterialTheme.colorScheme.primary, disabledTextColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f), disabledLeadingIconColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f), disabledTrailingIconColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f)),
             enabled = canEdit,
             leadingIcon = {
                 Icon(
@@ -1287,7 +1287,7 @@ fun ChatBubbleDropdownMenu(
             }
         )
         DropdownMenuItem(
-            colors = androidx.compose.material3.MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.primary, leadingIconColor = MaterialTheme.colorScheme.primary, trailingIconColor = MaterialTheme.colorScheme.primary),
+            colors = androidx.compose.material3.MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.primary, leadingIconColor = MaterialTheme.colorScheme.primary, trailingIconColor = MaterialTheme.colorScheme.primary, disabledTextColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f), disabledLeadingIconColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f), disabledTrailingIconColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f)),
             leadingIcon = {
                 Icon(
                     imageVector = ImageVector.vectorResource(id = R.drawable.ic_copy),

@@ -946,7 +946,7 @@ internal fun ChatDebugDiagnosticsCard(
     val report = buildString {
         agentRun?.let { appendLine("Run ${it.runId} · ${it.status} · ${it.providerSnapshot} / ${it.modelSnapshot}") }
         invocations.forEach { appendLine("${it.id} · ${it.kind} · ${it.status} · ${it.durationMs} ms · input ${it.inputTokens} / output ${it.outputTokens}${if (it.estimated) " (estimate)" else ""}") }
-        contextNotices.forEach { appendLine(it) }
+        notices.distinct().forEach { appendLine(it) }
         hardware?.let { appendLine(DiagnosticsTelemetryProvider.formatDiagnosticsText(it, telemetryNotice)) }
     }
     Surface(modifier, shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
@@ -967,7 +967,8 @@ internal fun ChatDebugDiagnosticsCard(
             }
             if (settings.debugShowTotalTokens) contextNotices.forEach { Text(it, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace) }
             if (settings.debugShowTokenSpeed) telemetryNotice?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-            if (settings.debugShowHardware) hardware?.let { dev.chungjungsoo.gptmobile.presentation.ui.setting.HardwareDiagnostic(it) }
+            if (settings.debugShowRuntime) notices.filterNot(::isContextDiagnostic).distinct().forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+            if (settings.debugShowHardware) hardware?.let { dev.chungjungsoo.gptmobile.presentation.ui.setting.HardwareDiagnostic(it, showNetwork = settings.debugShowNetwork) }
             agentRun?.terminalError?.let { Text(dev.chungjungsoo.gptmobile.data.security.DiagnosticRedactor.redact(it), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
         }
     }
