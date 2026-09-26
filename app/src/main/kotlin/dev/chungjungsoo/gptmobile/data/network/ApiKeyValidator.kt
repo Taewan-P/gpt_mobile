@@ -90,6 +90,28 @@ object ApiKeyValidator {
             ?: return ValidationResult.Error("Choose a Free provider first.")
         if (!provider.isAvailable) return ValidationResult.Error("This provider is awaiting approval. Choose another Free provider.")
         return try {
+            if (provider == dev.chungjungsoo.gptmobile.data.model.FreeAiProvider.POLLINATIONS) {
+                // A fresh prompt avoids a cached success hiding an upstream outage.
+                pollinationsCompletion {
+                    FreeAiRequestLimiter.shared.withRequest(provider) {
+                        val endpoint = pollinationsPromptUrl("user: Reply OK. Connection check ${java.util.UUID.randomUUID()}\n\nassistant:")
+                        val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                            connectTimeout = 10000
+                            readTimeout = 30000
+                            requestMethod = "GET"
+                            setRequestProperty("Accept", "text/plain")
+                        }
+                        try {
+                            val code = connection.responseCode
+                            val body = (if (code in 200..299) connection.inputStream else connection.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
+                            PollinationsResponse(code, body, connection.contentType, connection.getHeaderField("Retry-After"))
+                        } finally {
+                            connection.disconnect()
+                        }
+                    }
+                }
+                return ValidationResult.Success("Pollinations answered the test request.")
+            }
             FreeAiRequestLimiter.shared.withRequest(provider) {
                 val legacy = provider == dev.chungjungsoo.gptmobile.data.model.FreeAiProvider.POLLINATIONS
                 val endpoint = if (legacy) "${provider.apiUrl}/Reply%20OK?model=${provider.model}" else provider.chatCompletionsUrl

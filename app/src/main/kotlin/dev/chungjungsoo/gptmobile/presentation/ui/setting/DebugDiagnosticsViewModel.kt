@@ -30,13 +30,17 @@ data class DebugAnalyticsState(
     val profileUsage: List<Pair<String, Int>> = emptyList(),
     val modelTokenUsage: List<Pair<String, Long>> = emptyList(),
     val profileTokenUsage: List<Pair<String, Long>> = emptyList(),
-    val totalTrackedTokens: Long = 0L
+    val totalTrackedTokens: Long = 0L,
+    val invocations: List<dev.chungjungsoo.gptmobile.data.accounting.ModelInvocation> = emptyList(),
+    val profileNames: Map<String, String> = emptyMap()
 )
 
 @HiltViewModel
 class DebugDiagnosticsViewModel @Inject constructor(
     agentRunDao: AgentRunDao,
-    agentPersistenceDao: AgentPersistenceDao
+    agentPersistenceDao: AgentPersistenceDao,
+    ledger: dev.chungjungsoo.gptmobile.data.accounting.InvocationLedger,
+    settings: dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 ) : ViewModel() {
     val analytics: StateFlow<DebugAnalyticsState> = combine(
         agentRunDao.observeRecent(250),
@@ -78,5 +82,7 @@ class DebugDiagnosticsViewModel @Inject constructor(
                 ((end - start) * 1000L).coerceAtLeast(0L)
             }.takeIf { it.isNotEmpty() }?.average()?.toLong()
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DebugAnalyticsState())
+    }.combine(ledger.diagnostics) { state, invocations -> state.copy(invocations = invocations) }
+        .combine(settings.observePlatformV2s()) { state, profiles -> state.copy(profileNames = profiles.associate { it.uid to it.name }) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DebugAnalyticsState())
 }

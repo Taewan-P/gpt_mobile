@@ -24,8 +24,8 @@ extensions.configure<ApplicationExtension> {
         applicationId = "dev.melo.gptmobile.improved"
         minSdk = 31
         targetSdk = 36
-        versionCode = 72
-        versionName = "0.9.16.0"
+        versionCode = 73
+        versionName = "0.9.17.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -40,8 +40,9 @@ extensions.configure<ApplicationExtension> {
         manifestPlaceholders["appAuthRedirectScheme"] = hfRedirect.substringBefore(":").ifEmpty { "gptmobile-hf-unconfigured" }
         buildConfigField("String", "HF_OAUTH_CLIENT_ID", "\"$hfClientId\"")
         buildConfigField("String", "HF_OAUTH_REDIRECT_URI", "\"$hfRedirect\"")
-        // Enable only after LLM7 has approved this app's embedded integration in writing.
-        buildConfigField("boolean", "FREE_LLM7_APPROVED", providers.gradleProperty("freeLlm7Approved").map { (it == "true").toString() }.getOrElse("false"))
+        // App owner confirmed LLM7 integration approval on 2026-09-26.
+        // A build can explicitly disable the integration if approval changes.
+        buildConfigField("boolean", "FREE_LLM7_APPROVED", providers.gradleProperty("freeLlm7Approved").map { (it == "true").toString() }.getOrElse("true"))
 
         ndk {
             // Target 64-bit modern high-performance ABIs (eliminates 32-bit legacy overhead)

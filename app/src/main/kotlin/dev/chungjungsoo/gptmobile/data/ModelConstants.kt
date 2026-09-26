@@ -85,7 +85,7 @@ object ModelConstants {
         ClientType.GROQ -> "Groq"
         ClientType.OLLAMA -> "Ollama"
         ClientType.OPENROUTER -> "OpenRouter"
-        ClientType.FREE -> dev.chungjungsoo.gptmobile.data.model.FreeAiProvider.default.displayName
+        ClientType.FREE -> "Free Models"
         ClientType.CUSTOM -> ""
         ClientType.LITERT_LM -> "Local"
         ClientType.LLAMA -> "Llama"

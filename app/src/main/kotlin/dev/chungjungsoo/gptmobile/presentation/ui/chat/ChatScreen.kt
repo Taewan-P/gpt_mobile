@@ -42,8 +42,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -71,7 +69,6 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -102,10 +99,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
@@ -138,9 +137,10 @@ import dev.chungjungsoo.gptmobile.data.database.entity.effectiveTimeline
 import dev.chungjungsoo.gptmobile.util.isAssistantErrorMessage
 import java.io.File
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -186,7 +186,9 @@ fun ChatScreen(
     val hasOlderHistory by chatViewModel.olderHistoryAvailable.collectAsStateWithLifecycle()
     val groupedMessages by chatViewModel.groupedMessages.collectAsStateWithLifecycle()
     val featureSettings by chatViewModel.featureSettings.collectAsStateWithLifecycle()
+    val invocationDiagnostics by chatViewModel.invocationDiagnostics.collectAsStateWithLifecycle()
     val hasTargetMessage = chatViewModel.targetMessageId > 0
+    val hasTargetAssistant = hasTargetMessage && groupedMessages.assistantMessages.any { responses -> responses.any { it.id == chatViewModel.targetMessageId } }
     var revealedArchivedTurns by rememberSaveable(chatRoom.id) { mutableIntStateOf(0) }
     val shouldCollapseHistory = featureSettings.archiveOlderAssistantReplies &&
         !hasTargetMessage &&
@@ -205,7 +207,8 @@ fun ChatScreen(
     )
     val isUserDragging by listState.interactionSource.collectIsDraggedAsState()
     var isFollowingBottom by remember { mutableStateOf(!hasTargetMessage) }
-    var hasScrolledToTarget by rememberSaveable { mutableStateOf(false) }
+    var entryPositioned by remember { mutableStateOf(false) }
+    var targetResponseOffset by remember { mutableStateOf<Int?>(null) }
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val isLoaded by chatViewModel.isLoaded.collectAsStateWithLifecycle()
     val agentRunsById by chatViewModel.agentRunsById.collectAsStateWithLifecycle()
@@ -286,28 +289,34 @@ fun ChatScreen(
         chatViewModel.refreshLocalNetworkRequirement()
     }
 
-    LaunchedEffect(isLoaded, groupedMessages.userMessages.size) {
-        if (isLoaded && !hasScrolledToTarget && chatViewModel.targetMessageId > 0) {
-            val targetTurn = groupedMessages.userMessages.indices.firstOrNull { turn ->
-                val userMatched = groupedMessages.userMessages.getOrNull(turn)?.id == chatViewModel.targetMessageId
-                val assistantMatched = groupedMessages.assistantMessages.getOrNull(turn)?.any { it.id == chatViewModel.targetMessageId } == true
-                userMatched || assistantMatched
-            }
-            if (targetTurn != null) {
-                hasScrolledToTarget = true
-                isFollowingBottom = false
-                val assistantList = groupedMessages.assistantMessages.getOrNull(targetTurn).orEmpty()
-                val targetPlatformIndex = assistantList.indexOfFirst { it.id == chatViewModel.targetMessageId }
-                if (targetPlatformIndex >= 0) {
-                    chatViewModel.updateChatPlatformIndex(targetTurn, targetPlatformIndex)
-                }
-                listState.scrollToItem(targetTurn)
-            }
+    LaunchedEffect(isLoaded, groupedMessages.userMessages.size, historyHeaderCount) {
+        if (!isLoaded || entryPositioned || groupedMessages.userMessages.isEmpty()) return@LaunchedEffect
+        snapshotFlow { listState.layoutInfo.totalItemsCount }.first { it > 0 }
+        val targetTurn = groupedMessages.userMessages.indices.firstOrNull { turn ->
+            groupedMessages.userMessages[turn].id == chatViewModel.targetMessageId ||
+                groupedMessages.assistantMessages.getOrNull(turn)?.any { it.id == chatViewModel.targetMessageId } == true
         }
+        if (hasTargetMessage && targetTurn != null) {
+            isFollowingBottom = false
+            val targetIndex = groupedMessages.assistantMessages.getOrNull(targetTurn).orEmpty()
+                .indexOfFirst { it.id == chatViewModel.targetMessageId }
+            if (targetIndex >= 0) chatViewModel.updateChatPlatformIndex(targetTurn, targetIndex)
+            val itemIndex = targetTurn - firstVisibleTurn + historyHeaderCount
+            listState.scrollToConversationEntry(itemIndex)
+            if (targetIndex >= 0) {
+                val responseOffset = snapshotFlow { targetResponseOffset }.filterNotNull().first()
+                listState.scrollToConversationEntry(itemIndex, responseOffset)
+            }
+        } else {
+            // Explicitly override a restored list position on each conversation entry.
+            listState.scrollToConversationEntry()
+            isFollowingBottom = true
+        }
+        entryPositioned = true
     }
 
     LaunchedEffect(isUserDragging, listState.isScrollInProgress, listState.canScrollForward, listState.lastScrolledBackward) {
-        if (!hasTargetMessage) {
+        if (entryPositioned && !hasTargetMessage) {
             isFollowingBottom = nextFollowBottom(
                 isFollowing = isFollowingBottom,
                 isUserScrolling = isUserDragging || listState.isScrollInProgress,
@@ -327,7 +336,8 @@ fun ChatScreen(
 
     ChatBottomAutoScroller(
         listState = listState,
-        isEnabled = !hasTargetMessage &&
+        isEnabled = entryPositioned &&
+            !hasTargetMessage &&
             shouldAutoScrollToBottom(
                 isFollowing = isFollowingBottom,
                 isUserDragging = isUserDragging,
@@ -422,11 +432,14 @@ fun ChatScreen(
                             maximumUserChatBubbleWidth = maximumUserChatBubbleWidth,
                             maximumOpponentChatBubbleWidth = maximumOpponentChatBubbleWidth,
                             debugMode = debugMode,
+                            invocationDiagnostics = invocationDiagnostics,
+                            debugSettings = featureSettings,
                             showReasoning = featureSettings.showReasoning,
                             combinedMode = chatRoom.conversationMode == ConversationMode.COMBINED,
                             smartSuggestionsEnabled = featureSettings.smartSuggestions,
                             isUserTyping = chatViewModel.question.text.isNotEmpty(),
                             targetMessageId = chatViewModel.targetMessageId,
+                            onTargetResponseOffset = { targetResponseOffset = it },
                             onEditQuestion = chatViewModel::openUserMessageEditDialog,
                             onEditAssistant = chatViewModel::openAssistantMessageEditDialog,
                             onCopyText = { copiedText ->
@@ -453,7 +466,7 @@ fun ChatScreen(
                     }
                     if (groupedMessages.userMessages.isNotEmpty()) {
                         item(key = "chat-bottom-anchor") {
-                            Spacer(Modifier.size(1.dp))
+                            Spacer(if (hasTargetAssistant) Modifier.fillParentMaxHeight() else Modifier.size(1.dp))
                         }
                     }
                 }
@@ -652,11 +665,14 @@ private fun ChatMessagePair(
     maximumUserChatBubbleWidth: Dp,
     maximumOpponentChatBubbleWidth: Dp,
     debugMode: Boolean = false,
+    invocationDiagnostics: List<dev.chungjungsoo.gptmobile.data.accounting.ModelInvocation> = emptyList(),
+    debugSettings: dev.chungjungsoo.gptmobile.data.model.AppFeatureSettings = dev.chungjungsoo.gptmobile.data.model.AppFeatureSettings(),
     showReasoning: Boolean = true,
     combinedMode: Boolean = false,
     smartSuggestionsEnabled: Boolean = true,
     isUserTyping: Boolean = false,
     targetMessageId: Int = -1,
+    onTargetResponseOffset: (Int) -> Unit = {},
     onEditQuestion: (MessageV2) -> Unit,
     onEditAssistant: (Int, Int) -> Unit,
     onCopyText: (String) -> Unit,
@@ -678,26 +694,19 @@ private fun ChatMessagePair(
     val activeSlotIndexes = enabledPlatformsInChat.mapIndexedNotNull { index, uid ->
         index.takeIf { uid in activePlatformUids && uid !in disabledPlatformUids }
     }
+    val targetAssistantIndex = assistantMessages.indexOfFirst { targetMessageId > 0 && it.id == targetMessageId }
     val isCombinedConversation = combinedMode &&
+        (targetAssistantIndex < 0 || targetAssistantIndex == combinedSynthesisIndex) &&
         (combinedSynthesisIndex >= 0 || (isActiveMessage && activeSlotIndexes.size > 1))
     val displayPlatformIndex = when {
+        targetAssistantIndex >= 0 -> targetAssistantIndex
         combinedSynthesisIndex >= 0 -> combinedSynthesisIndex
         isCombinedConversation -> activeSlotIndexes.firstOrNull() ?: platformIndexState
         else -> platformIndexState
     }
     val selectedAssistantMessage = assistantMessages.getOrNull(displayPlatformIndex)
-    val responseBringIntoViewRequester = remember { BringIntoViewRequester() }
     val isTargetAssistantResponse = targetMessageId > 0 && selectedAssistantMessage?.id == targetMessageId
-
-    LaunchedEffect(isTargetAssistantResponse, selectedAssistantMessage?.id) {
-        if (isTargetAssistantResponse) {
-            // The parent turn is first brought into the LazyColumn, then the assistant
-            // response itself is brought into view so notification taps land at the
-            // generated answer rather than the user prompt above it.
-            delay(80)
-            responseBringIntoViewRequester.bringIntoView()
-        }
-    }
+    val responseInsetPx = with(LocalDensity.current) { 12.dp.roundToPx() }
     val synthesisStarted =
         isCombinedConversation &&
             selectedAssistantMessage?.currentRunId?.startsWith(ChatViewModel.COMBINED_RUN_PREFIX) == true
@@ -774,6 +783,7 @@ private fun ChatMessagePair(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .onSizeChanged { if (isTargetAssistantResponse) onTargetResponseOffset(it.height + responseInsetPx) }
                 .padding(horizontal = 8.dp, vertical = 12.dp),
             horizontalAlignment = Alignment.End
         ) {
@@ -808,13 +818,7 @@ private fun ChatMessagePair(
                 isFavorite = selectedAssistantMessage?.isFavorite ?: false,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .then(
-                        if (isTargetAssistantResponse) {
-                            Modifier.bringIntoViewRequester(responseBringIntoViewRequester)
-                        } else {
-                            Modifier
-                        }
-                    )
+
             ) {
                 Row(
                     modifier = Modifier
@@ -877,6 +881,8 @@ private fun ChatMessagePair(
                     isError = agentRun?.status == AgentRunStatus.FAILED && isAssistantErrorMessage(assistantContent),
                     isFavorite = selectedAssistantMessage?.isFavorite ?: false,
                     debugMode = debugMode,
+                    invocations = invocationDiagnostics.filter { it.parentRunId == selectedRunId },
+                    debugSettings = debugSettings,
                     showReasoning = showReasoning,
                     text = assistantContent,
                     timestamp = selectedAssistantMessage?.let { it.createdAt * 1000L },
@@ -950,7 +956,7 @@ private fun ArchivedHistoryHeader(
             .clickable(onClick = onExpand),
         shape = RoundedCornerShape(18.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.86f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.45f))
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp),
@@ -966,12 +972,13 @@ private fun ArchivedHistoryHeader(
                 Text(
                     text = "Archived conversation history",
                     style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
                 )
                 Text(
                     text = "$hiddenTurnCount older response${if (hiddenTurnCount == 1) "" else "s"} hidden",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
                 )
             }
             Text(
@@ -1123,6 +1130,12 @@ internal fun ChatBottomAutoScroller(
     }
 }
 
+internal suspend fun LazyListState.scrollToConversationEntry(targetItem: Int? = null, responseOffset: Int = 0) {
+    snapshotFlow { layoutInfo.totalItemsCount }.first { it > (targetItem ?: 0) }
+    val index = targetItem ?: (layoutInfo.totalItemsCount - 1)
+    if (index >= 0) scrollToItem(index, if (targetItem == null) 0 else responseOffset)
+}
+
 internal suspend fun LazyListState.animateScrollToLatestChatMessage() {
     val latestItemIndex = layoutInfo.totalItemsCount - 1
     if (latestItemIndex >= 0) {
@@ -1180,7 +1193,7 @@ private fun ChatTopBar(
             IconButton(
                 onClick = { isDropDownMenuExpanded = isDropDownMenuExpanded.not() }
             ) {
-                Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.options))
+                Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.options), tint = MaterialTheme.colorScheme.primary)
             }
 
             ChatDropdownMenu(
@@ -1217,12 +1230,14 @@ fun ChatDropdownMenu(
         onDismissRequest = onDismissRequest
     ) {
         DropdownMenuItem(
+            colors = androidx.compose.material3.MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.primary, leadingIconColor = MaterialTheme.colorScheme.primary, trailingIconColor = MaterialTheme.colorScheme.primary),
             enabled = isMenuItemEnabled,
             text = { Text(text = stringResource(R.string.update_chat_title)) },
             onClick = onChatTitleItemClick
         )
         /* Export Chat */
         DropdownMenuItem(
+            colors = androidx.compose.material3.MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.primary, leadingIconColor = MaterialTheme.colorScheme.primary, trailingIconColor = MaterialTheme.colorScheme.primary),
             enabled = isMenuItemEnabled,
             text = { Text(text = stringResource(R.string.export_chat)) },
             onClick = {
@@ -1232,6 +1247,7 @@ fun ChatDropdownMenu(
         )
         /* Disable Platform in current session */
         DropdownMenuItem(
+            colors = androidx.compose.material3.MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.primary, leadingIconColor = MaterialTheme.colorScheme.primary, trailingIconColor = MaterialTheme.colorScheme.primary),
             enabled = isMenuItemEnabled,
             text = { Text(text = stringResource(R.string.disable_platform)) },
             onClick = {
@@ -1256,6 +1272,7 @@ fun ChatBubbleDropdownMenu(
         onDismissRequest = onDismissRequest
     ) {
         DropdownMenuItem(
+            colors = androidx.compose.material3.MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.primary, leadingIconColor = MaterialTheme.colorScheme.primary, trailingIconColor = MaterialTheme.colorScheme.primary),
             enabled = canEdit,
             leadingIcon = {
                 Icon(
@@ -1270,6 +1287,7 @@ fun ChatBubbleDropdownMenu(
             }
         )
         DropdownMenuItem(
+            colors = androidx.compose.material3.MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.primary, leadingIconColor = MaterialTheme.colorScheme.primary, trailingIconColor = MaterialTheme.colorScheme.primary),
             leadingIcon = {
                 Icon(
                     imageVector = ImageVector.vectorResource(id = R.drawable.ic_copy),
@@ -1353,7 +1371,8 @@ fun ChatInputBox(
     onSendButtonClick: () -> Unit = {}
 ) {
     val localStyle = LocalTextStyle.current
-    val mergedStyle = localStyle.merge(TextStyle(color = LocalContentColor.current))
+    val inputColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 1f)
+    val mergedStyle = localStyle.merge(TextStyle(color = MaterialTheme.colorScheme.onPrimaryContainer))
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val chatInputLineLimits = TextFieldLineLimits.MultiLine(maxHeightInLines = 5)
@@ -1377,10 +1396,11 @@ fun ChatInputBox(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
         shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainer,
+        color = inputColor,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
         tonalElevation = 0.dp,
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)),
-        shadowElevation = 1.dp
+        shadowElevation = 0.dp
     ) {
         Column {
             if (selectedAttachments.isNotEmpty()) {
@@ -1391,7 +1411,7 @@ fun ChatInputBox(
             }
             BasicTextField(
                 state = inputState,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().background(inputColor),
                 enabled = chatEnabled,
                 textStyle = mergedStyle,
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -1400,6 +1420,7 @@ fun ChatInputBox(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .background(inputColor)
                             .padding(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -1424,7 +1445,7 @@ fun ChatInputBox(
                                     text = if (chatEnabled) stringResource(R.string.ask_a_question) else stringResource(R.string.some_platforms_disabled)
                                 )
                             }
-                            Box(modifier = Modifier.fillMaxWidth()) {
+                            Box(modifier = Modifier.fillMaxWidth().background(inputColor)) {
                                 innerTextField()
                             }
                         }

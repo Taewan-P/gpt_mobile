@@ -91,7 +91,8 @@ class ChatViewModel @Inject constructor(
     private val modelCatalogRepository: ModelCatalogRepository,
     private val durablePromptQueue: dev.chungjungsoo.gptmobile.data.queue.DurablePromptQueue? = null,
     private val toolApprovals: dev.chungjungsoo.gptmobile.data.permissions.ToolApprovalManager? = null,
-    private val mcpInteractions: dev.chungjungsoo.gptmobile.data.agent.tool.McpInteractions? = null
+    private val mcpInteractions: dev.chungjungsoo.gptmobile.data.agent.tool.McpInteractions? = null,
+    private val invocationLedger: dev.chungjungsoo.gptmobile.data.accounting.InvocationLedger? = null
 ) : ViewModel() {
     private val visibleHistoryTurns = MutableStateFlow(if (savedStateHandle.get<Int>("targetMessageId") != null) Int.MAX_VALUE else 40)
     private var windowStartId = 0
@@ -209,6 +210,9 @@ class ChatViewModel @Inject constructor(
             )
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val invocationDiagnostics = (invocationLedger?.diagnostics ?: flowOf(emptyList()))
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val debugMode: StateFlow<Boolean> = settingRepository.observeDebugMode()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)

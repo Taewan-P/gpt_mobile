@@ -52,7 +52,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
         dev.chungjungsoo.gptmobile.data.accounting.ModelInvocation::class,
         ProviderConnection::class
     ],
-    version = 30,
+    version = 31,
     exportSchema = true
 )
 @TypeConverters(

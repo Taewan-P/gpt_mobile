@@ -55,7 +55,9 @@ data class UsageStatistics(
     val profileModelUsage: List<ProfileModelUsage> = emptyList(),
     val toolUsage: List<ToolUsage> = emptyList(),
     val performance: List<ModelPerformance> = emptyList(),
-    val days: Int = 30
+    val days: Int = 30,
+    val profileNames: Map<String, String> = emptyMap(),
+    val profilePerformance: List<ProfilePerformance> = emptyList()
 )
 
 internal fun calculateUsageStatistics(
@@ -155,6 +157,7 @@ class UsageStatisticsViewModel @Inject constructor(
         runDao.observeUnreportedOutputLengths()
     ) { runs, tools, profiles, range, lengths ->
         calculateUsageStatistics(runs, profiles.associate { it.uid to it.name }, range, outputLengths = lengths, tools = tools)
+            .copy(profileNames = profiles.associate { it.uid to it.name })
     }.combine(database.invocationDao().statistics()) { stats, invocations ->
         val zone = ZoneId.systemDefault()
         val today = LocalDate.now()
@@ -162,6 +165,6 @@ class UsageStatisticsViewModel @Inject constructor(
             val day = Instant.ofEpochMilli(it.startedAt).atZone(zone).toLocalDate()
             !day.isAfter(today) && (stats.days == 0 || !day.isBefore(today.minusDays(stats.days - 1L)))
         }
-        stats.copy(performance = modelPerformance(selected))
+        stats.copy(performance = modelPerformance(selected), profilePerformance = profilePerformance(selected, stats.profileNames))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UsageStatistics())
 }

@@ -29,12 +29,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -53,7 +51,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.HelpOutline
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
@@ -67,7 +64,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardColors
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -95,7 +91,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -175,7 +170,7 @@ fun UserChatBubble(
             colors = cardColor
         ) {
             Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 10.dp)) {
-                ChatMarkdown(content = text)
+                ChatMarkdown(content = text, modifier = Modifier.alpha(0.7f))
                 if (formattedTime.isNotBlank()) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
@@ -238,6 +233,8 @@ fun OpponentChatBubble(
     canEdit: Boolean = false,
     isFavorite: Boolean = false,
     debugMode: Boolean = false,
+    invocations: List<dev.chungjungsoo.gptmobile.data.accounting.ModelInvocation> = emptyList(),
+    debugSettings: dev.chungjungsoo.gptmobile.data.model.AppFeatureSettings = dev.chungjungsoo.gptmobile.data.model.AppFeatureSettings(),
     showReasoning: Boolean = true,
     revisionIndexLabel: String? = null,
     canShowPreviousRevision: Boolean = false,
@@ -255,19 +252,12 @@ fun OpponentChatBubble(
     onContinueClick: (() -> Unit)? = null,
     onActionClick: ((String) -> Unit)? = null
 ) {
-    // Bubble background 50% more opaque than 0.04f (0.06f)
-    val normalColor = Color.Black.copy(alpha = 0.06f)
+    var activityExpanded by rememberSaveable(contentIdentity) { mutableStateOf(false) }
     val bubbleColor = animateColorAsState(
-        targetValue = if (isFavorite) Color.Cyan.copy(alpha = 0.12f) else normalColor,
-        animationSpec = tween(durationMillis = 500),
-        label = "favoriteBubbleColor"
+        targetValue = if (activityExpanded) MaterialTheme.colorScheme.primary.copy(alpha = if (isFavorite) 0.138f else 0.069f) else Color.Transparent,
+        animationSpec = tween(durationMillis = 1000),
+        label = "activityBackground"
     ).value
-    val cardColor = CardColors(
-        containerColor = bubbleColor,
-        contentColor = MaterialTheme.colorScheme.onBackground,
-        disabledContentColor = normalColor.copy(alpha = 0.38f),
-        disabledContainerColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.38f)
-    )
     val noticeMessages = remember(runNotices, timeline, isLoading) {
         visibleChatRunNotices(runNotices, timelineNoticeMessages(timeline), isLoading)
     }
@@ -280,9 +270,6 @@ fun OpponentChatBubble(
     }
     val (telemetryNotice, nonTelemetryNotices) = remember(noticeMessages) {
         extractTelemetryNotice(noticeMessages)
-    }
-    val diagnosticsHudText = remember(agentRun, telemetryNotice, debugMode) {
-        if (debugMode) buildDiagnosticsHudText(agentRun, telemetryNotice, true) else null
     }
     val formattedTime = remember(timestamp) { formatMessageTimestamp(timestamp) }
     val showContinueAction = remember(text, isLoading, isLastMessage) { shouldShowContinuePrompt(text, isLoading, isLastMessage) }
@@ -368,11 +355,6 @@ fun OpponentChatBubble(
     val shouldShowBubble = isLoading || contentTimeline.isNotEmpty() || toolEvents.isNotEmpty() || hasVisibleText || hasVisibleProcess || hasVisibleExtras
 
     Column(modifier = modifier) {
-        if (debugMode) {
-            RunNoticeChips(notices = nonTelemetryNotices, modifier = Modifier.padding(top = 8.dp, start = 4.dp, end = 4.dp))
-            if (!isLoading) AgentRunStatusBlock(run = agentRun, modifier = Modifier.padding(top = 8.dp, start = 4.dp, end = 4.dp))
-        }
-
         AnimatedVisibility(
             visible = shouldShowBubble,
             enter = fadeIn(animationSpec = tween(1500)),
@@ -399,7 +381,9 @@ fun OpponentChatBubble(
                     isLoading = isLoading,
                     debugMode = debugMode,
                     showReasoning = showReasoning,
-                    isError = isError
+                    isError = isError,
+                    expanded = activityExpanded,
+                    onExpandedChange = { activityExpanded = it }
                 )
 
                 LocationToolMapPreview(
@@ -442,10 +426,6 @@ fun OpponentChatBubble(
                                     Spacer(Modifier.width(4.dp))
                                     RetryIcon(onRetryClick)
                                 }
-                                diagnosticsHudText?.let { hudText ->
-                                    Spacer(Modifier.width(4.dp))
-                                    TelemetryBadge(hudText)
-                                }
                             }
                         }
 
@@ -453,10 +433,13 @@ fun OpponentChatBubble(
                     }
                 }
 
-                if (debugMode && !isLoading) {
+                if (debugMode && activityExpanded) {
                     ChatDebugDiagnosticsCard(
                         agentRun = agentRun,
                         telemetryNotice = telemetryNotice,
+                        notices = (nonTelemetryNotices + contentTimeline.filter { it.type == AssistantTimelineItemType.NOTICE && isContextDiagnostic(it.content) }.map { it.content }).distinct(),
+                        invocations = invocations,
+                        settings = debugSettings,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 6.dp)
@@ -582,7 +565,11 @@ fun OpponentChatBubble(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (formattedTime.isNotBlank()) {
+                    AnimatedVisibility(
+                        visible = activityExpanded && formattedTime.isNotBlank(),
+                        enter = fadeIn(tween(1000)),
+                        exit = fadeOut(tween(1000))
+                    ) {
                         Text(
                             text = formattedTime,
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Light),
@@ -703,22 +690,8 @@ fun OpponentResponseContainer(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val normalColor = Color.Transparent
-    val bubbleColor = animateColorAsState(
-        targetValue = if (isFavorite) Color.Cyan.copy(alpha = 0.2f) else normalColor,
-        animationSpec = tween(durationMillis = 500),
-        label = "favoriteResponseContainerColor"
-    ).value
-
-    Column(
-        modifier = modifier
-            .background(
-                color = bubbleColor,
-                shape = RoundedCornerShape(32.dp)
-            )
-            .padding(if (isFavorite) PaddingValues(top = 8.dp, bottom = 4.dp) else PaddingValues(0.dp)),
-        content = content
-    )
+    // The response itself owns its disclosure background, including favourites.
+    Column(modifier = modifier, content = content)
 }
 
 @Composable
@@ -955,129 +928,47 @@ internal fun TelemetryBadge(notice: String, modifier: Modifier = Modifier) {
     }
 }
 
-/**
- * Rich diagnostics inspection card rendered when Debug Mode is turned on.
- * Displays real-time hardware status, QNN HTP NPU native readiness, and token generation speed.
- */
+/** One live inspection panel per response; context details never repeat in its timeline. */
 @Composable
 internal fun ChatDebugDiagnosticsCard(
     agentRun: AgentRun?,
     telemetryNotice: String?,
+    notices: List<String> = emptyList(),
+    invocations: List<dev.chungjungsoo.gptmobile.data.accounting.ModelInvocation> = emptyList(),
+    settings: dev.chungjungsoo.gptmobile.data.model.AppFeatureSettings = dev.chungjungsoo.gptmobile.data.model.AppFeatureSettings(),
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
-    val clipboardManager = LocalClipboardManager.current
-    var isCopied by remember { mutableStateOf(false) }
-
-    val snapshot = remember(agentRun, telemetryNotice) {
-        DiagnosticsTelemetryProvider.getSnapshot(
-            context = context,
-            backendName = agentRun?.modelSnapshot ?: "On-Device",
-            accelerator = "See Advanced Settings for current runtime"
-        )
+    val clipboard = LocalClipboardManager.current
+    val running = agentRun?.status in setOf("RUNNING", "QUEUED")
+    val now = dev.chungjungsoo.gptmobile.presentation.ui.setting.rememberLiveClock(running)
+    val hardware = if (settings.debugShowHardware) dev.chungjungsoo.gptmobile.presentation.ui.setting.rememberLiveHardware("Device diagnostics", "See Local Model settings", running) else null
+    val contextNotices = notices.filter(::isContextDiagnostic).distinct()
+    val report = buildString {
+        agentRun?.let { appendLine("Run ${it.runId} · ${it.status} · ${it.providerSnapshot} / ${it.modelSnapshot}") }
+        invocations.forEach { appendLine("${it.id} · ${it.kind} · ${it.status} · ${it.durationMs} ms · input ${it.inputTokens} / output ${it.outputTokens}${if (it.estimated) " (estimate)" else ""}") }
+        contextNotices.forEach { appendLine(it) }
+        hardware?.let { appendLine(DiagnosticsTelemetryProvider.formatDiagnosticsText(it, telemetryNotice)) }
     }
-
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.65f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Info,
-                        contentDescription = "Debug Diagnostics",
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = "Debug Diagnostics HUD",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+    Surface(modifier, shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(if (running) "Live diagnostics" else "Response diagnostics", Modifier.weight(1f), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleSmall)
+                TextButton(onClick = { clipboard.setText(AnnotatedString(dev.chungjungsoo.gptmobile.data.security.DiagnosticRedactor.redact(report))) }) { Text("Copy") }
+            }
+            if (invocations.isEmpty()) {
+                agentRun?.let { run ->
+                    dev.chungjungsoo.gptmobile.presentation.ui.setting.MetricLine("Run status", run.status.lowercase())
+                    if (settings.debugShowTotalTokens) dev.chungjungsoo.gptmobile.presentation.ui.setting.MetricLine("Reported input / output", "${run.inputTokens ?: "—"} / ${run.outputTokens ?: "—"}")
                 }
-
-                TextButton(
-                    onClick = {
-                        val fullReport = DiagnosticsTelemetryProvider.formatDiagnosticsText(snapshot, telemetryNotice)
-                        clipboardManager.setText(AnnotatedString(fullReport))
-                        isCopied = true
-                    },
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                    modifier = Modifier.height(28.dp)
-                ) {
-                    Text(
-                        text = if (isCopied) "Copied!" else "Copy Diagnostics",
-                        style = MaterialTheme.typography.labelSmall
-                    )
+            } else {
+                invocations.distinctBy { it.id }.forEach { request ->
+                    dev.chungjungsoo.gptmobile.presentation.ui.setting.RequestDiagnostic(request, now, settings)
                 }
             }
-
-            Spacer(Modifier.height(8.dp))
-
-            // Processor & Native Accelerator Status
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "Processor: ${snapshot.socModel}",
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp
-                )
-                Text(
-                    text = if (snapshot.qnnReady) "QNN libraries: Available" else "QNN libraries: Unavailable",
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (snapshot.qnnReady) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error,
-                    fontSize = 11.sp
-                )
-            }
-
-            Spacer(Modifier.height(4.dp))
-
-            // Memory & Thermals
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "RAM: ${snapshot.availableRamMb} MB avail / ${snapshot.totalRamGb} GB",
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp
-                )
-                Text(
-                    text = "Thermal: ${snapshot.thermalStatus}",
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp
-                )
-            }
-
-            if (!telemetryNotice.isNullOrBlank()) {
-                Spacer(Modifier.height(6.dp))
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = telemetryNotice,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 11.sp
-                )
-            }
+            if (settings.debugShowTotalTokens) contextNotices.forEach { Text(it, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace) }
+            if (settings.debugShowTokenSpeed) telemetryNotice?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            if (settings.debugShowHardware) hardware?.let { dev.chungjungsoo.gptmobile.presentation.ui.setting.HardwareDiagnostic(it) }
+            agentRun?.terminalError?.let { Text(dev.chungjungsoo.gptmobile.data.security.DiagnosticRedactor.redact(it), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
         }
     }
 }
