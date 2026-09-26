@@ -17,6 +17,7 @@ import io.mockk.every
 import io.mockk.mockk
 import java.net.URLDecoder
 import kotlinx.coroutines.flow.single
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -87,6 +88,28 @@ class FreeAiTransportTest {
     fun `legacy adapter rejects excessive prompts before sending them`() {
         assertThrows(IllegalArgumentException::class.java) {
             legacyPollinationsPrompt(request().copy(messages = listOf(ChatMessage(Role.USER, listOf(TextContent("x".repeat(6001)))))))
+        }
+    }
+
+    @Test
+    fun `empty free streams fail visibly and token limits offer continuation`() = runBlocking {
+        for (lengthLimited in listOf(false, true)) {
+            val engine = MockEngine {
+                respond(if (lengthLimited) "data: {\"choices\":[{\"delta\":{\"reasoning\":\"Thinking\"},\"finish_reason\":\"length\"}]}\n\ndata: [DONE]\n\n" else "data: [DONE]\n\n", headers = headersOf(HttpHeaders.ContentType, "text/event-stream"))
+            }
+            val client = HttpClient(engine) { install(HttpTimeout) }
+            try {
+                val network = mockk<NetworkClient>()
+                every { network.invoke() } returns client
+                val result = OpenAIAPIImpl(network).streamChatCompletion(request(), 10, ProviderRequestConfig(FreeAiProvider.KILO.apiUrl, null, freeProvider = FreeAiProvider.KILO)).toList()
+                if (lengthLimited) {
+                    assertTrue(result.last().choices!!.single().delta.content!!.contains("continue?"))
+                } else {
+                    assertEquals("empty_response", result.single().error?.type)
+                }
+            } finally {
+                client.close()
+            }
         }
     }
 

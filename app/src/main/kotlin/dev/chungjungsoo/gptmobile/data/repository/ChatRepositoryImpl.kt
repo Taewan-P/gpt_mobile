@@ -301,7 +301,7 @@ class ChatRepositoryImpl(
                 systemPrompt = recalled.prefix() + documentContext + baseSystemPrompt
             )
             val contextPlan = dev.chungjungsoo.gptmobile.data.context.ContextBudgetService.plan(contextTurns, requestPlatform.systemPrompt.orEmpty(), exposedTools.map { it.tool.definition }, limits)
-            emit(ApiState.Notice(contextPlan.notice, persistent = true))
+            if (settingRepository.getDebugMode()) emit(ApiState.Notice(contextPlan.notice, persistent = true))
             val toolBudget = ToolExecutionBudget(customRunner.limits.copy(maxToolOutputBytes = contextPlan.toolResultBytes))
             val boundedTools = resolvedTools.filter { resolved -> contextPlan.tools.any { it.name == resolved.modelToolName || (it.name == "web_search" && resolved.isWebSearchEngine()) } }.map { resolved ->
                 resolved.copy(

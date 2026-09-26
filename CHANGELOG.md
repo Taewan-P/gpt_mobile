@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.16.0] - 2026-09-26
+
+- Rebuild backups against the current schema using named columns and safe defaults.
+- Separate chipset-specific NPU downloads from GPU/CPU packages and filter compatible marketplace results.
+- Add local-model and tool Settings tabs, existing-profile navigation, and saved theme profiles.
+- Simplify delegation and refine themed conversation controls, loading text and error visibility.
+- Improve Free provider availability handling and response-limit continuation.
+
 ## [0.9.13.0] - Release branch
 
 ### Added

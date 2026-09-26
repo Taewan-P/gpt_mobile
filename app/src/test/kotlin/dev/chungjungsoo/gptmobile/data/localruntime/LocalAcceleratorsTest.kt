@@ -125,7 +125,7 @@ class LocalAcceleratorsTest {
     }
 
     @Test
-    fun `choices always lists CPU GPU and NPU`() {
+    fun `choices hide NPU on unsupported phones`() {
         val choices = LocalAccelerators.choices(
             supported = listOf("gpu"),
             socToModelFiles = emptyMap<String, Any>(),
@@ -133,7 +133,7 @@ class LocalAcceleratorsTest {
         )
 
         assertEquals(
-            listOf(LocalAccelerators.CPU, LocalAccelerators.GPU, LocalAccelerators.NPU),
+            listOf(LocalAccelerators.CPU, LocalAccelerators.GPU),
             choices.map { it.accelerator }
         )
         assertFalse(choices.single { it.accelerator == LocalAccelerators.CPU }.enabled)
@@ -142,10 +142,7 @@ class LocalAcceleratorsTest {
             AcceleratorUnavailableReason.MODEL_HAS_NO_BUILD,
             choices.single { it.accelerator == LocalAccelerators.CPU }.unavailableReason
         )
-        assertEquals(
-            AcceleratorUnavailableReason.MODEL_HAS_NO_BUILD,
-            choices.single { it.accelerator == LocalAccelerators.NPU }.unavailableReason
-        )
+        assertTrue(choices.none { it.accelerator == LocalAccelerators.NPU })
     }
 
     @Test
@@ -156,9 +153,7 @@ class LocalAcceleratorsTest {
             deviceSocModel = "Tensor G4"
         )
 
-        val npu = choices.single { it.accelerator == LocalAccelerators.NPU }
-        assertFalse(npu.enabled)
-        assertEquals(AcceleratorUnavailableReason.DEVICE_NOT_SUPPORTED, npu.unavailableReason)
+        assertTrue(choices.none { it.accelerator == LocalAccelerators.NPU })
     }
 
     @Test
@@ -169,9 +164,7 @@ class LocalAcceleratorsTest {
             deviceSocModel = "Tensor G4"
         )
 
-        val npu = choices.single { it.accelerator == LocalAccelerators.NPU }
-        assertFalse(npu.enabled)
-        assertEquals(AcceleratorUnavailableReason.DEVICE_NOT_SUPPORTED, npu.unavailableReason)
+        assertTrue(choices.none { it.accelerator == LocalAccelerators.NPU })
     }
 
     @Test
@@ -182,9 +175,8 @@ class LocalAcceleratorsTest {
             supported = gemma3.supportedAccelerators,
             socToModelFiles = gemma3.socToModelFiles,
             deviceSocModel = "Tensor G4"
-        ).single { it.accelerator == LocalAccelerators.NPU }
-        assertFalse(tensorG4.enabled)
-        assertEquals(AcceleratorUnavailableReason.DEVICE_NOT_SUPPORTED, tensorG4.unavailableReason)
+        )
+        assertTrue(tensorG4.none { it.accelerator == LocalAccelerators.NPU })
 
         val sm8750 = LocalAccelerators.choices(
             supported = gemma3.supportedAccelerators,

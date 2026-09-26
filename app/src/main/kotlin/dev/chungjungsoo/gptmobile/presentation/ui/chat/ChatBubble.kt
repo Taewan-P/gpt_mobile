@@ -153,8 +153,13 @@ fun UserChatBubble(
     hasDetails: Boolean = false,
     areDetailsVisible: Boolean = false,
     onToggleDetails: () -> Unit = {},
+    canEdit: Boolean = false,
+    onCopyClick: () -> Unit = {},
+    onSelectClick: () -> Unit = {},
+    onEditClick: () -> Unit = {},
     onLongPress: () -> Unit
 ) {
+    var actionsExpanded by rememberSaveable { mutableStateOf(false) }
     val cardColor = CardColors(
         containerColor = MaterialTheme.colorScheme.primaryContainer,
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -185,10 +190,15 @@ fun UserChatBubble(
                 }
             }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            IconButton(onClick = onLongPress) {
-                Icon(Icons.Default.MoreHoriz, stringResource(R.string.message_actions))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+            AnimatedVisibility(visible = actionsExpanded) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CopyTextIcon(onCopyClick)
+                    SelectTextIcon(onSelectClick)
+                    if (canEdit) EditTextIcon(onEditClick)
+                }
             }
+            MessageActionsToggle(actionsExpanded) { actionsExpanded = !actionsExpanded }
         }
         if (hasDetails) {
             Row(
@@ -388,7 +398,8 @@ fun OpponentChatBubble(
                     contentIdentity = contentIdentity,
                     isLoading = isLoading,
                     debugMode = debugMode,
-                    showReasoning = showReasoning
+                    showReasoning = showReasoning,
+                    isError = isError
                 )
 
                 LocationToolMapPreview(
@@ -438,16 +449,7 @@ fun OpponentChatBubble(
                             }
                         }
 
-                        IconButton(
-                            onClick = { actionsExpanded = !actionsExpanded },
-                            modifier = Modifier.size(34.dp)
-                        ) {
-                            Icon(
-                                imageVector = if (actionsExpanded) Icons.Default.Close else Icons.Default.MoreHoriz,
-                                contentDescription = if (actionsExpanded) "Collapse response actions" else "Show response actions",
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
+                        MessageActionsToggle(actionsExpanded) { actionsExpanded = !actionsExpanded }
                     }
                 }
 
@@ -656,18 +658,20 @@ fun OpponentChatBubble(
                             IconButton(enabled = canShowPreviousRevision, onClick = onShowPreviousRevision) {
                                 Icon(
                                     Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                                    stringResource(R.string.previous_revision)
+                                    stringResource(R.string.previous_revision),
+                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = if (canShowPreviousRevision) 1f else 0.38f)
                                 )
                             }
                             Text(
                                 label,
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.primary
                             )
                             IconButton(enabled = canShowNextRevision, onClick = onShowNextRevision) {
                                 Icon(
                                     Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                    stringResource(R.string.next_revision)
+                                    stringResource(R.string.next_revision),
+                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = if (canShowNextRevision) 1f else 0.38f)
                                 )
                             }
                         }
@@ -888,11 +892,11 @@ fun PlatformButton(
 }
 
 @Composable private fun CopyTextIcon(onClick: () -> Unit) = IconButton(onClick = onClick) {
-    Icon(ImageVector.vectorResource(R.drawable.ic_copy), stringResource(R.string.copy_text))
+    Icon(ImageVector.vectorResource(R.drawable.ic_copy), stringResource(R.string.copy_text), tint = MaterialTheme.colorScheme.primary)
 }
 
 @Composable private fun SelectTextIcon(onClick: () -> Unit) = IconButton(onClick = onClick) {
-    Icon(ImageVector.vectorResource(R.drawable.ic_select), stringResource(R.string.select_text))
+    Icon(ImageVector.vectorResource(R.drawable.ic_select), stringResource(R.string.select_text), tint = MaterialTheme.colorScheme.primary)
 }
 
 @Composable
@@ -920,17 +924,17 @@ private fun FavoriteIcon(
         Icon(
             if (isFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder,
             stringResource(if (isFavorite) R.string.unfavorite else R.string.favorite),
-            tint = if (isFavorite) Color.Cyan else MaterialTheme.colorScheme.onSurfaceVariant
+            tint = MaterialTheme.colorScheme.primary.copy(alpha = if (isFavorite) 1f else 0.7f)
         )
     }
 }
 
 @Composable private fun RetryIcon(onClick: () -> Unit) = IconButton(onClick = onClick) {
-    Icon(Icons.Rounded.Refresh, stringResource(R.string.retry))
+    Icon(Icons.Rounded.Refresh, stringResource(R.string.retry), tint = MaterialTheme.colorScheme.primary)
 }
 
 @Composable private fun EditTextIcon(onClick: () -> Unit) = IconButton(onClick = onClick) {
-    Icon(Icons.Outlined.Edit, stringResource(R.string.edit))
+    Icon(Icons.Outlined.Edit, stringResource(R.string.edit), tint = MaterialTheme.colorScheme.primary)
 }
 
 @Composable
@@ -1152,3 +1156,10 @@ private fun MessageFileThumbnail(filePath: String, usePrimaryColors: Boolean) {
 
 private fun isImageFile(extension: String?): Boolean =
     extension != null && extension.lowercase() in setOf("jpg", "jpeg", "png", "gif", "bmp", "webp")
+
+@Composable
+private fun MessageActionsToggle(expanded: Boolean, onClick: () -> Unit) {
+    IconButton(onClick = onClick, modifier = Modifier.size(34.dp)) {
+        Icon(Icons.Default.MoreHoriz, if (expanded) "Collapse message actions" else "Show message actions", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+    }
+}

@@ -34,12 +34,13 @@ class LocalRuntimeRouter(
     override fun loadedEngineSpec(): LocalEngineSpec? = state.value.engineSpec
 
     override suspend fun loadEngine(requested: LocalEngineSpec) {
+        if (isEngineLoaded(requested)) return
         val tuning = settingRepository.getFeatureSettings().localEngineTuning()
         val spec = requested.copy(cpuThreads = tuning.first, cacheEnabled = tuning.second)
         val preferred = settingRepository.getLocalRuntimeBackend()
         unloadEngine()
         try {
-            if (preferred == LocalRuntimeBackend.QUALCOMM_QNN) {
+            if (preferred == LocalRuntimeBackend.QUALCOMM_QNN && LocalAccelerators.normalize(spec.accelerator) == LocalAccelerators.NPU) {
                 try {
                     qnnRuntime.loadEngine(spec)
                     activate(qnnRuntime, LocalRuntimeBackend.QUALCOMM_QNN, requested, spec, preferred)
@@ -52,6 +53,9 @@ class LocalRuntimeRouter(
                     qnnRuntime.unloadEngine()
                     if (!settingRepository.getFeatureSettings().qnnAutomaticFallback) {
                         throw LocalRuntimeFallbackDisabledException(error)
+                    }
+                    if (dev.chungjungsoo.gptmobile.data.localmodel.LocalModelPackages.isNpuFile(spec.modelPath)) {
+                        throw IllegalStateException("This NPU package could not start. Download the GPU / CPU edition from the model marketplace to use LiteRT.", error)
                     }
                     Log.w(TAG, "QNN failed; trying LiteRT-LM", error)
                     // Retrying NPU with the same Qualcomm dispatch is not a fallback.
@@ -90,10 +94,14 @@ class LocalRuntimeRouter(
     }
 
     private suspend fun loadLiteRt(spec: LocalEngineSpec): LocalEngineSpec {
-        val accelerators = when (LocalAccelerators.normalize(spec.accelerator)) {
-            LocalAccelerators.NPU -> listOf(LocalAccelerators.NPU, LocalAccelerators.GPU, LocalAccelerators.CPU)
-            LocalAccelerators.GPU -> listOf(LocalAccelerators.GPU, LocalAccelerators.CPU)
-            else -> listOf(LocalAccelerators.CPU)
+        val accelerators = if (dev.chungjungsoo.gptmobile.data.localmodel.LocalModelPackages.isNpuFile(spec.modelPath)) {
+            listOf(LocalAccelerators.NPU)
+        } else {
+            when (LocalAccelerators.normalize(spec.accelerator)) {
+                LocalAccelerators.NPU -> listOf(LocalAccelerators.NPU, LocalAccelerators.GPU, LocalAccelerators.CPU)
+                LocalAccelerators.GPU -> listOf(LocalAccelerators.GPU, LocalAccelerators.CPU)
+                else -> listOf(LocalAccelerators.CPU)
+            }
         }
         var lastError: Throwable? = null
         for (accelerator in accelerators) {

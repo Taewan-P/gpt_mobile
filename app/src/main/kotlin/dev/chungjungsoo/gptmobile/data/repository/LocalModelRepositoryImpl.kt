@@ -76,6 +76,7 @@ class LocalModelRepositoryImpl(
             val resolved = SocVariantResolver.resolveForRuntime(entry, deviceSocModel)
             LocalModelDownloadPaths.requireValidPathSegments(entry.id, resolved.commitHash, resolved.fileName)
             val relativeDirectory = LocalModelDownloadPaths.relativeDirectory(entry.id, resolved.commitHash)
+            dev.chungjungsoo.gptmobile.data.localmodel.LocalModelMetadata.save(File(storageRoot(), relativeDirectory), entry)
             val now = System.currentTimeMillis() / 1000
             localModelDao.upsert(
                 LocalModel(

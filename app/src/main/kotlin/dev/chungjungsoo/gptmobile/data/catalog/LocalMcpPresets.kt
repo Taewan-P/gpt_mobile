@@ -14,7 +14,7 @@ object LocalMcpPresets {
         ),
         McpPreset(
             id = "builtin-model-delegation", name = "Built-in Model Delegation",
-            description = "Optional Houtini-style delegation using any configured AI profile, including llama, Ollama and on-device models.",
+            description = "Let your AI ask another model for help. Works with downloaded models, Ollama and llama servers.",
             category = McpCategory.DEVELOPMENT, commandOrUrl = "builtin://delegation",
             transportType = McpTransportType.STDIO, iconName = "delegation",
             author = "GPT Mobile", isPreinstalled = true, integratedTool = "delegation",

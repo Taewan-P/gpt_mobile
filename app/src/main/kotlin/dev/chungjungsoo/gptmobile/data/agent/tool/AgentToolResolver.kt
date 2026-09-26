@@ -102,6 +102,11 @@ class AgentToolResolver @Inject constructor(
         val resolved = mutableListOf<ResolvedAgentTool>()
 
         if (!disableLocal) {
+            // Keep explicitly enabled delegation available in small on-device context windows.
+            if (!freeProfile && featureSettings.delegation.enabled && delegate != null && platform != null) {
+                val tool = ModelDelegationTool(platform, { settingRepository.getFeatureSettings().delegation }, { settingRepository.fetchPlatformV2s() }, delegate)
+                resolved += tool.resolved(null, "Model delegation", tool.definition.name)
+            }
             if (!memoryExcluded && factVault != null && userMessage != null && platform != null) {
                 val memoryAvailable = try {
                     factVault.load()
@@ -121,10 +126,6 @@ class AgentToolResolver @Inject constructor(
                         resolved += tool.resolved(null, "Local memory", tool.definition.name)
                     }
                 }
-            }
-            if (!freeProfile && featureSettings.delegation.enabled && delegate != null && platform != null) {
-                val tool = ModelDelegationTool(platform, { settingRepository.getFeatureSettings().delegation }, { settingRepository.fetchPlatformV2s() }, delegate)
-                resolved += tool.resolved(null, "Model delegation", tool.definition.name)
             }
             resolved += CurrentDateTool().resolved(null, null, BuiltInAgentTool.CURRENT_DATE)
             resolved += CalculatorTool().resolved(null, null, BuiltInAgentTool.CALCULATE_EXPRESSION)

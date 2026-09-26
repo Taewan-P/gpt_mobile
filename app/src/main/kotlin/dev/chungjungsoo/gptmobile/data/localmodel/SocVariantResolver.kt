@@ -65,7 +65,7 @@ object SocVariantResolver {
         return socToModelFiles.keys.firstOrNull { normalizeSocKey(it) == needle }
     }
 
-    internal fun normalizeSocKey(value: String): String = value
+    internal fun normalizeSocKey(value: String): String = dev.chungjungsoo.gptmobile.data.localruntime.QualcommSocSupport.canonicalSoc(value)
         .trim()
         .lowercase()
         .replace('_', ' ')

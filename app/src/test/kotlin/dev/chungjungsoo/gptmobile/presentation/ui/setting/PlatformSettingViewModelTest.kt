@@ -19,7 +19,6 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ToolConnectionAuthType
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolConnectionType
 import dev.chungjungsoo.gptmobile.data.dto.Platform
 import dev.chungjungsoo.gptmobile.data.dto.ThemeSetting
-import dev.chungjungsoo.gptmobile.data.localruntime.AcceleratorUnavailableReason
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators
 import dev.chungjungsoo.gptmobile.data.localruntime.MAX_HIGH_RAM_CONTEXT_TOKENS
 import dev.chungjungsoo.gptmobile.data.model.ClientType
@@ -154,7 +153,7 @@ class PlatformSettingViewModelTest {
     }
 
     @Test
-    fun `unsupported NPU surface reason why it cannot be enabled`() = runTest {
+    fun `unsupported phone does not offer NPU`() = runTest {
         val settings = FakeSettingRepository(localPlatform(accelerator = LocalAccelerators.CPU))
         val entry = catalogEntry("gemma3-1b-it", listOf(LocalAccelerators.CPU, LocalAccelerators.GPU))
         val viewModel = testViewModel(
@@ -163,9 +162,7 @@ class PlatformSettingViewModelTest {
             deviceSocModel = "Tensor G4"
         )
 
-        val item = viewModel.acceleratorOptions.value.first { it.accelerator == LocalAccelerators.NPU }
-        assertFalse(item.enabled)
-        assertEquals(AcceleratorUnavailableReason.MODEL_HAS_NO_BUILD, item.unavailableReason)
+        assertFalse(viewModel.acceleratorOptions.value.any { it.accelerator == LocalAccelerators.NPU })
     }
 
     private fun testViewModel(

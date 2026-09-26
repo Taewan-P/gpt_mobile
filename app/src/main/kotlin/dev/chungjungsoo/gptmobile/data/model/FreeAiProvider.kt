@@ -44,7 +44,7 @@ enum class FreeAiProvider(
 
         fun fromApiUrl(url: String): FreeAiProvider? {
             val normalized = url.trim().trimEnd('/')
-            return entries.firstOrNull { it.apiUrl == normalized }
+            return entries.firstOrNull { it.apiUrl == normalized || it.chatCompletionsUrl == normalized }
         }
 
         fun requireFor(platform: PlatformV2): FreeAiProvider = requireNotNull(fromApiUrl(platform.apiUrl)) {

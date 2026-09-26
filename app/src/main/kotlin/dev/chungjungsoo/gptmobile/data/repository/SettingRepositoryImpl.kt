@@ -151,7 +151,8 @@ class SettingRepositoryImpl @Inject constructor(
         dynamicTheme = settingDataSource.getDynamicTheme() ?: DynamicTheme.OFF,
         themeMode = settingDataSource.getThemeMode() ?: ThemeMode.SYSTEM,
         customPrimaryArgb = settingDataSource.getCustomPrimaryArgb(),
-        customPalette = settingDataSource.getCustomPalette()
+        customPalette = settingDataSource.getCustomPalette(),
+        savedProfiles = settingDataSource.getSavedThemeProfiles()
     )
 
     override suspend fun getLocalRuntimeBackend(): LocalRuntimeBackend =
@@ -314,6 +315,7 @@ class SettingRepositoryImpl @Inject constructor(
         settingDataSource.updateThemeMode(themeSetting.themeMode)
         settingDataSource.updateCustomPrimaryArgb(themeSetting.customPrimaryArgb)
         settingDataSource.updateCustomPalette(themeSetting.customPalette)
+        settingDataSource.updateSavedThemeProfiles(themeSetting.savedProfiles)
     }
 
     override suspend fun addPlatformV2(platform: PlatformV2) {
@@ -419,7 +421,8 @@ class SettingRepositoryImpl @Inject constructor(
                 dynamicTheme = currentThemes.dynamicTheme == DynamicTheme.ON,
                 themeMode = currentThemes.themeMode.ordinal,
                 customPrimaryArgb = currentThemes.customPrimaryArgb,
-                customPalette = currentThemes.customPalette
+                customPalette = currentThemes.customPalette,
+                savedProfiles = currentThemes.savedProfiles
             ),
             platforms = currentPlatforms.map { p ->
                 PlatformBackupDto(
@@ -459,7 +462,7 @@ class SettingRepositoryImpl @Inject constructor(
         backup.theme?.let { themeDto ->
             val dynamicTheme = if (themeDto.dynamicTheme) DynamicTheme.ON else DynamicTheme.OFF
             val themeMode = ThemeMode.getByValue(themeDto.themeMode) ?: ThemeMode.SYSTEM
-            updateThemes(ThemeSetting(dynamicTheme = dynamicTheme, themeMode = themeMode, customPrimaryArgb = themeDto.customPrimaryArgb, customPalette = themeDto.customPalette))
+            updateThemes(ThemeSetting(dynamicTheme = dynamicTheme, themeMode = themeMode, customPrimaryArgb = themeDto.customPrimaryArgb, customPalette = themeDto.customPalette, savedProfiles = themeDto.savedProfiles))
         }
 
         if (backup.favoriteGroups.isNotEmpty()) {

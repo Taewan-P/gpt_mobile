@@ -86,9 +86,11 @@ class LiteRtLmAdapter(
                 tools: List<AgentToolDefinition>,
                 exchanges: List<AgentToolExchange>
             ): Flow<ProviderEvent> = channelFlow {
+                val installedRecord = localModelRepository.getById(platform.model)
                 val catalogEntry = modelCatalogRepository
                     ?.getCachedVisibleEntries()
                     ?.firstOrNull { entry -> entry.id == platform.model }
+                    ?.let { entry -> installedRecord?.let { dev.chungjungsoo.gptmobile.data.localmodel.LocalModelPackages.forInstalledFile(entry, it.fileName) } ?: entry }
                 val visionCapable = catalogEntry?.capabilities?.vision == true
                 val toolsCapable = catalogEntry?.capabilities?.tools == true
                 val registeredTools = if (toolsCapable) boundTools else emptyList()
@@ -101,9 +103,15 @@ class LiteRtLmAdapter(
                     send(notice)
                 }
 
-                val modelPath = localModelRepository.resolveDownloadedPath(platform.model)
+                val wantsGpu = LocalAccelerators.normalize(platform.accelerator) != LocalAccelerators.NPU
+                val installedNpu = installedRecord?.fileName?.let(dev.chungjungsoo.gptmobile.data.localmodel.LocalModelPackages::isNpuFile) == true
+                val modelPath = if (wantsGpu && installedNpu) {
+                    localModelRepository.resolveDownloadedPath("${platform.model}-litert")
+                } else {
+                    localModelRepository.resolveDownloadedPath(platform.model)
+                }
                 if (modelPath == null) {
-                    send(ProviderEvent.Failed(modelNotDownloadedError))
+                    send(ProviderEvent.Failed(if (wantsGpu && installedNpu) "This download is an NPU package. Open Local models → Marketplace and download its GPU / CPU edition, or select NPU in this profile." else modelNotDownloadedError))
                     return@channelFlow
                 }
 
@@ -394,6 +402,7 @@ class LiteRtLmAdapter(
         requested: LocalEngineSpec,
         send: suspend (ProviderEvent) -> Unit
     ): LocalEngineSpec {
+        if (isEngineLoaded(requested)) return loadedEngineSpec() ?: requested
         try {
             loadEngine(requested)
             val active = loadedEngineSpec() ?: requested

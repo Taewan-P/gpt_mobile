@@ -6,7 +6,7 @@ package dev.chungjungsoo.gptmobile.data.model
  * LITERT_LM targets Google LiteRT-LM (TFLite runtime).
  */
 enum class LocalRuntimeBackend(val displayName: String) {
-    QUALCOMM_QNN("Qualcomm QNN (Default)"),
+    QUALCOMM_QNN("Qualcomm QNN · NPU"),
     LITERT_LM("LiteRT-LM");
 
     companion object {

@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,6 +33,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.model.FreeAiProvider
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,6 +44,9 @@ fun FreeProviderPicker(
     enabled: Boolean = true
 ) {
     val selected = FreeAiProvider.fromApiUrl(apiUrl)
+    val scope = rememberCoroutineScope()
+    var testing by remember { mutableStateOf(false) }
+    var testStatus by remember(apiUrl) { mutableStateOf<dev.chungjungsoo.gptmobile.data.network.ApiKeyValidator.ValidationResult?>(null) }
     var expanded by remember { mutableStateOf(false) }
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -58,7 +63,7 @@ fun FreeProviderPicker(
                     Text(stringResource(R.string.free_ai_no_account), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            ExposedDropdownMenuBox(expanded = expanded && enabled, onExpandedChange = { if (enabled) expanded = it }) {
+            ExposedDropdownMenuBox(expanded = expanded && enabled, onExpandedChange = { if (enabled && !testing) expanded = it }) {
                 OutlinedTextField(
                     value = selected?.displayName.orEmpty(),
                     onValueChange = {},
@@ -72,6 +77,7 @@ fun FreeProviderPicker(
                 ExposedDropdownMenu(expanded = expanded && enabled, onDismissRequest = { expanded = false }) {
                     FreeAiProvider.entries.forEach { provider ->
                         DropdownMenuItem(
+                            enabled = provider.isAvailable && !testing,
                             text = {
                                 Column {
                                     Text(provider.displayName)
@@ -98,6 +104,23 @@ fun FreeProviderPicker(
                     color = if (provider.isAvailable) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error
                 )
                 Text(stringResource(R.string.free_ai_model, provider.model), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            }
+            androidx.compose.material3.TextButton(enabled = enabled && !testing && selected?.isAvailable == true, onClick = {
+                val testedUrl = apiUrl
+                testing = true
+                testStatus = null
+                scope.launch {
+                    try {
+                        testStatus = dev.chungjungsoo.gptmobile.data.network.ApiKeyValidator.validate(dev.chungjungsoo.gptmobile.data.model.ClientType.FREE, testedUrl, "")
+                    } finally {
+                        testing = false
+                    }
+                }
+            }) { Text(if (testing) "Testing provider…" else "Test provider") }
+            when (val result = testStatus) {
+                is dev.chungjungsoo.gptmobile.data.network.ApiKeyValidator.ValidationResult.Success -> Text(result.message, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
+                is dev.chungjungsoo.gptmobile.data.network.ApiKeyValidator.ValidationResult.Error -> Text(result.message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                else -> Unit
             }
             Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
                 Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {

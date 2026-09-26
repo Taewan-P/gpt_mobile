@@ -35,6 +35,7 @@ internal fun LocalRuntimeSettingsCard(viewModel: LocalRuntimeSettingsViewModel) 
     val backend by viewModel.backend.collectAsStateWithLifecycle()
     val active by viewModel.active.collectAsStateWithLifecycle()
     val hardware by viewModel.hardware.collectAsStateWithLifecycle()
+    val qnnAvailable by viewModel.qnnAvailable.collectAsStateWithLifecycle()
     val npuStatus by viewModel.npuStatus.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
     val status by viewModel.status.collectAsStateWithLifecycle()
@@ -47,9 +48,9 @@ internal fun LocalRuntimeSettingsCard(viewModel: LocalRuntimeSettingsViewModel) 
             Text(active.engineSpec?.let { "Running: ${active.backend?.displayName} / ${it.accelerator.uppercase()} · ${it.maxTokens} context" } ?: "Engine idle", color = MaterialTheme.colorScheme.primary)
             active.fallbackReason?.let { Text("Fallback: $it", style = MaterialTheme.typography.bodySmall) }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                LocalRuntimeBackend.entries.forEach { option -> FilterChip(selected = backend == option, onClick = { viewModel.selectBackend(option) }, label = { Text(option.displayName) }, enabled = !busy) }
+                LocalRuntimeBackend.entries.filter { it != LocalRuntimeBackend.QUALCOMM_QNN || qnnAvailable }.forEach { option -> FilterChip(selected = backend == option, onClick = { viewModel.selectBackend(option) }, label = { Text(option.displayName) }, enabled = !busy) }
             }
-            Text(npuStatus, style = MaterialTheme.typography.bodySmall)
+            if (qnnAvailable) Text(npuStatus, style = MaterialTheme.typography.bodySmall)
             Text("CPU/GPU use compatible LiteRT-LM packages. NPU requires the exact SoC model build. Choose the accelerator and context in each AI profile.", style = MaterialTheme.typography.bodySmall)
             TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) "Hide tuning" else "Performance tuning") }
             if (expanded) {
@@ -60,9 +61,11 @@ internal fun LocalRuntimeSettingsCard(viewModel: LocalRuntimeSettingsViewModel) 
                     Text("Cache compiled models", Modifier.weight(1f))
                     Switch(settings.localModelCache, { viewModel.updateTuning(cache = it) }, enabled = !busy, modifier = Modifier.semantics { contentDescription = "Cache compiled models" })
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Automatic QNN fallback", Modifier.weight(1f))
-                    Switch(settings.qnnAutomaticFallback, { viewModel.updateTuning(fallback = it) }, enabled = !busy, modifier = Modifier.semantics { contentDescription = "Automatic QNN fallback" })
+                if (qnnAvailable) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Automatic QNN fallback", Modifier.weight(1f))
+                        Switch(settings.qnnAutomaticFallback, { viewModel.updateTuning(fallback = it) }, enabled = !busy, modifier = Modifier.semantics { contentDescription = "Automatic QNN fallback" })
+                    }
                 }
                 Text("Release model after idle", style = MaterialTheme.typography.labelLarge)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

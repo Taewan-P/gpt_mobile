@@ -57,6 +57,25 @@ class ThemeViewModel @Inject constructor(private val settingRepository: SettingR
         }
     }
 
+    fun applyProfile(profile: dev.chungjungsoo.gptmobile.data.dto.SavedThemeProfile) {
+        viewModelScope.launch { persistTheme { it.copy(dynamicTheme = DynamicTheme.OFF, themeMode = profile.mode, customPalette = profile.palette, customPrimaryArgb = profile.palette.primary) } }
+    }
+
+    fun saveProfile(name: String, palette: dev.chungjungsoo.gptmobile.data.dto.CustomThemePalette) {
+        val label = name.trim().take(40)
+        if (label.isEmpty()) return
+        viewModelScope.launch {
+            persistTheme { current ->
+                val profile = dev.chungjungsoo.gptmobile.data.dto.SavedThemeProfile(label, palette, current.themeMode)
+                current.copy(customPalette = palette, customPrimaryArgb = palette.primary, savedProfiles = current.savedProfiles.filterNot { it.name.equals(label, true) } + profile)
+            }
+        }
+    }
+
+    fun deleteProfile(name: String) {
+        viewModelScope.launch { persistTheme { it.copy(savedProfiles = it.savedProfiles.filterNot { profile -> profile.name == name }) } }
+    }
+
     private suspend fun persistTheme(transform: (ThemeSetting) -> ThemeSetting) {
         themeMutex.withLock {
             val updated = transform(_themeSetting.value)

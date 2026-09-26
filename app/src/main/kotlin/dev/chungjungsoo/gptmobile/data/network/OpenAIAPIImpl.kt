@@ -118,7 +118,12 @@ class OpenAIAPIImpl @Inject constructor(
                     models = null,
                     provider = null,
                     plugins = null,
-                    topK = null
+                    topK = null,
+                    reasoningEffort = null,
+                    reasoning = null,
+                    options = null,
+                    transforms = null,
+                    sessionId = null
                 )
             }
             if (free == FreeAiProvider.POLLINATIONS) {
@@ -211,12 +216,24 @@ class OpenAIAPIImpl @Inject constructor(
                             }
                         )
                         emit(chunk)
+                        if (free != null) {
+                            freeResponseOutcome(
+                                free,
+                                chunk.choices.orEmpty().any { !it.effectiveDelta.content.isNullOrBlank() },
+                                chunk.choices.orEmpty().any { !it.effectiveDelta.toolCalls.isNullOrEmpty() },
+                                chunk.error != null,
+                                chunk.choices.orEmpty().any { it.finishReason == "length" }
+                            )?.let { emit(it) }
+                        }
                         return@execute
                     }
 
                     // If gateway metadata is present, emit an initial chunk carrying the metadata
                     var firstChunk = true
                     var receivedToolCalls = false
+                    var receivedAnswer = false
+                    var receivedError = false
+                    var reachedOutputLimit = false
 
                     // Success - read SSE stream
                     val channel = response.bodyAsChannel()
@@ -239,6 +256,9 @@ class OpenAIAPIImpl @Inject constructor(
                         val chunk = decoded.error?.let { error ->
                             decoded.copy(error = error.copy(message = config.readableProviderError(error.message, error.code)))
                         } ?: decoded
+                        receivedAnswer = receivedAnswer || chunk.choices.orEmpty().any { !it.effectiveDelta.content.isNullOrBlank() }
+                        receivedError = receivedError || chunk.error != null
+                        reachedOutputLimit = reachedOutputLimit || chunk.choices.orEmpty().any { it.finishReason == "length" }
                         receivedAssistantPayload = receivedAssistantPayload || chunk.hasAssistantStreamPayload()
                         receivedToolCalls = receivedToolCalls || chunk.choices.orEmpty().any { !it.effectiveDelta.toolCalls.isNullOrEmpty() }
                         if (firstChunk && gatewayMetadata != null) {
@@ -249,6 +269,7 @@ class OpenAIAPIImpl @Inject constructor(
                         }
                     }
 
+                    if (free != null) freeResponseOutcome(free, receivedAnswer, receivedToolCalls, receivedError, reachedOutputLimit)?.let { emit(it) }
                     // If no chunks were emitted but metadata was present, emit a metadata chunk
                     if (firstChunk && gatewayMetadata != null) {
                         emit(ChatCompletionChunk(gatewayMetadata = gatewayMetadata))
@@ -404,3 +425,10 @@ private data class OpenAIFileResponse(
     @kotlinx.serialization.SerialName("mime_type")
     val mimeType: String? = null
 )
+
+private fun freeResponseOutcome(provider: FreeAiProvider, hasAnswer: Boolean, hasTools: Boolean, hasError: Boolean, limited: Boolean): ChatCompletionChunk? = when {
+    hasError || hasTools -> null
+    limited -> ChatCompletionChunk(model = provider.model, choices = listOf(Choice(delta = Delta(content = "\n\nThis model reached its response limit. Would you like me to continue?"), finishReason = "stop")))
+    !hasAnswer -> ChatCompletionChunk(error = ErrorDetail(message = "${provider.displayName} returned no answer. Retry later or choose another Free provider.", type = "empty_response"))
+    else -> null
+}

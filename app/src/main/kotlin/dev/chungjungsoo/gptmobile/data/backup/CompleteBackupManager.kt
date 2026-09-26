@@ -231,7 +231,7 @@ class CompleteBackupManager @Inject constructor(
         }
 
         val snapshot = if (restoreDatabase) {
-            openSnapshot(File(staging, "database.sqlite"))
+            prepareSnapshot(File(staging, "database.sqlite"))
         } else {
             null
         }
@@ -331,6 +331,60 @@ class CompleteBackupManager @Inject constructor(
                 require(total <= maxBytes) { "Backup is too large for the available storage." }
                 output.write(buffer, 0, count)
             }
+        }
+    }
+
+    /** Rebuild in a fresh Room schema instead of trusting the exporting installation's schema identity. */
+    private fun prepareSnapshot(file: File): ChatDatabaseV2 {
+        val prepared = openSnapshot(File(file.parentFile, "restore-prepared.sqlite"))
+        try {
+            val target = prepared.openHelper.writableDatabase
+            val originalVersion = android.database.sqlite.SQLiteDatabase.openDatabase(
+                file.absolutePath,
+                null,
+                android.database.sqlite.SQLiteDatabase.OPEN_READONLY
+            ).use { it.version }
+            require(originalVersion in 10..target.version) {
+                "This backup uses database version $originalVersion. Update the app to a version that supports it; your current data is unchanged."
+            }
+            val helper = androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory().create(
+                androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration.builder(context)
+                    .name(file.absolutePath)
+                    .callback(object : androidx.sqlite.db.SupportSQLiteOpenHelper.Callback(originalVersion) {
+                        override fun onCreate(db: SupportSQLiteDatabase) = error("The backup database is missing.")
+                        override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+                    }).build()
+            )
+            helper.use {
+                val source = it.writableDatabase
+                source.beginTransaction()
+                try {
+                    while (source.version < target.version) {
+                        val migration = ChatDatabaseV2Migrations.ALL_MIGRATIONS.firstOrNull { step -> step.startVersion == source.version }
+                            ?: error("No upgrade path exists for this backup. Your current data is unchanged.")
+                        migration.migrate(source)
+                        source.version = migration.endVersion
+                    }
+                    CompleteBackupDatabase.validate(source, target)
+                    target.beginTransaction()
+                    try {
+                        CompleteBackupDatabase.restore(source, target)
+                        target.query("PRAGMA foreign_key_check").use { rows ->
+                            require(!rows.moveToFirst()) { "The backup contains incomplete relationships. Your current data is unchanged." }
+                        }
+                        target.setTransactionSuccessful()
+                    } finally {
+                        target.endTransaction()
+                    }
+                    source.setTransactionSuccessful()
+                } finally {
+                    source.endTransaction()
+                }
+            }
+            return prepared
+        } catch (error: Throwable) {
+            prepared.close()
+            throw error
         }
     }
 

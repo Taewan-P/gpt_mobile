@@ -36,10 +36,25 @@ internal object CompleteBackupDatabase {
 
     fun validate(source: SupportSQLiteDatabase, destination: SupportSQLiteDatabase) {
         require(source.version == destination.version) { "Unsupported backup database version." }
-        require(tables(source).toSet() == tables(destination).toSet()) { "Backup database tables do not match." }
-        tables(destination).forEach { table ->
-            fun columns(db: SupportSQLiteDatabase) = db.query("SELECT * FROM ${quote(table)} LIMIT 0").use { it.columnNames.toList() }
-            require(columns(source) == columns(destination)) { "Backup database columns do not match." }
+        val sourceTables = tables(source).toSet()
+        val destinationTables = tables(destination)
+        val missingTables = destinationTables.filterNot { it in sourceTables }
+        require(missingTables.isEmpty()) {
+            "The backup is missing required records (${missingTables.joinToString()}). Your current data has not been changed."
+        }
+        destinationTables.filter { it in sourceTables }.forEach { table ->
+            val incoming = columns(source, table)
+            val target = columns(destination, table)
+            val hasRows = source.query("SELECT 1 FROM ${quote(table)} LIMIT 1").use { it.moveToFirst() }
+            target.forEach { (name, column) ->
+                val saved = incoming[name]
+                require(saved == null || saved.affinity == column.affinity) {
+                    "The backup contains an unsupported value type in $table.$name. Update the app before restoring."
+                }
+                require(!hasRows || saved != null || (!column.required && column.primaryKeyPosition == 0) || column.defaultValue != null) {
+                    "The backup is missing required data in $table.$name. Your current data has not been changed."
+                }
+            }
         }
         source.query("PRAGMA integrity_check").use { require(it.moveToFirst() && it.getString(0) == "ok") { "Damaged backup database." } }
         source.query("PRAGMA foreign_key_check").use { require(!it.moveToFirst()) { "Backup contains broken data relationships." } }
@@ -50,15 +65,15 @@ internal object CompleteBackupDatabase {
         val order = dependencyOrder(destination)
         order.asReversed().forEach { destination.execSQL("DELETE FROM ${quote(it)}") }
         order.forEach { table ->
-            source.query("SELECT * FROM ${quote(table)}").use { rows -> copyRows(table, rows) { sql, values -> destination.execSQL(sql, values) } }
+            copyCompatibleRows(source, destination, table)
         }
         destination.execSQL("DELETE FROM sqlite_sequence")
         source.query("SELECT name, seq FROM sqlite_sequence").use { rows ->
             copyRows("sqlite_sequence", rows) { sql, values -> destination.execSQL(sql, values) }
         }
         // History is portable; active jobs must never be replayed by service recovery.
-        destination.execSQL("UPDATE agent_runs SET status = 'INTERRUPTED', terminal_error = 'BACKUP_RESTORED' WHERE status IN ('QUEUED', 'RUNNING')")
-        destination.execSQL("UPDATE tool_events SET status = 'CANCELED', error = 'BACKUP_RESTORED' WHERE status IN ('PENDING', 'RUNNING')")
+        if ("agent_runs" in tables(destination)) destination.execSQL("UPDATE agent_runs SET status = 'INTERRUPTED', terminal_error = 'BACKUP_RESTORED' WHERE status IN ('QUEUED', 'RUNNING')")
+        if ("tool_events" in tables(destination)) destination.execSQL("UPDATE tool_events SET status = 'CANCELED', error = 'BACKUP_RESTORED' WHERE status IN ('PENDING', 'RUNNING')")
     }
 
     fun retainSections(database: SupportSQLiteDatabase, selection: CompleteBackupSelection) {
@@ -97,9 +112,7 @@ internal object CompleteBackupDatabase {
             .forEach { destination.execSQL("DELETE FROM ${quote(it)}") }
 
         order.filter { it in selectedTables }.forEach { table ->
-            source.query("SELECT * FROM ${quote(table)}").use { rows ->
-                copyRows(table, rows) { sql, values -> destination.execSQL(sql, values) }
-            }
+            copyCompatibleRows(source, destination, table)
         }
 
         selectedTables.forEach { table ->
@@ -218,4 +231,39 @@ internal object CompleteBackupDatabase {
     }
 
     private fun quote(name: String): String = "\"${name.replace("\"", "\"\"")}\""
+
+    /** Import into the current schema, allowing new nullable/defaulted columns and ignoring retired fields. */
+    private fun copyCompatibleRows(source: SupportSQLiteDatabase, destination: SupportSQLiteDatabase, table: String) {
+        if (table !in tables(source)) return
+        val incoming = columns(source, table)
+        val target = columns(destination, table)
+        val names = target.keys.filter { it in incoming }
+        if (names.isEmpty()) return
+        val projection = names.joinToString { name ->
+            val column = target.getValue(name)
+            if (column.required && column.defaultValue != null) "COALESCE(${quote(name)}, ${column.defaultValue}) AS ${quote(name)}" else quote(name)
+        }
+        source.query("SELECT $projection FROM ${quote(table)}").use { rows ->
+            copyRows(table, rows) { sql, values -> destination.execSQL(sql, values) }
+        }
+    }
+
+    private data class ColumnShape(val affinity: String, val required: Boolean, val primaryKeyPosition: Int, val defaultValue: String?)
+
+    private fun columns(db: SupportSQLiteDatabase, table: String): Map<String, ColumnShape> =
+        db.query("PRAGMA table_info(${quote(table)})").use { rows ->
+            buildMap {
+                while (rows.moveToNext()) {
+                    val type = rows.getString(2).orEmpty().uppercase()
+                    val affinity = when {
+                        "INT" in type -> "INTEGER"
+                        listOf("CHAR", "CLOB", "TEXT").any(type::contains) -> "TEXT"
+                        type.isBlank() || "BLOB" in type -> "BLOB"
+                        listOf("REAL", "FLOA", "DOUB").any(type::contains) -> "REAL"
+                        else -> "NUMERIC"
+                    }
+                    put(rows.getString(1), ColumnShape(affinity, rows.getInt(3) != 0, rows.getInt(5), rows.getString(4)?.takeUnless { it.equals("NULL", true) }))
+                }
+            }
+        }
 }

@@ -92,7 +92,7 @@ fun catalogLocalModelItems(
     val modelsById = records.associateBy { it.catalogEntryId }
     val catalogItems = catalog.map { entry ->
         toLocalModelListItem(
-            entry,
+            modelsById[entry.id]?.let { dev.chungjungsoo.gptmobile.data.localmodel.LocalModelPackages.forInstalledFile(entry, it.fileName) } ?: entry,
             modelsById[entry.id],
             workById[entry.id],
             diskPartialBytes = partialBytesById[entry.id] ?: 0L,
@@ -108,7 +108,7 @@ fun catalogLocalModelItems(
             isGated = false
         )
         toLocalModelListItem(
-            entry = syntheticEntry,
+            entry = dev.chungjungsoo.gptmobile.data.localmodel.LocalModelPackages.forInstalledFile(syntheticEntry, record.fileName),
             record = record,
             workInfo = workById[record.catalogEntryId],
             diskPartialBytes = partialBytesById[record.catalogEntryId] ?: 0L,

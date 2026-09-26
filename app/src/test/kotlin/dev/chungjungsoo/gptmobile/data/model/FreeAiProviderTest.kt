@@ -38,6 +38,7 @@ class FreeAiProviderTest {
     @Test
     fun `only exact approved endpoints resolve to Free providers`() {
         assertEquals(FreeAiProvider.KILO, FreeAiProvider.fromApiUrl(" ${FreeAiProvider.KILO.apiUrl}/ "))
+        assertEquals(FreeAiProvider.KILO, FreeAiProvider.fromApiUrl(FreeAiProvider.KILO.chatCompletionsUrl))
         assertNull(FreeAiProvider.fromApiUrl("${FreeAiProvider.KILO.apiUrl}.example"))
         assertNull(FreeAiProvider.fromApiUrl("http://api.kilo.ai/api/gateway"))
     }
