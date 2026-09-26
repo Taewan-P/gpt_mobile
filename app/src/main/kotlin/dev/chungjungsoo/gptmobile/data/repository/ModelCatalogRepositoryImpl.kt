@@ -19,7 +19,9 @@ class ModelCatalogRepositoryImpl(
     private val readCacheJson: () -> String?,
     private val writeCacheJson: (String) -> Unit,
     private val readBundledJson: () -> String,
-    private val appVersionName: String
+    private val appVersionName: String,
+    private val deviceSocModel: String = "",
+    private val readInstalledEntries: () -> List<CatalogEntry> = { emptyList() }
 ) : ModelCatalogRepository {
 
     // Fast in-memory cache to avoid redundant JSON parsing across screen navigations
@@ -48,7 +50,9 @@ class ModelCatalogRepositoryImpl(
         readBundledJson = {
             context.assets.open(CATALOG_FILE_NAME).bufferedReader().use { it.readText() }
         },
-        appVersionName = appVersionName
+        appVersionName = appVersionName,
+        deviceSocModel = android.os.Build.SOC_MODEL.orEmpty(),
+        readInstalledEntries = { dev.chungjungsoo.gptmobile.data.localmodel.LocalModelMetadata.read(context) }
     )
 
     override suspend fun getVisibleEntries(): List<CatalogEntry> = withContext(Dispatchers.IO) {
@@ -83,7 +87,9 @@ class ModelCatalogRepositoryImpl(
     ): List<CatalogEntry> {
         val catalog = remote() ?: cached() ?: bundled() ?: return emptyList()
         inMemoryCatalogCache.set(catalog)
-        return ModelCatalogParser.visibleEntries(catalog, appVersionName)
+        val entries = ModelCatalogParser.visibleEntries(catalog, appVersionName)
+        val deviceEntries = if (deviceSocModel.isBlank()) entries else dev.chungjungsoo.gptmobile.data.localmodel.LocalModelPackages.forDevice(entries, deviceSocModel)
+        return (deviceEntries + readInstalledEntries()).associateBy { it.id }.values.toList()
     }
 
     private suspend fun fetchParsableCatalog(

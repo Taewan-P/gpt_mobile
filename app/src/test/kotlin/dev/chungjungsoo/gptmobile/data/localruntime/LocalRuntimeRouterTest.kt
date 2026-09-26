@@ -39,6 +39,26 @@ class LocalRuntimeRouterTest {
     }
 
     @Test
+    fun gpuSelectionUsesLiteRtEvenWhenQnnIsPreferredAndFallbackDisabled() = runTest {
+        fakeSettingRepository.features = dev.chungjungsoo.gptmobile.data.model.AppFeatureSettings(qnnAutomaticFallback = false)
+        val spec = testEngineSpec().copy(accelerator = LocalAccelerators.GPU)
+        router.loadEngine(spec)
+        router.loadEngine(spec)
+        assertTrue(qnnRuntime.loadEngineCalls.isEmpty())
+        assertEquals(listOf(spec), liteRtRuntime.loadEngineCalls)
+        assertEquals(LocalRuntimeBackend.LITERT_LM, router.state.value.backend)
+        assertEquals(LocalRuntimeBackend.QUALCOMM_QNN, fakeSettingRepository.backend)
+    }
+
+    @Test
+    fun npuOnlyPackageIsNeverRetriedWithGpuOrCpu() = runTest {
+        qnnRuntime.failLoadEngineIf = { IllegalStateException("NPU unavailable") }
+        val failure = runCatching { router.loadEngine(testEngineSpec().copy(modelPath = "/models/gemma_SM8750.litertlm")) }.exceptionOrNull()
+        assertTrue(failure!!.message!!.contains("GPU / CPU edition"))
+        assertTrue(liteRtRuntime.loadEngineCalls.isEmpty())
+    }
+
+    @Test
     fun tuningChangesInvalidateWarmEngineAndReachCpuBackend() = runTest {
         fakeSettingRepository.backend = LocalRuntimeBackend.LITERT_LM
         fakeSettingRepository.features = dev.chungjungsoo.gptmobile.data.model.AppFeatureSettings(localCpuThreads = 1, localModelCache = false)

@@ -61,6 +61,13 @@ class LocalModelsViewModel @Inject constructor(
     private val huggingFaceEntries = MutableStateFlow<List<CatalogEntry>>(emptyList())
     private val huggingFaceSearchState = MutableStateFlow(HuggingFaceSearchState())
     private var huggingFaceSearchJob: Job? = null
+    private var npuOnly = false
+
+    fun setNpuOnly(value: Boolean) {
+        if (npuOnly == value) return
+        npuOnly = value
+        refreshHuggingFaceSearch()
+    }
 
     private val discoveryState = combine(
         searchQuery,
@@ -204,7 +211,7 @@ class LocalModelsViewModel @Inject constructor(
         huggingFaceSearchJob = viewModelScope.launch {
             if (!immediate) delay(HUGGING_FACE_SEARCH_DEBOUNCE_MS)
             huggingFaceSearchState.value = HuggingFaceSearchState(isLoading = true)
-            runCatching { client.search(query) }
+            runCatching { if (npuOnly) client.searchNpu(query, deviceSocModel) else client.search(query) }
                 .onSuccess { results ->
                     huggingFaceEntries.value = results.map { it.toCatalogEntry() }
                     huggingFaceSearchState.value = HuggingFaceSearchState()

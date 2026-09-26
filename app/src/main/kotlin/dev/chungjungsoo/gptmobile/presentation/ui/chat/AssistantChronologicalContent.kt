@@ -36,7 +36,8 @@ internal fun AssistantChronologicalContent(
     contentIdentity: Any,
     isLoading: Boolean,
     debugMode: Boolean,
-    showReasoning: Boolean
+    showReasoning: Boolean,
+    isError: Boolean = false
 ) {
     var expanded by rememberSaveable(contentIdentity.toString()) { mutableStateOf(false) }
     val events = toolEvents.associateBy { it.sequence }
@@ -59,6 +60,7 @@ internal fun AssistantChronologicalContent(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     if (isLoading) {
+                        Text("Preparing the response and checking the available context.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(bottom = 8.dp))
                         LinearProgressIndicator(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.primary, trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
                     } else {
                         Text("Activity · ${toolEvents.size} tools", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
@@ -80,14 +82,20 @@ internal fun AssistantChronologicalContent(
                         if (expanded && showReasoning && !parsed.thinking.isNullOrBlank()) {
                             Text(parsed.thinking.orEmpty(), Modifier.padding(vertical = 8.dp), style = MaterialTheme.typography.bodySmall)
                         }
-                        if (parsed.response.isNotBlank()) ChatMarkdown(content = parsed.response, contentIdentity = "$contentIdentity:$index", modifier = Modifier.padding(vertical = 8.dp))
+                        if (parsed.response.isNotBlank()) {
+                            if (isError) {
+                                Text(parsed.response, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(vertical = 8.dp))
+                            } else {
+                                ChatMarkdown(content = parsed.response, contentIdentity = "$contentIdentity:$index", modifier = Modifier.padding(vertical = 8.dp))
+                            }
+                        }
                     }
                     AssistantTimelineItemType.TOOL -> if (expanded) {
                         events[item.toolSequence]?.let { event ->
                             InlineExecutionTrace(listOf(event), listOf(item), "$contentIdentity:$index", debugMode)
                         }
                     }
-                    AssistantTimelineItemType.NOTICE -> if (expanded) {
+                    AssistantTimelineItemType.NOTICE -> if (expanded && (debugMode || !isContextDiagnostic(item.content))) {
                         if (item.recalledFacts.isNotEmpty()) {
                             InlineExecutionTrace(emptyList(), listOf(item), "$contentIdentity:$index", debugMode)
                         } else if (item.content.isNotBlank()) {
@@ -100,3 +108,5 @@ internal fun AssistantChronologicalContent(
         }
     }
 }
+
+internal fun isContextDiagnostic(value: String): Boolean = value.startsWith("Context estimate:", true) || value.startsWith("Context:", true) || value.startsWith("[telemetry]", true)

@@ -72,7 +72,7 @@ object LocalAccelerators {
         supported: List<String>,
         socToModelFiles: Map<String, *> = emptyMap<String, Any>(),
         deviceSocModel: String = ""
-    ): List<AcceleratorOption> = ALL.map { accelerator ->
+    ): List<AcceleratorOption> = ALL.filter { it != NPU || QualcommSocSupport.htpVersion(deviceSocModel) != null }.map { accelerator ->
         when (accelerator) {
             NPU -> npuChoice(supported, socToModelFiles, deviceSocModel)
 

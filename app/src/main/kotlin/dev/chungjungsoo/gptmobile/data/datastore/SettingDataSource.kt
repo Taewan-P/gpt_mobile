@@ -13,6 +13,8 @@ interface SettingDataSource {
     suspend fun getPreferencesSnapshot(): Preferences
     suspend fun updateDynamicTheme(theme: DynamicTheme)
     suspend fun updateThemeMode(themeMode: ThemeMode)
+    suspend fun getSavedThemeProfiles(): List<dev.chungjungsoo.gptmobile.data.dto.SavedThemeProfile> = emptyList()
+    suspend fun updateSavedThemeProfiles(profiles: List<dev.chungjungsoo.gptmobile.data.dto.SavedThemeProfile>) = Unit
     suspend fun getCustomPalette(): dev.chungjungsoo.gptmobile.data.dto.CustomThemePalette? = null
     suspend fun updateCustomPalette(palette: dev.chungjungsoo.gptmobile.data.dto.CustomThemePalette?) = Unit
     suspend fun updateCustomPrimaryArgb(argb: Long?) = Unit

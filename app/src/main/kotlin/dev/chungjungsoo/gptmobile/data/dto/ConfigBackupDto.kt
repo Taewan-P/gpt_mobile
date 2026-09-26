@@ -18,7 +18,8 @@ data class ThemeBackupDto(
     val dynamicTheme: Boolean = false,
     val themeMode: Int = 0,
     val customPrimaryArgb: Long? = null,
-    val customPalette: CustomThemePalette? = null
+    val customPalette: CustomThemePalette? = null,
+    val savedProfiles: List<SavedThemeProfile> = emptyList()
 )
 
 @Serializable

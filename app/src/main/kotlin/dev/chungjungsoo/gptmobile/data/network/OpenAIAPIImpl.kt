@@ -118,7 +118,12 @@ class OpenAIAPIImpl @Inject constructor(
                     models = null,
                     provider = null,
                     plugins = null,
-                    topK = null
+                    topK = null,
+                    reasoningEffort = null,
+                    reasoning = null,
+                    options = null,
+                    transforms = null,
+                    sessionId = null
                 )
             }
             if (free == FreeAiProvider.POLLINATIONS) {
@@ -217,6 +222,9 @@ class OpenAIAPIImpl @Inject constructor(
                     // If gateway metadata is present, emit an initial chunk carrying the metadata
                     var firstChunk = true
                     var receivedToolCalls = false
+                    var receivedAnswer = false
+                    var receivedError = false
+                    var reachedOutputLimit = false
 
                     // Success - read SSE stream
                     val channel = response.bodyAsChannel()
@@ -239,6 +247,9 @@ class OpenAIAPIImpl @Inject constructor(
                         val chunk = decoded.error?.let { error ->
                             decoded.copy(error = error.copy(message = config.readableProviderError(error.message, error.code)))
                         } ?: decoded
+                        receivedAnswer = receivedAnswer || chunk.choices.orEmpty().any { !it.effectiveDelta.content.isNullOrBlank() }
+                        receivedError = receivedError || chunk.error != null
+                        reachedOutputLimit = reachedOutputLimit || chunk.choices.orEmpty().any { it.finishReason == "length" }
                         receivedAssistantPayload = receivedAssistantPayload || chunk.hasAssistantStreamPayload()
                         receivedToolCalls = receivedToolCalls || chunk.choices.orEmpty().any { !it.effectiveDelta.toolCalls.isNullOrEmpty() }
                         if (firstChunk && gatewayMetadata != null) {
@@ -249,6 +260,13 @@ class OpenAIAPIImpl @Inject constructor(
                         }
                     }
 
+                    if (free != null && !receivedError && !receivedToolCalls) {
+                        if (reachedOutputLimit) {
+                            emit(ChatCompletionChunk(model = free.model, choices = listOf(Choice(delta = Delta(content = "\n\nThis model reached its response limit. Would you like me to continue?"), finishReason = "stop"))))
+                        } else if (!receivedAnswer) {
+                            emit(ChatCompletionChunk(error = ErrorDetail(message = "${free.displayName} returned no answer. Retry later or choose another Free provider.", type = "empty_response")))
+                        }
+                    }
                     // If no chunks were emitted but metadata was present, emit a metadata chunk
                     if (firstChunk && gatewayMetadata != null) {
                         emit(ChatCompletionChunk(gatewayMetadata = gatewayMetadata))

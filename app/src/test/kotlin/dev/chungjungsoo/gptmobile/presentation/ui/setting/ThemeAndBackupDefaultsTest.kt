@@ -19,7 +19,7 @@ class ThemeAndBackupDefaultsTest {
     }
 
     @Test fun customPaletteRoundTripsAndOldBackupsKeepDefaultPalette() {
-        val theme = ThemeBackupDto(customPrimaryArgb = 0xFF123456, customPalette = CustomThemePalette(0xFF123456, 0xFFABCDEF, 0xFF101010, 0xFF202020))
+        val theme = ThemeBackupDto(savedProfiles = dev.chungjungsoo.gptmobile.data.dto.ThemePresets.profiles, customPrimaryArgb = 0xFF123456, customPalette = CustomThemePalette(0xFF123456, 0xFFABCDEF, 0xFF101010, 0xFF202020))
         assertEquals(theme, Json.decodeFromString<ThemeBackupDto>(Json.encodeToString(theme)))
         assertNull(Json.decodeFromString<ThemeBackupDto>("""{"themeMode":0,"dynamicTheme":false}""").customPalette)
     }

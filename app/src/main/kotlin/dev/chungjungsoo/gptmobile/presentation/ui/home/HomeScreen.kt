@@ -266,7 +266,8 @@ fun HomeScreen(
             if (!chatListState.isSelectionMode && !chatListState.isSearchMode) {
                 PrimaryTabRow(
                     selectedTabIndex = currentTab.ordinal,
-                    containerColor = MaterialTheme.colorScheme.background
+                    containerColor = MaterialTheme.colorScheme.background,
+                    divider = { HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)) }
                 ) {
                     Tab(
                         selected = currentTab == HomeTab.CHATS,
@@ -869,7 +870,7 @@ fun FavoritesList(
                         },
                         border = BorderStroke(
                             1.dp,
-                            if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outlineVariant
+                            if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
                         )
                     ) {
                         Text(
@@ -878,7 +879,7 @@ fun FavoritesList(
                             color = if (selected) {
                                 MaterialTheme.colorScheme.onSecondaryContainer
                             } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
                             },
                             modifier = Modifier.padding(horizontal = 13.dp, vertical = 8.dp)
                         )
@@ -908,7 +909,8 @@ fun FavoritesList(
             IconButton(onClick = onAddGroupClick) {
                 Icon(
                     imageVector = Icons.Filled.Add,
-                    contentDescription = stringResource(R.string.add_group)
+                    contentDescription = stringResource(R.string.add_group),
+                    tint = MaterialTheme.colorScheme.primary
                 )
             }
         }

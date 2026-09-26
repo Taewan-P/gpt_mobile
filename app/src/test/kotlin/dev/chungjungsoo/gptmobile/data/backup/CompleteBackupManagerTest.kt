@@ -137,6 +137,31 @@ class CompleteBackupManagerTest {
     }
 
     @Test
+    fun modernBackupWithDifferentColumnOrderAndOldRoomIdentityRestoresIntoFreshSchema() = runBlocking {
+        seed(File(context.cacheDir, "modern-file").apply { writeText("original") })
+        val archive = File(context.cacheDir, "modern.gptbackup")
+        assertTrue(manager.backup(Uri.fromFile(archive)).success)
+        val stage = File(context.cacheDir, "rewrite-${UUID.randomUUID()}").apply { mkdirs() }
+        val manifest = CompleteBackupArchive.read(archive, stage, Long.MAX_VALUE)
+        android.database.sqlite.SQLiteDatabase.openDatabase(File(stage, "database.sqlite").absolutePath, null, 0).use { db ->
+            db.execSQL("UPDATE room_master_table SET identity_hash = 'old-installation-identity'")
+            db.execSQL("CREATE TABLE reordered_cache (timestamp INTEGER NOT NULL, response_content TEXT NOT NULL, cache_key TEXT NOT NULL, id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, retired_option TEXT)")
+            db.execSQL("INSERT INTO reordered_cache(timestamp, response_content, cache_key, id) SELECT timestamp, response_content, cache_key, id FROM openrouter_batch_cache")
+            db.execSQL("DROP TABLE openrouter_batch_cache")
+            db.execSQL("ALTER TABLE reordered_cache RENAME TO openrouter_batch_cache")
+        }
+        val sources = manifest.files.mapValues { (path, _) -> File(stage, path) }
+        CompleteBackupArchive.write(archive, manifest.copy(files = sources.mapValues { it.value.length() }), sources)
+        database.agentRunDao().updateStatus("run", "COMPLETED", null, null, null)
+        database.chatRoomDao().updateTitle(7, "changed", true)
+        val result = manager.restore(Uri.fromFile(archive))
+        assertTrue(result.message, result.success)
+        assertEquals("saved", database.chatRoomDao().getChatRooms().single().title)
+        assertEquals("cached", database.openRouterBatchCacheDao().getByCacheKey("key")!!.responseContent)
+        stage.deleteRecursively()
+    }
+
+    @Test
     fun corruptBackupAndCredentialWriteFailureLeaveExistingStateIntact() = runBlocking {
         seed(File(context.cacheDir, "file").apply { writeText("old attachment") })
         vault.put("provider", "saved-token".toByteArray())

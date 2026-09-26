@@ -85,8 +85,13 @@ fun LocalModelsScreen(
     val requestDownload = rememberLocalModelDownloader(viewModel::onDownloadClick)
     val context = LocalContext.current
     var marketplace by rememberSaveable { mutableStateOf(startInMarketplace) }
-    var architecture by rememberSaveable { mutableStateOf("All") }
+    var architecture by rememberSaveable { mutableStateOf("") }
+    var settingsTab by rememberSaveable { mutableStateOf(false) }
+    val profiles by runtimeViewModel.profiles.collectAsStateWithLifecycle()
+    val qnnAvailable by runtimeViewModel.qnnAvailable.collectAsStateWithLifecycle()
     val backend by runtimeViewModel.backend.collectAsStateWithLifecycle()
+    val selectedArchitecture = architecture.ifBlank { if (backend == dev.chungjungsoo.gptmobile.data.model.LocalRuntimeBackend.QUALCOMM_QNN && qnnAvailable) "QNN" else "LiteRT" }
+    androidx.compose.runtime.LaunchedEffect(selectedArchitecture) { viewModel.setNpuOnly(selectedArchitecture == "QNN") }
     BackHandler(marketplace) { marketplace = false }
 
     val openDocumentLauncher = rememberLauncherForActivityResult(
@@ -123,8 +128,17 @@ fun LocalModelsScreen(
             else -> {
                 LazyColumn(Modifier.padding(innerPadding), state = scrollState) {
                     if (!marketplace) {
-                        item(key = "overview") { LocalModelsOverviewCard(uiState) }
+                        item {
+                            androidx.compose.material3.TabRow(selectedTabIndex = if (settingsTab) 1 else 0) {
+                                androidx.compose.material3.Tab(selected = !settingsTab, onClick = { settingsTab = false }, text = { Text("Library") })
+                                androidx.compose.material3.Tab(selected = settingsTab, onClick = { settingsTab = true }, text = { Text("Settings") })
+                            }
+                        }
+                    }
+                    if (!marketplace && settingsTab) {
                         item(key = "runtime") { LocalRuntimeSettingsCard(runtimeViewModel) }
+                    } else if (!marketplace) {
+                        item(key = "overview") { LocalModelsOverviewCard(uiState) }
                         item { Text("Your models", Modifier.padding(horizontal = 20.dp, vertical = 12.dp), style = MaterialTheme.typography.titleLarge) }
                         val installed = uiState.allItems.filter { it.status == LocalModelItemStatus.READY }
                         if (installed.isEmpty()) {
@@ -142,7 +156,7 @@ fun LocalModelsScreen(
                             }
                         }
                         items(installed, key = { "installed-${it.entry.id}" }) { item ->
-                            LocalModelItem(item, LocalModelSource.CATALOG, false, {}, {}, { viewModel.onDeleteClick(item.entry) }, { runtimeViewModel.createProfile(item.entry, onOpenProfile) })
+                            LocalModelItem(item, LocalModelSource.CATALOG, false, {}, {}, { viewModel.onDeleteClick(item.entry) }, { runtimeViewModel.createProfile(item.entry, onOpenProfile) }, hasProfile = profiles.any { it.model == item.entry.id && it.compatibleType == dev.chungjungsoo.gptmobile.data.model.ClientType.LITERT_LM })
                         }
                         val downloading = uiState.allItems.count { it.status == LocalModelItemStatus.DOWNLOADING }
                         if (downloading > 0) item { TextButton(onClick = { marketplace = true }) { Text("View $downloading active downloads") } }
@@ -152,7 +166,7 @@ fun LocalModelsScreen(
                                 Text("Find your next local model", style = MaterialTheme.typography.headlineSmall)
                                 Text("Recommended for ${runtimeViewModel.soc} · ${runtimeViewModel.ramGb} GB RAM", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    listOf("All", "LiteRT", "QNN").forEach { label -> FilterChip(architecture == label, { architecture = label }, label = { Text(label) }) }
+                                    (if (qnnAvailable) listOf("All", "LiteRT", "QNN") else listOf("All", "LiteRT")).forEach { label -> FilterChip(selectedArchitecture == label, { architecture = label }, label = { Text(label) }) }
                                 }
                             }
                         }
@@ -162,7 +176,7 @@ fun LocalModelsScreen(
                             item.entry.downloadUrl.isNotBlank() &&
                                 item.entry.minRamGb <= runtimeViewModel.ramGb &&
                                 (
-                                    when (architecture) {
+                                    when (selectedArchitecture) {
                                         "QNN" -> qnn
                                         "LiteRT" -> litert
                                         else -> qnn || litert
@@ -183,7 +197,8 @@ fun LocalModelsScreen(
                                     { requestDownload(item.entry) },
                                     { viewModel.cancelDownload(item.entry) },
                                     { viewModel.onDeleteClick(item.entry) },
-                                    { runtimeViewModel.createProfile(item.entry, onOpenProfile) }
+                                    { runtimeViewModel.createProfile(item.entry, onOpenProfile) },
+                                    hasProfile = profiles.any { it.model == item.entry.id && it.compatibleType == dev.chungjungsoo.gptmobile.data.model.ClientType.LITERT_LM }
                                 )
                             }
                         }
@@ -235,7 +250,7 @@ fun LocalModelsScreen(
                                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp)
                                 )
                             }
-                            items(uiState.items.filter { item -> architecture == "All" || if (architecture == "QNN") item.entry.supportedAccelerators.any { it.equals("npu", true) } else item.entry.supportedAccelerators.none { it.equals("npu", true) } || item.entry.supportedAccelerators.any { it.equals("cpu", true) || it.equals("gpu", true) } }, key = { it.entry.id }, contentType = { "model" }) { item ->
+                            items(uiState.items.filter { item -> if (selectedArchitecture == "QNN") qnnAvailable && dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators.isNpuEligible(item.entry.supportedAccelerators, item.entry.socToModelFiles, runtimeViewModel.soc) else item.entry.supportedAccelerators.any { it.equals("cpu", true) || it.equals("gpu", true) } || (selectedArchitecture == "All" && qnnAvailable && dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators.isNpuEligible(item.entry.supportedAccelerators, item.entry.socToModelFiles, runtimeViewModel.soc)) }, key = { it.entry.id }, contentType = { "model" }) { item ->
                                 LocalModelItem(
                                     item = item,
                                     source = uiState.source,
@@ -243,7 +258,8 @@ fun LocalModelsScreen(
                                     onDownload = { requestDownload(item.entry) },
                                     onCancel = { viewModel.cancelDownload(item.entry) },
                                     onDelete = { viewModel.onDeleteClick(item.entry) },
-                                    onCreateProfile = { runtimeViewModel.createProfile(item.entry, onOpenProfile) }
+                                    onCreateProfile = { runtimeViewModel.createProfile(item.entry, onOpenProfile) },
+                                    hasProfile = profiles.any { it.model == item.entry.id && it.compatibleType == dev.chungjungsoo.gptmobile.data.model.ClientType.LITERT_LM }
                                 )
                             }
                         }
@@ -312,7 +328,7 @@ private fun LocalModelsOverviewCard(state: LocalModelsUiState) {
         Column(Modifier.fillMaxWidth().padding(18.dp)) {
             Text("AI on your device", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Text(
-                "Manage installed models and tune your runtime. Open the marketplace to find, download or import models.",
+                "Open a profile to chat. Find more models in the marketplace.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                 modifier = Modifier.padding(top = 4.dp)
@@ -548,7 +564,8 @@ private fun LocalModelItem(
     onDownload: () -> Unit,
     onCancel: () -> Unit,
     onDelete: () -> Unit,
-    onCreateProfile: () -> Unit
+    onCreateProfile: () -> Unit,
+    hasProfile: Boolean = false
 ) {
     Card(
         modifier = Modifier
@@ -565,7 +582,7 @@ private fun LocalModelItem(
                 } else if (hasLiteRt) {
                     "LiteRT preferred"
                 } else {
-                    "QNN · matching Snapdragon required"
+                    "Imported model · check compatibility"
                 },
                 color = MaterialTheme.colorScheme.primary,
                 style = MaterialTheme.typography.labelSmall,
@@ -614,7 +631,7 @@ private fun LocalModelItem(
                 onDelete = onDelete
             )
             if (item.status == LocalModelItemStatus.READY) {
-                Button(onClick = onCreateProfile, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) { Text("Create AI profile") }
+                Button(onClick = onCreateProfile, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) { Text(if (hasProfile) "Profile" else "Create AI profile") }
             }
         }
     }

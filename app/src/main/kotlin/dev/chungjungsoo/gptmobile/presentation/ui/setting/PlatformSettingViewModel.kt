@@ -107,8 +107,10 @@ class PlatformSettingViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    val acceleratorOptions: StateFlow<List<AcceleratorOption>> = combine(platformState, _catalogEntries) { platform, catalog ->
-        val entry = catalog.firstOrNull { it.id == platform?.model }
+    val acceleratorOptions: StateFlow<List<AcceleratorOption>> = combine(platformState, _catalogEntries, localModelRepository.observeAll()) { platform, catalog, records ->
+        val entry = catalog.firstOrNull { it.id == platform?.model }?.let { entry ->
+            records.firstOrNull { it.catalogEntryId == entry.id }?.let { dev.chungjungsoo.gptmobile.data.localmodel.LocalModelPackages.forInstalledFile(entry, it.fileName) } ?: entry
+        }
         LocalAccelerators.choices(
             supported = entry?.supportedAccelerators ?: listOf(LocalAccelerators.CPU, LocalAccelerators.GPU),
             socToModelFiles = entry?.socToModelFiles.orEmpty(),

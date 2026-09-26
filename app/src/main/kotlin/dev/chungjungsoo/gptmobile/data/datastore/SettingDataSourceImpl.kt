@@ -74,6 +74,7 @@ class SettingDataSourceImpl @Inject constructor(
     )
     val dynamicThemeKey = intPreferencesKey("dynamic_mode")
     val themeModeKey = intPreferencesKey("theme_mode")
+    private val savedThemeProfilesKey = stringPreferencesKey("saved_theme_profiles")
     private val customPaletteKey = stringPreferencesKey("custom_theme_palette")
     val customPrimaryArgbKey = longPreferencesKey("custom_primary_argb")
     val localRuntimeBackendKey = stringPreferencesKey("local_runtime_backend")
@@ -90,6 +91,15 @@ class SettingDataSourceImpl @Inject constructor(
         dataStore.edit { pref ->
             pref[dynamicThemeKey] = theme.ordinal
         }
+    }
+
+    override suspend fun getSavedThemeProfiles(): List<dev.chungjungsoo.gptmobile.data.dto.SavedThemeProfile> =
+        dataStore.data.first()[savedThemeProfilesKey]?.let { raw ->
+            runCatching { json.decodeFromString<List<dev.chungjungsoo.gptmobile.data.dto.SavedThemeProfile>>(raw) }.getOrNull()
+        }.orEmpty()
+
+    override suspend fun updateSavedThemeProfiles(profiles: List<dev.chungjungsoo.gptmobile.data.dto.SavedThemeProfile>) {
+        dataStore.edit { it[savedThemeProfilesKey] = json.encodeToString(profiles) }
     }
 
     override suspend fun getCustomPalette(): dev.chungjungsoo.gptmobile.data.dto.CustomThemePalette? =
@@ -225,11 +235,16 @@ class SettingDataSourceImpl @Inject constructor(
         val backendStr = dataStore.data.map { pref ->
             pref[localRuntimeBackendKey]
         }.first()
-        return LocalRuntimeBackend.fromString(backendStr)
+        return deviceBackend(backendStr)
     }
 
     override fun observeLocalRuntimeBackend(): Flow<LocalRuntimeBackend> = dataStore.data.map { pref ->
-        LocalRuntimeBackend.fromString(pref[localRuntimeBackendKey])
+        deviceBackend(pref[localRuntimeBackendKey])
+    }
+
+    private fun deviceBackend(value: String?): LocalRuntimeBackend {
+        val selected = LocalRuntimeBackend.fromString(value)
+        return if (selected == LocalRuntimeBackend.QUALCOMM_QNN && dev.chungjungsoo.gptmobile.data.localruntime.QualcommSocSupport.htpVersion(android.os.Build.SOC_MODEL.orEmpty()) == null) LocalRuntimeBackend.LITERT_LM else selected
     }
 
     override suspend fun getStatus(apiType: ApiType): Boolean? = dataStore.data.map { pref ->

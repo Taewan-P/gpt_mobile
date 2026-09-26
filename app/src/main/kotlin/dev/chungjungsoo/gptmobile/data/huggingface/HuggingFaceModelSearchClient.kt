@@ -47,13 +47,14 @@ data class HuggingFaceLiteRtResult(
         val encodedPath = filePath.split('/').joinToString("/") { segment ->
             java.net.URLEncoder.encode(segment, Charsets.UTF_8.name()).replace("+", "%20")
         }
-        val npuOptimized = fileName.contains("qualcomm", ignoreCase = true) ||
-            Regex("sm8\\d{3}", RegexOption.IGNORE_CASE).containsMatchIn(fileName)
+        val npuOptimized = dev.chungjungsoo.gptmobile.data.localmodel.LocalModelPackages.isNpuFile(filePath)
+        val soc = dev.chungjungsoo.gptmobile.data.localmodel.LocalModelPackages.npuSoc(filePath)
+        val url = "https://huggingface.co/$repoId/resolve/$revision/$encodedPath?download=true"
 
         return CatalogEntry(
             id = stableId,
             displayName = displayName,
-            downloadUrl = "https://huggingface.co/$repoId/resolve/$revision/$encodedPath?download=true",
+            downloadUrl = url,
             sizeInBytes = sizeInBytes,
             minRamGb = estimateMinRamGb(sizeInBytes),
             isGated = gated,
@@ -65,10 +66,19 @@ data class HuggingFaceLiteRtResult(
                         it.contains("thinking", ignoreCase = true)
                 }
             ),
-            supportedAccelerators = buildList {
-                add("gpu")
-                add("cpu")
-                if (npuOptimized) add("npu")
+            supportedAccelerators = if (npuOptimized) listOf("npu") else listOf("gpu", "cpu"),
+            socToModelFiles = if (soc != null) {
+                mapOf(
+                    soc to dev.chungjungsoo.gptmobile.data.catalog.SocVariant(
+                        modelFile = fileName,
+                        downloadUrl = url,
+                        commitHash = revision,
+                        sizeInBytes = sizeInBytes,
+                        contextSize = Regex("(?i)ctx([0-9]+)").find(fileName)?.groupValues?.get(1)?.toIntOrNull() ?: 1024
+                    )
+                )
+            } else {
+                emptyMap()
             },
             defaultConfig = CatalogDefaultConfig(maxTokens = 4096),
             minAppVersion = "0.9.0"
@@ -97,6 +107,18 @@ class HuggingFaceModelSearchClient @Inject constructor(
     private val networkClient: NetworkClient,
     private val tokenStore: HuggingFaceTokenStore
 ) {
+    suspend fun searchNpu(query: String, deviceSoc: String): List<HuggingFaceLiteRtResult> {
+        if (dev.chungjungsoo.gptmobile.data.localruntime.QualcommSocSupport.htpVersion(deviceSoc) == null) return emptyList()
+        val requested = query.trim()
+        val candidates = search(requested.ifBlank { "litert" }, MAX_LIMIT) +
+            if (requested.isNotBlank() && !requested.equals("litert", true)) search("litert", MAX_LIMIT) else emptyList()
+        return candidates.distinctBy { it.repoId to it.filePath }.filter { result ->
+            val entry = result.toCatalogEntry()
+            dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators.isNpuEligible(entry.supportedAccelerators, entry.socToModelFiles, deviceSoc) &&
+                (requested.isBlank() || (result.repoId + " " + result.filePath).contains(requested, true))
+        }.take(DEFAULT_LIMIT)
+    }
+
     suspend fun search(query: String, limit: Int = DEFAULT_LIMIT): List<HuggingFaceLiteRtResult> {
         val normalized = query.trim()
         val token = tokenStore.readAccessToken()
@@ -121,7 +143,6 @@ class HuggingFaceModelSearchClient @Inject constructor(
                     .thenBy { it.repoId.lowercase() }
                     .thenBy { it.filePath.lowercase() }
             )
-            .take(limit)
     }
 
     private fun parseCompatibleFiles(element: kotlinx.serialization.json.JsonElement): List<HuggingFaceLiteRtResult> {

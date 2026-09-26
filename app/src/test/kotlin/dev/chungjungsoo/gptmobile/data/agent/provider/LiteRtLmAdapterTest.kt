@@ -1119,10 +1119,10 @@ class LiteRtLmAdapterTest {
         assertTrue(first.last() is ProviderEvent.Completed)
         assertFalse(first.any { it is ProviderEvent.Failed })
         assertEquals(
-            listOf(LocalAccelerators.GPU, LocalAccelerators.CPU, LocalAccelerators.CPU),
+            listOf(LocalAccelerators.GPU, LocalAccelerators.CPU),
             runtime.loadEngineCalls.map { it.accelerator }
         )
-        assertEquals(listOf(LocalAccelerators.CPU), runtime.loadEngineCalls.drop(2).map { it.accelerator })
+        assertTrue(runtime.loadEngineCalls.drop(2).isEmpty())
         assertFalse(second.any { it is ProviderEvent.Notice && it.message == LiteRtLmAdapter.DEFAULT_GPU_UNAVAILABLE })
     }
 

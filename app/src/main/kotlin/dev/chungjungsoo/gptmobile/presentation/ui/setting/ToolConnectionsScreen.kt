@@ -111,6 +111,7 @@ fun ToolConnectionsScreen(
     onEditConnectionClick: (String) -> Unit,
     onNavigationClick: () -> Unit
 ) {
+    var settingsTab by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var pairingLink by remember { mutableStateOf<String?>(null) }
     val pairingContext = LocalContext.current
     pairingLink?.let { entered ->
@@ -189,94 +190,102 @@ fun ToolConnectionsScreen(
                 .padding(innerPadding)
                 .verticalScroll(scrollState)
         ) {
-            ToolInventorySummaryCard(
-                installedCount = uiState.connections.size,
-                remoteMcpCount = uiState.connections.count { it.type == ToolConnectionType.MCP },
-                onlineMcpCount = uiState.connectionHealth.values.count {
-                    it.status == ToolConnectionHealthStatus.ONLINE
-                }
-            )
-
-            Text(
-                text = "Integrated tools",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
-            )
-            IntegratedToolsCard()
-            TextButton(onClick = { pairingLink = "" }) { Text(stringResource(R.string.pair_server_title)) }
-
-            Text(
-                text = "Installed connections",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
-            )
-
-            // Marketplace Discover Banner
-            ListItem(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                headlineContent = {
-                    Text(
-                        text = "Browse MCP Marketplace",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                },
-                supportingContent = {
-                    Text(
-                        text = "Discover pre-configured MCP tools categorized into Free, Free with sign up, and Paid.",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                },
-                leadingContent = {
-                    Icon(
-                        imageVector = Icons.Filled.Storefront,
-                        contentDescription = "MCP Marketplace",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                },
-                trailingContent = {
-                    TextButton(onClick = onMarketplaceClick) {
-                        Text("Explore")
-                    }
-                }
-            )
-
-            LocalToolsSettingsPanel()
-
-            if (uiState.connections.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.no_tool_connections),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
-                )
+            androidx.compose.material3.TabRow(selectedTabIndex = if (settingsTab) 1 else 0) {
+                androidx.compose.material3.Tab(selected = !settingsTab, onClick = { settingsTab = false }, text = { Text("Connections") })
+                androidx.compose.material3.Tab(selected = settingsTab, onClick = { settingsTab = true }, text = { Text("Settings") })
             }
-            uiState.connections.forEach { connection ->
-                CollapsibleToolConnectionCard(
-                    connection = connection,
-                    onEditClick = { onEditConnectionClick(connection.connectionUid) },
-                    onPermissionsClick = { permissionsConnection = connection },
-                    onBrowseClick = { browsingConnection = connection },
-                    onOAuthClick = {
-                        val needsPermission = connection.endpointUrl?.let(::requiresLocalNetworkAccess) == true
-                        if (needsPermission &&
-                            Build.VERSION.SDK_INT >= 37 &&
-                            ContextCompat.checkSelfPermission(context, PERMISSION_ACCESS_LOCAL_NETWORK) != PackageManager.PERMISSION_GRANTED
-                        ) {
-                            pendingOAuthConnection = connection
-                            localNetworkPermissionLauncher.launch(PERMISSION_ACCESS_LOCAL_NETWORK)
-                        } else {
-                            viewModel.startOAuth(connection.connectionUid)
-                        }
-                    },
-                    onDeleteClick = { deletingConnection = connection },
-                    health = uiState.connectionHealth[connection.connectionUid],
-                    onRefreshHealth = { viewModel.probeConnections(listOf(connection)) }
+            if (settingsTab) {
+                LocalToolsSettingsPanel(settingsOnly = true)
+            } else {
+                ToolInventorySummaryCard(
+                    installedCount = uiState.connections.size,
+                    remoteMcpCount = uiState.connections.count { it.type == ToolConnectionType.MCP },
+                    onlineMcpCount = uiState.connectionHealth.values.count {
+                        it.status == ToolConnectionHealthStatus.ONLINE
+                    }
                 )
+
+                Text(
+                    text = "Integrated tools",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                )
+                IntegratedToolsCard()
+                TextButton(onClick = { pairingLink = "" }) { Text(stringResource(R.string.pair_server_title)) }
+
+                Text(
+                    text = "Installed connections",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                )
+
+                // Marketplace Discover Banner
+                ListItem(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    headlineContent = {
+                        Text(
+                            text = "Browse MCP Marketplace",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    },
+                    supportingContent = {
+                        Text(
+                            text = "Discover pre-configured MCP tools categorized into Free, Free with sign up, and Paid.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    },
+                    leadingContent = {
+                        Icon(
+                            imageVector = Icons.Filled.Storefront,
+                            contentDescription = "MCP Marketplace",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    },
+                    trailingContent = {
+                        TextButton(onClick = onMarketplaceClick) {
+                            Text("Explore")
+                        }
+                    }
+                )
+
+                LocalToolsSettingsPanel()
+
+                if (uiState.connections.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.no_tool_connections),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
+                    )
+                }
+                uiState.connections.forEach { connection ->
+                    CollapsibleToolConnectionCard(
+                        connection = connection,
+                        onEditClick = { onEditConnectionClick(connection.connectionUid) },
+                        onPermissionsClick = { permissionsConnection = connection },
+                        onBrowseClick = { browsingConnection = connection },
+                        onOAuthClick = {
+                            val needsPermission = connection.endpointUrl?.let(::requiresLocalNetworkAccess) == true
+                            if (needsPermission &&
+                                Build.VERSION.SDK_INT >= 37 &&
+                                ContextCompat.checkSelfPermission(context, PERMISSION_ACCESS_LOCAL_NETWORK) != PackageManager.PERMISSION_GRANTED
+                            ) {
+                                pendingOAuthConnection = connection
+                                localNetworkPermissionLauncher.launch(PERMISSION_ACCESS_LOCAL_NETWORK)
+                            } else {
+                                viewModel.startOAuth(connection.connectionUid)
+                            }
+                        },
+                        onDeleteClick = { deletingConnection = connection },
+                        health = uiState.connectionHealth[connection.connectionUid],
+                        onRefreshHealth = { viewModel.probeConnections(listOf(connection)) }
+                    )
+                }
             }
         }
     }

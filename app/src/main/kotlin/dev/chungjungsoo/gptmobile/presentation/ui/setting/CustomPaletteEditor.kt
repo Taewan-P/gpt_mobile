@@ -37,6 +37,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.data.dto.CustomThemePalette
 import dev.chungjungsoo.gptmobile.presentation.common.LocalCustomPalette
 import dev.chungjungsoo.gptmobile.presentation.common.LocalThemeViewModel
@@ -49,6 +50,9 @@ import kotlin.math.sin
 fun CustomPaletteEditor() {
     val current = LocalCustomPalette.current
     val theme = LocalThemeViewModel.current
+    val saved by theme.themeSetting.collectAsStateWithLifecycle()
+    var profileName by rememberSaveable { mutableStateOf("") }
+    var customizing by rememberSaveable { mutableStateOf(false) }
     val scheme = MaterialTheme.colorScheme
     val labels = listOf("Accent", "Secondary", "Background", "Cards")
     val initial = listOf(current?.primary ?: scheme.primary.toArgb().toLong(), current?.secondary ?: scheme.secondary.toArgb().toLong(), current?.background ?: scheme.background.toArgb().toLong(), current?.surface ?: scheme.surface.toArgb().toLong())
@@ -59,38 +63,60 @@ fun CustomPaletteEditor() {
         values = values.toMutableList().apply { set(selected, "#%06X".format(color.toArgb() and 0xFFFFFF)) }
     }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Your palette", style = MaterialTheme.typography.titleMedium)
+        Text("Theme profiles", style = MaterialTheme.typography.titleMedium)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            labels.forEachIndexed { index, label ->
-                FilterChip(selected = selected == index, onClick = { selected = index }, label = { Text(label) }, leadingIcon = {
-                    Surface(color = colors[index]?.let(::Color) ?: scheme.surface, shape = MaterialTheme.shapes.small, modifier = Modifier.size(16.dp)) {}
+            dev.chungjungsoo.gptmobile.data.dto.ThemePresets.profiles.forEach { preset ->
+                FilterChip(selected = current == preset.palette, onClick = { theme.applyProfile(preset) }, label = { Text(preset.name) }, leadingIcon = {
+                    Surface(color = Color(preset.palette.primary), shape = MaterialTheme.shapes.small, modifier = Modifier.size(16.dp)) {}
                 })
             }
         }
-        ColorWheelPicker(color = colors[selected]?.let(::Color) ?: scheme.primary, onColorChange = ::setColor)
-        OutlinedTextField(value = values[selected], onValueChange = { value -> values = values.toMutableList().apply { set(selected, value.take(7)) } }, label = { Text("${labels[selected]} HEX") }, singleLine = true, isError = colors[selected] == null, modifier = Modifier.fillMaxWidth())
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            listOf("Cyan" to 0xFF00BCD4, "Violet" to 0xFFB39DDB, "Coral" to 0xFFFF8A80, "Mint" to 0xFF80CBC4).forEach { (label, value) ->
-                TextButton(onClick = { setColor(Color(value)) }) { Text(label) }
+        saved.savedProfiles.forEach { profile ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                FilterChip(selected = current == profile.palette, onClick = { theme.applyProfile(profile) }, label = { Text(profile.name) }, modifier = Modifier.weight(1f))
+                TextButton(onClick = { theme.deleteProfile(profile.name) }) { Text("Delete") }
             }
         }
-        if (colors.all { it != null }) {
-            fun foreground(value: Long) = if (androidx.core.graphics.ColorUtils.calculateLuminance(value.toInt()) > 0.179) Color.Black else Color.White
-            Surface(color = Color(colors[2]!!), shape = MaterialTheme.shapes.large) {
-                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Live preview", color = foreground(colors[2]!!), style = MaterialTheme.typography.labelMedium)
-                    Surface(color = Color(colors[3]!!), shape = MaterialTheme.shapes.medium) {
-                        Text("Your next conversation", Modifier.padding(12.dp), color = foreground(colors[3]!!))
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        colors.take(2).forEachIndexed { i, value ->
-                            Surface(color = Color(value!!), shape = MaterialTheme.shapes.small) { Text(labels[i], Modifier.padding(8.dp), color = foreground(value)) }
+        TextButton(onClick = { customizing = !customizing }) { Text(if (customizing) "Hide custom colours" else "Create a theme") }
+        if (customizing) {
+            Text("Your palette", style = MaterialTheme.typography.titleMedium)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                labels.forEachIndexed { index, label ->
+                    FilterChip(selected = selected == index, onClick = { selected = index }, label = { Text(label) }, leadingIcon = {
+                        Surface(color = colors[index]?.let(::Color) ?: scheme.surface, shape = MaterialTheme.shapes.small, modifier = Modifier.size(16.dp)) {}
+                    })
+                }
+            }
+            ColorWheelPicker(color = colors[selected]?.let(::Color) ?: scheme.primary, onColorChange = ::setColor)
+            OutlinedTextField(value = values[selected], onValueChange = { value -> values = values.toMutableList().apply { set(selected, value.take(7)) } }, label = { Text("${labels[selected]} HEX") }, singleLine = true, isError = colors[selected] == null, modifier = Modifier.fillMaxWidth())
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("Cyan" to 0xFF00BCD4, "Violet" to 0xFFB39DDB, "Coral" to 0xFFFF8A80, "Mint" to 0xFF80CBC4).forEach { (label, value) ->
+                    TextButton(onClick = { setColor(Color(value)) }) { Text(label) }
+                }
+            }
+            if (colors.all { it != null }) {
+                fun foreground(value: Long) = if (androidx.core.graphics.ColorUtils.calculateLuminance(value.toInt()) > 0.179) Color.Black else Color.White
+                Surface(color = Color(colors[2]!!), shape = MaterialTheme.shapes.large) {
+                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("Live preview", color = foreground(colors[2]!!), style = MaterialTheme.typography.labelMedium)
+                        Surface(color = Color(colors[3]!!), shape = MaterialTheme.shapes.medium) {
+                            Text("Your next conversation", Modifier.padding(12.dp), color = foreground(colors[3]!!))
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            colors.take(2).forEachIndexed { i, value ->
+                                Surface(color = Color(value!!), shape = MaterialTheme.shapes.small) { Text(labels[i], Modifier.padding(8.dp), color = foreground(value)) }
+                            }
                         }
                     }
                 }
             }
+            Button(onClick = { theme.updateCustomPalette(CustomThemePalette(colors[0]!!, colors[1]!!, colors[2]!!, colors[3]!!)) }, enabled = colors.all { it != null }, modifier = Modifier.fillMaxWidth()) { Text("Apply palette") }
+            OutlinedTextField(value = profileName, onValueChange = { profileName = it.take(40) }, label = { Text("Profile name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            Button(onClick = {
+                theme.saveProfile(profileName, CustomThemePalette(colors[0]!!, colors[1]!!, colors[2]!!, colors[3]!!))
+                profileName = ""
+            }, enabled = profileName.isNotBlank() && colors.all { it != null }, modifier = Modifier.fillMaxWidth()) { Text("Save theme profile") }
         }
-        Button(onClick = { theme.updateCustomPalette(CustomThemePalette(colors[0]!!, colors[1]!!, colors[2]!!, colors[3]!!)) }, enabled = colors.all { it != null }, modifier = Modifier.fillMaxWidth()) { Text("Apply palette") }
         TextButton(onClick = { theme.updateCustomPalette(null) }, modifier = Modifier.fillMaxWidth()) { Text("Restore default palette") }
     }
 }

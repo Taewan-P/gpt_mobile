@@ -783,6 +783,10 @@ private fun ChatMessagePair(
                     text = message.content,
                     timestamp = message.createdAt * 1000L,
                     files = message.attachments.map { it.filePathForDisplay },
+                    canEdit = canUseChat && isIdle,
+                    onCopyClick = { onCopyText(message.content) },
+                    onSelectClick = { onSelectText(message.content) },
+                    onEditClick = { onEditQuestion(message) },
                     onLongPress = { isDropDownMenuExpanded = true }
                 )
                 ChatBubbleDropdownMenu(
@@ -1373,7 +1377,8 @@ fun ChatInputBox(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
         shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        tonalElevation = 0.dp,
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)),
         shadowElevation = 1.dp
     ) {

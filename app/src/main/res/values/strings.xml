@@ -740,12 +740,12 @@
     <string name="local_tools_settings_panel_label_2">Context and usage limits</string>
     <string name="local_tools_settings_panel_label_3">Set these to your model/server limits. Counts are estimates unless reported by the provider.</string>
     <string name="local_tools_settings_panel_label_4">Built in. Learns supported facts from your messages and recalls relevant facts. Stored encrypted on this phone.</string>
-    <string name="local_tools_settings_panel_label_5">Optional built-in tool inspired by Houtini LM. Delegate a bounded task to an existing AI profile, using its provider connection and model.</string>
-    <string name="local_tools_settings_panel_label_6">Private destinations are on-device inference, loopback, and private IP addresses. Hostnames are treated as external until verified. Server profiles send the task to that endpoint.</string>
+    <string name="local_tools_settings_panel_label_5">Let your AI ask another model for help. Choose an existing profile below; Ollama, llama servers and downloaded models are supported.</string>
+    <string name="local_tools_settings_panel_label_6">Keep tasks on this device or your private network. Turn this off to choose a cloud profile.</string>
     <string name="local_tools_settings_panel_label_7">Target AI profile</string>
     <string name="local_tools_settings_panel_label_8">Create an enabled AI profile first, or allow other providers.</string>
     <string name="local_tools_settings_panel_label_9">No available target selected</string>
-    <string name="local_tools_settings_panel_label_10">Only the supplied task is forwarded. The delegate receives no app tools or automatic chat history. Self-delegation is blocked. An active on-device model cannot delegate to the same on-device engine; use a server target instead.</string>
+    <string name="local_tools_settings_panel_label_10">Only the task is shared. Your current chat and attachments stay with the main model. While an on-device model is answering, choose an Ollama or llama server as its helper.</string>
     <string name="local_tools_settings_panel_label_11">Provider usage or server-side tools may incur costs. Remote gateways must honor tool_choice=none; use a direct inference endpoint for strict isolation.</string>
     <string name="local_tools_settings_panel_label_12">Close</string>
     <string name="local_tools_settings_panel_label_13">Save</string>

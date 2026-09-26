@@ -37,6 +37,9 @@ class LocalRuntimeSettingsViewModel @Inject constructor(
 ) : ViewModel() {
     val settings = repository.observeFeatureSettings().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppFeatureSettings())
     val backend = repository.observeLocalRuntimeBackend().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LocalRuntimeBackend.DEFAULT)
+    val profiles = repository.observePlatformV2s().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    private val _qnnAvailable = MutableStateFlow(false)
+    val qnnAvailable = _qnnAvailable.asStateFlow()
     val active = runtime.state
     val cores = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
     val ramGb = runtime.deviceRamGb
@@ -60,6 +63,8 @@ class LocalRuntimeSettingsViewModel @Inject constructor(
             _hardware.value = runtime.getHardwareState()
             try {
                 val probe = withContext(Dispatchers.IO) { QnnEnvironment.initialize(context) }
+                _qnnAvailable.value = probe.isReady
+                if (!probe.isReady && repository.getLocalRuntimeBackend() == LocalRuntimeBackend.QUALCOMM_QNN) repository.updateLocalRuntimeBackend(LocalRuntimeBackend.LITERT_LM)
                 _npuStatus.value = if (probe.isReady) "Qualcomm NPU prerequisites ready; use a matching model" else probe.errorMessage ?: "NPU unavailable for this device or build"
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -69,7 +74,10 @@ class LocalRuntimeSettingsViewModel @Inject constructor(
         }
     }
 
-    fun selectBackend(value: LocalRuntimeBackend) = perform { repository.updateLocalRuntimeBackend(value) }
+    fun selectBackend(value: LocalRuntimeBackend) = perform {
+        require(value != LocalRuntimeBackend.QUALCOMM_QNN || _qnnAvailable.value) { "NPU is unavailable on this device" }
+        repository.updateLocalRuntimeBackend(value)
+    }
     fun updateTuning(threads: Int? = null, cache: Boolean? = null, idle: Int? = null, fallback: Boolean? = null) = perform {
         updates.withLock {
             val current = repository.getFeatureSettings()
@@ -89,12 +97,18 @@ class LocalRuntimeSettingsViewModel @Inject constructor(
     }
     fun createProfile(entry: CatalogEntry, onCreated: (String) -> Unit) = perform {
         check(models.resolveDownloadedPath(entry.id) != null) { "Download this model first" }
+        val existing = repository.fetchPlatformV2s().firstOrNull { it.compatibleType == ClientType.LITERT_LM && it.model == entry.id }
+        if (existing != null) {
+            onCreated(existing.uid)
+            return@perform
+        }
+        val defaults = dev.chungjungsoo.gptmobile.data.localruntime.localSamplingDefaults(entry, soc, ramGb)
         val profile = PlatformV2(
             name = entry.displayName,
             compatibleType = ClientType.LITERT_LM,
             model = entry.id,
             accelerator = LocalAccelerators.defaultFrom(entry.supportedAccelerators, entry.socToModelFiles, soc),
-            maxTokens = 4096,
+            maxTokens = defaults.maxTokens,
             temperature = 0.7f,
             topP = 0.95f,
             topK = 40
