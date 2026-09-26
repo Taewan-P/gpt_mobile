@@ -76,7 +76,7 @@ class InvocationLedger @Inject constructor(database: ChatDatabaseV2) {
 
     // Live observations never replace the database reservations used by the token allowance.
     val diagnostics = combine(recent, active) { saved, live ->
-        (live.values + saved.filterNot { it.id in live }).distinctBy { it.id }.sortedByDescending { it.startedAt }.take(100)
+        (live.values + saved.filterNot { it.id in live || it.status == "RUNNING" }).distinctBy { it.id }.sortedByDescending { it.startedAt }.take(100)
     }
     fun wrap(
         session: AgentProviderSession,

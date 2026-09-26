@@ -226,7 +226,7 @@ fun PlatformSettingScreen(
                     title = stringResource(R.string.ai_profile_name),
                     description = platformData.name,
                     enabled = platformData.enabled,
-                    onItemClick = { if (!isFree) settingViewModel.openPlatformNameDialog() },
+                    onItemClick = { if (platformData.compatibleType != ClientType.FREE) settingViewModel.openPlatformNameDialog() },
                     showTrailingIcon = false,
                     showLeadingIcon = true,
                     leadingIcon = {
