@@ -164,8 +164,7 @@ class SetupViewModelV2 @Inject constructor(
     }
 
     fun selectFreeProvider(provider: FreeAiProvider) {
-        val previous = FreeAiProvider.fromApiUrl(_apiUrl.value)
-        if (_platformName.value == previous?.displayName || _platformName.value == "Free") _platformName.value = provider.displayName
+        _platformName.value = "Free Models"
         _apiUrl.value = provider.apiUrl
         _model.value = provider.model
         _apiKey.value = ""

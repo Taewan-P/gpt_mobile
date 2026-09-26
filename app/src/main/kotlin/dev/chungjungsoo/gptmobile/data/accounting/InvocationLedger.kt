@@ -15,9 +15,14 @@ import dev.chungjungsoo.gptmobile.data.context.ContextBudgetService
 import dev.chungjungsoo.gptmobile.data.database.ChatDatabaseV2
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 
 @Entity(tableName = "model_invocations", indices = [Index("turnKey"), Index("startedAt")])
@@ -34,7 +39,8 @@ data class ModelInvocation(
     val status: String = "RUNNING",
     val startedAt: Long = System.currentTimeMillis(),
     val durationMs: Long = 0,
-    val firstTokenMs: Long? = null
+    val firstTokenMs: Long? = null,
+    val profileUid: String? = null
 )
 
 class TokenAllowanceReached : IllegalStateException("The conversation turn reached its total token allowance.")
@@ -65,6 +71,13 @@ interface InvocationDao {
 class InvocationLedger @Inject constructor(database: ChatDatabaseV2) {
     val dao = database.invocationDao()
     val recent = dao.recent()
+    private val liveRequests = MutableStateFlow<Map<String, ModelInvocation>>(emptyMap())
+    val active = liveRequests.asStateFlow()
+
+    // Live observations never replace the database reservations used by the token allowance.
+    val diagnostics = combine(recent, active) { saved, live ->
+        (live.values + saved.filterNot { it.id in live || it.status == "RUNNING" }).distinctBy { it.id }.sortedByDescending { it.startedAt }.take(100)
+    }
     fun wrap(
         session: AgentProviderSession,
         parentRunId: String,
@@ -74,7 +87,8 @@ class InvocationLedger @Inject constructor(database: ChatDatabaseV2) {
         kind: String,
         inputEstimate: Int,
         outputLimit: Int,
-        totalLimit: Int
+        totalLimit: Int,
+        profileUid: String? = null
     ): AgentProviderSession = object : AgentProviderSession {
         override val handlesToolsInternally = session.handlesToolsInternally
         override fun streamRound(tools: List<AgentToolDefinition>, exchanges: List<AgentToolExchange>): Flow<ProviderEvent> = flow {
@@ -90,7 +104,8 @@ class InvocationLedger @Inject constructor(database: ChatDatabaseV2) {
                 model,
                 kind,
                 (inputEstimate.toLong() + replay).coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
-                outputLimit
+                outputLimit,
+                profileUid = profileUid
             )
             try {
                 dao.reserve(record, totalLimit)
@@ -105,7 +120,9 @@ class InvocationLedger @Inject constructor(database: ChatDatabaseV2) {
             var input: Int? = null
             var output: Int? = null
             var characters = 0L
-            var completed = false
+            var status = "INTERRUPTED"
+            var lastPublished = started
+            liveRequests.update { it + (record.id to record.copy(outputTokens = 0)) }
             try {
                 session.streamRound(tools, exchanges).collect { event ->
                     when (event) {
@@ -118,24 +135,50 @@ class InvocationLedger @Inject constructor(database: ChatDatabaseV2) {
                             event.inputTokens?.let { input = if (event.cumulative) maxOf(input ?: 0, it) else (input ?: 0) + it }
                             event.outputTokens?.let { output = if (event.cumulative) maxOf(output ?: 0, it) else (output ?: 0) + it }
                         }
-                        ProviderEvent.Completed -> completed = true
+                        ProviderEvent.Completed -> if (status != "FAILED") status = "COMPLETED"
+                        is ProviderEvent.Failed -> status = "FAILED"
                         else -> Unit
+                    }
+                    val now = System.nanoTime()
+                    if (now - lastPublished >= 500_000_000 || event is ProviderEvent.Usage || (first != null && liveRequests.value[record.id]?.firstTokenMs == null)) {
+                        lastPublished = now
+                        liveRequests.update {
+                            it + (
+                                record.id to record.copy(
+                                    inputTokens = input ?: record.inputTokens,
+                                    outputTokens = output ?: ((characters + 2) / 3).coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+                                    estimated = input == null || output == null,
+                                    durationMs = (now - started) / 1_000_000,
+                                    firstTokenMs = first
+                                )
+                                )
+                        }
                     }
                     emit(event)
                 }
+            } catch (cancelled: CancellationException) {
+                status = "CANCELED"
+                throw cancelled
+            } catch (error: Exception) {
+                status = "FAILED"
+                throw error
             } finally {
                 withContext(NonCancellable) {
-                    dev.chungjungsoo.gptmobile.data.diagnostics.AppLogRecorder.record("Model", "Finished ${record.id} · completed=$completed · durationMs=${(System.nanoTime() - started) / 1_000_000} · output=${output ?: -1}", if (completed) "I" else "W")
-                    dao.save(
-                        record.copy(
-                            inputTokens = input ?: record.inputTokens,
-                            outputTokens = output ?: ((characters + 2) / 3).coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
-                            estimated = input == null || output == null,
-                            status = if (completed) "COMPLETED" else "STOPPED",
-                            durationMs = (System.nanoTime() - started) / 1_000_000,
-                            firstTokenMs = first
+                    dev.chungjungsoo.gptmobile.data.diagnostics.AppLogRecorder.record("Model", "Finished ${record.id} · status=$status · durationMs=${(System.nanoTime() - started) / 1_000_000} · output=${output ?: -1}", if (status == "COMPLETED") "I" else "W")
+                    try {
+                        dao.save(
+                            record.copy(
+                                inputTokens = input ?: record.inputTokens,
+                                outputTokens = output ?: ((characters + 2) / 3).coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+                                estimated = input == null || output == null,
+                                status = status,
+                                durationMs = (System.nanoTime() - started) / 1_000_000,
+                                firstTokenMs = first
+                            )
                         )
-                    )
+                    } finally {
+                        liveRequests.update { it - record.id }
+                    }
                 }
             }
         }

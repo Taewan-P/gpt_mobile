@@ -15,8 +15,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,9 +35,10 @@ internal fun AssistantChronologicalContent(
     isLoading: Boolean,
     debugMode: Boolean,
     showReasoning: Boolean,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
     isError: Boolean = false
 ) {
-    var expanded by rememberSaveable(contentIdentity.toString()) { mutableStateOf(false) }
     val events = toolEvents.associateBy { it.sequence }
     val legacy = timeline.isEmpty() || timeline.any { it.type == AssistantTimelineItemType.LEGACY_ORDER }
     val items = if (legacy) {
@@ -52,22 +51,19 @@ internal fun AssistantChronologicalContent(
     } else {
         timeline
     }
-    val hasProcess = toolEvents.isNotEmpty() ||
-        items.any { it.type != AssistantTimelineItemType.TEXT } ||
-        (showReasoning && !ThinkingParser.extractThinking(fallbackText).thinking.isNullOrBlank())
     Column(Modifier.fillMaxWidth().padding(12.dp)) {
-        if (isLoading || hasProcess) {
+        run {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     if (isLoading) {
                         Text("Preparing the response and checking the available context.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(bottom = 8.dp))
                         LinearProgressIndicator(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.primary, trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
                     } else {
-                        Text("Activity · ${toolEvents.size} tools", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                        androidx.compose.foundation.layout.Spacer(Modifier.fillMaxWidth())
                     }
                 }
-                IconButton(onClick = { expanded = !expanded }) {
-                    Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, if (expanded) "Hide tools and reasoning" else "Show tools and reasoning", tint = MaterialTheme.colorScheme.primary)
+                IconButton(onClick = { onExpandedChange(!expanded) }) {
+                    Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, if (expanded) "Collapse activity" else "Expand activity", tint = MaterialTheme.colorScheme.primary)
                 }
             }
         }
@@ -95,7 +91,7 @@ internal fun AssistantChronologicalContent(
                             InlineExecutionTrace(listOf(event), listOf(item), "$contentIdentity:$index", debugMode)
                         }
                     }
-                    AssistantTimelineItemType.NOTICE -> if (expanded && (debugMode || !isContextDiagnostic(item.content))) {
+                    AssistantTimelineItemType.NOTICE -> if (expanded && !isContextDiagnostic(item.content)) {
                         if (item.recalledFacts.isNotEmpty()) {
                             InlineExecutionTrace(emptyList(), listOf(item), "$contentIdentity:$index", debugMode)
                         } else if (item.content.isNotBlank()) {

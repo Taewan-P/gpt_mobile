@@ -1,30 +1,29 @@
-# GPT Mobile AI (Improved) v0.9.16.0
+# GPT Mobile AI 0.9.17.0
 
-## Backup and restore
+## Free Models
+- Free profiles are automatically named **Free Models**.
+- **LLM7 is available** following the app owner's approval confirmation. Existing anonymous limits and credential-free requests remain in place.
+- Pollinations uses its current anonymous model identifier, retries transient server errors once, rejects error pages, and tests a fresh request instead of a cached response.
+- Pollinations is currently returning a server storage failure. The app now identifies that upstream outage and offers actionable provider-switch guidance; this release cannot repair Pollinations' server or guarantee its availability. Conversations are never silently sent to another provider.
 
-- Rebuild modern and migrated backups in a fresh current database before replacing app data.
-- Restore records by column name, preserving values when column order changes, applying defaults for new optional fields, and accepting retired fields.
-- Preserve existing data when a backup is corrupt, incompatible, or missing required records. Existing encrypted and section-selective backups remain supported.
+## Conversations
+- Assistant backgrounds are 15% more opaque when expanded. Backgrounds and timestamps fade in and out over one second with the activity disclosure.
+- Remove persistent activity/tool-count text; keep one themed expand/collapse control.
+- Open conversations at the true bottom. Favourite response links align the selected response at the top, including after long user prompts.
+- User prompt text is 30% more transparent. Archived history, overflow menus and their icons use theme colors.
+- The composer uses one solid theme color throughout its text field and container.
 
-## Local models
+## Device location
+- Request a fresh location directly from Android's available fused, network and GPS providers, with up to 30 seconds for a cold fix instead of a five-second GPS-only attempt.
+- Support approximate permission without requiring GPS, reject stale fixes, and release subscriptions on success, timeout or cancellation. Google Maps does not need to be opened to populate the location cache.
+- Provide clearer guidance when permissions, disabled location, background restrictions or poor reception prevent a fix. No new background location permission is requested.
 
-- Separate NPU packages from GPU/CPU downloads so Snapdragon phones no longer silently download an incompatible NPU file for GPU use.
-- QNN marketplace recommendations and Hugging Face results match the phone chipset. Hide QNN selection on unsupported phones.
-- GPU/CPU requests use LiteRT even when QNN is preferred; reuse warm engines and avoid trying NPU-only binaries on GPU/CPU.
-- Simplify the library with a separate Settings tab and a Profile button for existing profiles.
-- Preserve downloaded Hub model capabilities alongside model files, including in model backups.
+## Debug and Statistics
+- Separate **Live**, **Runs** and **Logs** views, live request timing and token observations, device memory, thermal, battery and network state, and pause/resume inspection.
+- Show one response diagnostics panel inside expanded activity. Group repeated log rows while preserving every recorded event in exported logs.
+- Add token trend charts, latency/throughput scatter plots, outcome charts, and rankings by speed, tokens per second and success rate.
+- Tap a profile or scatter point for its latency percentiles, first-token timing, token usage, outcomes and individual requests.
+- Attribute primary, delegated and synthesis requests to their actual profiles. Distinguish failures, cancellations and interruptions, and keep estimated usage separate from reported usage.
+- Upgrade the database safely from version 30 to 31. Backups continue to restore through named columns and schema migrations; historical delegated requests remain unassigned when their profile cannot be established safely.
 
-## Themes, tools and conversations
-
-- Five theme presets plus named custom theme profiles, selection, deletion and backup support.
-- Tool connections gain a Settings tab for context and usage limits, with maximum app allowances by default.
-- Simpler built-in model delegation setup for downloaded, Ollama and llama profiles, with advanced limits collapsed.
-- One flat conversation input surface; themed favourite labels, add controls, home divider, settings buttons and response revision controls.
-- Matching themed ellipsis controls expand copy, select and edit actions on user and assistant messages.
-- Red error text; context/token estimates only in Debug mode; a clear preparation message above the loading bar.
-- Disable unavailable Free provider selections, accept known endpoint forms from older profiles, strip incompatible provider options, surface empty responses, and offer continuation at response limits.
-
-## Validation
-
-- Regression coverage for schema normalization and rollback, package/backend selection, chipset eligibility, saved themes and Free response handling.
-- Physical GPU/NPU execution depends on device drivers and the exact compiled package; release validation does not replace testing on a supported phone.
+Version code: **73**. Android 12 or newer. Use the ARM64 APK for most phones, the universal APK for mixed architectures, or the AAB for distribution tooling. Hardware acceleration still depends on the phone and selected model package.

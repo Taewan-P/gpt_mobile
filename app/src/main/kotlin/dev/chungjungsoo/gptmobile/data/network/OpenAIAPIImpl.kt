@@ -22,7 +22,6 @@ import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.forms.MultiPartFormDataContent
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.header
-import io.ktor.client.request.parameter
 import io.ktor.client.request.prepareGet
 import io.ktor.client.request.preparePost
 import io.ktor.client.request.setBody
@@ -34,7 +33,6 @@ import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.readLine
 import java.io.File
-import java.net.URLEncoder
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -128,17 +126,14 @@ class OpenAIAPIImpl @Inject constructor(
             }
             if (free == FreeAiProvider.POLLINATIONS) {
                 val prompt = legacyPollinationsPrompt(preparedRequest)
-                val legacyResponse = FreeAiRequestLimiter.shared.withRequest(free) {
-                    networkClient().prepareGet("${free.apiUrl}/${URLEncoder.encode(prompt, "UTF-8").replace("+", "%20")}") {
-                        timeout { requestTimeoutMillis = timeoutSeconds.coerceIn(15, 120) * 1_000L }
-                        parameter("model", free.model)
-                        accept(ContentType.Text.Plain)
-                    }.execute { response ->
-                        if (response.status.value == 429) {
-                            throw FreeAiRateLimitException(free, FreeAiRequestLimiter.shared.defer(free, response.headers[HttpHeaders.RetryAfter]))
+                val legacyResponse = pollinationsCompletion {
+                    FreeAiRequestLimiter.shared.withRequest(free) {
+                        networkClient().prepareGet(pollinationsPromptUrl(prompt)) {
+                            timeout { requestTimeoutMillis = timeoutSeconds.coerceIn(15, 120) * 1_000L }
+                            accept(ContentType.Text.Plain)
+                        }.execute { response ->
+                            PollinationsResponse(response.status.value, response.body<String>(), response.headers[HttpHeaders.ContentType], response.headers[HttpHeaders.RetryAfter])
                         }
-                        check(response.status.isSuccess()) { "Pollinations legacy is unavailable (HTTP ${response.status.value}). Try another Free provider." }
-                        response.body<String>().also { check(it.isNotBlank()) { "Pollinations legacy returned an empty response." } }
                     }
                 }
                 emit(ChatCompletionChunk(model = free.model, choices = listOf(Choice(delta = Delta(content = legacyResponse), finishReason = "stop"))))

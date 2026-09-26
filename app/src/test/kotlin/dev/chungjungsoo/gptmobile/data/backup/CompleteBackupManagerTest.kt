@@ -215,6 +215,35 @@ class CompleteBackupManagerTest {
     }
 
     @Test
+    fun version30BackupAddsProfileAttributionWithoutLosingRequests() = runBlocking {
+        seed(File(context.cacheDir, "v30-file").apply { writeText("original") })
+        val archive = File(context.cacheDir, "v30.gptbackup")
+        val selection = CompleteBackupSelection().toggled(CompleteBackupSection.AGENT_HISTORY, true)
+        assertTrue(manager.backup(Uri.fromFile(archive), selection).success)
+        val stage = File(context.cacheDir, "v30-${UUID.randomUUID()}").apply { mkdirs() }
+        val manifest = CompleteBackupArchive.read(archive, stage, Long.MAX_VALUE)
+        android.database.sqlite.SQLiteDatabase.openDatabase(File(stage, "database.sqlite").absolutePath, null, 0).use { db ->
+            db.execSQL("DROP TABLE model_invocations")
+            db.execSQL("CREATE TABLE model_invocations (id TEXT NOT NULL PRIMARY KEY, parentRunId TEXT NOT NULL, turnKey TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL, kind TEXT NOT NULL, inputTokens INTEGER NOT NULL, outputTokens INTEGER NOT NULL, estimated INTEGER NOT NULL, status TEXT NOT NULL, startedAt INTEGER NOT NULL, durationMs INTEGER NOT NULL, firstTokenMs INTEGER)")
+            db.execSQL("INSERT INTO model_invocations VALUES ('primary', 'run', 'turn', 'provider', 'model', 'primary', 10, 20, 0, 'COMPLETED', 1000, 1500, 200)")
+            db.execSQL("INSERT INTO model_invocations VALUES ('delegate', 'run', 'turn', 'provider', 'model', 'delegate', 10, 20, 0, 'COMPLETED', 1000, 1500, 200)")
+            db.version = 30
+        }
+        val sources = manifest.files.mapValues { (path, _) -> File(stage, path) }
+        CompleteBackupArchive.write(archive, manifest.copy(files = sources.mapValues { it.value.length() }), sources)
+        database.agentRunDao().updateStatus("run", "COMPLETED", null, null, null)
+        val result = manager.restore(Uri.fromFile(archive))
+        assertTrue(result.message, result.success)
+        val records = database.invocationDao().statistics().first().associateBy { it.id }
+        assertEquals(2, records.size)
+        assertEquals("profile", records.getValue("primary").profileUid)
+        assertEquals(null, records.getValue("delegate").profileUid)
+        assertEquals(20, records.getValue("primary").outputTokens)
+        stage.deleteRecursively()
+        Unit
+    }
+
+    @Test
     fun corruptBackupAndCredentialWriteFailureLeaveExistingStateIntact() = runBlocking {
         seed(File(context.cacheDir, "file").apply { writeText("old attachment") })
         vault.put("provider", "saved-token".toByteArray())

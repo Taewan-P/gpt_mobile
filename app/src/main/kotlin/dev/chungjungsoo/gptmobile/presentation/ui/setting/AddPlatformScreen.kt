@@ -262,6 +262,7 @@ fun AddPlatformScreen(
                 )
                 OutlinedTextField(
                     value = platformName,
+                    readOnly = clientType == ClientType.FREE,
                     onValueChange = { platformName = it },
                     label = { Text(stringResource(R.string.platform_name)) },
                     modifier = Modifier.fillMaxWidth(),
@@ -301,8 +302,7 @@ fun AddPlatformScreen(
                     FreeProviderPicker(
                         apiUrl = apiUrl,
                         onProviderSelected = { provider ->
-                            val previous = FreeAiProvider.fromApiUrl(apiUrl)
-                            if (platformName == previous?.displayName || platformName == "Free") platformName = provider.displayName
+                            platformName = "Free Models"
                             apiUrl = provider.apiUrl
                             model = provider.model
                             val saved = savedConnections.firstOrNull { it.compatibleType == ClientType.FREE && it.apiUrl == provider.apiUrl }

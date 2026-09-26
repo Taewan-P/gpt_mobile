@@ -228,6 +228,15 @@ object ChatDatabaseV2Migrations {
         }
     }
 
+    val MIGRATION_30_31 = object : Migration(30, 31) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE model_invocations ADD COLUMN profileUid TEXT")
+            // Only primary/synthesis requests can be attributed safely from old run records.
+            // Historical delegated calls remain unassigned instead of guessing their target profile.
+            db.execSQL("UPDATE model_invocations SET profileUid = (SELECT profile_uid FROM agent_runs WHERE run_id = parentRunId) WHERE kind != 'delegate'")
+        }
+    }
+
     val ALL_MIGRATIONS: Array<Migration> = arrayOf(
         MIGRATION_10_11,
         MIGRATION_11_12,
@@ -248,6 +257,7 @@ object ChatDatabaseV2Migrations {
         MIGRATION_26_27,
         MIGRATION_27_28,
         MIGRATION_28_29,
-        MIGRATION_29_30
+        MIGRATION_29_30,
+        MIGRATION_30_31
     )
 }
