@@ -218,7 +218,8 @@ class CompleteBackupManagerTest {
     fun version30BackupAddsProfileAttributionWithoutLosingRequests() = runBlocking {
         seed(File(context.cacheDir, "v30-file").apply { writeText("original") })
         val archive = File(context.cacheDir, "v30.gptbackup")
-        assertTrue(manager.backup(Uri.fromFile(archive)).success)
+        val selection = CompleteBackupSelection().toggled(CompleteBackupSection.AGENT_HISTORY, true)
+        assertTrue(manager.backup(Uri.fromFile(archive), selection).success)
         val stage = File(context.cacheDir, "v30-${UUID.randomUUID()}").apply { mkdirs() }
         val manifest = CompleteBackupArchive.read(archive, stage, Long.MAX_VALUE)
         android.database.sqlite.SQLiteDatabase.openDatabase(File(stage, "database.sqlite").absolutePath, null, 0).use { db ->

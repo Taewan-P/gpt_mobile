@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Require the Room schema generated during compilation to be committed."""
+"""Require the main app's Room migration schemas to be committed."""
 import base64
 import gzip
 from pathlib import Path
@@ -7,8 +7,11 @@ import subprocess
 import sys
 
 root = Path(__file__).resolve().parents[1]
+# The pre-existing experimental DebugDatabase exports a separate, unversioned
+# schema. This gate covers the versioned conversation/backup migration history.
+schema_history = "app/schemas/dev.chungjungsoo.gptmobile.data.database.ChatDatabaseV2"
 result = subprocess.run(
-    ["git", "status", "--porcelain", "--", "app/schemas"],
+    ["git", "status", "--porcelain", "--untracked-files=all", "--", schema_history],
     cwd=root, check=True, capture_output=True, text=True,
 )
 if not result.stdout.strip():
