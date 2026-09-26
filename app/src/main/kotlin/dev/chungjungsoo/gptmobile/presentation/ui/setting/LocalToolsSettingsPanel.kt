@@ -83,8 +83,12 @@ fun LocalToolsSettingsPanel(
             }
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    LocalToolToggle("Model delegation", config.enabled, !busy) { value -> viewModel.update { it.copy(enabled = value) } }
+                    LocalToolToggle("Model delegation", config.enabled, !busy) { value ->
+                        viewModel.update { it.copy(enabled = value) }
+                        if (value) showDelegation = true
+                    }
                     Text(stringResource(R.string.local_tools_settings_panel_label_5), style = MaterialTheme.typography.bodySmall)
+                    Text("Use a main model that supports tools, then select a helper profile.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                     TextButton(onClick = { showDelegation = !showDelegation }) { Text(if (showDelegation) "Hide configuration" else "Configure delegation") }
                     if (showDelegation) {
                         LocalToolToggle("Only private destinations", config.localPlatformsOnly, !busy) { value -> viewModel.update { it.copy(localPlatformsOnly = value) } }

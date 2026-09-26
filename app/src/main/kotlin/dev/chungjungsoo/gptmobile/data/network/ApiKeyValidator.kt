@@ -20,7 +20,7 @@ object ApiKeyValidator {
     }
 
     suspend fun validate(clientType: ClientType, apiUrl: String, apiKey: String): ValidationResult = withContext(Dispatchers.IO) {
-        if (clientType == ClientType.FREE) return@withContext ValidationResult.Success("Free providers do not require an API key")
+        if (clientType == ClientType.FREE) return@withContext validateFreeProvider(apiUrl)
         if (apiKey.isBlank()) {
             return@withContext ValidationResult.Error("API key cannot be empty")
         }
@@ -83,6 +83,61 @@ object ApiKeyValidator {
             }
         } catch (e: Exception) {
             ValidationResult.Error("Connection error: ${e.localizedMessage ?: "Unable to reach server"}")
+        }
+    }
+    private suspend fun validateFreeProvider(apiUrl: String): ValidationResult {
+        val provider = dev.chungjungsoo.gptmobile.data.model.FreeAiProvider.fromApiUrl(apiUrl)
+            ?: return ValidationResult.Error("Choose a Free provider first.")
+        if (!provider.isAvailable) return ValidationResult.Error("This provider is awaiting approval. Choose another Free provider.")
+        return try {
+            FreeAiRequestLimiter.shared.withRequest(provider) {
+                val legacy = provider == dev.chungjungsoo.gptmobile.data.model.FreeAiProvider.POLLINATIONS
+                val endpoint = if (legacy) "${provider.apiUrl}/Reply%20OK?model=${provider.model}" else provider.chatCompletionsUrl
+                val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 10000
+                    readTimeout = 30000
+                    requestMethod = if (legacy) "GET" else "POST"
+                    setRequestProperty("Accept", if (legacy) "text/plain" else "application/json")
+                }
+                try {
+                    if (!legacy) {
+                        connection.doOutput = true
+                        connection.setRequestProperty("Content-Type", "application/json")
+                        val payload = "{\"model\":\"${provider.model}\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply OK.\"}],\"stream\":false,\"max_tokens\":128}"
+                        connection.outputStream.use { it.write(payload.toByteArray()) }
+                    }
+                    val code = connection.responseCode
+                    when {
+                        code == 429 -> {
+                            val wait = FreeAiRequestLimiter.shared.defer(provider, connection.getHeaderField("Retry-After"))
+                            ValidationResult.Error("${provider.displayName} is rate limited. Retry in $wait seconds or choose another provider.")
+                        }
+                        code in 200..299 -> {
+                            val body = connection.inputStream.bufferedReader().use { it.readText() }
+                            val answer = if (legacy) {
+                                body.takeUnless { it.trimStart().startsWith("<") }
+                            } else {
+                                runCatching {
+                                    NetworkClient.openAIJson.decodeFromString<dev.chungjungsoo.gptmobile.data.dto.openai.response.ChatCompletionChunk>(body)
+                                        .choices.orEmpty().joinToString("") { it.effectiveDelta.content.orEmpty() }
+                                }.getOrNull()
+                            }
+                            if (answer.isNullOrBlank()) {
+                                ValidationResult.Error("Connected, but the model returned no answer. Try another Free provider.")
+                            } else {
+                                ValidationResult.Success("${provider.displayName} answered the test request.")
+                            }
+                        }
+                        else -> ValidationResult.Error("${provider.displayName} is unavailable (HTTP $code). Try later or choose another Free provider.")
+                    }
+                } finally {
+                    connection.disconnect()
+                }
+            }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            ValidationResult.Error(error.message ?: "Could not reach this Free provider.")
         }
     }
 }

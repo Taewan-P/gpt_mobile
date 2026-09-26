@@ -87,6 +87,7 @@ fun LocalModelsScreen(
     var marketplace by rememberSaveable { mutableStateOf(startInMarketplace) }
     var architecture by rememberSaveable { mutableStateOf("") }
     var settingsTab by rememberSaveable { mutableStateOf(false) }
+    val runtimeStatus by runtimeViewModel.status.collectAsStateWithLifecycle()
     val profiles by runtimeViewModel.profiles.collectAsStateWithLifecycle()
     val qnnAvailable by runtimeViewModel.qnnAvailable.collectAsStateWithLifecycle()
     val backend by runtimeViewModel.backend.collectAsStateWithLifecycle()
@@ -139,6 +140,7 @@ fun LocalModelsScreen(
                         item(key = "runtime") { LocalRuntimeSettingsCard(runtimeViewModel) }
                     } else if (!marketplace) {
                         item(key = "overview") { LocalModelsOverviewCard(uiState) }
+                        runtimeStatus?.let { message -> item { Text(message, Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) } }
                         item { Text("Your models", Modifier.padding(horizontal = 20.dp, vertical = 12.dp), style = MaterialTheme.typography.titleLarge) }
                         val installed = uiState.allItems.filter { it.status == LocalModelItemStatus.READY }
                         if (installed.isEmpty()) {

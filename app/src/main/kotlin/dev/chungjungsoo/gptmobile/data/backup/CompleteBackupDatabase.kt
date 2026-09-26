@@ -38,9 +38,9 @@ internal object CompleteBackupDatabase {
         require(source.version == destination.version) { "Unsupported backup database version." }
         val sourceTables = tables(source).toSet()
         val destinationTables = tables(destination)
-        val coreTables = setOf("chats_v2", "messages_v2", "platform_v2")
-        require(destinationTables.filter { it in coreTables }.all { it in sourceTables }) {
-            "The backup is missing conversation or profile data. Your current data has not been changed."
+        val missingTables = destinationTables.filterNot { it in sourceTables }
+        require(missingTables.isEmpty()) {
+            "The backup is missing required records (${missingTables.joinToString()}). Your current data has not been changed."
         }
         destinationTables.filter { it in sourceTables }.forEach { table ->
             val incoming = columns(source, table)
@@ -236,9 +236,14 @@ internal object CompleteBackupDatabase {
     private fun copyCompatibleRows(source: SupportSQLiteDatabase, destination: SupportSQLiteDatabase, table: String) {
         if (table !in tables(source)) return
         val incoming = columns(source, table)
-        val names = columns(destination, table).keys.filter { it in incoming }
+        val target = columns(destination, table)
+        val names = target.keys.filter { it in incoming }
         if (names.isEmpty()) return
-        source.query("SELECT ${names.joinToString { quote(it) }} FROM ${quote(table)}").use { rows ->
+        val projection = names.joinToString { name ->
+            val column = target.getValue(name)
+            if (column.required && column.defaultValue != null) "COALESCE(${quote(name)}, ${column.defaultValue}) AS ${quote(name)}" else quote(name)
+        }
+        source.query("SELECT $projection FROM ${quote(table)}").use { rows ->
             copyRows(table, rows) { sql, values -> destination.execSQL(sql, values) }
         }
     }

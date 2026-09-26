@@ -159,6 +159,59 @@ class CompleteBackupManagerTest {
         assertEquals("saved", database.chatRoomDao().getChatRooms().single().title)
         assertEquals("cached", database.openRouterBatchCacheDao().getByCacheKey("key")!!.responseContent)
         stage.deleteRecursively()
+        Unit
+    }
+
+    @Test
+    fun olderModernBackupMigratesNewTablesAndColumnsBeforeRestore() = runBlocking {
+        seed(File(context.cacheDir, "older-file").apply { writeText("original") })
+        val archive = File(context.cacheDir, "older.gptbackup")
+        assertTrue(manager.backup(Uri.fromFile(archive)).success)
+        val stage = File(context.cacheDir, "older-${UUID.randomUUID()}").apply { mkdirs() }
+        val manifest = CompleteBackupArchive.read(archive, stage, Long.MAX_VALUE)
+        android.database.sqlite.SQLiteDatabase.openDatabase(File(stage, "database.sqlite").absolutePath, null, 0).use { db ->
+            fun withoutColumns(table: String, omitted: Set<String>) {
+                val definitions = mutableListOf<String>()
+                val names = mutableListOf<String>()
+                db.rawQuery("PRAGMA table_info(`$table`)", null).use { rows ->
+                    while (rows.moveToNext()) {
+                        val name = rows.getString(1)
+                        if (name in omitted) continue
+                        names += "`$name`"
+                        definitions += "`$name` ${rows.getString(2)}" +
+                            (if (rows.getInt(3) != 0) " NOT NULL" else "") +
+                            (if (rows.getInt(5) != 0) " PRIMARY KEY" else "") +
+                            (rows.getString(4)?.let { " DEFAULT $it" } ?: "")
+                    }
+                }
+                db.execSQL("CREATE TABLE older_table (${definitions.joinToString()})")
+                db.execSQL("INSERT INTO older_table (${names.joinToString()}) SELECT ${names.joinToString()} FROM `$table`")
+                db.execSQL("DROP TABLE `$table`")
+                db.execSQL("ALTER TABLE older_table RENAME TO `$table`")
+            }
+            withoutColumns("tool_connections", setOf("tool_policy", "approved_read_tools"))
+            withoutColumns("knowledge_documents", setOf("deleted"))
+            val triggers = db.rawQuery("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'room_fts_content_sync_messages_search_%'", null).use { rows ->
+                buildList { while (rows.moveToNext()) add(rows.getString(0)) }
+            }
+            triggers.forEach { db.execSQL("DROP TRIGGER `$it`") }
+            db.execSQL("DROP TABLE messages_search")
+            db.execSQL("DROP TABLE tool_approvals")
+            db.execSQL("DROP TABLE model_invocations")
+            db.version = 29
+        }
+        val sources = manifest.files.mapValues { (path, _) -> File(stage, path) }
+        CompleteBackupArchive.write(archive, manifest.copy(files = sources.mapValues { it.value.length() }), sources)
+        database.agentRunDao().updateStatus("run", "COMPLETED", null, null, null)
+        database.chatRoomDao().updateTitle(7, "changed", true)
+        val result = manager.restore(Uri.fromFile(archive))
+        assertTrue(result.message, result.success)
+        assertEquals("saved", database.chatRoomDao().getChatRooms().single().title)
+        withContext(Dispatchers.IO) {
+            database.openHelper.writableDatabase.query("PRAGMA foreign_key_check").use { assertFalse(it.moveToFirst()) }
+        }
+        stage.deleteRecursively()
+        Unit
     }
 
     @Test

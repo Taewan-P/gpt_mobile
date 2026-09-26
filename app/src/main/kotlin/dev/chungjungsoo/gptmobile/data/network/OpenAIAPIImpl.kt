@@ -216,6 +216,15 @@ class OpenAIAPIImpl @Inject constructor(
                             }
                         )
                         emit(chunk)
+                        if (free != null) {
+                            freeResponseOutcome(
+                                free,
+                                chunk.choices.orEmpty().any { !it.effectiveDelta.content.isNullOrBlank() },
+                                chunk.choices.orEmpty().any { !it.effectiveDelta.toolCalls.isNullOrEmpty() },
+                                chunk.error != null,
+                                chunk.choices.orEmpty().any { it.finishReason == "length" }
+                            )?.let { emit(it) }
+                        }
                         return@execute
                     }
 
@@ -260,13 +269,7 @@ class OpenAIAPIImpl @Inject constructor(
                         }
                     }
 
-                    if (free != null && !receivedError && !receivedToolCalls) {
-                        if (reachedOutputLimit) {
-                            emit(ChatCompletionChunk(model = free.model, choices = listOf(Choice(delta = Delta(content = "\n\nThis model reached its response limit. Would you like me to continue?"), finishReason = "stop"))))
-                        } else if (!receivedAnswer) {
-                            emit(ChatCompletionChunk(error = ErrorDetail(message = "${free.displayName} returned no answer. Retry later or choose another Free provider.", type = "empty_response")))
-                        }
-                    }
+                    if (free != null) freeResponseOutcome(free, receivedAnswer, receivedToolCalls, receivedError, reachedOutputLimit)?.let { emit(it) }
                     // If no chunks were emitted but metadata was present, emit a metadata chunk
                     if (firstChunk && gatewayMetadata != null) {
                         emit(ChatCompletionChunk(gatewayMetadata = gatewayMetadata))
@@ -422,3 +425,10 @@ private data class OpenAIFileResponse(
     @kotlinx.serialization.SerialName("mime_type")
     val mimeType: String? = null
 )
+
+private fun freeResponseOutcome(provider: FreeAiProvider, hasAnswer: Boolean, hasTools: Boolean, hasError: Boolean, limited: Boolean): ChatCompletionChunk? = when {
+    hasError || hasTools -> null
+    limited -> ChatCompletionChunk(model = provider.model, choices = listOf(Choice(delta = Delta(content = "\n\nThis model reached its response limit. Would you like me to continue?"), finishReason = "stop")))
+    !hasAnswer -> ChatCompletionChunk(error = ErrorDetail(message = "${provider.displayName} returned no answer. Retry later or choose another Free provider.", type = "empty_response"))
+    else -> null
+}

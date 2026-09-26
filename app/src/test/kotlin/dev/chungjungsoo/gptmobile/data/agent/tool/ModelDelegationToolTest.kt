@@ -20,6 +20,19 @@ class ModelDelegationToolTest {
     private val task = buildJsonObject { put("task", "Summarize this text") }
 
     @Test
+    fun onDeviceSourceCanDelegateToOllamaAndLlamaWhileThePhoneEngineIsBusy() = runTest {
+        for (type in listOf(ClientType.OLLAMA, ClientType.LLAMA)) {
+            var called = false
+            val tool = ModelDelegationTool(source.copy(compatibleType = ClientType.LITERT_LM), { enabled }, { listOf(target.copy(compatibleType = type)) }) { _, _, _ ->
+                called = true
+                "Second opinion"
+            }
+            assertFalse(tool.execute("local-$type", task).isError)
+            assertTrue(called)
+        }
+    }
+
+    @Test
     fun delegatesToConfiguredProfileAndEnforcesPerTurnBudget() = runTest {
         var calls = 0
         val tool = ModelDelegationTool(source, { enabled }, { listOf(target) }) { p, text, tokens ->

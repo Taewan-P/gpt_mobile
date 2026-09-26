@@ -102,6 +102,7 @@ class LocalRuntimeSettingsViewModel @Inject constructor(
             onCreated(existing.uid)
             return@perform
         }
+        check(LocalAccelerators.selectable(entry.supportedAccelerators, entry.socToModelFiles, soc).isNotEmpty()) { "This package does not match this phone. Choose a compatible download in the marketplace." }
         val defaults = dev.chungjungsoo.gptmobile.data.localruntime.localSamplingDefaults(entry, soc, ramGb)
         val profile = PlatformV2(
             name = entry.displayName,
@@ -125,8 +126,8 @@ class LocalRuntimeSettingsViewModel @Inject constructor(
                 block()
             } catch (cancelled: CancellationException) {
                 throw cancelled
-            } catch (_: Exception) {
-                _status.value = "Could not apply this change. Please try again."
+            } catch (error: Exception) {
+                _status.value = error.message ?: "Could not apply this change. Please try again."
             } finally {
                 _busy.value = false
             }
