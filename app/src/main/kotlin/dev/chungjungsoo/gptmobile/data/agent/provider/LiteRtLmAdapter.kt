@@ -83,7 +83,8 @@ class LiteRtLmAdapter(
         turns: List<ConversationTurn>,
         platform: PlatformV2,
         tools: List<AgentTool> = emptyList(),
-        constraints: RequestConstraints = RequestConstraints()
+        constraints: RequestConstraints = RequestConstraints(),
+        fallbackSystemPrompt: String? = null
     ): AgentProviderSession {
         require(constraints.allowTools || tools.isEmpty()) { "Tools are disabled for this request." }
         val boundTools = tools
@@ -153,7 +154,9 @@ class LiteRtLmAdapter(
                     resolvedMaxTokens
                 }
 
-                val availableTools = if (toolsCapable) boundTools else emptyList()
+                var availableTools = if (toolsCapable) boundTools else emptyList()
+                var conversationSystemPrompt = platform.systemPrompt
+                var usedCompactFallback = false
                 val plan = try {
                     LocalContextPlanner.plan(
                         priorTurns = turns.dropLast(1),
@@ -166,8 +169,36 @@ class LiteRtLmAdapter(
                         historyImageCount = { turn -> visionImageIds(turn.userMessage.attachments, visionCapable).size }
                     )
                 } catch (error: IllegalArgumentException) {
-                    send(ProviderEvent.Failed(error.message ?: "Local context is too small for this request."))
-                    return@channelFlow
+                    val compactPrompt = fallbackSystemPrompt?.takeIf { it != platform.systemPrompt }
+                    if (compactPrompt == null) {
+                        send(ProviderEvent.Failed(error.message ?: "Local context is too small for this request."))
+                        return@channelFlow
+                    }
+                    availableTools = emptyList()
+                    conversationSystemPrompt = compactPrompt
+                    try {
+                        LocalContextPlanner.plan(
+                            priorTurns = turns.dropLast(1),
+                            currentUserPrompt = latestUserText,
+                            systemPrompt = compactPrompt,
+                            tools = emptyList(),
+                            contextTokens = effectiveContextTokens,
+                            outputLimit = outputLimit,
+                            imageCount = latestImages.size,
+                            historyImageCount = { turn -> visionImageIds(turn.userMessage.attachments, visionCapable).size }
+                        ).also { usedCompactFallback = true }
+                    } catch (_: IllegalArgumentException) {
+                        send(ProviderEvent.Failed(error.message ?: "Local context is too small for this request."))
+                        return@channelFlow
+                    }
+                }
+                if (usedCompactFallback) {
+                    send(
+                        ProviderEvent.Notice(
+                            "Local context: optional memory, document context, and tools were omitted so this request fits the model's $effectiveContextTokens-token limit.",
+                            persistent = true
+                        )
+                    )
                 }
                 if (plan.omittedTurns > 0 || plan.omittedTools > 0) {
                     send(
@@ -248,7 +279,7 @@ class LiteRtLmAdapter(
                                     snapshot.maxOutputTokens == outputLimit &&
                                     snapshot.thinkingEnabled == thinkingEnabled &&
                                     snapshot.sampler == sampler &&
-                                    snapshot.systemPrompt == platform.systemPrompt &&
+                                    snapshot.systemPrompt == conversationSystemPrompt &&
                                     snapshot.toolsKey == toolsKey &&
                                     snapshot.consumed == incomingPrior
                                 suspend fun rebuildConversation() {
@@ -270,7 +301,7 @@ class LiteRtLmAdapter(
                                             sampler = sampler,
                                             maxOutputTokens = outputLimit,
                                             thinkingEnabled = thinkingEnabled,
-                                            systemPrompt = platform.systemPrompt,
+                                            systemPrompt = conversationSystemPrompt,
                                             initialMessages = seedHistory,
                                             tools = descriptors,
                                             isConstrainedDecodingEnabled = descriptors.isNotEmpty(),
@@ -294,7 +325,7 @@ class LiteRtLmAdapter(
                                         maxOutputTokens = outputLimit,
                                         thinkingEnabled = thinkingEnabled,
                                         sampler = sampler,
-                                        systemPrompt = platform.systemPrompt,
+                                        systemPrompt = conversationSystemPrompt,
                                         toolsKey = toolsKey,
                                         consumed = incomingPrior
                                     )
