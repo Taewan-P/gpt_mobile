@@ -3,10 +3,13 @@ package dev.chungjungsoo.gptmobile.presentation.ui.setting
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.chungjungsoo.gptmobile.data.database.entity.ToolConnection
+import dev.chungjungsoo.gptmobile.data.database.entity.ToolConnectionType
 import dev.chungjungsoo.gptmobile.data.knowledge.AttachmentLibraryRepository
 import dev.chungjungsoo.gptmobile.data.knowledge.MemoryDocumentRepository
 import dev.chungjungsoo.gptmobile.data.rag.FactVaultRepository
 import dev.chungjungsoo.gptmobile.data.rag.FactVaultSettings
+import dev.chungjungsoo.gptmobile.data.repository.ToolConnectionRepository
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,8 +20,11 @@ import kotlinx.coroutines.launch
 class FactVaultViewModel @Inject constructor(
     private val repository: FactVaultRepository,
     private val documentsRepository: MemoryDocumentRepository,
-    private val library: AttachmentLibraryRepository
+    private val library: AttachmentLibraryRepository,
+    private val toolConnections: ToolConnectionRepository
 ) : ViewModel() {
+    private val _connections = MutableStateFlow<List<ToolConnection>>(emptyList())
+    val connections = _connections.asStateFlow()
     val vault = repository.state
     val documents = documentsRepository.documents
     val attachments = library.attachments
@@ -32,7 +38,10 @@ class FactVaultViewModel @Inject constructor(
     init {
         refresh()
     }
-    fun refresh() = perform { repository.load() }
+    fun refresh() = perform {
+        repository.load()
+        _connections.value = toolConnections.listConnections().filter { it.type == ToolConnectionType.MCP }
+    }
     fun updateSettings(settings: FactVaultSettings) = perform { repository.updateSettings(settings) }
     fun setEnabled(enabled: Boolean) = perform { repository.setEnabled(enabled) }
     fun setFactEnabled(id: String, enabled: Boolean) = perform { repository.setFactEnabled(id, enabled) }

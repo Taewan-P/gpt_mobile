@@ -14,6 +14,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 
 @Serializable
@@ -27,7 +28,9 @@ data class VaultFact(
     val source: String = "user_message",
     val confidence: Float = 0.75f,
     val scope: String = "personal",
-    val pinned: Boolean = false
+    val pinned: Boolean = false,
+    val evidenceHash: String = "",
+    val supersededBy: String? = null
 )
 
 /** References only: fact text stays encrypted in the vault, not copied into message metadata. */
@@ -46,9 +49,16 @@ data class FactVaultSettings(
     val maxFacts: Int = 256,
     val maxRecall: Int = 5,
     val retentionDays: Int = 0,
-    val captureSensitivity: Int = 50
+    val captureSensitivity: Int = 50,
+    val localModelLearning: Boolean = true,
+    val rotateAutomaticFacts: Boolean = true,
+    val maxCapturePerMessage: Int = 8,
+    val recallTokens: Int = 1024,
+    val externalRecallEnabled: Boolean = false,
+    val externalMemoryConnections: Set<String> = emptySet(),
+    val externalMemoryScopes: Map<String, String> = emptyMap()
 ) {
-    fun normalized() = copy(maxFacts = maxFacts.coerceIn(16, 2048), maxRecall = maxRecall.coerceIn(1, 10), retentionDays = retentionDays.coerceIn(0, 365), captureSensitivity = captureSensitivity.coerceIn(0, 100))
+    fun normalized() = copy(maxFacts = maxFacts.coerceIn(16, 2048), maxRecall = maxRecall.coerceIn(1, 20), retentionDays = retentionDays.coerceIn(0, 365), captureSensitivity = captureSensitivity.coerceIn(0, 100), maxCapturePerMessage = maxCapturePerMessage.coerceIn(1, 16), recallTokens = recallTokens.coerceIn(128, 4096))
 }
 
 @Serializable
@@ -57,6 +67,8 @@ data class FactVaultSnapshot(
     val enabled: Boolean = false,
     val facts: List<VaultFact> = emptyList(),
     val suppressedIds: Set<String> = emptySet(),
+    val suppressedEvidence: Set<String> = emptySet(),
+    val suppressedMessages: Set<String> = emptySet(),
     val settings: FactVaultSettings = FactVaultSettings()
 )
 
@@ -80,6 +92,8 @@ class FactVaultRepository @Inject constructor(
     private val preferences: FactVaultPreferenceStore? = null
 ) {
     private val mutex = Mutex()
+    private val enrichmentMutex = Mutex()
+    private val enrichedMessages = linkedSetOf<String>()
     private var hasLoaded = false
     private val json = Json { ignoreUnknownKeys = true }
     private val _state = MutableStateFlow(FactVaultSnapshot())
@@ -99,7 +113,7 @@ class FactVaultRepository @Inject constructor(
 
     suspend fun setFactEnabled(id: String, enabled: Boolean) = mutex.withLock {
         loadLocked()
-        persist(_state.value.copy(facts = _state.value.facts.map { if (it.id == id) it.copy(enabled = enabled) else it }))
+        persist(_state.value.copy(facts = _state.value.facts.map { if (it.id == id) it.copy(enabled = enabled, supersededBy = null) else it }))
     }
 
     suspend fun pin(id: String, pinned: Boolean) = mutex.withLock {
@@ -110,76 +124,112 @@ class FactVaultRepository @Inject constructor(
     suspend fun deleteFact(id: String) = mutex.withLock {
         loadLocked()
         val current = _state.value
-        if (current.facts.none { it.id == id }) return@withLock
+        val removed = current.facts.firstOrNull { it.id == id } ?: return@withLock
         // Tombstones prevent a retry or parallel AI from silently relearning a deleted fact.
-        persist(current.copy(facts = current.facts.filterNot { it.id == id }, suppressedIds = current.suppressedIds + id))
+        persist(
+            current.copy(
+                facts = current.facts.filterNot { it.id == id },
+                suppressedIds = current.suppressedIds + id,
+                suppressedEvidence = current.suppressedEvidence + listOf(removed.evidenceHash).filter { it.isNotBlank() }.map { "${removed.scope}:$it" },
+                suppressedMessages = current.suppressedMessages + listOfNotNull(sourceKey(removed.sourceChatId, removed.sourceMessageId)?.let { "${removed.scope}:$it" })
+            )
+        )
     }
 
     suspend fun clear() = mutex.withLock {
         // Clearing must work even when the existing payload cannot be decoded.
         persist(FactVaultSnapshot(enabled = false), allowUnreadablePrevious = true)
+        enrichedMessages.clear()
     }
 
-    suspend fun prepareTurn(query: String, chatId: Int, messageId: Int, isLocal: Boolean = false, capture: Boolean = true, scope: String = "personal"): FactRecall = mutex.withLock {
+    suspend fun prepareTurn(query: String, chatId: Int, messageId: Int, isLocal: Boolean = false, capture: Boolean = true, scope: String = "personal", previousContext: String = ""): FactRecall = mutex.withLock {
         loadLocked()
         if (!_state.value.enabled) return@withLock FactRecall()
-        var current = _state.value
-        val settings = current.settings.normalized()
+        require(scope == "personal" || scope.startsWith("project:"))
+        val original = _state.value
+        val settings = original.settings.normalized()
         val now = System.currentTimeMillis()
-        if (settings.retentionDays > 0) {
-            val cutoff = now - settings.retentionDays * 86_400_000L
-            val retained = current.facts.filter { it.pinned || it.savedAtMillis == 0L || it.savedAtMillis >= cutoff }
-            if (retained.size != current.facts.size) {
-                current = current.copy(facts = retained)
-                persist(current)
-            }
+        val cutoff = if (settings.retentionDays > 0) now - settings.retentionDays * 86_400_000L else 0L
+        var current = original.copy(facts = original.facts.filter { it.pinned || it.savedAtMillis == 0L || it.savedAtMillis >= cutoff })
+        if (capture && settings.learningEnabled) {
+            current = mergeAutomatic(current, MemoryLearning.extract(query.take(MAX_QUERY_CHARS), settings.captureSensitivity), chatId, messageId, scope, "user_message", now)
         }
-        val selectedIds = if (settings.recallEnabled && (isLocal || settings.allowCloudRecall)) {
-            graph.queryContextualFacts(query.take(MAX_QUERY_CHARS), maxResults = MAX_FACTS).map(::factId).toSet()
-        } else {
-            emptySet()
+        if (current != original) persist(current)
+        if (!settings.recallEnabled || (!isLocal && !settings.allowCloudRecall)) return@withLock FactRecall()
+        val candidates = current.facts.filter {
+            it.enabled &&
+                (it.scope == "personal" || it.scope == scope) &&
+                (!settings.sameChatOnly || it.sourceChatId == chatId) &&
+                !(messageId > 0 && it.sourceChatId == chatId && it.sourceMessageId == messageId)
         }
-        val recall = FactRecall(
-            current.facts.filter {
-                settings.recallEnabled &&
-                    (isLocal || settings.allowCloudRecall) &&
-                    it.enabled &&
-                    (it.scope == "personal" || it.scope == scope) &&
-                    (factId(it.fact) in selectedIds || relevance(query, it) > 0) &&
-                    (!settings.sameChatOnly || it.sourceChatId == chatId) &&
-                    !(messageId > 0 && it.sourceChatId == chatId && it.sourceMessageId == messageId)
-            }.sortedWith(compareByDescending<VaultFact> { relevance(query, it) }.thenByDescending { it.pinned }.thenByDescending { it.savedAtMillis })
-                .take(settings.maxRecall)
-        )
-        if (!capture || !settings.learningEnabled) return@withLock recall
-        // Only extract user-provided text. Never learn from assistant output or tool responses.
-        val extractor = KnowledgeGraphEngine()
-        extractor.extractAndStoreFromText(query.take(MAX_QUERY_CHARS), settings.captureSensitivity)
-        val extracted = extractor.getAllEntities().flatMap { extractor.querySubgraph(it.id, maxDepth = 1) }
-            .filter { MemoryCapturePolicy.accepts(it, settings.captureSensitivity) }.map(::normalizeFact).distinctBy(::factId).filter {
-                if (it.relation.relationType == "PREFERS") settings.learnPreferences else settings.learnRelationships
-            }
-        val known = current.facts.map { it.id }.toSet() + current.suppressedIds
-        val additions = extracted.filter { scopedFactId(it, scope) !in known }.take((settings.maxFacts - current.facts.size).coerceAtLeast(0))
-            .map { VaultFact(scopedFactId(it, scope), it, enabled = !settings.reviewBeforeRecall, sourceChatId = chatId, sourceMessageId = messageId, savedAtMillis = now, scope = scope) }
-        if (additions.isNotEmpty()) {
-            val replaced = current.facts.map { existing ->
-                val superseded = additions.any { fresh ->
-                    fresh.fact.entity.id == existing.fact.entity.id &&
-                        fresh.fact.relation.relationType == "LOCATED_IN" &&
-                        existing.fact.relation.relationType == "LOCATED_IN" &&
-                        fresh.id != existing.id &&
-                        fresh.scope == existing.scope
-                }
-                if (superseded) existing.copy(enabled = false) else existing
-            }
-            val capacity = (settings.maxFacts - additions.size).coerceAtLeast(0)
-            val kept = replaced.sortedWith(compareByDescending<VaultFact> { it.enabled }.thenByDescending { it.savedAtMillis }).take(capacity)
-            persist(current.copy(facts = kept + additions))
+        val selected = mutableListOf<VaultFact>()
+        for (entry in MemoryRecallPolicy.rank(query.take(MAX_QUERY_CHARS), candidates, previousContext)) {
+            if (selected.size >= settings.maxRecall) break
+            if (FactRecall(selected + entry).prefix().toByteArray().size <= settings.recallTokens * 3) selected += entry
         }
-        // A correction in this very message must not recall the superseded fact.
-        val stillEnabled = _state.value.facts.filter { it.enabled }.map { it.id }.toSet()
-        FactRecall(recall.facts.filter { it.id in stillEnabled })
+        FactRecall(selected)
+    }
+
+    /** Serializes enrichment across parallel AI profiles and rechecks settings after inference. */
+    suspend fun enrichTurn(message: dev.chungjungsoo.gptmobile.data.database.entity.MessageV2, extract: suspend (String) -> JsonObject?) = enrichmentMutex.withLock enrichment@{
+        val key = "${message.chatId}:${message.id}:${evidenceHash(message.content)}"
+        val input = mutex.withLock {
+            loadLocked()
+            val state = _state.value
+            if (!state.enabled || !state.settings.learningEnabled || !state.settings.localModelLearning || key in enrichedMessages || "personal:${sourceKey(message.chatId, message.id)}" in state.suppressedMessages) return@withLock ""
+            MemoryLearning.statements(message.content.take(MAX_QUERY_CHARS)).joinToString(".\n")
+        }
+        if (input.isBlank()) return@enrichment
+        val response = extract(input) ?: return@enrichment
+        mutex.withLock {
+            loadLocked()
+            val current = _state.value
+            if (!current.enabled || !current.settings.learningEnabled || !current.settings.localModelLearning) return@withLock
+            val facts = MemoryLearning.modelObservations(input, response, current.settings.captureSensitivity)
+            val merged = mergeAutomatic(current, facts, message.chatId, message.id, "personal", "local_model_observation", System.currentTimeMillis())
+            if (merged != current) persist(merged)
+            enrichedMessages += key
+            while (enrichedMessages.size > 128) enrichedMessages.remove(enrichedMessages.first())
+        }
+    }
+
+    private fun mergeAutomatic(current: FactVaultSnapshot, candidates: List<KnowledgeFact>, chatId: Int, messageId: Int, scope: String, source: String, now: Long): FactVaultSnapshot {
+        if ("$scope:${sourceKey(chatId, messageId)}" in current.suppressedMessages) return current
+        val config = current.settings.normalized()
+        val facts = current.facts.toMutableList()
+        var admitted = if (messageId > 0) facts.count { it.sourceChatId == chatId && it.sourceMessageId == messageId && it.scope == scope && it.source in setOf("user_message", "local_model_observation") } else 0
+        for (candidate in candidates.distinctBy(::factId)) {
+            if (admitted >= config.maxCapturePerMessage) break
+            val preference = candidate.relation.relationType in setOf("PREFERS", "AVOIDS", "RESPONSE_LANGUAGE")
+            if ((preference && !config.learnPreferences) || (!preference && !config.learnRelationships)) continue
+            val fact = normalizeFact(candidate)
+            val id = scopedFactId(fact, scope)
+            val evidence = evidenceHash(candidate.relation.context.ifBlank { candidate.target.name })
+            if (id in current.suppressedIds || "$scope:$evidence" in current.suppressedEvidence) continue
+            // The local model must not create a second form of an already captured statement.
+            if (source == "local_model_observation" && facts.any { it.evidenceHash == evidence && it.scope == scope }) continue
+            val exclusive = fact.relation.relationType in setOf("LOCATED_IN", "NAMED", "OCCUPATION", "TIMEZONE", "PRONOUNS", "RESPONSE_LANGUAGE")
+            fun conflicts(entry: VaultFact) = exclusive && entry.fact.entity.id == fact.entity.id && entry.fact.relation.relationType == fact.relation.relationType && entry.scope == scope
+            if (messageId > 0 && facts.any { conflicts(it) && it.sourceMessageId > messageId }) continue
+            val known = facts.firstOrNull { it.id == id }
+            if (known != null) {
+                if (!exclusive || known.supersededBy == null || messageId <= known.sourceMessageId) continue
+                facts.remove(known)
+            }
+            if (facts.size >= config.maxFacts) {
+                if (!config.rotateAutomaticFacts) continue
+                val victim = facts.filter { !it.pinned && it.source in setOf("user_message", "local_model_observation") }
+                    .minWithOrNull(compareBy<VaultFact> { it.enabled }.thenBy { it.savedAtMillis }) ?: continue
+                facts.remove(victim)
+            }
+            facts.replaceAll { if (conflicts(it)) it.copy(enabled = false, supersededBy = id) else it }
+            facts += VaultFact(
+                id, fact, enabled = !config.reviewBeforeRecall, sourceChatId = chatId, sourceMessageId = messageId,
+                savedAtMillis = now, source = source, confidence = if (source == "local_model_observation") 0.8f else 0.9f, scope = scope, evidenceHash = evidence
+            )
+            admitted++
+        }
+        return current.copy(facts = facts)
     }
 
     suspend fun saveManual(text: String, id: String? = null, scope: String = "personal") = mutex.withLock {
@@ -219,7 +269,7 @@ class FactVaultRepository @Inject constructor(
         )
         val id = factId(fact)
         val current = _state.value
-        require(id !in current.suppressedIds) { "This memory was deleted. Restore it manually in Memory settings." }
+        require(id !in current.suppressedIds && "personal:${evidenceHash(quote)}" !in current.suppressedEvidence && "personal:${sourceKey(message.chatId, message.id)}" !in current.suppressedMessages) { "This memory was deleted. Restore it manually in Memory settings." }
         if (current.facts.none { it.id == id }) {
             require(current.facts.size < current.settings.maxFacts) { "Memory capacity reached. Review saved memories." }
             persist(
@@ -246,13 +296,6 @@ class FactVaultRepository @Inject constructor(
         if (!current.enabled || !current.settings.recallEnabled || (!isLocal && !current.settings.allowCloudRecall)) return@withLock emptyList()
         val cutoff = if (current.settings.retentionDays > 0) System.currentTimeMillis() - current.settings.retentionDays * 86_400_000L else 0L
         current.facts.filter { it.enabled && it.scope == "personal" && (!current.settings.sameChatOnly || it.sourceChatId == chatId) && (it.pinned || it.savedAtMillis == 0L || it.savedAtMillis >= cutoff) }
-    }
-
-    private fun relevance(query: String, entry: VaultFact): Int {
-        val tokens = query.lowercase(Locale.ROOT).split(Regex("[^\\p{L}\\p{N}]+"))
-            .filter { it.length > 2 && it !in setOf("the", "and", "what", "that", "have") }.toSet()
-        val target = (entry.fact.entity.name + " " + entry.fact.target.name).lowercase(Locale.ROOT)
-        return tokens.count { Regex("(?<![\\p{L}\\p{N}])" + Regex.escape(it) + "(?![\\p{L}\\p{N}])").containsMatchIn(target) }
     }
 
     private suspend fun loadLocked() {
@@ -386,16 +429,18 @@ class FactVaultRepository @Inject constructor(
         } else {
             fact.entity.copy(name = fact.entity.name.take(80), id = fact.entity.id.take(80))
         }
-        val target = fact.target.copy(name = fact.target.name.take(80), id = fact.target.id.take(80))
+        val target = fact.target.copy(name = fact.target.name.take(1000), id = fact.target.id.take(1000))
         return KnowledgeFact(source, fact.relation.copy(sourceId = source.id, targetId = target.id, context = ""), target)
     }
 
     companion object {
         const val VAULT_REFERENCE = "fact-vault-v1"
-        private const val MAX_FACTS = 2048
         private const val MAX_QUERY_CHARS = 8_000
         private const val MAX_VAULT_BYTES = 60 * 1024
         private const val MAX_MEMORY_BYTES = 4 * 1024 * 1024
+
+        private fun sourceKey(chatId: Int, messageId: Int): String? = if (messageId > 0) "$chatId:$messageId" else null
+        private fun evidenceHash(text: String): String = MessageDigest.getInstance("SHA-256").digest(text.trim().trimEnd('.', '!').lowercase(Locale.ROOT).encodeToByteArray()).joinToString("") { "%02x".format(it) }
 
         internal fun factId(fact: KnowledgeFact): String {
             val key = "${fact.entity.id}|${fact.relation.relationType}|${fact.target.id}".lowercase(Locale.ROOT)

@@ -62,6 +62,7 @@ import kotlinx.coroutines.withContext
 @Composable
 fun FactVaultScreen(viewModel: FactVaultViewModel, onBack: () -> Unit) {
     val vault by viewModel.vault.collectAsStateWithLifecycle()
+    val connections by viewModel.connections.collectAsStateWithLifecycle()
     val documents by viewModel.documents.collectAsStateWithLifecycle(emptyList())
     val attachments by viewModel.attachments.collectAsStateWithLifecycle(emptyList())
     val busy by viewModel.busy.collectAsStateWithLifecycle()
@@ -141,7 +142,7 @@ fun FactVaultScreen(viewModel: FactVaultViewModel, onBack: () -> Unit) {
                     items(shown, key = { it.id }) { entry ->
                         Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
                             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(if (entry.fact.relation.relationType == "REMEMBERS") entry.fact.target.name else "${entry.fact.entity.name} ${entry.fact.relation.relationType.lowercase().replace('_', ' ')} ${entry.fact.target.name}", style = MaterialTheme.typography.titleMedium)
+                                Text(if (entry.fact.relation.relationType == "REMEMBERS" || entry.source == "local_model_observation") entry.fact.target.name else "${entry.fact.entity.name} ${entry.fact.relation.relationType.lowercase().replace('_', ' ')} ${entry.fact.target.name}", style = MaterialTheme.typography.titleMedium)
                                 Text("${entry.source.replace('_', ' ')} · ${if (entry.sourceChatId > 0) "chat ${entry.sourceChatId}, message ${entry.sourceMessageId}" else "Added by you"}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Switch(entry.enabled, { viewModel.setFactEnabled(entry.id, it) }, enabled = !busy, modifier = Modifier.semantics { contentDescription = "Recall this memory" })
@@ -235,9 +236,38 @@ fun FactVaultScreen(viewModel: FactVaultViewModel, onBack: () -> Unit) {
                                 VaultToggle("Review new memories before use", settings.reviewBeforeRecall, !busy) { viewModel.updateSettings(settings.copy(reviewBeforeRecall = it)) }
                                 VaultToggle("Learn preferences", settings.learnPreferences, !busy) { viewModel.updateSettings(settings.copy(learnPreferences = it)) }
                                 VaultToggle("Learn relationships", settings.learnRelationships, !busy) { viewModel.updateSettings(settings.copy(learnRelationships = it)) }
-                                VaultLimit("Memories per response", settings.maxRecall, 1..10, !busy) { viewModel.updateSettings(settings.copy(maxRecall = it)) }
+                                VaultToggle("Use local model for richer learning", settings.localModelLearning, !busy) { viewModel.updateSettings(settings.copy(localModelLearning = it)) }
+                                Text("Uses the private helper selected in Local models → Delegation when delegation is enabled. It selects exact user statements, with a text-only fallback when no helper is available.", style = MaterialTheme.typography.bodySmall)
+                                VaultToggle("Make room for new automatic memories", settings.rotateAutomaticFacts, !busy) { viewModel.updateSettings(settings.copy(rotateAutomaticFacts = it)) }
+                                Text("Replaces the oldest automatic memories at capacity. Pinned and manually saved memories are kept.", style = MaterialTheme.typography.bodySmall)
+                                VaultLimit("New facts per message", settings.maxCapturePerMessage, 1..16, !busy) { viewModel.updateSettings(settings.copy(maxCapturePerMessage = it)) }
+                                VaultLimit("Recall token budget · estimate", settings.recallTokens, 128..4096, !busy) { viewModel.updateSettings(settings.copy(recallTokens = it)) }
+                                VaultLimit("Memories per response", settings.maxRecall, 1..20, !busy) { viewModel.updateSettings(settings.copy(maxRecall = it)) }
                                 VaultLimit("Memory capacity", settings.maxFacts, 16..2048, !busy) { viewModel.updateSettings(settings.copy(maxFacts = it)) }
                                 VaultLimit("Retention days · 0 keeps memories", settings.retentionDays, 0..365, !busy) { viewModel.updateSettings(settings.copy(retentionDays = it)) }
+                            }
+                        }
+                    }
+                    item {
+                        Card(Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text("Connected memory", style = MaterialTheme.typography.titleMedium)
+                                VaultToggle("Automatically recall from selected MCPs", settings.externalRecallEnabled, !busy) { viewModel.updateSettings(settings.copy(externalRecallEnabled = it)) }
+                                Text("Add Mem0, Supermemory or your Graphiti server from the marketplace and enable its memory search tool in the AI profile. Selected servers receive up to 500 characters from the current question. Local saved memories and chat history are not uploaded. Remote saving uses the provider's ordinary tools and permissions.", style = MaterialTheme.typography.bodySmall)
+                                if (!settings.allowCloudRecall || settings.sameChatOnly || settings.reviewBeforeRecall) Text("Automatic connected recall is paused by cloud recall, original-chat-only or review-before-use controls.", style = MaterialTheme.typography.bodySmall)
+                                if (connections.isEmpty()) Text("No MCP connections configured yet.")
+                                connections.forEach { connection ->
+                                    val selected = connection.connectionUid in settings.externalMemoryConnections
+                                    VaultToggle(connection.name, selected, !busy) { enabled ->
+                                        val ids = if (enabled) settings.externalMemoryConnections + connection.connectionUid else settings.externalMemoryConnections - connection.connectionUid
+                                        viewModel.updateSettings(settings.copy(externalMemoryConnections = ids))
+                                    }
+                                    if (selected) {
+                                        var memoryScope by remember(connection.connectionUid, settings.externalMemoryScopes) { mutableStateOf(settings.externalMemoryScopes[connection.connectionUid].orEmpty()) }
+                                        OutlinedTextField(memoryScope, { memoryScope = it.take(200) }, label = { Text("User ID / group ID / space key") }, supportingText = { Text("Blank uses the server's authorized default scope.") }, singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth())
+                                        TextButton(onClick = { viewModel.updateSettings(settings.copy(externalMemoryScopes = settings.externalMemoryScopes + (connection.connectionUid to memoryScope.trim()))) }, enabled = !busy) { Text("Save scope") }
+                                    }
+                                }
                             }
                         }
                     }

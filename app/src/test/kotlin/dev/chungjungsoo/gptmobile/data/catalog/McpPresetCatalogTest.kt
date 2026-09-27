@@ -75,7 +75,7 @@ class McpPresetCatalogTest {
     @Test
     fun requestedProvidersArePresentExactlyOnce() {
         val ids = listOf(
-            "mem0-hosted", "supermemory", "mnemoverse", "pearls", "brave-search",
+            "mem0-hosted", "supermemory", "mnemoverse", "graphiti-memory", "pearls", "brave-search",
             "jina-mcp", "tavily-mcp", "stackoverflow", "huggingface", "semgrep",
             "deepwiki", "netlify", "supabase", "airtable", "prisma", "slack",
             "asana", "todoist", "google-drive", "google-sheets", "excalidraw", "bright-data"
@@ -96,7 +96,7 @@ class McpPresetCatalogTest {
 
     @Test
     fun selfHostedPresetsNeverAdvertiseAnExampleEndpoint() {
-        listOf("pearls", "brave-search").forEach { id ->
+        listOf("pearls", "brave-search", "graphiti-memory").forEach { id ->
             val preset = McpPresetCatalog.findById(id)!!
             assertTrue(preset.commandOrUrl.isBlank())
             assertFalse(preset.isDirectlyInstallable)

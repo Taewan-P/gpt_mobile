@@ -123,6 +123,22 @@ internal class LocalDelegationCoordinator(
         return workerText(target, task, maxTokens, requirePrivate = false) ?: error("The delegated model was unavailable or its call budget was reached.")
     }
 
+    suspend fun memoryObservations(userText: String): JsonObject? {
+        val config = settings().normalized()
+        val target = localTarget(config) ?: return null
+        val bounded = boundedConfig(target, config)
+        return workerText(
+            target,
+            delegationPrompt(
+                "Select up to 4 durable facts explicitly stated by the user: preferences, profile facts, ongoing projects or goals. Return JSON {\"observations\":[{\"quote\":\"one exact complete user statement\",\"kind\":\"preference|profile|project|goal\"}]}. Preserve negation and qualifiers. Omit questions, hypothetical situations, third-party quotations, secrets and temporary requests. Never infer or rewrite facts. Return an empty array when there is nothing to remember.",
+                "Identify useful long-term memory from user statements.",
+                userText,
+                bounded.maxInputCharacters
+            ),
+            minOf(config.maxOutputTokens, 512)
+        )?.let(::parseDelegationObject)
+    }
+
     /** The supplied child already owns authorization, timeout, and the shared execution budget. */
     fun processToolResults(resolved: ResolvedAgentTool, task: String): ResolvedAgentTool {
         if (resolved.realToolName == "delegate_to_model") return resolved

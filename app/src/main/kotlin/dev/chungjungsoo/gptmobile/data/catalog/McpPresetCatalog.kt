@@ -368,6 +368,20 @@ object McpPresetCatalog {
             websiteUrl = "https://github.com/cloudflare/mcp", verifiedRemote = true
         ),
         McpPreset(
+            id = "graphiti-memory",
+            name = "Graphiti Memory",
+            description = "Self-hosted temporal knowledge graph with hybrid search, source episodes and changing facts. Requires a reachable server, graph database and configured models.",
+            category = McpCategory.MEMORY,
+            commandOrUrl = "",
+            iconName = "memory",
+            author = "Zep",
+            suggestedAuthType = "BEARER",
+            pricing = McpPricingType.FREE,
+            toolCapabilities = listOf("Search memory facts and entities", "Store episodes with provenance", "Track changing facts", "Automatic selected-connection recall"),
+            websiteUrl = "https://github.com/getzep/graphiti/tree/main/mcp_server",
+            setupInstructions = "Deploy the experimental Graphiti MCP server with HTTP transport and enter its phone-reachable /mcp/ endpoint. Configure authentication at your server or reverse proxy. Graphiti needs FalkorDB or Neo4j and an LLM/embedder; local compatible models are supported. Select search_memory_facts in the AI profile, then opt in under Memory → Controls. Use your configured group ID as the memory scope. Installing does not upload local memories or chat history."
+        ),
+        McpPreset(
             id = "mem0-hosted",
             name = "Mem0 Memory",
             description = "Store and recall account-backed memories across conversations and compatible clients. Usage depends on your Mem0 plan.",
@@ -380,7 +394,7 @@ object McpPresetCatalog {
             toolCapabilities = listOf("Save, search and update memories", "Manage memory entities and events"),
             websiteUrl = "https://docs.mem0.ai/platform/mem0-mcp",
             verifiedRemote = true,
-            setupInstructions = "Sign in to Mem0 in your browser, or select Bearer and enter a Mem0 API key. Enable memory tools in the AI profile to use them; installing does not automatically upload chat history."
+            setupInstructions = "Sign in to Mem0 in your browser, or select Bearer and enter a Mem0 API key. Enable search_memories in the AI profile, then opt in to automatic recall under Memory → Controls and set your user ID if required. Installing does not automatically upload local memories or chat history."
         ),
         McpPreset(
             id = "supermemory",
@@ -395,7 +409,7 @@ object McpPresetCatalog {
             toolCapabilities = listOf("Store and retrieve memories", "Search context across authorized spaces"),
             websiteUrl = "https://supermemory.ai/mcp/",
             verifiedRemote = true,
-            setupInstructions = "Sign in and choose the spaces this connection may access. Service limits and charges depend on your plan."
+            setupInstructions = "Sign in and choose the spaces this connection may access. Enable search_memory in the AI profile, then opt in to automatic recall under Memory → Controls. Use a space key as the optional memory scope. Service limits and charges depend on your plan; installing does not upload local memories or chat history."
         ),
         McpPreset(
             id = "mnemoverse",
