@@ -491,7 +491,8 @@ class ChatRepositoryImpl(
                     contextPlan.turns,
                     requestPlatform,
                     effectiveTools.map { it.tool },
-                    requestConstraints
+                    requestConstraints,
+                    fallbackSystemPrompt = liveToolSystemPrompt(platform.systemPrompt, emptyList(), compact = true)
                 )
             }
             val accountedSession = invocationLedger?.wrap(

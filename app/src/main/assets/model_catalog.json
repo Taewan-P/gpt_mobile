@@ -141,13 +141,6 @@
       },
       "minAppVersion": "0.8.0",
       "socToModelFiles": {
-        "SM8750": {
-          "modelFile": "gemma-4-E2B-it_qualcomm_sm8750.litertlm",
-          "downloadUrl": "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/6b78abd019e61a1ca4cbe3b212d2c9ce8ff38a94/gemma-4-E2B-it_qualcomm_sm8750.litertlm?download=true",
-          "commitHash": "6b78abd019e61a1ca4cbe3b212d2c9ce8ff38a94",
-          "sizeInBytes": 3016294400,
-          "contextSize": 1280
-        },
         "Tensor G5": {
           "modelFile": "gemma-4-E2B-it_Google_Tensor_G5.litertlm",
           "downloadUrl": "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/6b78abd019e61a1ca4cbe3b212d2c9ce8ff38a94/gemma-4-E2B-it_Google_Tensor_G5.litertlm?download=true",

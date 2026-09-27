@@ -146,6 +146,23 @@ class LiteRtLmAdapterTest {
     }
 
     @Test
+    fun `compact fallback preserves the user message when optional context is oversized`() = runBlocking {
+        val runtime = FakeLocalRuntime().apply {
+            scriptedEvents = listOf(listOf(LocalRuntimeEvent.TextDelta("hello"), LocalRuntimeEvent.Done))
+        }
+        val events = adapter(runtime).openSession(
+            turns("hi"),
+            localPlatform().copy(systemPrompt = "memory and tool context ".repeat(2000)),
+            fallbackSystemPrompt = "Be concise"
+        ).streamRound(emptyList(), emptyList()).toList()
+
+        assertEquals("Be concise", runtime.createConversationCalls.single().systemPrompt)
+        assertEquals(listOf("hi"), runtime.sendMessageCalls)
+        assertTrue(events.any { it is ProviderEvent.Notice && it.message.contains("optional memory") })
+        assertEquals(ProviderEvent.Completed, events.last())
+    }
+
+    @Test
     fun `native tool results respect the local context reservation and invalidate hidden tool history`() = runBlocking {
         val runtime = FakeLocalRuntime().apply {
             scriptedEvents = listOf(listOf(LocalRuntimeEvent.TextDelta("done"), LocalRuntimeEvent.Done))
