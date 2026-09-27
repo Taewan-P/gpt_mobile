@@ -1,15 +1,12 @@
-# GPT Mobile AI 0.9.20.0
+# GPT Mobile AI 0.9.20.1
 
-## Local AI performance and delegation
-- Improves benchmark reliability and local reasoning controls.
-- Runs research, web search, page crawling, and tool evidence processing locally before forwarding compact evidence to remote models.
-- Adds delegation controls in Local Models settings and improves autonomous memory capture with opt-in scoped MCP recall.
+## Memory and chat fixes
+- Fixes an Android regex incompatibility that prevented memory learning from initializing, including explicit save and remember requests.
+- Keeps chat replies working if optional memory initialization fails, with a visible notice when memory is unavailable.
+- Preserves cancellation when stopping a chat request instead of reporting it as a chat error.
 
-## Search and memory
-- Adds Brave Search integration and combines marketplace web search engines in multi-search.
-- Improves memory extraction, recall, and context-aware retention.
+## Regression coverage
+- Adds tests for explicit memory requests, repeated memory initialization failures, and chat cancellation.
+- Checks literal Kotlin regex patterns against ICU during pull request validation to catch Android compatibility problems before release.
 
-## Android and local runtime
-- Updates validated LiteRT and Android dependencies, adds opt-in inference counters and thermal forecasting.
-- See `docs/AI_ANDROID_MODERNIZATION_2026-09-27.md` for research, compatibility choices, and validation notes.
-
+Includes the local AI, search, and Android runtime improvements from 0.9.20.0.
