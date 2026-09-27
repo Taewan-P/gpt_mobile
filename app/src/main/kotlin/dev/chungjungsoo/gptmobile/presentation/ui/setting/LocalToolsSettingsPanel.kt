@@ -12,7 +12,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -33,8 +32,6 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
-import dev.chungjungsoo.gptmobile.data.model.excludesMemory
-import dev.chungjungsoo.gptmobile.data.model.isPrivateDestination
 
 @Composable
 fun LocalToolsSettingsPanel(
@@ -47,15 +44,9 @@ fun LocalToolsSettingsPanel(
     val memoryBusy by memory.busy.collectAsStateWithLifecycle()
     val memoryError by memory.error.collectAsStateWithLifecycle()
     val budget by viewModel.tokenBudget.collectAsStateWithLifecycle()
-    val config by viewModel.delegation.collectAsStateWithLifecycle()
-    val profiles by viewModel.profiles.collectAsStateWithLifecycle()
-    val busy by viewModel.busy.collectAsStateWithLifecycle()
-    val error by viewModel.error.collectAsStateWithLifecycle()
     var showDoctor by remember { mutableStateOf(false) }
     if (showDoctor) ConnectionDoctorDialog(onDismiss = { showDoctor = false })
     var showMemory by remember { mutableStateOf(initialSection == "memory") }
-    var advancedDelegation by remember { mutableStateOf(false) }
-    var showDelegation by remember { mutableStateOf(initialSection == "delegation") }
     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (!settingsOnly) TextButton(onClick = { showDoctor = true }) { Text(stringResource(R.string.local_tools_settings_panel_label_1)) }
         if (settingsOnly) {
@@ -82,44 +73,6 @@ fun LocalToolsSettingsPanel(
                     memoryError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 }
             }
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    LocalToolToggle("Model delegation", config.enabled, !busy) { value ->
-                        viewModel.update { it.copy(enabled = value) }
-                        if (value) showDelegation = true
-                    }
-                    Text(stringResource(R.string.local_tools_settings_panel_label_5), style = MaterialTheme.typography.bodySmall)
-                    Text("Use a main model that supports tools, then select a helper profile.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-                    TextButton(onClick = { showDelegation = !showDelegation }) { Text(if (showDelegation) "Hide configuration" else "Configure delegation") }
-                    if (showDelegation) {
-                        LocalToolToggle("Only private destinations", config.localPlatformsOnly, !busy) { value -> viewModel.update { it.copy(localPlatformsOnly = value) } }
-                        Text(stringResource(R.string.local_tools_settings_panel_label_6), style = MaterialTheme.typography.bodySmall)
-                        Text(stringResource(R.string.local_tools_settings_panel_label_7), style = MaterialTheme.typography.titleSmall)
-                        val eligible = profiles.filter { it.enabled && !it.excludesMemory() && (!config.localPlatformsOnly || it.isPrivateDestination()) }
-                        if (eligible.isEmpty()) Text(stringResource(R.string.local_tools_settings_panel_label_8))
-                        if (eligible.none { it.uid == config.targetProfileUid }) Text(stringResource(R.string.local_tools_settings_panel_label_9), color = MaterialTheme.colorScheme.error)
-                        eligible.forEach { profile ->
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                RadioButton(selected = config.targetProfileUid == profile.uid, enabled = !busy, onClick = { viewModel.update { it.copy(targetProfileUid = profile.uid) } }, modifier = Modifier.semantics { contentDescription = "Delegate to ${profile.name}" })
-                                Column {
-                                    Text(profile.name)
-                                    Text("${profile.compatibleType} · ${profile.model}", style = MaterialTheme.typography.bodySmall)
-                                }
-                            }
-                        }
-                        TextButton(onClick = { advancedDelegation = !advancedDelegation }) { Text(if (advancedDelegation) "Hide advanced limits" else "Advanced limits") }
-                        if (advancedDelegation) {
-                            DelegationNumber("Maximum input characters", config.maxInputCharacters, 500..16000, !busy) { value -> viewModel.update { it.copy(maxInputCharacters = value) } }
-                            DelegationNumber("Maximum output tokens", config.maxOutputTokens, 64..2048, !busy) { value -> viewModel.update { it.copy(maxOutputTokens = value) } }
-                            DelegationNumber("Timeout in seconds", config.timeoutSeconds, 5..40, !busy) { value -> viewModel.update { it.copy(timeoutSeconds = value) } }
-                            DelegationNumber("Calls per conversation turn", config.maxCallsPerTurn, 1..3, !busy) { value -> viewModel.update { it.copy(maxCallsPerTurn = value) } }
-                        }
-                        Text(stringResource(R.string.local_tools_settings_panel_label_10), style = MaterialTheme.typography.bodySmall)
-                        Text(stringResource(R.string.local_tools_settings_panel_label_11), style = MaterialTheme.typography.bodySmall)
-                    }
-                    error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                }
-            }
         }
     }
     if (showMemory) {
@@ -135,14 +88,14 @@ fun LocalToolConfigurationDialog(section: String, onDismiss: () -> Unit) {
         Card {
             Column(Modifier.heightIn(max = 650.dp).verticalScroll(rememberScrollState())) {
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.local_tools_settings_panel_label_12)) }
-                LocalToolsSettingsPanel(initialSection = section)
+                if (section == "delegation") ModelDelegationSettingsPanel() else LocalToolsSettingsPanel(initialSection = section)
             }
         }
     }
 }
 
 @Composable
-private fun LocalToolToggle(label: String, checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
+internal fun LocalToolToggle(label: String, checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(label, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
         Switch(checked, onChange, enabled = enabled, modifier = Modifier.semantics { contentDescription = label })

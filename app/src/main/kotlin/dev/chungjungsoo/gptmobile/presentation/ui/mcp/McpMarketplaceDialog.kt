@@ -227,7 +227,8 @@ fun McpMarketplaceScreen(
         credential: String,
         allowCleartext: Boolean
     ) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onOpenDelegation: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
@@ -404,7 +405,9 @@ fun McpMarketplaceScreen(
                         preset = preset,
                         isInstalled = isInstalled,
                         onAddClick = {
-                            if (preset.documentationOnly) {
+                            if (preset.integratedTool == "delegation" && onOpenDelegation != null) {
+                                onOpenDelegation()
+                            } else if (preset.documentationOnly) {
                                 runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(preset.websiteUrl))) }
                             } else {
                                 configuringPreset = preset

@@ -9,14 +9,35 @@ data class ModelDelegationSettings(
     val localPlatformsOnly: Boolean = true,
     val maxInputCharacters: Int = 8000,
     val maxOutputTokens: Int = 512,
-    val timeoutSeconds: Int = 30,
-    val maxCallsPerTurn: Int = 1
+    val timeoutSeconds: Int = 120,
+    val maxCallsPerTurn: Int = 1,
+    val researchEnabled: Boolean = true,
+    val automaticResearch: Boolean = true,
+    val compactToolResults: Boolean = true,
+    val maxLocalModelCalls: Int = 8,
+    val maxSearchQueries: Int = 2,
+    val searchResultsPerEngine: Int = 4,
+    val maxPages: Int = 4,
+    val crawlDepth: Int = 0,
+    val pageFetchConcurrency: Int = 2,
+    val maxPageCharacters: Int = 12000,
+    val handoffTokens: Int = 1024,
+    val compactionThresholdCharacters: Int = 3000
 ) {
     fun normalized() = copy(
-        maxInputCharacters = maxInputCharacters.coerceIn(500, 16000),
-        maxOutputTokens = maxOutputTokens.coerceIn(64, 2048),
-        timeoutSeconds = timeoutSeconds.coerceIn(5, 40),
-        maxCallsPerTurn = maxCallsPerTurn.coerceIn(1, 3)
+        maxInputCharacters = maxInputCharacters.coerceIn(1000, 64000),
+        maxOutputTokens = maxOutputTokens.coerceIn(64, 4096),
+        timeoutSeconds = timeoutSeconds.coerceIn(5, 300),
+        maxCallsPerTurn = maxCallsPerTurn.coerceIn(1, 8),
+        maxLocalModelCalls = maxLocalModelCalls.coerceIn(1, 24),
+        maxSearchQueries = maxSearchQueries.coerceIn(1, 6),
+        searchResultsPerEngine = searchResultsPerEngine.coerceIn(1, 10),
+        maxPages = maxPages.coerceIn(0, 12),
+        crawlDepth = crawlDepth.coerceIn(0, 2),
+        pageFetchConcurrency = pageFetchConcurrency.coerceIn(1, 4),
+        maxPageCharacters = maxPageCharacters.coerceIn(1000, 48000),
+        handoffTokens = handoffTokens.coerceIn(128, 4096),
+        compactionThresholdCharacters = compactionThresholdCharacters.coerceIn(500, 24000)
     )
 }
 

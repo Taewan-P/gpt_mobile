@@ -30,9 +30,9 @@ import kotlinx.coroutines.yield
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import okhttp3.Dns
 
@@ -47,7 +47,19 @@ class ReadUrlTool(
         description = "Read a public HTTP or HTTPS URL and return bounded plain text.",
         inputSchema = buildJsonObject {
             put("type", "object")
-            put("properties", buildJsonObject { put("url", buildJsonObject { put("type", "string") }) })
+            put(
+                "properties",
+                buildJsonObject {
+                    put("url", buildJsonObject { put("type", "string") })
+                    put(
+                        "includeLinks",
+                        buildJsonObject {
+                            put("type", "boolean")
+                            put("description", "Return structured text and page links for bounded crawling.")
+                        }
+                    )
+                }
+            )
             put("required", JsonArray(listOf(JsonPrimitive("url"))))
             put("additionalProperties", false)
         }
@@ -56,7 +68,7 @@ class ReadUrlTool(
     override suspend fun execute(callId: String, arguments: JsonObject): AgentToolResult {
         val start = parseUrl(arguments) ?: return error(callId, "Read URL failed: url must be a valid HTTP(S) URL without userinfo or fragment.")
         return try {
-            read(callId, start)
+            read(callId, start, (arguments["includeLinks"] as? JsonPrimitive)?.booleanOrNull == true)
         } catch (exception: CancellationException) {
             throw exception
         } catch (exception: ReadUrlException) {
@@ -70,7 +82,7 @@ class ReadUrlTool(
         }
     }
 
-    private suspend fun read(callId: String, start: URI): AgentToolResult {
+    private suspend fun read(callId: String, start: URI, includeLinks: Boolean): AgentToolResult {
         var current = start
         var redirects = 0
         val seen = mutableSetOf(current.toASCIIString())
@@ -95,9 +107,27 @@ class ReadUrlTool(
                 val bytes = readBounded(response)
                 val rawText = bytes.toString(contentType.charsetOrUtf8())
                 val text = if (isHtmlContent(contentType)) htmlToText(rawText) else rawText
+                val plainText = truncateUtf8(normalizeWhitespace(text), MAX_OUTPUT_BYTES)
+                val content = if (includeLinks) {
+                    val linkText = if (isHtmlContent(contentType)) {
+                        Regex("""<a\b[^>]*>""", RegexOption.IGNORE_CASE).findAll(rawText).joinToString("\n") { it.value }
+                    } else {
+                        rawText
+                    }
+                    ToolResultContent.Json(
+                        buildJsonObject {
+                            put("url", current.toString())
+                            put("content", plainText)
+                            put("truncated", plainText.toByteArray().size < normalizeWhitespace(text).toByteArray().size)
+                            put("links", JsonArray(researchLinks(linkText, current.toString()).filter { it.length <= 2048 }.take(32).map(::JsonPrimitive)))
+                        }
+                    )
+                } else {
+                    ToolResultContent.Text(plainText)
+                }
                 return AgentToolResult(
                     callId = callId,
-                    content = ToolResultContent.Text(truncateUtf8(normalizeWhitespace(text), MAX_OUTPUT_BYTES)),
+                    content = content,
                     isError = false
                 )
             } finally {
@@ -166,8 +196,9 @@ class ReadUrlTool(
     }
 
     private fun parseUrl(arguments: JsonObject): URI? {
-        if (arguments.keys != setOf("url")) return null
-        val value = arguments["url"]?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
+        if (arguments.keys.any { it !in setOf("url", "includeLinks") }) return null
+        if ("includeLinks" in arguments && (arguments["includeLinks"] as? JsonPrimitive)?.takeUnless { it.isString }?.booleanOrNull == null) return null
+        val value = (arguments["url"] as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull?.trim().orEmpty()
         if (value.isBlank()) return null
         return runCatching { URI(value) }.getOrNull()?.takeIf { it.isAllowedUrl() }
     }

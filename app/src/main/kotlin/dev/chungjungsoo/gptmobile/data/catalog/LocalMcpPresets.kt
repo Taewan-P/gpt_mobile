@@ -14,12 +14,12 @@ object LocalMcpPresets {
         ),
         McpPreset(
             id = "builtin-model-delegation", name = "Built-in Model Delegation",
-            description = "Let your AI ask another model for help. Works with downloaded models, Ollama and llama servers.",
+            description = "Let a local helper research, read pages and process tool results before handing compact, cited evidence to your main model.",
             category = McpCategory.DEVELOPMENT, commandOrUrl = "builtin://delegation",
             transportType = McpTransportType.STDIO, iconName = "delegation",
             author = "GPT Mobile", isPreinstalled = true, integratedTool = "delegation",
-            toolCapabilities = listOf("Delegate a bounded text task", "Choose a target AI profile", "Limit input, output, duration and calls"),
-            setupInstructions = "Disabled until you enable it and select a target in Configure. Uses existing provider credentials. It is a native implementation, not the upstream Houtini package; the separate Houtini LM card connects to that package."
+            toolCapabilities = listOf("Local search planning and bounded page crawling", "Compact cited evidence and tool-result processing", "Control coverage, concurrency, input, output and duration"),
+            setupInstructions = "Configure in Settings → Local models → Delegation. Enable it and choose an enabled on-device or private-server helper. Uses the main profile's selected tools and chat permissions. This is a native implementation; the separate Houtini LM card connects to that package."
         ),
         McpPreset(
             id = "ollama-mcp-bridge", name = "Ollama MCP Bridge", description = "Desktop orchestration bridge for Ollama and MCP servers.",

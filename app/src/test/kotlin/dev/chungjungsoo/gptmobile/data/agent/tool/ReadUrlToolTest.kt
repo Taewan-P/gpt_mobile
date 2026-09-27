@@ -28,7 +28,7 @@ class ReadUrlToolTest {
     }
 
     @Test
-    fun `definition exposes only required url string`() {
+    fun `definition exposes required url and optional structured links`() {
         val tool = tool(dns = dns("fixture.test", "93.184.216.34"))
 
         val schema = tool.definition.inputSchema
@@ -38,7 +38,8 @@ class ReadUrlToolTest {
         assertEquals(setOf("url"), schema["required"]!!.jsonArray.map { it.jsonPrimitive.content }.toSet())
         assertEquals("string", properties["url"]!!.jsonObject["type"]!!.jsonPrimitive.content)
         assertEquals(false, schema["additionalProperties"]!!.jsonPrimitive.content.toBoolean())
-        assertEquals(setOf("url"), properties.keys)
+        assertEquals(setOf("url", "includeLinks"), properties.keys)
+        assertEquals("boolean", properties["includeLinks"]!!.jsonObject["type"]!!.jsonPrimitive.content)
     }
 
     @Test
@@ -115,6 +116,40 @@ class ReadUrlToolTest {
 
         assertEquals(false, result.isError)
         assertEquals("Hello, world.", result.text())
+    }
+
+    @Test
+    fun `structured page resolves crawl links against final redirect URL`() = runBlocking {
+        val server = server { exchange ->
+            if (exchange.requestURI.path == "/start") {
+                exchange.respond(302, "text/plain", "", "Location" to "/docs/page")
+            } else {
+                exchange.respond(200, "text/html", """<a href="next?q=a%20b&amp;x=2">Next</a><a href="javascript:bad()">Bad</a><script src="/script.js"></script>Evidence""")
+            }
+        }
+        val reader = ReadUrlTool(dns = dns("fixture.test", "127.0.0.1"), allowAddress = { it.isLoopbackAddress }, htmlToText = { "Evidence" })
+        val result = reader.execute(
+            "rich",
+            buildJsonObject {
+                put("url", server.url("fixture.test", "/start"))
+                put("includeLinks", true)
+            }
+        )
+        assertFalse(result.isError)
+        val payload = (result.content as ToolResultContent.Json).value.jsonObject
+        assertEquals(server.url("fixture.test", "/docs/page"), payload.getValue("url").jsonPrimitive.content)
+        assertEquals(listOf(server.url("fixture.test", "/docs/next?q=a%20b&x=2")), payload.getValue("links").jsonArray.map { it.jsonPrimitive.content })
+        assertEquals("Evidence", payload.getValue("content").jsonPrimitive.content)
+        assertEquals("false", payload.getValue("truncated").jsonPrimitive.content)
+        assertTrue(
+            reader.execute(
+                "invalid",
+                buildJsonObject {
+                    put("url", server.url("fixture.test", "/"))
+                    put("includeLinks", "true")
+                }
+            ).isError
+        )
     }
 
     @Test
