@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.19.0] - 2026-09-27
+
+- Consolidate benchmarking beside Usage in Debug and Statistics, with debug-mode AI profile shortcuts.
+- Add controlled Quick and Full suites, weighted ratings, progress/cancellation, comparison charts and persistent run history.
+- Measure speed, latency, reliability, consistency, task accuracy, JSON correctness and safe fixture-tool success; keep everyday observations separate.
+- Distinguish local and remote profiles with labeled teal memory-chip and purple cloud icons, separate rankings and explicit rating targets.
+- Preserve profile settings while running bounded benchmark requests and compare only matching configurations.
+- Fix local package/chipset detection, GPU edition resolution, known broken MiniCPM5 NPU selection and native session cleanup.
+- Improve opt-in runtime failure diagnostics and NPU startup guidance.
+- Release version `0.9.19.0`, version code `76`.
+
 ## [0.9.17.0] - 2026-09-26
 
 - Name Free profiles automatically and enable approved LLM7 integration.
