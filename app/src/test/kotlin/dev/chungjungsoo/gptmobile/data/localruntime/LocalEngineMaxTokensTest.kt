@@ -6,6 +6,19 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class LocalEngineMaxTokensTest {
+    @Test
+    fun `compiled GPU context wins over high RAM profile setting`() {
+        assertEquals(
+            1280,
+            resolvedEngineMaxTokens(
+                requestedMaxTokens = 8192,
+                accelerator = LocalAccelerators.GPU,
+                entry = CatalogEntry(maxContextTokens = 1280),
+                deviceSocModel = "SM8750",
+                deviceRamGb = 16L
+            )
+        )
+    }
 
     @Test
     fun `NPU clamps requested max tokens to the matching SOC variant context`() {

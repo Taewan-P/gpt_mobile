@@ -465,6 +465,32 @@ class LiteRtLmAdapterTest {
     }
 
     @Test
+    fun `NPU vision package selects NPU for both executors`() = runBlocking {
+        val runtime = FakeLocalRuntime().apply {
+            scriptedEvents = listOf(listOf(LocalRuntimeEvent.TextDelta("a cat"), LocalRuntimeEvent.Done))
+        }
+        val catalog = FakeModelCatalogRepository(
+            listOf(
+                CatalogEntry(
+                    id = "gemma-3n-e2b-it",
+                    capabilities = CatalogCapabilities(vision = true, npuVision = true),
+                    supportedAccelerators = listOf("npu"),
+                    socToModelFiles = mapOf("SM8750" to dev.chungjungsoo.gptmobile.data.catalog.SocVariant(contextSize = 1280))
+                )
+            )
+        )
+        val adapter = adapter(runtime, catalog = catalog, deviceSocModel = "SM8750")
+        adapter.openSession(
+            listOf(pendingTurn("describe this", listOf(imageAttachment()))),
+            visionPlatform().copy(accelerator = "npu")
+        ).streamRound(emptyList(), emptyList()).toList()
+
+        assertEquals("npu", runtime.loadEngineCalls.single().accelerator)
+        assertEquals("npu", runtime.loadEngineCalls.single().visionAccelerator)
+        assertTrue(runtime.sendMessageImages.single().isNotEmpty())
+    }
+
+    @Test
     fun `vision model declines a pdf with the notice and still sends text`() = runBlocking {
         val runtime = FakeLocalRuntime().apply {
             scriptedEvents = listOf(listOf(LocalRuntimeEvent.TextDelta("ok"), LocalRuntimeEvent.Done))

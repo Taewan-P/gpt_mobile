@@ -16,6 +16,15 @@ class HuggingFacePackageCompatibilityTest {
     }
 
     @Test
+    fun excludesNonChatAndNonAndroidContainers() {
+        assertFalse(isSupportedHubPackage("litert-community/model", "model-web.litertlm", emptyList()))
+        assertFalse(isSupportedHubPackage("litert-community/model", "model_intel_LNL.litertlm", emptyList()))
+        assertFalse(isSupportedHubPackage("litert-community/EmbeddingGemma", "model.litertlm", emptyList()))
+        assertFalse(isSupportedHubPackage("google/model", "model.litertlm", listOf("feature-extraction")))
+        assertTrue(isSupportedHubPackage("litert-community/Qwen3-0.6B", "Qwen3-0.6B.litertlm", listOf("text-generation")))
+    }
+
+    @Test
     fun qualcommExportOnlyMatchesCompiledSoc() {
         val entry = HuggingFaceLiteRtResult("publisher/model", "abc", "model_sm8750.litertlm", 500_000_000, 1, false, emptyList()).toCatalogEntry()
         assertTrue(LocalAccelerators.isNpuEligible(entry.supportedAccelerators, entry.socToModelFiles, "SM8750"))

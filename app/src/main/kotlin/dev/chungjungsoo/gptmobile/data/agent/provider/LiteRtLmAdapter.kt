@@ -167,7 +167,11 @@ class LiteRtLmAdapter(
                     modelPath = modelPath,
                     accelerator = LocalAccelerators.normalize(platform.accelerator),
                     maxTokens = effectiveContextTokens,
-                    isVisionEnabled = visionCapable
+                    isVisionEnabled = visionCapable,
+                    visionAccelerator = if (
+                        LocalAccelerators.normalize(platform.accelerator) == LocalAccelerators.NPU &&
+                        catalogEntry?.capabilities?.npuVision == true
+                    ) LocalAccelerators.NPU else LocalAccelerators.GPU
                 )
                 val sampler = LocalSamplerConfig(
                     topK = platform.topK ?: DEFAULT_TOP_K,
@@ -390,13 +394,15 @@ class LiteRtLmAdapter(
         modelPath: String,
         accelerator: String,
         maxTokens: Int,
-        isVisionEnabled: Boolean
+        isVisionEnabled: Boolean,
+        visionAccelerator: String
     ): LocalEngineSpec {
         val requested = LocalEngineSpec(
             modelPath = modelPath,
             accelerator = accelerator,
             maxTokens = maxTokens,
-            isVisionEnabled = isVisionEnabled
+            isVisionEnabled = isVisionEnabled,
+            visionAccelerator = visionAccelerator
         )
         return if (cpuFallbackKey(modelPath, accelerator) in cpuFallbackByModelAccelerator) {
             requested.copy(accelerator = LocalAccelerators.CPU)
