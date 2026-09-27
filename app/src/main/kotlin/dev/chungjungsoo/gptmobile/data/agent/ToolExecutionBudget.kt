@@ -10,7 +10,10 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonObject
 
 /** One budget per user turn, shared by every bound tool, including the native engine bridge. */
-class ToolExecutionBudget(private val limits: AgentRunLimits) {
+class ToolExecutionBudget(
+    private val limits: AgentRunLimits,
+    private val failureMessage: (Exception) -> String = { "Tool execution failed. Check the connection diagnostics before repeating an action." }
+) {
     private val calls = AtomicInteger()
     private val completed = AtomicInteger()
     private val remainingBytes = AtomicInteger(limits.maxToolOutputBytes)
@@ -41,8 +44,8 @@ class ToolExecutionBudget(private val limits: AgentRunLimits) {
                 return bounded(result)
             } catch (cancellation: CancellationException) {
                 throw cancellation
-            } catch (_: Exception) {
-                return bounded(failure("Tool execution failed. Check the connection diagnostics before repeating an action."))
+            } catch (error: Exception) {
+                return bounded(failure(failureMessage(error)))
             } finally {
                 withContext(NonCancellable) { onFinished(callId, success) }
             }

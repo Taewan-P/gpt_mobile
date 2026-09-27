@@ -63,7 +63,8 @@ class LiteRtLmAdapterTest {
             scriptedToolInvocations = listOf(listOf(ScriptedToolInvocation("lookup", "{}", afterEventIndex = 0)))
         }
         val events = adapter(runtime, catalog = toolsCatalog()).openSession(
-            turns("look up the result"), localPlatform(),
+            turns("look up the result"),
+            localPlatform(),
             listOf(lookupTool { id, _ -> AgentToolResult(id, ToolResultContent.Text("x".repeat(50000)), false) })
         ).streamRound(emptyList(), emptyList()).toList()
         assertTrue(runtime.toolExecutorResults.single().toByteArray().size <= 1024)

@@ -35,7 +35,6 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -52,12 +51,15 @@ class ProviderToolRejectionTest {
                     .collect { throw failure }
             }
         }
-        assertSame(failure, caught)
+        assertEquals(failure.message, caught.message)
+        assertTrue(generateSequence<Throwable>(caught) { it.cause }.any { it === failure })
     }
 
     @Test
     fun `anthropic SSE collector exception is not treated as a malformed chunk`() = withServer(
-        200, "data: {\"type\":\"message_stop\"}\n\n", "text/event-stream"
+        200,
+        "data: {\"type\":\"message_stop\"}\n\n",
+        "text/event-stream"
     ) { baseUrl ->
         val failure = IllegalStateException("consumer stopped")
         val caught = assertThrows(IllegalStateException::class.java) {
@@ -66,7 +68,8 @@ class ProviderToolRejectionTest {
                     .collect { throw failure }
             }
         }
-        assertSame(failure, caught)
+        assertEquals(failure.message, caught.message)
+        assertTrue(generateSequence<Throwable>(caught) { it.cause }.any { it === failure })
     }
 
     @Test

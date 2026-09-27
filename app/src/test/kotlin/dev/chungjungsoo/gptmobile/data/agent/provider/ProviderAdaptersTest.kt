@@ -92,13 +92,13 @@ class ProviderAdaptersTest {
 
     @Test
     fun `Anthropic collector failure is neither masked nor retried with another credential`() = runBlocking {
-        val api = FakeAnthropicAPI(ArrayDeque(listOf(flowOf(
-            dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ErrorResponseChunk(
-                error = dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ErrorDetail("invalid_request_error", "temperature is deprecated")
-            )
-        ))))
+        val failureChunk = dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ErrorResponseChunk(
+            error = dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ErrorDetail("invalid_request_error", "temperature is deprecated")
+        )
+        val api = FakeAnthropicAPI(ArrayDeque(listOf(flowOf(failureChunk))))
         val session = AnthropicMessagesAdapter(api, attachmentEncoder()).openSession(
-            turns(), platform(ClientType.ANTHROPIC).copy(token = "one,two")
+            turns(),
+            platform(ClientType.ANTHROPIC).copy(token = "one,two")
         )
         val failure = IllegalStateException("collector stopped")
         try {

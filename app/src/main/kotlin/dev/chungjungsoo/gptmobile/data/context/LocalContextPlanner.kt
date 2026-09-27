@@ -61,8 +61,12 @@ internal object LocalContextPlanner {
         }
         val retained = listOfNotNull(anchor) + recent.asReversed()
         return LocalContextPlan(
-            retained, selectedTools, toolReserve * 2, used,
-            priorTurns.size - retained.size, tools.size - selectedTools.size
+            retained,
+            selectedTools,
+            toolReserve * 2,
+            used,
+            priorTurns.size - retained.size,
+            tools.size - selectedTools.size
         )
     }
 

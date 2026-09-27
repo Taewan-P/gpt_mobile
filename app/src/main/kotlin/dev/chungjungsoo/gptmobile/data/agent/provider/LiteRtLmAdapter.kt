@@ -167,11 +167,13 @@ class LiteRtLmAdapter(
                     return@channelFlow
                 }
                 if (plan.omittedTurns > 0 || plan.omittedTools > 0) {
-                    send(ProviderEvent.Notice(
-                        "Local context: ${plan.omittedTurns} earlier turns and ${plan.omittedTools} tools omitted to fit this model. " +
-                            "Select fewer tools or a larger-context model if needed.",
-                        persistent = true
-                    ))
+                    send(
+                        ProviderEvent.Notice(
+                            "Local context: ${plan.omittedTurns} earlier turns and ${plan.omittedTools} tools omitted to fit this model. " +
+                                "Select fewer tools or a larger-context model if needed.",
+                            persistent = true
+                        )
+                    )
                 }
                 val compactedPriorTurns = plan.priorTurns
                 val selectedNames = plan.tools.map { it.name }.toSet()
@@ -180,7 +182,8 @@ class LiteRtLmAdapter(
                         maxToolCalls = Int.MAX_VALUE,
                         maxToolOutputBytes = plan.toolResultBytes,
                         toolTimeoutMillis = Long.MAX_VALUE
-                    )
+                    ),
+                    failureMessage = { error -> error.message ?: "Local tool execution failed." }
                 )
                 val registeredTools = availableTools.filter { it.definition.name in selectedNames }.map { toolBudget.bind(it) }
                 val descriptors = registeredTools.map { it.definition.toLocalDescriptor() }

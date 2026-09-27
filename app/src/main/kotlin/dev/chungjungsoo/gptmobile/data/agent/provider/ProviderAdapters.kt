@@ -874,6 +874,7 @@ internal fun anthropicThinkingPolicy(
 }
 
 internal const val ANTHROPIC_INTERLEAVED_THINKING_BETA = "interleaved-thinking-2025-05-14"
+
 // These models reject custom sampling even when thinking is explicitly disabled.
 // Match provider-prefixed IDs and dated snapshots as well as the direct API IDs.
 internal fun anthropicSupportsSampling(model: String): Boolean = !FIXED_SAMPLING_ANTHROPIC_MODEL_PATTERN.containsMatchIn(model.lowercase())
