@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.19.1] - 2026-09-27
+
+- Budget local system instructions, history, tool definitions and results against the effective engine context; reject oversized current input before native allocation.
+- Disclose omitted history/tools, bound native tool results and close conversations whose hidden tool state cannot be safely reused.
+- Omit unsupported sampling parameters for fixed-sampling Claude models, including benchmarks with reasoning disabled.
+- Preserve Anthropic stream errors and downstream collector failures without Flow exception-transparency violations.
+- Validate installed local packages before benchmark runs so missing or incompatible downloads do not generate failed ratings.
+- Add a diagnostic review with ten prioritized runtime and performance upgrades, primary sources and device acceptance checks.
+- Release version `0.9.19.1`, version code `77`.
+
 ## [0.9.19.0] - 2026-09-27
 
 - Consolidate benchmarking beside Usage in Debug and Statistics, with debug-mode AI profile shortcuts.

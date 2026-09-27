@@ -1,22 +1,24 @@
-# GPT Mobile AI 0.9.19.0
+# GPT Mobile AI 0.9.19.1
 
-## AI profile benchmarks
+## Local model reliability
 
-- Open **Settings → Debug and Statistics → Benchmarks**, beside Usage. AI profiles also have a direct Benchmarks shortcut when debug mode is enabled.
-- Explore Overview, Everyday, Compare and History views with score breakdowns, trends, request details and saved test results.
-- Run a five-test Quick suite or an eight-test Full suite covering generation, instructions, structured JSON, arithmetic, safe tool use and conversation recall.
-- Ratings combine speed, first-response latency, completion reliability, consistency, task accuracy, JSON correctness and tool success. Coverage and sample counts show how much evidence supports each score.
-- Local profiles use teal memory-chip icons; remote profiles use purple cloud icons. Their comparisons and rating targets remain separate.
-- Everyday observations show real request and tool performance separately from controlled test scores. History retains up to 200 runs, including partial and canceled runs.
-- Benchmark requests use a temporary 512-token ceiling without changing saved profile settings or ordinary chat output limits. Remote tests use the selected provider account and may incur its normal charges.
+- Budget system instructions, the current prompt, earlier turns and tool definitions against the model's effective context capacity, with headroom for replies and tool results.
+- Reject oversized current input before allocating a native engine and explain how to reduce it. Show a notice when earlier turns or tool definitions are omitted to fit.
+- Bound native tool results and close conversations containing hidden tool exchanges that cannot be safely reconstructed, while retaining the loaded engine for later requests.
+- Preserve saved output preferences, including unlimited output when unset. Actual context capacity remains a property of the model and runtime.
 
-Scores are app-specific comparisons of matching configurations, not a universal model ranking. Missing measurements are labeled; incomplete and canceled runs do not contribute to ratings.
+## Claude and benchmark fixes
 
-## Local model fixes
+- Omit unsupported temperature/top-p parameters for fixed-sampling Claude models, including Sonnet 5 with reasoning disabled.
+- Preserve the original streaming failure without masking it with a Flow exception-transparency error or swallowing a collector exception.
+- Validate local downloads and accelerator compatibility before starting a benchmark suite. Setup errors no longer create repeated failed tests or affect ratings.
+- Use the same installed-model selection for benchmarks and inference, including legacy GPU/NPU editions.
 
-- Correct package and chipset detection, and resolve existing GPU editions after an NPU download is removed.
-- Exclude known broken MiniCPM5 SM8750 NPU exports and offer the publisher's Android-tested CPU/GPU edition with its 2048-token context capacity.
-- Close canceled or failed native sessions before the next request begins.
-- Preserve useful NPU startup guidance and include redacted failure details in opt-in diagnostics.
+## Diagnostic research
 
-Version code: **76**. Android 12 or newer. Use the ARM64 APK for most phones.
+- Include a detailed [upgrade review](https://github.com/tailscale-signin/GPT_Mobile_AI-improved/blob/v0.9.19.1/docs/diagnostics-upgrade-review-2026-09-27.md) with ten ranked proposals, twelve primary sources, integration points and device acceptance checks.
+- Runtime dependency upgrades and experimental acceleration options remain proposed follow-ups. This release does not claim to resolve native QNN teardown warnings; GPU/NPU inference and sustained thermal behavior still require physical-device verification.
+
+The fixes passed 1,140 unit tests, Android lint, Kotlin formatting, APK/native-library integrity checks, CodeQL and remote diagnostics before merge. The signed-release workflow validates the exact release commit and verifies package identity and signing-certificate continuity before publishing.
+
+Version code: **77**. Android 12 or newer. Use the ARM64 APK for most phones, including the ROG Phone 9 Pro.
