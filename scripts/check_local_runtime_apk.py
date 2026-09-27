@@ -1,11 +1,28 @@
 #!/usr/bin/env python3
-"""Verify the actual APK's pinned LiteRT-LM/QAIRT payload, including host ELF alignment."""
+"""Verify pinned LiteRT-LM/QAIRT payloads and all Android host ELF LOAD alignments."""
 import argparse
 import hashlib
 import json
 from pathlib import Path
 import struct
 from zipfile import ZipFile
+
+
+def check_host_alignment(name, binary):
+    assert binary[:4] == b"\x7fELF", f"{name}: not an ELF library"
+    # Qualcomm skeletons are DSP binaries, not Android host shared libraries.
+    machine = struct.unpack_from("<H", binary, 18)[0]
+    if machine not in (183, 62):  # AArch64 and x86-64
+        return False
+    assert binary[4:6] == b"\x02\x01", f"{name}: expected little-endian ELF64"
+    offset = struct.unpack_from("<Q", binary, 32)[0]
+    entry_size, count = struct.unpack_from("<HH", binary, 54)
+    for index in range(count):
+        header = offset + index * entry_size
+        if struct.unpack_from("<I", binary, header)[0] == 1:
+            alignment = struct.unpack_from("<Q", binary, header + 48)[0]
+            assert alignment >= 16384, f"{name}: LOAD segment is not 16KB aligned"
+    return True
 
 
 def check_apk(apk_path, manifest):
@@ -22,23 +39,14 @@ def check_apk(apk_path, manifest):
             binary = apk.read(name)
             assert len(binary) == expected["bytes"], f"{name}: unexpected size"
             assert hashlib.sha256(binary).hexdigest() == expected["sha256"], f"{name}: version/hash mismatch"
-            assert binary[:4] == b"\x7fELF", f"{name}: not an ELF library"
-            # Qualcomm skeletons are DSP binaries. Android's page-size requirement
-            # applies to the AArch64 host libraries, not the Hexagon payloads.
-            machine = struct.unpack_from("<H", binary, 18)[0]
-            if machine == 183:
-                assert binary[4:6] == b"\x02\x01", f"{name}: expected little-endian ELF64"
-                offset = struct.unpack_from("<Q", binary, 32)[0]
-                entry_size, count = struct.unpack_from("<HH", binary, 54)
-                for index in range(count):
-                    header = offset + index * entry_size
-                    if struct.unpack_from("<I", binary, header)[0] == 1:
-                        alignment = struct.unpack_from("<Q", binary, header + 48)[0]
-                        assert alignment >= 16384, f"{name}: LOAD segment is not 16KB aligned"
             checked += 1
+        aligned = sum(
+            check_host_alignment(name, apk.read(name))
+            for name in names if name.startswith("lib/") and name.endswith(".so")
+        )
         forbidden = {"libLiteRtCompilerPlugin_Qualcomm.so", "libqnn_delegate_jni.so", "libQnnTFLiteDelegate.so", "libQnnIr.so", "libQnnSaver.so"}
         assert not any(Path(name).name in forbidden for name in names), "Unexpected second QNN integration/compiler payload"
-        print(f"{apk_path.name}: {checked} pinned runtime libraries verified; AArch64 LOAD alignment passed")
+        print(f"{apk_path.name}: {checked} pinned runtime libraries verified; {aligned} Android host libraries passed 16KB LOAD alignment")
 
 
 def main():

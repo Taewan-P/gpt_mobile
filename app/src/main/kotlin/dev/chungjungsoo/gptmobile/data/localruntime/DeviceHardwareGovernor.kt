@@ -6,6 +6,7 @@ import android.content.IntentFilter
 import android.os.BatteryManager
 import android.os.Build
 import android.os.PowerManager
+import android.os.SystemClock
 import android.util.Log
 
 /**
@@ -26,7 +27,9 @@ data class DeviceHardwareState(
     val thermalState: DeviceThermalState = DeviceThermalState.NORMAL,
     val batteryPct: Int = 100,
     val isCharging: Boolean = true,
-    val isPowerSaveMode: Boolean = false
+    val isPowerSaveMode: Boolean = false,
+    val thermalHeadroom: Float? = null,
+    val moderateThermalThreshold: Float? = null
 ) {
     /**
      * Determines whether hardware is under severe thermal dissipation or low battery pressure.
@@ -34,6 +37,7 @@ data class DeviceHardwareState(
     val isThrottlingRequired: Boolean
         get() = thermalState == DeviceThermalState.SEVERE ||
             thermalState == DeviceThermalState.CRITICAL ||
+            (thermalHeadroom?.let { it.isFinite() && it >= 1f } == true) ||
             isPowerSaveMode ||
             (!isCharging && batteryPct <= 15)
 
@@ -41,7 +45,15 @@ data class DeviceHardwareState(
      * Determines whether hardware is under moderate pressure.
      */
     val isModeratePressure: Boolean
-        get() = thermalState == DeviceThermalState.MODERATE || (!isCharging && batteryPct <= 25)
+        get() = thermalState == DeviceThermalState.MODERATE ||
+            (!isCharging && batteryPct <= 25) ||
+            (
+                thermalHeadroom?.let { headroom ->
+                    moderateThermalThreshold?.let { threshold ->
+                        headroom.isFinite() && threshold.isFinite() && threshold > 0f && threshold <= 1f && headroom >= threshold
+                    }
+                } == true
+                )
 }
 
 /**
@@ -57,52 +69,64 @@ data class AdaptiveThrottlingPolicy(
 
 object DeviceHardwareGovernor {
     private const val TAG = "DeviceHardwareGov"
+    private val forecastSampler = ThermalForecastSampler()
 
     fun inspectHardwareState(context: Context): DeviceHardwareState {
         val thermalState = inspectThermalState(context)
         val (batteryPct, isCharging) = inspectBattery(context)
         val isPowerSaveMode = inspectPowerSaveMode(context)
+        val forecast = forecastSampler.read(SystemClock.elapsedRealtime()) {
+            val manager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+            ThermalForecast(
+                headroom = manager?.getThermalHeadroom(10),
+                moderateThreshold = if (Build.VERSION.SDK_INT >= 35) {
+                    runCatching { manager?.thermalHeadroomThresholds?.get(PowerManager.THERMAL_STATUS_MODERATE) }.getOrNull()
+                } else {
+                    null
+                }
+            )
+        }
 
         return DeviceHardwareState(
             thermalState = thermalState,
             batteryPct = batteryPct,
             isCharging = isCharging,
-            isPowerSaveMode = isPowerSaveMode
+            isPowerSaveMode = isPowerSaveMode,
+            thermalHeadroom = forecast.headroom,
+            moderateThermalThreshold = forecast.moderateThreshold
         )
     }
 
     fun computeThrottlingPolicy(
         hardwareState: DeviceHardwareState,
         isHighRamDevice: Boolean
-    ): AdaptiveThrottlingPolicy {
-        return when {
-            hardwareState.isThrottlingRequired -> {
-                // Severe thermal or low battery: throttle dispatch interval to 250ms, clamp tokens, reduce top-k
-                AdaptiveThrottlingPolicy(
-                    streamPublishIntervalMillis = 250L,
-                    topKReductionRatio = 0.5f,
-                    maxTokensClamp = 1024,
-                    isCooperativeYieldAggressive = true
-                )
-            }
-            hardwareState.isModeratePressure -> {
-                // Moderate thermal: throttle dispatch interval to 33ms (~30 FPS), mild top-k reduction
-                AdaptiveThrottlingPolicy(
-                    streamPublishIntervalMillis = 33L,
-                    topKReductionRatio = 0.75f,
-                    maxTokensClamp = 2048,
-                    isCooperativeYieldAggressive = false
-                )
-            }
-            else -> {
-                // Normal conditions: use 8ms (120 FPS) for high RAM devices, 33ms standard otherwise
-                AdaptiveThrottlingPolicy(
-                    streamPublishIntervalMillis = if (isHighRamDevice) 8L else 33L,
-                    topKReductionRatio = 1.0f,
-                    maxTokensClamp = null,
-                    isCooperativeYieldAggressive = false
-                )
-            }
+    ): AdaptiveThrottlingPolicy = when {
+        hardwareState.isThrottlingRequired -> {
+            // Severe thermal or low battery: throttle dispatch interval to 250ms, clamp tokens, reduce top-k
+            AdaptiveThrottlingPolicy(
+                streamPublishIntervalMillis = 250L,
+                topKReductionRatio = 0.5f,
+                maxTokensClamp = 1024,
+                isCooperativeYieldAggressive = true
+            )
+        }
+        hardwareState.isModeratePressure -> {
+            // Moderate thermal: throttle dispatch interval to 33ms (~30 FPS), mild top-k reduction
+            AdaptiveThrottlingPolicy(
+                streamPublishIntervalMillis = 33L,
+                topKReductionRatio = 0.75f,
+                maxTokensClamp = 2048,
+                isCooperativeYieldAggressive = false
+            )
+        }
+        else -> {
+            // Normal conditions: use 8ms (120 FPS) for high RAM devices, 33ms standard otherwise
+            AdaptiveThrottlingPolicy(
+                streamPublishIntervalMillis = if (isHighRamDevice) 8L else 33L,
+                topKReductionRatio = 1.0f,
+                maxTokensClamp = null,
+                isCooperativeYieldAggressive = false
+            )
         }
     }
 
@@ -147,25 +171,23 @@ object DeviceHardwareGovernor {
         return Pair(100, true)
     }
 
-    private fun inspectPowerSaveMode(context: Context): Boolean {
-        return try {
-            val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
-            powerManager?.isPowerSaveMode ?: false
-        } catch (e: Exception) {
-            false
-        }
+    private fun inspectPowerSaveMode(context: Context): Boolean = try {
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+        powerManager?.isPowerSaveMode ?: false
+    } catch (e: Exception) {
+        false
     }
-    
+
     /**
      * Enhanced hardware state inspection with additional diagnostics for QNN performance
      */
     fun inspectHardwareStateForQnn(context: Context): DeviceHardwareState {
         val baseState = inspectHardwareState(context)
-        
+
         // Additional QNN-specific diagnostics
         val qnnReady = QnnEnvironment.isEnvironmentConfigured()
         Log.d(TAG, "QNN environment configured: $qnnReady")
-        
+
         return baseState.copy(
             // Add any QNN-specific state if needed
         )

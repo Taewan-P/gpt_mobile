@@ -54,6 +54,7 @@ class ToolConnectionsViewModelTest {
         assertEquals(ToolConnectionAuthType.BEARER, providers.getValue(ToolConnectionType.FIRECRAWL).authType)
         assertEquals(ToolConnectionAuthType.BEARER, providers.getValue(ToolConnectionType.PERPLEXITY).authType)
         assertEquals(ToolConnectionAuthType.API_KEY, providers.getValue(ToolConnectionType.EXA).authType)
+        assertEquals(ToolConnectionAuthType.API_KEY, providers.getValue(ToolConnectionType.BRAVE).authType)
         assertEquals(ToolConnectionAuthType.NONE, providers.getValue(ToolConnectionType.MCP).authType)
     }
 

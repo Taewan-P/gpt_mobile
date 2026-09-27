@@ -52,15 +52,10 @@ class LocalMemoryTool(
         }
         val query = if (capture) message.content else (arguments["query"] as? JsonPrimitive)?.content.orEmpty()
         if (query.isBlank() || query.length > 8000) return AgentToolResult(callId, ToolResultContent.Text("Provide a non-empty query of at most 8000 characters."), true)
-        val before = state.facts.size
+        val before = state.facts.map { it.id }.toSet()
         val recalled = repository.prepareTurn(query, message.chatId, message.id, isLocal, capture)
-        if (capture) {
-            Regex("(?im)^\\s*(?:please )?(?:remember(?: that)?|save this(?: fact)?[:]?)\\s+(.{1,1000})$").findAll(message.content).forEach { match ->
-                repository.rememberUserText(match.groupValues[1], message)
-            }
-        }
         val result = if (capture) {
-            "Saved ${repository.state.value.facts.size - before} new memories from the user message. Use memory_add_observations with an exact user quote for details outside automatic extraction. Review-before-recall settings still apply."
+            "Saved ${repository.state.value.facts.count { it.id !in before }} new memories from the user message. Use memory_add_observations with an exact user quote for details outside automatic extraction. Review-before-recall settings still apply."
         } else {
             recalled.prefix().ifBlank { "No matching enabled facts are available under the current memory settings." }
         }

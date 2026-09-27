@@ -21,6 +21,8 @@ class NetworkClientTest {
         assertTrue(NetworkClient.isSensitiveHeader("X-Goog-Api-Key"))
         assertTrue(NetworkClient.isSensitiveHeader("x-api-key"))
         assertTrue(NetworkClient.isSensitiveHeader("X-API-KEY"))
+        assertTrue(NetworkClient.isSensitiveHeader("X-Subscription-Token"))
+        assertTrue(NetworkClient.isSensitiveHeader("x-subscription-token"))
         assertTrue(NetworkClient.isSensitiveHeader("Mcp-Session-Id"))
         assertTrue(NetworkClient.isSensitiveHeader("mcp-session-id"))
         assertTrue(NetworkClient.isSensitiveHeader("Proxy-Authorization"))

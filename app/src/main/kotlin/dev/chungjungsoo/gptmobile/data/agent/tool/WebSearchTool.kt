@@ -6,6 +6,7 @@ import dev.chungjungsoo.gptmobile.data.agent.AgentToolResult
 import dev.chungjungsoo.gptmobile.data.agent.ToolResultContent
 import dev.chungjungsoo.gptmobile.data.agent.truncateUtf8
 import dev.chungjungsoo.gptmobile.data.network.NetworkClient
+import io.ktor.client.plugins.timeout
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -43,6 +44,7 @@ enum class WebSearchProvider {
     FIRECRAWL,
     PERPLEXITY,
     EXA,
+    BRAVE,
     AUTO
 }
 
@@ -105,18 +107,33 @@ class WebSearchTool(
 
     private suspend fun executeConfiguredProvider(callId: String, request: WebSearchRequest): AgentToolResult {
         return try {
-            val response = networkClient().post(config.endpointUrl) {
-                when (config.provider) {
-                    WebSearchProvider.EXA -> header("x-api-key", config.bearerToken.trim())
-                    WebSearchProvider.FIRECRAWL, WebSearchProvider.PERPLEXITY -> bearerAuth(config.bearerToken.trim())
-                    WebSearchProvider.AUTO -> Unit
+            val response = if (config.provider == WebSearchProvider.BRAVE) {
+                if (config.bearerToken.isBlank()) return error(callId, "Add a Brave Search API key in Settings → Tool Connections.")
+                networkClient().get(config.endpointUrl) {
+                    timeout { requestTimeoutMillis = 30_000 }
+                    header("X-Subscription-Token", config.bearerToken.trim())
+                    header("Accept", "application/json")
+                    parameter("q", braveSearchQuery(request.query, request.includeDomains, request.excludeDomains))
+                    parameter("count", request.maxResults)
+                    parameter("result_filter", "web")
+                    parameter("text_decorations", false)
+                    request.recencyDays?.let { parameter("freshness", braveSearchFreshness(it, clock)) }
                 }
-                setBody(payload(request))
+            } else {
+                networkClient().post(config.endpointUrl) {
+                    when (config.provider) {
+                        WebSearchProvider.EXA -> header("x-api-key", config.bearerToken.trim())
+                        WebSearchProvider.FIRECRAWL, WebSearchProvider.PERPLEXITY -> bearerAuth(config.bearerToken.trim())
+                        WebSearchProvider.AUTO, WebSearchProvider.BRAVE -> Unit
+                    }
+                    setBody(payload(request))
+                }
             }
             if (response.status.value !in 200..299) {
                 return error(callId, providerFailureMessage(response.status.value))
             }
-            val content = runCatching { normalized(config.provider, response.bodyAsText(), request.maxResults) }.getOrElse { exception ->
+            val content = runCatching { normalized(config.provider, response.bodyAsText(), request) }.getOrElse { exception ->
+                if (exception is CancellationException) throw exception
                 return if (exception is MissingRequiredResultFieldException) {
                     error(callId, "Web search failed: missing required result fields.")
                 } else {
@@ -140,11 +157,13 @@ class WebSearchTool(
             WebSearchProvider.FIRECRAWL -> "Firecrawl"
             WebSearchProvider.PERPLEXITY -> "Perplexity"
             WebSearchProvider.EXA -> "Exa"
+            WebSearchProvider.BRAVE -> "Brave Search"
             WebSearchProvider.AUTO -> "Web search"
         }
         return when (status) {
             401 -> "$provider web search authentication failed (HTTP 401). Update this connection's $provider API key in Settings → Tool Connections. AI platform keys are configured separately."
             403 -> "$provider web search access was denied (HTTP 403). Check this search connection's API key permissions and provider account."
+            429 -> "$provider web search rate limit reached (HTTP 429). Wait before retrying or check your search plan allowance."
             else -> "Web search failed: HTTP $status."
         }
     }
@@ -359,6 +378,12 @@ class WebSearchTool(
         if (!domainElementsAreStrings(arguments["includeDomains"]) || !domainElementsAreStrings(arguments["excludeDomains"])) errors += "domains must be strings"
         if (includeDomains.any { !it.isValidDomain() } || excludeDomains.any { !it.isValidDomain() }) errors += "domains must be host names"
         if (includeDomains.isNotEmpty() && excludeDomains.isNotEmpty()) errors += "includeDomains and excludeDomains cannot both be set"
+        if (config.provider == WebSearchProvider.BRAVE && errors.isEmpty()) {
+            runCatching {
+                braveSearchQuery(query, includeDomains, excludeDomains)
+                recencyDays?.let { braveSearchFreshness(it, clock) }
+            }.exceptionOrNull()?.let { errors += it.message ?: "invalid Brave search parameters" }
+        }
         return errors
     }
 
@@ -388,34 +413,51 @@ class WebSearchTool(
             put("contents", buildJsonObject { put("highlights", true) })
         }
 
+        WebSearchProvider.BRAVE -> error("Brave Search uses GET parameters")
+
         WebSearchProvider.AUTO -> buildJsonObject {
             put("query", request.query)
             put("limit", request.maxResults)
         }
     }
 
-    private fun normalized(provider: WebSearchProvider, body: String, maxResults: Int): JsonObject {
+    private fun normalized(provider: WebSearchProvider, body: String, request: WebSearchRequest): JsonObject {
         val root = NetworkClient.json.parseToJsonElement(body).jsonObject
         val rawResults = when (provider) {
             WebSearchProvider.FIRECRAWL -> root["data"]?.jsonObject?.get("web")?.jsonArray
             WebSearchProvider.PERPLEXITY -> root["results"]?.jsonArray
             WebSearchProvider.EXA -> root["results"]?.jsonArray
+            WebSearchProvider.BRAVE -> {
+                val web = root["web"]
+                if (web == null || web is kotlinx.serialization.json.JsonNull) {
+                    require(root.string("type") == "search") { "missing search response" }
+                    JsonArray(emptyList())
+                } else {
+                    web.jsonObject["results"]?.jsonArray
+                }
+            }
             WebSearchProvider.AUTO -> root["results"]?.jsonArray
         } ?: throw IllegalArgumentException("missing results")
-        val results = rawResults.take(maxResults).map { element ->
+        val results = rawResults.take(request.maxResults).map { element ->
             val value = element.jsonObject
             val title = value.string("title")
             val url = value.string("url")
             val snippet = value.string("snippet") ?: value.string("description") ?: value.highlights() ?: value.string("text") ?: value.string("summary")
+                ?: if (provider == WebSearchProvider.BRAVE) "" else null
             if (title == null || url == null || snippet == null) throw MissingRequiredResultFieldException()
             buildJsonObject {
-                put("title", title)
+                put("title", if (provider == WebSearchProvider.BRAVE) cleanHtml(title) else title)
                 put("url", url)
-                put("snippet", snippet)
+                put("snippet", if (provider == WebSearchProvider.BRAVE) cleanHtml(snippet) else snippet)
                 (value.string("publishedDate") ?: value.string("date"))?.let { put("publishedDate", it) }
             }
         }
-        return compactSearchResults(results, maxResults)
+        val filtered = if (provider == WebSearchProvider.BRAVE) {
+            results.filter { matchesSearchDomains(it.string("url").orEmpty(), request.includeDomains, request.excludeDomains) }
+        } else {
+            results
+        }
+        return compactSearchResults(filtered, request.maxResults)
     }
 
     private fun compactSearchResults(results: List<JsonObject>, maxResults: Int): JsonObject {

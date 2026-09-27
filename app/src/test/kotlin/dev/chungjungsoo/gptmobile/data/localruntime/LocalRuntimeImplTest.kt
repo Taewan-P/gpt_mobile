@@ -2,10 +2,12 @@ package dev.chungjungsoo.gptmobile.data.localruntime
 
 import android.app.Application
 import com.google.ai.edge.litertlm.Backend
+import com.google.ai.edge.litertlm.BenchmarkInfo
 import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
+import com.google.ai.edge.litertlm.ExperimentalApi
 import com.google.ai.edge.litertlm.MessageCallback
 import io.mockk.every
 import io.mockk.mockk
@@ -16,6 +18,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -157,5 +160,45 @@ class LocalRuntimeImplTest {
         assertTrue(runCatching { runtime.createConversation(config) }.isFailure)
         assertFalse(runtime.hasOpenConversation())
         verify(exactly = 1) { conversation.close() }
+    }
+
+    @OptIn(ExperimentalApi::class)
+    @Test
+    fun nativeCountersAreCollectedOnlyWhenEnabled() = runTest {
+        val engine = mockk<Engine>(relaxed = true)
+        val conversation = mockk<Conversation>(relaxed = true)
+        every { engine.createConversation(any()) } returns conversation
+        every { conversation.sendMessageAsync(any<Contents>(), any<MessageCallback>()) } answers { secondArg<MessageCallback>().onDone() }
+        every { conversation.getBenchmarkInfo() } returns BenchmarkInfo(0.0, .1, 20, 10, 100.0, 25.0)
+        val runtime = LocalRuntimeImpl(RuntimeEnvironment.getApplication()) { engine }
+        val requested = spec("cpu")
+        val config = LocalConversationConfig(LocalSamplerConfig(40, .95f, .8f), null, emptyList())
+        runtime.loadEngine(requested)
+        runtime.createConversation(config)
+        assertNull(runtime.sendMessage("first").toList().filterIsInstance<LocalRuntimeEvent.Metrics>().single().metrics.native)
+        verify(exactly = 0) { conversation.getBenchmarkInfo() }
+        runtime.loadEngine(requested.copy(nativeMetricsEnabled = true))
+        runtime.createConversation(config)
+        val native = runtime.sendMessage("second").toList().filterIsInstance<LocalRuntimeEvent.Metrics>().single().metrics.native
+        assertEquals(10, native?.decodeTokens)
+        assertEquals(25.0, native?.decodeTokensPerSecond)
+        verify(exactly = 1) { conversation.getBenchmarkInfo() }
+    }
+
+    @OptIn(ExperimentalApi::class)
+    @Test
+    fun counterFailureDoesNotDiscardCompletedResponse() = runTest {
+        val engine = mockk<Engine>(relaxed = true)
+        val conversation = mockk<Conversation>(relaxed = true)
+        every { engine.createConversation(any()) } returns conversation
+        every { conversation.sendMessageAsync(any<Contents>(), any<MessageCallback>()) } answers { secondArg<MessageCallback>().onDone() }
+        every { conversation.getBenchmarkInfo() } throws IllegalStateException("Counters unavailable")
+        val runtime = LocalRuntimeImpl(RuntimeEnvironment.getApplication()) { engine }
+        runtime.loadEngine(spec("cpu").copy(nativeMetricsEnabled = true))
+        runtime.createConversation(LocalConversationConfig(LocalSamplerConfig(40, .95f, .8f), null, emptyList()))
+        val events = runtime.sendMessage("hello").toList()
+        assertTrue(events.last() is LocalRuntimeEvent.Done)
+        assertFalse(events.any { it is LocalRuntimeEvent.Error })
+        assertNull(events.filterIsInstance<LocalRuntimeEvent.Metrics>().single().metrics.native)
     }
 }

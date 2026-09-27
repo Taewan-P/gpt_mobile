@@ -71,6 +71,7 @@ import dev.chungjungsoo.gptmobile.util.pinnedExitUntilCollapsedScrollBehavior
 @Composable
 fun LocalModelsScreen(
     startInMarketplace: Boolean = false,
+    startInDelegation: Boolean = false,
     modifier: Modifier = Modifier,
     viewModel: LocalModelsViewModel = hiltViewModel(),
     runtimeViewModel: LocalRuntimeSettingsViewModel = hiltViewModel(),
@@ -86,7 +87,7 @@ fun LocalModelsScreen(
     val context = LocalContext.current
     var marketplace by rememberSaveable { mutableStateOf(startInMarketplace) }
     var architecture by rememberSaveable { mutableStateOf("") }
-    var localTab by rememberSaveable { mutableStateOf(0) }
+    var selectedTab by rememberSaveable { mutableStateOf(if (startInDelegation) 2 else 0) }
     val runtimeStatus by runtimeViewModel.status.collectAsStateWithLifecycle()
     val profiles by runtimeViewModel.profiles.collectAsStateWithLifecycle()
     val qnnAvailable by runtimeViewModel.qnnAvailable.collectAsStateWithLifecycle()
@@ -130,17 +131,17 @@ fun LocalModelsScreen(
                 LazyColumn(Modifier.padding(innerPadding), state = scrollState) {
                     if (!marketplace) {
                         item {
-                            androidx.compose.material3.TabRow(selectedTabIndex = localTab) {
-                                androidx.compose.material3.Tab(selected = localTab == 0, onClick = { localTab = 0 }, text = { Text("Library") })
-                                androidx.compose.material3.Tab(selected = localTab == 1, onClick = { localTab = 1 }, text = { Text("Settings") })
-                                androidx.compose.material3.Tab(selected = localTab == 2, onClick = { localTab = 2 }, text = { Text("Delegation") })
+                            androidx.compose.material3.PrimaryTabRow(selectedTabIndex = selectedTab) {
+                                androidx.compose.material3.Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Library") })
+                                androidx.compose.material3.Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Settings") })
+                                androidx.compose.material3.Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 }, text = { Text("Delegation") })
                             }
                         }
                     }
-                    if (!marketplace && localTab == 1) {
+                    if (!marketplace && selectedTab == 2) {
+                        item(key = "delegation") { ModelDelegationSettingsPanel() }
+                    } else if (!marketplace && selectedTab == 1) {
                         item(key = "runtime") { LocalRuntimeSettingsCard(runtimeViewModel) }
-                    } else if (!marketplace && localTab == 2) {
-                        item(key = "delegation") { LocalToolsSettingsPanel(initialSection = "delegation", delegationOnly = true) }
                     } else if (!marketplace) {
                         item(key = "overview") { LocalModelsOverviewCard(uiState) }
                         runtimeStatus?.let { message -> item { Text(message, Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) } }

@@ -167,9 +167,9 @@ Here is a comprehensive breakdown of new features and enhancements in this fork,
 ## 🏗️ Getting Started
 
 ### Prerequisites
-- Android Studio Ladybug (2024.2.1) or newer
+- Android Studio with AGP 9.4 support, or the Gradle wrapper for command-line builds
 - JDK 21
-- Android SDK 36 (target/compile) / Min SDK 31
+- Android SDK 37.0 (compile) / Target SDK 36 / Min SDK 31
 
 ### Building from Source
 ```bash

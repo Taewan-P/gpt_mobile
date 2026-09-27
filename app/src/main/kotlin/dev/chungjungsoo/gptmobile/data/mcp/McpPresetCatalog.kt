@@ -69,7 +69,7 @@ object McpPresetCatalog {
             category = McpCategory.SEARCH,
             transportType = McpTransportType.STDIO,
             commandOrUrl = "npx",
-            args = listOf("-y", "@modelcontextprotocol/server-brave-search"),
+            args = listOf("-y", "@brave/brave-search-mcp-server"),
             requiredEnvKeys = listOf("BRAVE_API_KEY")
         ),
         McpPreset(

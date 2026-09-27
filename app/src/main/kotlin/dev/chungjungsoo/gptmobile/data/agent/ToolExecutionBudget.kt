@@ -36,9 +36,15 @@ class ToolExecutionBudget(
             if (!authorize(callId, arguments)) return bounded(failure("Tool permission was denied or this action was already dispatched."))
             var success = false
             try {
-                val result = permits.withPermit {
-                    withTimeoutOrNull(limits.toolTimeoutMillis) { tool.execute(callId, arguments) }
-                        ?: failure("Tool timed out. Its outcome may be unknown; check before repeating a write.")
+                val result = if (tool.managesExecutionBudget) {
+                    // Orchestrators own their deadline; their children use this same budget.
+                    // Holding a permit here would deadlock nested calls at concurrency = 1.
+                    tool.execute(callId, arguments)
+                } else {
+                    permits.withPermit {
+                        withTimeoutOrNull(limits.toolTimeoutMillis) { tool.execute(callId, arguments) }
+                            ?: failure("Tool timed out. Its outcome may be unknown; check before repeating a write.")
+                    }
                 }
                 success = !result.isError
                 return bounded(result)

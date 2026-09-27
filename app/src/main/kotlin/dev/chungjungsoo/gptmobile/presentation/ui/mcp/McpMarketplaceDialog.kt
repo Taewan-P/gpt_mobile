@@ -227,7 +227,8 @@ fun McpMarketplaceScreen(
         credential: String,
         allowCleartext: Boolean
     ) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onOpenDelegation: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
@@ -404,7 +405,9 @@ fun McpMarketplaceScreen(
                         preset = preset,
                         isInstalled = isInstalled,
                         onAddClick = {
-                            if (preset.documentationOnly) {
+                            if (preset.integratedTool == "delegation" && onOpenDelegation != null) {
+                                onOpenDelegation()
+                            } else if (preset.documentationOnly) {
                                 runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(preset.websiteUrl))) }
                             } else {
                                 configuringPreset = preset
@@ -738,6 +741,15 @@ fun McpMarketplaceDetailCard(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            if (preset.webSearchToolNames.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Enable this provider's search tools in an AI profile to include them in multi-engine web search.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
 
             if (preset.setupInstructions.isNotBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))

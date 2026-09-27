@@ -11,6 +11,24 @@ import org.junit.Test
 
 class FactVaultRepositoryTest {
     @Test
+    fun `new capture recall and connected memory controls persist with normalized budgets`() = runBlocking {
+        val storage = MemoryVault()
+        val repository = FactVaultRepository(storage, KnowledgeGraphEngine())
+        repository.updateSettings(FactVaultSettings(localModelLearning = false, rotateAutomaticFacts = false, maxCapturePerMessage = 100, recallTokens = 1, maxRecall = 30, externalRecallEnabled = true, externalMemoryConnections = setOf("memory-server"), externalMemoryScopes = mapOf("memory-server" to "personal-space")))
+        val restored = FactVaultRepository(storage, KnowledgeGraphEngine())
+        restored.load()
+        val settings = restored.state.value.settings
+        assertFalse(settings.localModelLearning)
+        assertFalse(settings.rotateAutomaticFacts)
+        assertEquals(16, settings.maxCapturePerMessage)
+        assertEquals(128, settings.recallTokens)
+        assertEquals(20, settings.maxRecall)
+        assertTrue(settings.externalRecallEnabled)
+        assertEquals(setOf("memory-server"), settings.externalMemoryConnections)
+        assertEquals("personal-space", settings.externalMemoryScopes["memory-server"])
+    }
+
+    @Test
     fun `sensitivity persists and changes capture without removing saved facts`() = runBlocking {
         val storage = MemoryVault()
         val repository = FactVaultRepository(storage, KnowledgeGraphEngine())
@@ -20,18 +38,17 @@ class FactVaultRepositoryTest {
         assertTrue(repository.state.value.facts.isEmpty())
         repository.updateSettings(repository.state.value.settings.copy(captureSensitivity = 50))
         repository.prepareTurn("I prefer Kotlin. I am learning Blender. I want a new workstation.", 1, 2)
-        assertEquals(setOf("PREFERS"), repository.state.value.facts.map { it.fact.relation.relationType }.toSet())
+        assertEquals(setOf("PREFERS", "WORKING_ON"), repository.state.value.facts.map { it.fact.relation.relationType }.toSet())
         repository.updateSettings(repository.state.value.settings.copy(captureSensitivity = 100, reviewBeforeRecall = true))
         repository.prepareTurn("I am learning Blender. I want a new workstation. Do I need a car? I do not want a boat.", 1, 3)
         assertEquals(3, repository.state.value.facts.size)
-        assertEquals(2, repository.state.value.facts.count { !it.enabled })
+        assertEquals(1, repository.state.value.facts.count { !it.enabled })
         val restored = FactVaultRepository(storage, KnowledgeGraphEngine())
         restored.load()
         assertEquals(100, restored.state.value.settings.captureSensitivity)
         restored.updateSettings(restored.state.value.settings.copy(captureSensitivity = 0))
         assertEquals(3, restored.state.value.facts.size)
     }
-
 
     @Test
     fun `large memory shards survive reload and failed manifest publish keeps the old snapshot`() = runBlocking {
@@ -297,7 +314,9 @@ class FactVaultRepositoryTest {
         val repository = FactVaultRepository(MemoryVault(), KnowledgeGraphEngine())
         repository.setEnabled(true)
         repository.updateSettings(repository.state.value.settings.copy(maxFacts = 64))
-        repository.prepareTurn((1..80).joinToString("\n") { "I prefer Item$it" }, 1, 1)
+        (1..80).chunked(8).forEachIndexed { index, items ->
+            repository.prepareTurn(items.joinToString("\n") { "I prefer Item$it" }, 1, index + 1)
+        }
         assertEquals(64, repository.state.value.facts.size)
         assertEquals(5, repository.prepareTurn("What do I prefer?", 1, 2).facts.size)
         repository.setEnabled(false)

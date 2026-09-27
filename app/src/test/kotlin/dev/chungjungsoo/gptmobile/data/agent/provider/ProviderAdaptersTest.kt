@@ -77,6 +77,84 @@ import org.junit.Test
 
 class ProviderAdaptersTest {
     @Test
+    fun `compatible collector failures propagate unchanged without rotating credentials`() = runBlocking {
+        for (type in listOf(ClientType.CUSTOM, ClientType.LLAMA, ClientType.OLLAMA)) {
+            for (payload in listOf(
+                """{"error":{"message":"Incorrect API key provided","type":"invalid_request","code":"401"}}""",
+                """{"choices":[{"delta":{"content":"hello"},"finish_reason":"stop"}]}"""
+            )) {
+                val api = FakeOpenAIAPI(chatRounds = ArrayDeque(listOf(flowOf(NetworkClient.openAIJson.decodeFromString<ChatCompletionChunk>(payload)))))
+                val session = OpenAICompatibleAdapter(api, FakeGroqAPI(), attachmentEncoder()).openSession(turns(), platform(type).copy(token = "one,two"))
+                val original = IllegalStateException("quota in collector must not rotate")
+                try {
+                    session.streamRound(emptyList(), emptyList()).collect { throw original }
+                    fail("Expected collector failure")
+                } catch (error: IllegalStateException) {
+                    assertSame(original, error)
+                }
+                assertEquals(1, api.chatRequests.size)
+            }
+        }
+    }
+
+    @Test
+    fun `responses groq and gemini preserve downstream failures`() = runBlocking {
+        val responses = FakeOpenAIAPI(
+            responseRounds = ArrayDeque(
+                listOf(
+                    flowOf(
+                        NetworkClient.openAIJson.decodeFromString<ResponsesStreamEvent>("""{"type":"error","message":"Invalid API key","code":"401"}""")
+                    )
+                )
+            )
+        )
+        val groq = FakeGroqAPI(
+            ArrayDeque(
+                listOf(
+                    flowOf(
+                        NetworkClient.json.decodeFromString<GroqChatCompletionChunk>("""{"error":{"message":"Model does not exist","type":"invalid_request_error","code":"model_not_found"}}""")
+                    )
+                )
+            )
+        )
+        val google = FakeGoogleAPI(
+            ArrayDeque(
+                listOf(
+                    flowOf(
+                        NetworkClient.json.decodeFromString<GenerateContentResponse>("""{"promptFeedback":{"blockReason":"SAFETY"}}""")
+                    )
+                )
+            )
+        )
+        val sessions = listOf(
+            OpenAIResponsesAdapter(responses, attachmentEncoder()).openSession(turns(), platform(ClientType.OPENAI).copy(token = "one,two")),
+            OpenAICompatibleAdapter(FakeOpenAIAPI(), groq, attachmentEncoder()).openSession(turns(), platform(ClientType.GROQ).copy(token = "one,two")),
+            GeminiAdapter(google, attachmentEncoder()).openSession(turns(), platform(ClientType.GOOGLE).copy(token = "one,two"))
+        )
+        for (session in sessions) {
+            val original = IllegalStateException("collector stopped")
+            try {
+                session.streamRound(emptyList(), emptyList()).collect { throw original }
+                fail("Expected collector failure")
+            } catch (error: IllegalStateException) {
+                assertSame(original, error)
+            }
+        }
+        assertEquals(1, responses.responseRequests.size)
+        assertEquals(1, groq.requests.size)
+        assertEquals(1, google.requests.size)
+    }
+
+    @Test
+    fun `compatible upstream failure emits exactly one failure and no completion`() = runBlocking {
+        val api = FakeOpenAIAPI(chatRounds = ArrayDeque(listOf(flow { throw java.net.UnknownHostException("unavailable") })))
+        val events = OpenAICompatibleAdapter(api, FakeGroqAPI(), attachmentEncoder()).openSession(turns(), platform(ClientType.CUSTOM))
+            .streamRound(emptyList(), emptyList()).toList()
+        assertEquals(1, events.size)
+        assertTrue(events.single() is ProviderEvent.Failed)
+    }
+
+    @Test
     fun `Claude fixed sampling models omit temperature and top p with reasoning disabled`() = runBlocking {
         for (model in listOf("claude-sonnet-5", "anthropic/claude-sonnet-5-20260630", "claude-opus-5-5", "claude-fable-5-1", "claude-mythos-5")) {
             val api = FakeAnthropicAPI(ArrayDeque(listOf(emptyFlow())))

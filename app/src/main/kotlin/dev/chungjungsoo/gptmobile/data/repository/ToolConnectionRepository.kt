@@ -196,7 +196,7 @@ class ToolConnectionRepository internal constructor(
 
     private companion object {
         const val WEB_SEARCH_TOOL = "web_search"
-        val WEB_SEARCH_TYPES = setOf(ToolConnectionType.FIRECRAWL, ToolConnectionType.PERPLEXITY, ToolConnectionType.EXA)
+        val WEB_SEARCH_TYPES = ToolConnectionType.WEB_SEARCH_TYPES
     }
 }
 

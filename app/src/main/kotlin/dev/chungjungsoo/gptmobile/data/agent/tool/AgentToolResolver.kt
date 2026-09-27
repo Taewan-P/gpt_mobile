@@ -183,7 +183,8 @@ class AgentToolResolver @Inject constructor(
                         tool.connectionUid?.let { "$it:${tool.realToolName}" },
                         tool.modelToolName,
                         tool.realToolName,
-                        tool.connectionUid
+                        tool.connectionUid,
+                        "web_search".takeIf { tool.isWebSearchEngine() }
                     )
                     chatToolConfig.isToolEnabled(candidateIds)
                 }
@@ -369,7 +370,8 @@ class AgentToolResolver @Inject constructor(
         val SEARCH_PROVIDERS = mapOf(
             ToolConnectionType.FIRECRAWL to SearchProvider(WebSearchProvider.FIRECRAWL, "https://api.firecrawl.dev/v2/search"),
             ToolConnectionType.PERPLEXITY to SearchProvider(WebSearchProvider.PERPLEXITY, "https://api.perplexity.ai/search"),
-            ToolConnectionType.EXA to SearchProvider(WebSearchProvider.EXA, "https://api.exa.ai/search")
+            ToolConnectionType.EXA to SearchProvider(WebSearchProvider.EXA, "https://api.exa.ai/search"),
+            ToolConnectionType.BRAVE to SearchProvider(WebSearchProvider.BRAVE, "https://api.search.brave.com/res/v1/web/search")
         )
     }
 }

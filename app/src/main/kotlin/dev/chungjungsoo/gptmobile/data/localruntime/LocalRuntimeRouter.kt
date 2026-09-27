@@ -25,7 +25,7 @@ class LocalRuntimeRouter(
     private var requestedSpec: LocalEngineSpec? = null
     private var delegatedSpec: LocalEngineSpec? = null
     private var preferenceAtLoad: LocalRuntimeBackend? = null
-    private var tuningAtLoad: Pair<Int?, Boolean>? = null
+    private var tuningAtLoad: LocalEngineTuning? = null
 
     override val deviceRamGb: Long get() = (activeLoadedRuntime ?: liteRtRuntime).deviceRamGb
     override fun getHardwareState(): DeviceHardwareState = (activeLoadedRuntime ?: liteRtRuntime).getHardwareState()
@@ -36,7 +36,12 @@ class LocalRuntimeRouter(
     override suspend fun loadEngine(requested: LocalEngineSpec) {
         if (isEngineLoaded(requested)) return
         val tuning = settingRepository.getFeatureSettings().localEngineTuning()
-        val spec = requested.copy(cpuThreads = tuning.first, cacheEnabled = tuning.second)
+        val spec = requested.copy(
+            cpuThreads = tuning.cpuThreads,
+            cacheEnabled = tuning.cacheEnabled,
+            speculativeDecoding = tuning.speculativeDecoding,
+            nativeMetricsEnabled = tuning.nativeMetricsEnabled
+        )
         val preferred = settingRepository.getLocalRuntimeBackend()
         unloadEngine()
         try {
@@ -139,7 +144,7 @@ class LocalRuntimeRouter(
         requestedSpec = requested
         delegatedSpec = delegated
         preferenceAtLoad = preference
-        tuningAtLoad = delegated.cpuThreads to delegated.cacheEnabled
+        tuningAtLoad = LocalEngineTuning(delegated.cpuThreads, delegated.cacheEnabled, delegated.speculativeDecoding, delegated.nativeMetricsEnabled)
         _state.value = LocalRuntimeState(backend, runtime.loadedEngineSpec() ?: delegated, fallbackReason)
     }
 
@@ -191,6 +196,18 @@ class LocalRuntimeRouter(
     }
 }
 
+internal data class LocalEngineTuning(
+    val cpuThreads: Int?,
+    val cacheEnabled: Boolean,
+    val speculativeDecoding: Boolean?,
+    val nativeMetricsEnabled: Boolean
+)
+
 internal fun dev.chungjungsoo.gptmobile.data.model.AppFeatureSettings.localEngineTuning(
     availableCores: Int = Runtime.getRuntime().availableProcessors()
-): Pair<Int?, Boolean> = localCpuThreads.takeIf { it > 0 }?.coerceIn(1, availableCores.coerceIn(1, 64)) to localModelCache
+): LocalEngineTuning = LocalEngineTuning(
+    localCpuThreads.takeIf { it > 0 }?.coerceIn(1, availableCores.coerceIn(1, 64)),
+    localModelCache,
+    localSpeculativeDecoding.enabled,
+    localNativeMetrics
+)

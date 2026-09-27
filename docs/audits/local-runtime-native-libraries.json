@@ -1,5 +1,5 @@
 {
-  "litertlmVersion": "0.16.1",
+  "litertlmVersion": "0.17.1",
   "qairtVersion": "2.47.0",
   "libraries": {
     "lib/arm64-v8a/libQnnHtp.so": {
@@ -53,14 +53,14 @@
       "source": "com.qualcomm.qti:qnn-runtime:2.47.0"
     },
     "lib/arm64-v8a/liblitertlm_jni.so": {
-      "sha256": "371cdedd8a3b24cfb81a21c0a760b89bc3e3d22e03e7402c518e4d8fe1d1402e",
-      "bytes": 21529648,
-      "source": "com.google.ai.edge.litertlm:litertlm-android:0.16.1"
+      "sha256": "44f900f3ea6c5224f3395c1548dfa7e825f4412ba3833f994c5c306831a57086",
+      "bytes": 21802960,
+      "source": "com.google.ai.edge.litertlm:litertlm-android:0.17.1"
     },
     "lib/x86_64/liblitertlm_jni.so": {
-      "sha256": "ba9be2a15aafc14103a303753d403b92dcde3991798c72be2d973fdef4cbce31",
-      "bytes": 25649544,
-      "source": "com.google.ai.edge.litertlm:litertlm-android:0.16.1"
+      "sha256": "9b0a908ba8ef5e54b3191de963acd4272e1f10aee1df61d9912bb586a35a5d4a",
+      "bytes": 25968008,
+      "source": "com.google.ai.edge.litertlm:litertlm-android:0.17.1"
     },
     "lib/arm64-v8a/libLiteRtDispatch_Qualcomm.so": {
       "sha256": "c4abfff6c99ec218f545415a81a2a03a3ee3e21df2ea911902d6b7bbfeda80bf",

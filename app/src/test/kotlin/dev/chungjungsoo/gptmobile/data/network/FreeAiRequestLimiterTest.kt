@@ -12,6 +12,20 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class FreeAiRequestLimiterTest {
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @Test
+    fun `LLM7 rapid requests are spaced before reaching the provider`() = kotlinx.coroutines.test.runTest {
+        val limiter = FreeAiRequestLimiter { testScheduler.currentTime }
+        val starts = mutableListOf<Long>()
+        repeat(3) { limiter.withRequest(FreeAiProvider.LLM7) { starts += testScheduler.currentTime } }
+        assertEquals(listOf(0L, 1000L, 2000L), starts)
+        limiter.defer(FreeAiProvider.LLM7, "60")
+        var executed = false
+        val failure = runCatching { limiter.withRequest(FreeAiProvider.LLM7) { executed = true } }.exceptionOrNull()
+        org.junit.Assert.assertTrue(failure is FreeAiRateLimitException)
+        assertFalse(executed)
+    }
+
     @Test
     fun `OVH quota expires after a rolling minute without blocking other providers`() {
         var now = 100_000L

@@ -129,6 +129,7 @@ class NetworkClient @Inject constructor(
                 header.equals(HttpHeaders.SetCookie, ignoreCase = true) ||
                 header.equals("x-goog-api-key", ignoreCase = true) ||
                 header.equals("x-api-key", ignoreCase = true) ||
+                header.equals("x-subscription-token", ignoreCase = true) ||
                 header.equals("Mcp-Session-Id", ignoreCase = true)
     }
 }

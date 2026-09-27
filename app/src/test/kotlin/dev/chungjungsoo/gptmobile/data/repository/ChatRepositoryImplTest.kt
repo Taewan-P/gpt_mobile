@@ -335,6 +335,8 @@ class ChatRepositoryImplTest {
     @Test
     fun `litert lm tool capable run records engine owned tool calls on the timeline`() = runBlocking {
         val runtime = FakeLocalRuntime().apply {
+            // This timeline fixture needs room for the complete expanded tool surface.
+            deviceRamGb = 12L
             scriptedEvents = listOf(
                 listOf(
                     LocalRuntimeEvent.TextDelta("before"),

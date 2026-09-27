@@ -440,6 +440,8 @@ private fun BenchmarkHistoryCard(run: BenchmarkRun, current: Boolean, canDelete:
                 Text(
                     if (run.canceled) {
                         "Canceled"
+                    } else if (run.stoppedReason != null) {
+                        "Stopped"
                     } else if (!run.finished) {
                         "Interrupted"
                     } else {
@@ -452,6 +454,7 @@ private fun BenchmarkHistoryCard(run: BenchmarkRun, current: Boolean, canDelete:
             Text("${run.mode.label} · ${benchmarkDate(run.startedAt)}", style = MaterialTheme.typography.titleSmall)
             Text(run.model, style = MaterialTheme.typography.bodySmall)
             Text("${run.samples.count { it.outcome == BenchmarkOutcome.PASSED }} passed · ${run.samples.size} / ${benchmarkSuite(run.mode).size} tests · ${if (current) "current configuration" else "previous configuration"}", style = MaterialTheme.typography.labelSmall)
+            run.stoppedReason?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
             Text(if (expanded) "Hide test details" else "Show test details", style = MaterialTheme.typography.labelLarge, color = benchmarkTint(run.local))
             if (expanded) {
                 MetricLine("Device", run.device)
@@ -470,6 +473,10 @@ private fun BenchmarkHistoryCard(run: BenchmarkRun, current: Boolean, canDelete:
                     MetricLine("Duration / first text", "${formatLatency(sample.durationMs)} / ${formatLatency(sample.firstTextMs)}")
                     MetricLine("Output tokens", "${if (sample.estimatedTokens) "≈ " else ""}${sample.outputTokens}")
                     MetricLine("Longest text pause", formatLatency(sample.longestGapMs))
+                    sample.nativeMetrics?.takeIf { it.isValid }?.let { native ->
+                        MetricLine("Native decode / prefill tok/s", String.format(java.util.Locale.US, "%.1f / %.1f", native.decodeTokensPerSecond, native.prefillTokensPerSecond))
+                        Text("Last native segment: ${native.decodeTokens} decoded / ${native.prefillTokens} prefilled tokens. The app score uses observed text delivery.", style = MaterialTheme.typography.bodySmall)
+                    }
                     if (sample.category == "tools") MetricLine("Successful fixture calls", "${sample.successfulToolCalls} / ${sample.toolCalls}")
                     sample.error?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                     if (sample.preview.isNotEmpty()) Text(sample.preview, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

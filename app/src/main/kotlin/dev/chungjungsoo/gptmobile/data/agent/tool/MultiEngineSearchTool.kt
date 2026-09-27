@@ -5,23 +5,24 @@ import dev.chungjungsoo.gptmobile.data.agent.AgentToolDefinition
 import dev.chungjungsoo.gptmobile.data.agent.AgentToolResult
 import dev.chungjungsoo.gptmobile.data.agent.ToolResultContent
 import java.net.URI
+import java.time.Clock
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.put
 
 /** Children must already be bound to the run's shared budget and permission gate. */
-class MultiEngineSearchTool(private val engines: List<ResolvedAgentTool>) : AgentTool {
+class MultiEngineSearchTool(private val engines: List<ResolvedAgentTool>, private val clock: Clock = Clock.systemUTC()) : AgentTool {
     override val managesExecutionBudget = true
     override val definition = AgentToolDefinition(
         "web_search",
@@ -40,6 +41,22 @@ class MultiEngineSearchTool(private val engines: List<ResolvedAgentTool>) : Agen
                             put("maximum", 10)
                         }
                     )
+                    for (name in listOf("includeDomains", "excludeDomains")) {
+                        put(
+                            name,
+                            buildJsonObject {
+                                put("type", "array")
+                                put("items", buildJsonObject { put("type", "string") })
+                            }
+                        )
+                    }
+                    put(
+                        "recencyDays",
+                        buildJsonObject {
+                            put("type", "integer")
+                            put("minimum", 0)
+                        }
+                    )
                 }
             )
             put("required", JsonArray(listOf(JsonPrimitive("query"))))
@@ -48,19 +65,40 @@ class MultiEngineSearchTool(private val engines: List<ResolvedAgentTool>) : Agen
     )
 
     override suspend fun execute(callId: String, arguments: JsonObject): AgentToolResult = coroutineScope {
-        val query = (arguments["query"] as? JsonPrimitive)?.contentOrNull.orEmpty().trim()
+        val query = (arguments["query"] as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull.orEmpty().trim()
         if (query.isEmpty()) return@coroutineScope AgentToolResult(callId, ToolResultContent.Text("A search query is required."), true)
+        fun integer(name: String) = (arguments[name] as? JsonPrimitive)?.takeUnless { it.isString }?.intOrNull
+        val maxResults = if (arguments.containsKey("maxResults")) integer("maxResults") else 10
+        val recencyDays = integer("recencyDays")
+        val domainNames = listOf("includeDomains", "excludeDomains")
+        val validDomains = domainNames.all { name ->
+            !arguments.containsKey(name) || (arguments[name] as? JsonArray)?.all { it is JsonPrimitive && it.isString } == true
+        }
+        if (maxResults == null ||
+            maxResults !in 1..10 ||
+            !validDomains ||
+            (arguments.containsKey("recencyDays") && (recencyDays == null || recencyDays < 0))
+        ) {
+            return@coroutineScope AgentToolResult(callId, ToolResultContent.Text("Invalid search filters or result count. Use 1–10 results, nonnegative recency days, and domain lists."), true)
+        }
+        fun domains(name: String) = (arguments[name] as? JsonArray).orEmpty().map { (it as JsonPrimitive).content.trim() }
+        val includeDomains = domains("includeDomains")
+        val excludeDomains = domains("excludeDomains")
+        if (includeDomains.isNotEmpty() && excludeDomains.isNotEmpty()) {
+            return@coroutineScope AgentToolResult(callId, ToolResultContent.Text("Use either included or excluded domains."), true)
+        }
+        if (!(includeDomains + excludeDomains).all(::isSearchDomain) ||
+            (recencyDays != null && runCatching { braveSearchFreshness(recencyDays, clock) }.isFailure)
+        ) {
+            return@coroutineScope AgentToolResult(callId, ToolResultContent.Text("Use valid host names and a recency within the supported calendar range."), true)
+        }
         val permits = Semaphore(4)
         val responses = engines.mapIndexed { index, engine ->
             async {
                 permits.withPermit {
-                    val properties = engine.tool.definition.inputSchema["properties"] as? JsonObject
-                    val mapped = buildJsonObject {
-                        val queryKey = if (properties?.containsKey("query") == true) "query" else "q"
-                        put(queryKey, query)
-                        arguments.filterKeys { it != "query" && properties?.containsKey(it) == true }.forEach { (key, value) -> put(key, value) }
-                    }
                     try {
+                        val adapter = requireNotNull(WebSearchEngineAdapter.forTool(engine.realToolName, engine.tool.definition))
+                        val mapped = adapter.arguments(arguments, clock)
                         engine to engine.tool.execute("$callId:engine:$index", mapped)
                     } catch (cancelled: CancellationException) {
                         throw cancelled
@@ -76,7 +114,7 @@ class MultiEngineSearchTool(private val engines: List<ResolvedAgentTool>) : Agen
             val label = engine.connectionName ?: "Built-in search"
             val payload = when (val content = result.content) {
                 is ToolResultContent.Json -> content.value
-                is ToolResultContent.Text -> runCatching { Json.parseToJsonElement(content.text) }.getOrNull()
+                is ToolResultContent.Text -> parseSearchPayload(content.text)
                 is ToolResultContent.ResourceLinks -> JsonArray(
                     content.links.map { link ->
                         buildJsonObject {
@@ -86,7 +124,10 @@ class MultiEngineSearchTool(private val engines: List<ResolvedAgentTool>) : Agen
                     }
                 )
             }
-            val extracted = if (result.isError) emptyList() else extractSources(payload)
+            val rawSources = if (result.isError) emptyList() else extractSearchSources(payload)
+            val extracted = rawSources
+                .filter { source -> matchesSearchDomains((source["url"] as? JsonPrimitive)?.contentOrNull.orEmpty(), includeDomains, excludeDomains) }
+                .take(maxResults)
             extracted.forEach { source ->
                 val url = (source["url"] as? JsonPrimitive)?.contentOrNull ?: return@forEach
                 if (seen.add(canonicalSearchUrl(url))) sources += JsonObject(source + ("engine" to JsonPrimitive(label)))
@@ -96,6 +137,9 @@ class MultiEngineSearchTool(private val engines: List<ResolvedAgentTool>) : Agen
                 put("tool", engine.realToolName)
                 put("status", if (result.isError) "unavailable" else "completed")
                 put("results", extracted.size)
+                if (recencyDays != null && WebSearchEngineAdapter.forTool(engine.realToolName, engine.tool.definition)?.supportsRecency == false) {
+                    put("unsupportedFilters", JsonArray(listOf(JsonPrimitive("recencyDays"))))
+                }
                 // MCP servers can return useful prose instead of structured sources.
                 if (extracted.isEmpty()) {
                     val text = when (val content = result.content) {
@@ -103,7 +147,7 @@ class MultiEngineSearchTool(private val engines: List<ResolvedAgentTool>) : Agen
                         is ToolResultContent.Json -> content.value.toString()
                         is ToolResultContent.ResourceLinks -> content.links.joinToString { it.uri }
                     }
-                    put("detail", text.take(6000))
+                    put("detail", if (!result.isError && rawSources.isNotEmpty()) "No sources matched the search filters." else text.take(6000))
                 }
             }
         }
@@ -120,16 +164,6 @@ class MultiEngineSearchTool(private val engines: List<ResolvedAgentTool>) : Agen
             outputBudgetExhausted = responses.any { it.second.outputBudgetExhausted }
         )
     }
-
-    private fun extractSources(value: JsonElement?): List<JsonObject> = when (value) {
-        is JsonArray -> value.flatMap(::extractSources)
-        is JsonObject -> if (value["url"] is JsonPrimitive) {
-            listOf(value)
-        } else {
-            listOf("results", "data", "web", "content").flatMap { extractSources(value[it]) }
-        }
-        else -> emptyList()
-    }
 }
 
 internal fun canonicalSearchUrl(url: String): String = runCatching {
@@ -140,21 +174,6 @@ internal fun canonicalSearchUrl(url: String): String = runCatching {
     }?.sorted()?.joinToString("&")?.takeIf { it.isNotEmpty() }
     URI(uri.scheme?.lowercase(), uri.userInfo, uri.host?.lowercase(), uri.port, uri.path.orEmpty().trimEnd('/'), query, null).toString()
 }.getOrDefault(url)
-
-internal fun ResolvedAgentTool.isWebSearchEngine(): Boolean {
-    if (realToolName == "web_search") return true
-    val name = realToolName.lowercase()
-    val knownWebSearch = name.contains("web_search") ||
-        name.contains("search_web") ||
-        name in setOf("brave_search", "bing_search", "google_search", "tavily_search", "exa_search", "duckduckgo_search", "search_engine") ||
-        (name == "search" && listOf("web search", "search the web", "internet search").any { tool.definition.description.contains(it, true) })
-    if (!knownWebSearch) return false
-    val schema = tool.definition.inputSchema
-    val properties = schema["properties"] as? JsonObject ?: return false
-    val queryKey = listOf("query", "q").firstOrNull { properties.containsKey(it) } ?: return false
-    val required = (schema["required"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
-    return required.all { it == queryKey }
-}
 
 /** Compose only after child authorization/budget wrappers have been installed. */
 internal fun aggregateWebSearch(tools: List<ResolvedAgentTool>): List<ResolvedAgentTool> {
