@@ -15,6 +15,16 @@ import kotlinx.coroutines.flow.Flow
 
 interface ChatRepository {
 
+    /** Isolated benchmark requests use only supplied fixtures, without chat memory or connected tools. */
+    suspend fun openBenchmarkSession(
+        platform: PlatformV2,
+        turns: List<dev.chungjungsoo.gptmobile.data.context.ConversationTurn>,
+        tools: List<dev.chungjungsoo.gptmobile.data.agent.AgentTool>,
+        runId: String
+    ): dev.chungjungsoo.gptmobile.data.agent.AgentProviderSession = error("Benchmark sessions are unavailable")
+
+    suspend fun supportsBenchmarkTools(platform: PlatformV2): Boolean = false
+
     suspend fun completeChat(
         userMessages: List<MessageV2>,
         assistantMessages: List<List<MessageV2>>,

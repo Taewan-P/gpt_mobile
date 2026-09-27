@@ -104,6 +104,13 @@ private val EMPTY_RUNTIME_STATE: StateFlow<LocalRuntimeState> = MutableStateFlow
 
 class LocalRuntimeFallbackDisabledException(cause: Throwable) : IllegalStateException("QNN could not start and automatic fallback is disabled. Select LiteRT-LM or enable fallback in Local models → Performance tuning.", cause)
 
+class LocalNpuPackageException(cause: Throwable) :
+    IllegalStateException(
+        "This NPU package could not start. Its compiled model may exceed the NPU memory available on this phone. " +
+            "Download the GPU / CPU edition from the model marketplace, or choose another NPU model.",
+        cause
+    )
+
 interface LocalRuntime {
     val handlesEngineFallback: Boolean get() = false
     val state: StateFlow<LocalRuntimeState> get() = EMPTY_RUNTIME_STATE

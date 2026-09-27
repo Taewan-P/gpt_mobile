@@ -38,11 +38,13 @@ object LocalModelPackages {
         }
     }
 
+    // A catalogue ID or parent directory can contain "qualcomm" even when the
+    // installed file is its GPU edition. Only the artifact name identifies it.
     fun npuSoc(fileName: String): String? = Regex("(?i)(?:^|[^a-z0-9])(sm8[0-9]{3})(?:[^0-9]|$)")
-        .find(fileName)?.groupValues?.get(1)?.uppercase()
+        .find(fileName.substringAfterLast('/'))?.groupValues?.get(1)?.uppercase()
 
     fun isNpuFile(fileName: String): Boolean = npuSoc(fileName) != null ||
-        Regex("(?i)(?:npu|qualcomm|mediatek|tensor[_-]?g[0-9])").containsMatchIn(fileName)
+        Regex("(?i)(?:npu|qualcomm|mediatek|tensor[_-]?g[0-9])").containsMatchIn(fileName.substringAfterLast('/'))
 
     fun forInstalledFile(entry: CatalogEntry, fileName: String): CatalogEntry {
         if (!isNpuFile(fileName)) {
@@ -54,7 +56,9 @@ object LocalModelPackages {
         val soc = npuSoc(fileName)
         return entry.copy(
             supportedAccelerators = listOf("npu"),
-            socToModelFiles = entry.socToModelFiles.ifEmpty {
+            socToModelFiles = entry.socToModelFiles.filterKeys {
+                soc == null || QualcommSocSupport.canonicalSoc(it).equals(soc, true)
+            }.ifEmpty {
                 if (soc != null && QualcommSocSupport.htpVersion(soc) != null) mapOf(soc to SocVariant(modelFile = fileName)) else emptyMap()
             }
         )

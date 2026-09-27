@@ -13,6 +13,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -55,6 +57,7 @@ fun DebugDiagnosticsScreen(
     settingViewModel: SettingViewModelV2,
     onNavigationClick: () -> Unit,
     onStatisticsClick: () -> Unit,
+    onBenchmarksClick: () -> Unit,
     viewModel: DebugDiagnosticsViewModel = hiltViewModel(),
     modifier: Modifier = Modifier
 ) {
@@ -85,7 +88,16 @@ fun DebugDiagnosticsScreen(
                 }
             }
             item {
-                FilledTonalButton(onStatisticsClick, Modifier.fillMaxWidth()) { Text("Usage charts & model performance") }
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    FilledTonalButton(onStatisticsClick, Modifier.weight(1f)) {
+                        Icon(Icons.Default.BarChart, null)
+                        Text("Usage", Modifier.padding(start = 8.dp))
+                    }
+                    FilledTonalButton(onBenchmarksClick, Modifier.weight(1f)) {
+                        Icon(Icons.Default.Speed, null)
+                        Text("Benchmarks", Modifier.padding(start = 8.dp))
+                    }
+                }
             }
             when (selectedTab) {
                 0 -> {

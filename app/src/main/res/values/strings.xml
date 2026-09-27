@@ -705,12 +705,10 @@
     <string name="mcp_input_dialog_label_2">Only the values you submit are sent to this server. Do not enter passwords or API keys.</string>
     <string name="mcp_input_dialog_label_3">Send values</string>
     <string name="mcp_input_dialog_label_4">Decline</string>
-    <string name="connection_doctor_dialog_label_1">Connection doctor and benchmark</string>
-    <string name="connection_doctor_dialog_label_2">Benchmark sends a fixed short prompt to the selected profile. Provider charges may apply. Results are stored on this phone.</string>
+    <string name="connection_doctor_dialog_label_1">Connection doctor</string>
+    <string name="connection_doctor_dialog_label_2">Inspect a profile connection and discover its context ceiling. Performance tests are in Debug and Statistics → Benchmarks.</string>
     <string name="connection_doctor_dialog_label_3">Check connection</string>
-    <string name="connection_doctor_dialog_label_4">Run benchmark</string>
     <string name="connection_doctor_dialog_label_5">Cancel request</string>
-    <string name="connection_doctor_dialog_label_6">Recent model work (primary, delegation and synthesis)</string>
     <string name="connection_doctor_dialog_label_7">Close</string>
     <string name="mcp_browser_dialog_label_1">MCP resources and prompts</string>
     <string name="mcp_browser_dialog_label_2">Prompt arguments (JSON object)</string>
@@ -736,7 +734,7 @@
     <string name="fact_vault_screen_label_17">Cancel</string>
     <string name="fact_vault_screen_label_18">Delete</string>
     <string name="fact_vault_screen_label_19">Cancel</string>
-    <string name="local_tools_settings_panel_label_1">Connection doctor and model benchmark</string>
+    <string name="local_tools_settings_panel_label_1">Connection doctor</string>
     <string name="local_tools_settings_panel_label_2">Context and usage limits</string>
     <string name="local_tools_settings_panel_label_3">Set these to your model/server limits. Counts are estimates unless reported by the provider.</string>
     <string name="local_tools_settings_panel_label_4">Built in. Learns supported facts from your messages and recalls relevant facts. Stored encrypted on this phone.</string>

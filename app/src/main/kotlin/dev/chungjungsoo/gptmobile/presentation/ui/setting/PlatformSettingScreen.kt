@@ -40,6 +40,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.AllInbox
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.Language
@@ -55,6 +56,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
@@ -113,6 +115,8 @@ fun PlatformSettingScreen(
     modifier: Modifier = Modifier,
     settingViewModel: PlatformSettingViewModel = hiltViewModel(),
     onNavigationClick: () -> Unit = {},
+    onNavigateToBenchmarks: () -> Unit = {},
+    onNavigateToUsage: () -> Unit = {},
     onNavigateToLocalModels: () -> Unit = {},
     onNavigateToMcpTools: () -> Unit = {}
 ) {
@@ -121,6 +125,7 @@ fun PlatformSettingScreen(
         canScroll = { scrollState.canScrollForward || scrollState.canScrollBackward }
     )
     val platform by settingViewModel.platformState.collectAsStateWithLifecycle()
+    val debugMode by settingViewModel.debugMode.collectAsStateWithLifecycle()
     val providerConnection by settingViewModel.providerConnectionState.collectAsStateWithLifecycle()
     val reusableLabels by settingViewModel.reusableLabels.collectAsStateWithLifecycle()
     val dialogState by settingViewModel.dialogState.collectAsStateWithLifecycle()
@@ -204,6 +209,19 @@ fun PlatformSettingScreen(
                         modifier = Modifier.padding(16.dp),
                         enabled = platformData.enabled
                     )
+                }
+                if (debugMode) {
+                    ProfileSectionTitle(title = "Debug & performance")
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        FilledTonalButton(onClick = onNavigateToUsage, modifier = Modifier.weight(1f)) {
+                            Icon(Icons.Default.BarChart, null)
+                            Text("Usage", Modifier.padding(start = 8.dp))
+                        }
+                        FilledTonalButton(onClick = onNavigateToBenchmarks, modifier = Modifier.weight(1f)) {
+                            Icon(Icons.Outlined.Speed, null)
+                            Text("Benchmarks", Modifier.padding(start = 8.dp))
+                        }
+                    }
                 }
                 ProfileSectionTitle(
                     title = stringResource(

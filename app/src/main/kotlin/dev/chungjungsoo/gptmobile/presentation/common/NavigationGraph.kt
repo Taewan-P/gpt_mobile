@@ -249,6 +249,20 @@ fun NavGraphBuilder.settingNavigation(
         composable(Route.USAGE_STATISTICS) {
             dev.chungjungsoo.gptmobile.presentation.ui.setting.UsageStatisticsScreen(onBack = { navController.navigateUp() })
         }
+        composable(
+            Route.PROFILE_BENCHMARKS,
+            arguments = listOf(
+                navArgument("profileUid") {
+                    type = NavType.StringType
+                    defaultValue = ""
+                }
+            )
+        ) {
+            dev.chungjungsoo.gptmobile.presentation.ui.setting.ProfileBenchmarkScreen(
+                onBack = { navController.navigateUp() },
+                onUsage = { navController.navigate(Route.USAGE_STATISTICS) }
+            )
+        }
         composable(Route.DEBUG_DIAGNOSTICS) {
             val parentEntry = remember(it) {
                 navController.getBackStackEntry(Route.SETTING_ROUTE)
@@ -257,7 +271,8 @@ fun NavGraphBuilder.settingNavigation(
             DebugDiagnosticsScreen(
                 settingViewModel = settingViewModel,
                 onNavigationClick = { navController.navigateUp() },
-                onStatisticsClick = { navController.navigate(Route.USAGE_STATISTICS) }
+                onStatisticsClick = { navController.navigate(Route.USAGE_STATISTICS) },
+                onBenchmarksClick = { navController.navigate(Route.PROFILE_BENCHMARKS.replace("{profileUid}", "")) }
             )
         }
         composable(Route.AI_PLATFORMS) {
@@ -326,6 +341,8 @@ fun NavGraphBuilder.settingNavigation(
             PlatformSettingScreen(
                 settingViewModel = platformViewModel,
                 onNavigationClick = { navController.navigateUp() },
+                onNavigateToBenchmarks = { navController.navigate(Route.PROFILE_BENCHMARKS.replace("{profileUid}", android.net.Uri.encode(platformUid))) },
+                onNavigateToUsage = { navController.navigate(Route.USAGE_STATISTICS) },
                 onNavigateToLocalModels = { navController.navigate(Route.LOCAL_MODELS + "?marketplace=true") },
                 onNavigateToMcpTools = {
                     navController.navigate(

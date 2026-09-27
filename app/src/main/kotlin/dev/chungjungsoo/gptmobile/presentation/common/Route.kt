@@ -34,6 +34,7 @@ object Route {
     const val FACT_VAULT = "fact_vault"
     const val ADVANCED_SETTINGS = "advanced_settings"
     const val USAGE_STATISTICS = "usage_statistics"
+    const val PROFILE_BENCHMARKS = "profile_benchmarks?profileUid={profileUid}"
     const val DEBUG_DIAGNOSTICS = "debug_diagnostics"
     const val TOOL_CONNECTIONS = "tool_connections"
     const val ADD_TOOL_CONNECTION = "tool_connections/add"

@@ -59,6 +59,25 @@ class LocalRuntimeRouterTest {
     }
 
     @Test
+    fun liteRtNpuFailurePreservesPackageGuidanceWithoutGpuRetry() = runTest {
+        fakeSettingRepository.backend = LocalRuntimeBackend.LITERT_LM
+        liteRtRuntime.failLoadEngineIf = { IllegalStateException("context creation failed") }
+        val spec = testEngineSpec().copy(modelPath = "/models/gemma_SM8750.litertlm")
+        val failure = runCatching { router.loadEngine(spec) }.exceptionOrNull()
+        assertTrue(failure is LocalNpuPackageException)
+        assertEquals(listOf(LocalAccelerators.NPU), liteRtRuntime.loadEngineCalls.map { it.accelerator })
+        assertEquals(null, router.loadedEngineSpec())
+    }
+
+    @Test
+    fun gpuArtifactInNpuNamedDirectoryStillUsesGpu() = runTest {
+        val spec = testEngineSpec().copy(modelPath = "/models/hf_qualcomm_sm8750/gemma.litertlm", accelerator = LocalAccelerators.GPU)
+        router.loadEngine(spec)
+        assertEquals(listOf(LocalAccelerators.GPU), liteRtRuntime.loadEngineCalls.map { it.accelerator })
+        assertTrue(qnnRuntime.loadEngineCalls.isEmpty())
+    }
+
+    @Test
     fun tuningChangesInvalidateWarmEngineAndReachCpuBackend() = runTest {
         fakeSettingRepository.backend = LocalRuntimeBackend.LITERT_LM
         fakeSettingRepository.features = dev.chungjungsoo.gptmobile.data.model.AppFeatureSettings(localCpuThreads = 1, localModelCache = false)
