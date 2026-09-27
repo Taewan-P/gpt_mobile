@@ -19,6 +19,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonObject
@@ -35,7 +36,8 @@ class McpClientManager internal constructor(
     private val httpClient: HttpClient,
     private val mediaStore: McpMediaStore? = null,
     private val interactions: McpInteractions? = null,
-    private val sessionConnectTimeoutMs: Long = 15_000
+    private val sessionConnectTimeoutMs: Long = 15_000,
+    private val nowMs: () -> Long = System::currentTimeMillis
 ) {
     @Inject
     constructor(networkClient: NetworkClient, mediaStore: McpMediaStore, interactions: McpInteractions) : this(networkClient(), mediaStore, interactions)
@@ -46,33 +48,39 @@ class McpClientManager internal constructor(
     private val sessions = mutableMapOf<String, Session>()
     private val inFlight = mutableMapOf<String, InFlight>()
 
-    suspend fun listTools(config: McpConnectionConfig): List<Tool> = withSession(config) { client ->
-        val tools = mutableListOf<Tool>()
-        val seenCursors = mutableSetOf<String>()
-        var pageCount = 0
-        var cursor: String? = null
-        do {
-            check(++pageCount <= MAX_TOOL_PAGES) { "MCP server returned too many tool pages." }
-            val page = client.listTools(
-                request = if (cursor == null) ListToolsRequest() else ListToolsRequest(PaginatedRequestParams(cursor))
-            )
-            tools += page.tools
-            check(tools.size <= MAX_DISCOVERED_TOOLS) { "MCP server returned too many tools." }
-            cursor = page.nextCursor
-            check(cursor == null || seenCursors.add(cursor)) { "MCP server returned a repeated tools cursor." }
-        } while (cursor != null)
-        tools
+    suspend fun listTools(config: McpConnectionConfig, forceRefresh: Boolean = false): List<Tool> = withSession(config) { session ->
+        session.toolCatalogMutex.withLock {
+            val now = nowMs()
+            session.toolCatalog?.takeIf { !forceRefresh && now - it.loadedAtMs < TOOL_CATALOG_TTL_MS }?.tools ?: run {
+                val tools = mutableListOf<Tool>()
+                val seenCursors = mutableSetOf<String>()
+                var pageCount = 0
+                var cursor: String? = null
+                do {
+                    check(++pageCount <= MAX_TOOL_PAGES) { "MCP server returned too many tool pages." }
+                    val page = session.client.listTools(
+                        request = if (cursor == null) ListToolsRequest() else ListToolsRequest(PaginatedRequestParams(cursor))
+                    )
+                    tools += page.tools
+                    check(tools.size <= MAX_DISCOVERED_TOOLS) { "MCP server returned too many tools." }
+                    cursor = page.nextCursor
+                    check(cursor == null || seenCursors.add(cursor)) { "MCP server returned a repeated tools cursor." }
+                } while (cursor != null)
+                tools.toList().also { session.toolCatalog = ToolCatalog(it, nowMs()) }
+            }
+        }
     }
 
     suspend fun callTool(
         config: McpConnectionConfig,
         toolName: String,
         arguments: JsonObject
-    ): CallToolResult = withSession(config) { client ->
-        client.callTool(toolName, arguments).let { mediaStore?.materialize(it) ?: it }
+    ): CallToolResult = withSession(config) { session ->
+        session.client.callTool(toolName, arguments).let { mediaStore?.materialize(it) ?: it }
     }
 
-    suspend fun browse(config: McpConnectionConfig): McpBrowserData = withSession(config) { client ->
+    suspend fun browse(config: McpConnectionConfig): McpBrowserData = withSession(config) { session ->
+        val client = session.client
         val resources = mutableListOf<io.modelcontextprotocol.kotlin.sdk.types.Resource>()
         val prompts = mutableListOf<io.modelcontextprotocol.kotlin.sdk.types.Prompt>()
         if (client.serverCapabilities?.resources != null) {
@@ -98,13 +106,13 @@ class McpClientManager internal constructor(
         McpBrowserData(resources, prompts, client.serverVersion?.name.orEmpty(), System.currentTimeMillis())
     }
 
-    suspend fun readResource(config: McpConnectionConfig, uri: String): String = withSession(config) { client ->
-        val result = client.readResource(io.modelcontextprotocol.kotlin.sdk.types.ReadResourceRequest(io.modelcontextprotocol.kotlin.sdk.types.ReadResourceRequestParams(uri)))
+    suspend fun readResource(config: McpConnectionConfig, uri: String): String = withSession(config) { session ->
+        val result = session.client.readResource(io.modelcontextprotocol.kotlin.sdk.types.ReadResourceRequest(io.modelcontextprotocol.kotlin.sdk.types.ReadResourceRequestParams(uri)))
         result.contents.filterIsInstance<io.modelcontextprotocol.kotlin.sdk.types.TextResourceContents>().joinToString("\n") { it.text.take(32000) }.take(64000)
     }
 
-    suspend fun getPrompt(config: McpConnectionConfig, name: String, arguments: Map<String, String>): String = withSession(config) { client ->
-        val result = client.getPrompt(io.modelcontextprotocol.kotlin.sdk.types.GetPromptRequest(io.modelcontextprotocol.kotlin.sdk.types.GetPromptRequestParams(name, arguments)))
+    suspend fun getPrompt(config: McpConnectionConfig, name: String, arguments: Map<String, String>): String = withSession(config) { session ->
+        val result = session.client.getPrompt(io.modelcontextprotocol.kotlin.sdk.types.GetPromptRequest(io.modelcontextprotocol.kotlin.sdk.types.GetPromptRequestParams(name, arguments)))
         result.messages.joinToString("\n\n") { message ->
             "${message.role}: ${(message.content as? io.modelcontextprotocol.kotlin.sdk.types.TextContent)?.text.orEmpty().take(32000)}"
         }.take(64000)
@@ -125,10 +133,10 @@ class McpClientManager internal constructor(
         active.forEach { session -> runCatching { session.client.close() } }
     }
 
-    private suspend fun <T> withSession(config: McpConnectionConfig, block: suspend (Client) -> T): T {
+    private suspend fun <T> withSession(config: McpConnectionConfig, block: suspend (Session) -> T): T {
         val session = session(config)
         return try {
-            block(session.client)
+            block(session)
         } catch (error: CancellationException) {
             withContext(NonCancellable) { invalidate(config.connectionUid, session) }
             throw error
@@ -239,7 +247,11 @@ class McpClientManager internal constructor(
         return "$endpointUrl|${authorizationHeader.orEmpty().sha256()}"
     }
 
-    private data class Session(val key: String, val client: Client)
+    private class Session(val key: String, val client: Client) {
+        val toolCatalogMutex = Mutex()
+        var toolCatalog: ToolCatalog? = null
+    }
+    private data class ToolCatalog(val tools: List<Tool>, val loadedAtMs: Long)
     private data class InFlight(val key: String, val deferred: CompletableDeferred<Session>)
 
     private companion object {
@@ -255,6 +267,7 @@ class McpClientManager internal constructor(
         const val MAX_DISCOVERED_TOOLS = 1000
         const val MAX_ENDPOINT_LENGTH = 32 * 1024
         const val MAX_AUTHORIZATION_HEADER_LENGTH = 128 * 1024
+        const val TOOL_CATALOG_TTL_MS = 5 * 60 * 1000L
     }
 }
 
