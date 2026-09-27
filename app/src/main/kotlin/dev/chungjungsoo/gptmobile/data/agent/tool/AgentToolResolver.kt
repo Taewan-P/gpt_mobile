@@ -49,10 +49,10 @@ class AgentToolResolver @Inject constructor(
     private val factVault: FactVaultRepository? = null,
     private val memoryDocuments: dev.chungjungsoo.gptmobile.data.knowledge.MemoryDocumentRepository? = null
 ) {
-    suspend fun discoverMcpTools(connection: ToolConnection): List<Tool> {
+    suspend fun discoverMcpTools(connection: ToolConnection, forceRefresh: Boolean = false): List<Tool> {
         val config = mcpConfig(connection)
         return try {
-            mcpClientManager.listTools(config)
+            mcpClientManager.listTools(config, forceRefresh)
         } catch (error: Exception) {
             if (connection.authType != ToolConnectionAuthType.OAUTH || !error.isUnauthorized()) throw error
             mcpClientManager.listTools(
@@ -60,7 +60,8 @@ class AgentToolResolver @Inject constructor(
                     connection,
                     forceOAuthRefresh = true,
                     rejectedAuthorizationHeader = config.authorizationHeader
-                )
+                ),
+                forceRefresh = true
             )
         }
     }
