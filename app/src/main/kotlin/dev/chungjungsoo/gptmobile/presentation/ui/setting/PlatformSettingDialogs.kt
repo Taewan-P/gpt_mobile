@@ -180,7 +180,7 @@ fun MaxTokensDialog(
     if (dialogState.isMaxTokensDialogOpen) {
         MaxTokensDialog(
             maxTokens = maxTokens,
-            maxTokensCap = settingViewModel.maxTokensCap(),
+            recommendedMaxTokens = settingViewModel.recommendedMaxTokens(),
             onDismissRequest = settingViewModel::closeMaxTokensDialog,
             onConfirmRequest = settingViewModel::updateMaxTokens
         )
@@ -777,7 +777,7 @@ private fun TopKDialog(
 @Composable
 private fun MaxTokensDialog(
     maxTokens: Int?,
-    maxTokensCap: Int = PlatformSettingViewModel.DEFAULT_MAX_TOKENS_CAP,
+    recommendedMaxTokens: Int,
     onDismissRequest: () -> Unit,
     onConfirmRequest: (maxTokens: Int?) -> Unit
 ) {
@@ -790,7 +790,7 @@ private fun MaxTokensDialog(
     val isValid = isUnset ||
         (
             parsedMaxTokens != null &&
-                parsedMaxTokens in PlatformSettingViewModel.MIN_MAX_TOKENS..maxTokensCap
+                parsedMaxTokens >= PlatformSettingViewModel.MIN_MAX_TOKENS
             )
 
     AlertDialog(
@@ -801,7 +801,7 @@ private fun MaxTokensDialog(
         title = { Text(text = stringResource(R.string.max_tokens_setting)) },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                Text(stringResource(R.string.max_tokens_setting_description))
+                Text(stringResource(R.string.output_tokens_description))
                 OutlinedTextField(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -815,32 +815,23 @@ private fun MaxTokensDialog(
                         keyboardType = KeyboardType.Number,
                         imeAction = ImeAction.Done
                     ),
-                    placeholder = { Text(stringResource(R.string.not_set)) },
+                    placeholder = { Text(stringResource(R.string.output_tokens_unlimited)) },
                     supportingText = {
-                        if (!isValid) {
-                            Text(
-                                stringResource(
-                                    R.string.max_tokens_invalid,
-                                    maxTokensCap
-                                )
-                            )
-                        } else if (maxTokensCap < PlatformSettingViewModel.DEFAULT_MAX_TOKENS_CAP) {
-                            Text(
-                                stringResource(
-                                    R.string.max_tokens_hardware_cap_hint,
-                                    maxTokensCap
-                                )
-                            )
-                        } else {
-                            Text(
-                                stringResource(
-                                    R.string.max_tokens_standard_hint,
-                                    maxTokensCap
-                                )
-                            )
-                        }
+                        Text(
+                            if (!isValid) {
+                                stringResource(R.string.output_tokens_positive)
+                            } else {
+                                stringResource(R.string.output_tokens_recommended, recommendedMaxTokens)
+                            }
+                        )
                     }
                 )
+                TextButton(onClick = { textFieldMaxTokens = "" }) {
+                    Text(stringResource(R.string.output_tokens_unlimited))
+                }
+                TextButton(onClick = { textFieldMaxTokens = recommendedMaxTokens.toString() }) {
+                    Text(stringResource(R.string.output_tokens_use_recommended, recommendedMaxTokens))
+                }
             }
         },
         onDismissRequest = onDismissRequest,

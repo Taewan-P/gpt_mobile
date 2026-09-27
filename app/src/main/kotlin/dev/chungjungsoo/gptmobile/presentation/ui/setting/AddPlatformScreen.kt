@@ -182,7 +182,7 @@ fun AddPlatformScreen(
                         temperature = sampling.temperature,
                         topP = sampling.topP,
                         topK = defaults?.topK,
-                        maxTokens = defaults?.maxTokens,
+                        maxTokens = null,
                         accelerator = defaults?.accelerator,
                         systemPrompt = systemPrompt,
                         stream = true,

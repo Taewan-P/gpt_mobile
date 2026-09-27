@@ -116,6 +116,22 @@ class PlatformSettingViewModelTest {
     }
 
     @Test
+    fun `output recommendation does not cap explicit profile limits`() = runTest {
+        val settings = FakeSettingRepository(localPlatform())
+        val viewModel = testViewModel(settings = settings)
+        viewModel.updateMaxTokens(100000)
+        assertEquals(100000, settings.updatedPlatforms.single().maxTokens)
+    }
+
+    @Test
+    fun `clearing output limit persists unlimited`() = runTest {
+        val settings = FakeSettingRepository(localPlatform())
+        val viewModel = testViewModel(settings = settings)
+        viewModel.updateMaxTokens(null)
+        assertEquals(null, settings.updatedPlatforms.single().maxTokens)
+    }
+
+    @Test
     fun `updating max-tokens persists to the local profile`() = runTest {
         val settings = FakeSettingRepository(localPlatform())
         val viewModel = testViewModel(settings = settings)
@@ -132,7 +148,7 @@ class PlatformSettingViewModelTest {
 
         viewModel.updateMaxTokens(4096)
 
-        assertEquals(MAX_HIGH_RAM_CONTEXT_TOKENS, viewModel.maxTokensCap())
+        assertEquals(MAX_HIGH_RAM_CONTEXT_TOKENS, viewModel.recommendedMaxTokens())
         assertEquals(4096, settings.updatedPlatforms.single().maxTokens)
     }
 

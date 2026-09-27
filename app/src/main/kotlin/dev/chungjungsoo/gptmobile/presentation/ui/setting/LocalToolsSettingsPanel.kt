@@ -65,7 +65,8 @@ fun LocalToolsSettingsPanel(
                     Text(stringResource(R.string.local_tools_settings_panel_label_3), style = MaterialTheme.typography.bodySmall)
                     LocalToolToggle("No app context limit", budget.contextTokens == Int.MAX_VALUE, true) { enabled -> viewModel.updateBudget { it.copy(contextTokens = if (enabled) Int.MAX_VALUE else 32768) } }
                     if (budget.contextTokens != Int.MAX_VALUE) DelegationNumber("Context window tokens", budget.contextTokens, 2048..1048576, true) { value -> viewModel.updateBudget { it.copy(contextTokens = value) } }
-                    DelegationNumber("Output reserve tokens", budget.outputTokens, 128..32768, true) { value -> viewModel.updateBudget { it.copy(outputTokens = value) } }
+                    LocalToolToggle("No app output-token limit", budget.outputTokens == 0, true) { enabled -> viewModel.updateBudget { it.copy(outputTokens = if (enabled) 0 else 32768) } }
+                    if (budget.outputTokens > 0) DelegationNumber("Output token limit (recommended: 32768)", budget.outputTokens, 1..Int.MAX_VALUE, true) { value -> viewModel.updateBudget { it.copy(outputTokens = value) } }
                     LocalToolToggle("No app total-token limit", budget.totalRunTokens == Int.MAX_VALUE, true) { enabled -> viewModel.updateBudget { it.copy(totalRunTokens = if (enabled) Int.MAX_VALUE else 65536) } }
                     if (budget.totalRunTokens != Int.MAX_VALUE) DelegationNumber("Total run tokens including delegates", budget.totalRunTokens, 4096..2097152, true) { value -> viewModel.updateBudget { it.copy(totalRunTokens = value) } }
                 }

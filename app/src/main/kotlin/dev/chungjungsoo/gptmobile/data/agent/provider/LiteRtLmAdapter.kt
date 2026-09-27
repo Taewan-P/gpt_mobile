@@ -134,13 +134,14 @@ class LiteRtLmAdapter(
                 }
 
                 val resolvedMaxTokens = resolvedEngineMaxTokens(
-                    requestedMaxTokens = platform.maxTokens ?: DEFAULT_MAX_TOKENS,
+                    requestedMaxTokens = Int.MAX_VALUE,
                     accelerator = platform.accelerator.orEmpty(),
                     entry = catalogEntry,
                     deviceSocModel = deviceSocModel,
                     deviceRamGb = localRuntime.deviceRamGb
                 )
 
+                val outputLimit = constraints.outputLimit(platform.maxTokens)
                 val throttlingPolicy = localRuntime.getAdaptiveThrottlingPolicy()
                 val effectiveContextTokens = if (throttlingPolicy.maxTokensClamp != null) {
                     minOf(resolvedMaxTokens, throttlingPolicy.maxTokensClamp)
@@ -205,7 +206,7 @@ class LiteRtLmAdapter(
                                     snapshot != null &&
                                     snapshot.profileUid == platform.uid &&
                                     snapshot.engineSpec == loadedSpec &&
-                                    snapshot.maxOutputTokens == constraints.maxOutputTokens &&
+                                    snapshot.maxOutputTokens == outputLimit &&
                                     snapshot.sampler == sampler &&
                                     snapshot.systemPrompt == platform.systemPrompt &&
                                     snapshot.toolsKey == toolsKey &&
@@ -227,7 +228,7 @@ class LiteRtLmAdapter(
                                     createConversation(
                                         LocalConversationConfig(
                                             sampler = sampler,
-                                            maxOutputTokens = constraints.maxOutputTokens,
+                                            maxOutputTokens = outputLimit,
                                             systemPrompt = platform.systemPrompt,
                                             initialMessages = seedHistory,
                                             tools = descriptors,
@@ -249,7 +250,7 @@ class LiteRtLmAdapter(
                                     openConversation = OpenConversation(
                                         profileUid = platform.uid,
                                         engineSpec = loadedSpec,
-                                        maxOutputTokens = constraints.maxOutputTokens,
+                                        maxOutputTokens = outputLimit,
                                         sampler = sampler,
                                         systemPrompt = platform.systemPrompt,
                                         toolsKey = toolsKey,
@@ -575,7 +576,6 @@ class LiteRtLmAdapter(
         const val DEFAULT_TOP_K = 40
         const val DEFAULT_TOP_P = 0.95f
         const val DEFAULT_TEMPERATURE = 1.0f
-        const val DEFAULT_MAX_TOKENS = 1024
     }
 }
 

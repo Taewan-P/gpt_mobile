@@ -1,24 +1,13 @@
-# GPT Mobile AI 0.9.18.0
+# GPT Mobile AI 0.9.18.1
 
-## Local model marketplace
-- Add Gemma 3 270M Instruct, Qwen3 0.6B, Qwen2.5 Coder 3B Instruct, Phi-4 Mini Instruct, Gemma 3n E4B Instruct and FastVLM 0.5B.
-- Offer chipset-specific Qualcomm NPU packages for Gemma 270M and FastVLM alongside separate LiteRT CPU/GPU editions.
-- Pin new downloads to verified repository revisions and file sizes, enforce context limits, and route supported NPU vision encoders correctly.
-- Keep the newer bundled catalogue when the online catalogue is older. Exclude incompatible web, desktop, embedding and raw-checkpoint packages from chat discovery.
-- Remove unsupported GGUF and unavailable catalogue entries. No image-generation models are added.
+## Optional output limits
 
-## Memory and conversations
-- Add adjustable memory sensitivity to control what automatic memory capture retains.
-- Simplify the composer with a background-matched input and subtle themed placeholder.
-- Reorganize conversation settings with Options as the default tab, combining tool and response controls, and a searchable Models selector.
+- Max Output Tokens now accepts values above the recommendation. Leave it blank or select Unlimited to remove the profile’s app-imposed response limit.
+- New local profiles start without an output limit. Recommended values remain available as a one-tap suggestion.
+- Local response length is separate from context allocation. A short response limit no longer shrinks the engine’s context window.
+- Tool connections has an optional global output-token limit, disabled by default. Context reservations no longer silently become response limits.
+- Existing saved limits are preserved. To remove them, select Unlimited in the model profile and enable No app output-token limit in Tool connections settings if a global limit is configured.
 
-## AI platforms
-- Add NVIDIA NIM provider configuration and model discovery.
-- Group free providers in a collapsible section and simplify provider cards.
-- Allow confirmed provider deletion while retaining historical conversations and messages.
+Provider limits, end-of-response tokens, and the compiled local model’s context capacity still apply. This change does not enlarge an NPU package’s compiled context window.
 
-## Reliability
-- Improve handling of WebView renderer failures and repeated routing DNS failures.
-- Stop unsolicited localhost search probes and strengthen QNN package checks before native loading.
-
-Version code: **74**. Android 12 or newer. Use the ARM64 APK for most phones. Model access may require accepting the publisher's terms. Hardware acceleration depends on the phone, runtime and selected package; on-device execution of the new models has not been verified on every supported chipset.
+Version code: **75**. Android 12 or newer. Use the ARM64 APK for most phones.

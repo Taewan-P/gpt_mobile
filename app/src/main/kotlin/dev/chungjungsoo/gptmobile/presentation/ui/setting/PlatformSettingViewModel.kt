@@ -318,7 +318,7 @@ class PlatformSettingViewModel @Inject constructor(
         updatePlatform(platform.copy(disableLocalTools = !platform.disableLocalTools))
     }
 
-    fun maxTokensCap(): Int = resolvedEngineMaxTokens(
+    fun recommendedMaxTokens(): Int = resolvedEngineMaxTokens(
         requestedMaxTokens = DEFAULT_MAX_TOKENS_CAP,
         accelerator = platformState.value?.accelerator.orEmpty(),
         entry = _catalogEntries.value.firstOrNull { it.id == platformState.value?.model },
@@ -416,7 +416,7 @@ class PlatformSettingViewModel @Inject constructor(
                         temperature = defaults.temperature,
                         topP = defaults.topP,
                         topK = defaults.topK,
-                        maxTokens = defaults.maxTokens
+                        maxTokens = platform.maxTokens
                     )
                 )
             } else {
@@ -483,8 +483,8 @@ class PlatformSettingViewModel @Inject constructor(
 
     fun updateMaxTokens(maxTokens: Int?) {
         val platform = platformState.value ?: return
-        val clamped = maxTokens?.coerceIn(MIN_MAX_TOKENS, maxTokensCap())
-        updatePlatform(platform.copy(maxTokens = clamped))
+        if (maxTokens != null && maxTokens < MIN_MAX_TOKENS) return
+        updatePlatform(platform.copy(maxTokens = maxTokens))
         closeMaxTokensDialog()
     }
 

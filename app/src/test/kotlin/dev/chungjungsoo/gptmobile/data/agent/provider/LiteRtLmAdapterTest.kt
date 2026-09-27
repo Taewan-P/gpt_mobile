@@ -1185,6 +1185,28 @@ class LiteRtLmAdapterTest {
     }
 
     @Test
+    fun `unset output limit leaves generation uncapped without shrinking context`() = runBlocking {
+        val runtime = FakeLocalRuntime().apply {
+            scriptedEvents = listOf(listOf(LocalRuntimeEvent.TextDelta("ok"), LocalRuntimeEvent.Done))
+        }
+        adapter(runtime).openSession(turns("hello"), localPlatform().copy(maxTokens = null))
+            .streamRound(emptyList(), emptyList()).toList()
+        assertEquals(4096, runtime.loadEngineCalls.single().maxTokens)
+        assertEquals(null, runtime.createConversationCalls.single().maxOutputTokens)
+    }
+
+    @Test
+    fun `explicit output limit does not shrink context and request limit wins`() = runBlocking {
+        val runtime = FakeLocalRuntime().apply {
+            scriptedEvents = listOf(listOf(LocalRuntimeEvent.TextDelta("ok"), LocalRuntimeEvent.Done))
+        }
+        adapter(runtime).openSession(turns("hello"), localPlatform().copy(maxTokens = 100), RequestConstraints(maxOutputTokens = 50))
+            .streamRound(emptyList(), emptyList()).toList()
+        assertEquals(4096, runtime.loadEngineCalls.single().maxTokens)
+        assertEquals(50, runtime.createConversationCalls.single().maxOutputTokens)
+    }
+
+    @Test
     fun `NPU engine spec clamps max tokens to the matching SOC variant context`() = runBlocking {
         val runtime = FakeLocalRuntime().apply {
             scriptedEvents = listOf(listOf(LocalRuntimeEvent.TextDelta("ok"), LocalRuntimeEvent.Done))
@@ -1211,6 +1233,7 @@ class LiteRtLmAdapterTest {
         ).streamRound(emptyList(), emptyList()).toList()
 
         assertEquals(1280, runtime.loadEngineCalls.single().maxTokens)
+        assertEquals(4096, runtime.createConversationCalls.single().maxOutputTokens)
         assertEquals(LocalAccelerators.NPU, runtime.loadEngineCalls.single().accelerator)
     }
 
@@ -1324,8 +1347,8 @@ class LiteRtLmAdapterTest {
         val runtime = FakeLocalRuntime().apply {
             scriptedEvents = listOf(listOf(LocalRuntimeEvent.TextDelta("ok"), LocalRuntimeEvent.Done))
         }
-        val adapter = adapter(runtime)
-        val platform = localPlatform().copy(maxTokens = 40) // 160 chars: anchor and recent pair fit, middle turns do not
+        val adapter = adapter(runtime, catalog = FakeModelCatalogRepository(listOf(CatalogEntry(id = "gemma3-1b-it", maxContextTokens = 40))))
+        val platform = localPlatform().copy(maxTokens = null) // Small compiled context, independent of output limit
 
         val anchor = completedTurn("Anchor prompt setup instructions", "Anchor reply confirmation")
         val middle1 = completedTurn("Intermediate step 1 with lots and lots of text that overflows", "Intermediate reply 1")

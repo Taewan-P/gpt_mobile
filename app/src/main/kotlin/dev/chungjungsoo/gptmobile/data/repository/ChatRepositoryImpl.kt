@@ -228,9 +228,7 @@ class ChatRepositoryImpl(
             val profileBudget = budgetSettings.copy(contextTokens = minOf(budgetSettings.contextTokens, budgetSettings.profileContextCeilings[platform.uid] ?: Int.MAX_VALUE))
             val limits = if (platform.compatibleType == ClientType.FREE && FreeAiProvider.requireFor(platform) == FreeAiProvider.POLLINATIONS) {
                 // The legacy GET endpoint accepts a small prompt in its URL.
-                profileBudget.copy(contextTokens = minOf(profileBudget.contextTokens, 1536), outputTokens = minOf(profileBudget.outputTokens, 256))
-            } else if (platform.compatibleType == ClientType.LITERT_LM) {
-                profileBudget.copy(contextTokens = minOf(profileBudget.contextTokens, platform.maxTokens ?: 4096))
+                profileBudget.copy(contextTokens = minOf(profileBudget.contextTokens, 1536), outputTokens = minOf(profileBudget.outputTokens.takeIf { it > 0 } ?: 256, 256))
             } else {
                 profileBudget
             }
@@ -408,7 +406,7 @@ class ChatRepositoryImpl(
                 )
             }
 
-            dev.chungjungsoo.gptmobile.data.agent.AgentRunner(customRunner.limits.copy(contextTokens = limits.contextTokens, initialContextTokens = contextPlan.promptTokens, finalResponseReserveTokens = contextPlan.outputTokens)).run(groundedSession, runnerTools).collect { runEvent ->
+            dev.chungjungsoo.gptmobile.data.agent.AgentRunner(customRunner.limits.copy(contextTokens = limits.contextTokens, initialContextTokens = contextPlan.promptTokens, finalResponseReserveTokens = minOf(contextPlan.outputTokens ?: 32768, limits.contextTokens / 4))).run(groundedSession, runnerTools).collect { runEvent ->
                 when (runEvent) {
                     is AgentRunEvent.Provider -> when (val providerEvent = runEvent.event) {
                         is ProviderEvent.ThinkingDelta -> {

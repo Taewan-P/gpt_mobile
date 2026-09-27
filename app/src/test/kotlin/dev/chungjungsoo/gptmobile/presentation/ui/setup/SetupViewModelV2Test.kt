@@ -255,7 +255,7 @@ class SetupViewModelV2Test {
     }
 
     @Test
-    fun `savePlatform scales maxTokens to 4096 on high RAM device`() = runTest {
+    fun `savePlatform leaves output unlimited on high RAM device`() = runTest {
         val settings = RecordingSettingRepository()
         val localModels = FakeLocalModelRepository(listOf(wizardStoredModel("ready-model")))
         val catalog = FakeModelCatalogRepository(
@@ -279,7 +279,7 @@ class SetupViewModelV2Test {
 
         val saved = settings.addedPlatforms.single()
         assertEquals("ready-model", saved.model)
-        assertEquals(4096, saved.maxTokens)
+        assertEquals(null, saved.maxTokens)
     }
 
     private fun statusOf(viewModel: SetupViewModelV2, catalogEntryId: String) = viewModel.catalogLocalModels.value
