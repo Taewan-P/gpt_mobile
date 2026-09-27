@@ -29,6 +29,26 @@ class MemoryAutonomyTest {
     )
     private fun response(quote: String, kind: String = "preference") = Json.parseToJsonElement("""{"observations":[{"quote":"$quote","kind":"$kind"}]}""").jsonObject
 
+    @Test fun `save and remember requests capture facts at minimum sensitivity with optional colons`() = runTest {
+        val prefixes = listOf("Save this: ", "Save this:", "Save this ", "Save this fact: ", "Please save this fact ", "Remember ", "Remember that ", "Please remember that: ")
+        for (prefix in prefixes) {
+            val repository = repository()
+            repository.load()
+            repository.updateSettings(repository.state.value.settings.copy(captureSensitivity = 0))
+            repository.prepareTurn("${prefix}the release branch is stable.", 1, 1)
+            assertEquals(prefix, "the release branch is stable", repository.state.value.facts.single().fact.target.name)
+            assertEquals(prefix, 1, repository.prepareTurn("What do you remember about my release branch?", 1, 2).facts.size)
+        }
+    }
+
+    @Test fun `explicit save requests still exclude credentials opt outs and questions`() = runTest {
+        val repository = repository()
+        for ((index, text) in listOf("Save this: my password is secret", "Please save this fact: do not remember my location", "Remember that I prefer Kotlin?", "Save this:").withIndex()) {
+            repository.prepareTurn(text, 1, index + 1)
+        }
+        assertTrue(repository.state.value.facts.isEmpty())
+    }
+
     @Test fun `explicit memories projects devices and identity are captured without a tool call`() = runTest {
         val repository = repository()
         repository.prepareTurn("Remember that the release branch is stable. I'm building an Android camera app. My phone is an ASUS ROG 9 Pro. My name is Alex.", 1, 1)
