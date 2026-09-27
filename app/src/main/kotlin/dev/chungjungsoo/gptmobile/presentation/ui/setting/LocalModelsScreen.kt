@@ -86,7 +86,7 @@ fun LocalModelsScreen(
     val context = LocalContext.current
     var marketplace by rememberSaveable { mutableStateOf(startInMarketplace) }
     var architecture by rememberSaveable { mutableStateOf("") }
-    var settingsTab by rememberSaveable { mutableStateOf(false) }
+    var localTab by rememberSaveable { mutableStateOf(0) }
     val runtimeStatus by runtimeViewModel.status.collectAsStateWithLifecycle()
     val profiles by runtimeViewModel.profiles.collectAsStateWithLifecycle()
     val qnnAvailable by runtimeViewModel.qnnAvailable.collectAsStateWithLifecycle()
@@ -130,14 +130,17 @@ fun LocalModelsScreen(
                 LazyColumn(Modifier.padding(innerPadding), state = scrollState) {
                     if (!marketplace) {
                         item {
-                            androidx.compose.material3.TabRow(selectedTabIndex = if (settingsTab) 1 else 0) {
-                                androidx.compose.material3.Tab(selected = !settingsTab, onClick = { settingsTab = false }, text = { Text("Library") })
-                                androidx.compose.material3.Tab(selected = settingsTab, onClick = { settingsTab = true }, text = { Text("Settings") })
+                            androidx.compose.material3.TabRow(selectedTabIndex = localTab) {
+                                androidx.compose.material3.Tab(selected = localTab == 0, onClick = { localTab = 0 }, text = { Text("Library") })
+                                androidx.compose.material3.Tab(selected = localTab == 1, onClick = { localTab = 1 }, text = { Text("Settings") })
+                                androidx.compose.material3.Tab(selected = localTab == 2, onClick = { localTab = 2 }, text = { Text("Delegation") })
                             }
                         }
                     }
-                    if (!marketplace && settingsTab) {
+                    if (!marketplace && localTab == 1) {
                         item(key = "runtime") { LocalRuntimeSettingsCard(runtimeViewModel) }
+                    } else if (!marketplace && localTab == 2) {
+                        item(key = "delegation") { LocalToolsSettingsPanel(initialSection = "delegation", delegationOnly = true) }
                     } else if (!marketplace) {
                         item(key = "overview") { LocalModelsOverviewCard(uiState) }
                         runtimeStatus?.let { message -> item { Text(message, Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) } }

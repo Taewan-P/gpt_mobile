@@ -10,13 +10,25 @@ data class ModelDelegationSettings(
     val maxInputCharacters: Int = 8000,
     val maxOutputTokens: Int = 512,
     val timeoutSeconds: Int = 30,
-    val maxCallsPerTurn: Int = 1
+    val maxCallsPerTurn: Int = 1,
+    val searchBreadth: Int = 4,
+    val maxPageReads: Int = 6,
+    val crawlDepth: Int = 1,
+    val parallelism: Int = 2,
+    val localWorkloadPercent: Int = 70,
+    val remoteBriefCharacters: Int = 6000
 ) {
     fun normalized() = copy(
         maxInputCharacters = maxInputCharacters.coerceIn(500, 16000),
         maxOutputTokens = maxOutputTokens.coerceIn(64, 2048),
-        timeoutSeconds = timeoutSeconds.coerceIn(5, 40),
-        maxCallsPerTurn = maxCallsPerTurn.coerceIn(1, 3)
+        timeoutSeconds = timeoutSeconds.coerceIn(5, 120),
+        maxCallsPerTurn = maxCallsPerTurn.coerceIn(1, 8),
+        searchBreadth = searchBreadth.coerceIn(1, 12),
+        maxPageReads = maxPageReads.coerceIn(1, 20),
+        crawlDepth = crawlDepth.coerceIn(0, 4),
+        parallelism = parallelism.coerceIn(1, 8),
+        localWorkloadPercent = localWorkloadPercent.coerceIn(0, 100),
+        remoteBriefCharacters = remoteBriefCharacters.coerceIn(1000, 16000)
     )
 }
 

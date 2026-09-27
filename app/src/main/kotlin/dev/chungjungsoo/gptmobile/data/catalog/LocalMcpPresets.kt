@@ -77,6 +77,17 @@ object LocalMcpPresets {
             setupInstructions = "This community project is no longer maintained and recommends official Comfy tooling. If using the legacy server, configure its authenticated HTTP mode and paste its reachable MCP URL. ComfyUI and generation models run on your computer, not in this APK. Select only the tools you need."
         ),
         McpPreset(
+            id = "graphiti-memory", name = "Graphiti Memory", description = "Temporal knowledge-graph memory with entity and relationship recall.",
+            category = McpCategory.MEMORY, commandOrUrl = "",
+            iconName = "memory", author = "getzep",
+            pricing = McpPricingType.FREE,
+            requiredFields = listOf("Your Graphiti MCP Streamable HTTP endpoint"),
+            toolCapabilities = listOf("Search facts and entities", "Recall temporal relationships", "Add graph memories"),
+            websiteUrl = "https://github.com/getzep/graphiti",
+            documentationOnly = false,
+            setupInstructions = "Run Graphiti with an MCP-compatible HTTP gateway on your own host, then paste the reachable Streamable HTTP endpoint here. Keep automatic recall opt-in per AI profile; Graphiti remains separate from the encrypted on-device Memory."
+        ),
+        McpPreset(
             id = "marm-memory", name = "MARM Memory", description = "Shared session history, code indexing and concept-graph memory.",
             category = McpCategory.MEMORY, commandOrUrl = "",
             iconName = "marm-memory", author = "Lyellr88",

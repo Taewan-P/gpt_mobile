@@ -40,6 +40,7 @@ import dev.chungjungsoo.gptmobile.data.model.isPrivateDestination
 fun LocalToolsSettingsPanel(
     initialSection: String? = null,
     settingsOnly: Boolean = false,
+    delegationOnly: Boolean = false,
     viewModel: LocalToolsViewModel = hiltViewModel(),
     memory: FactVaultViewModel = hiltViewModel()
 ) {
@@ -57,8 +58,8 @@ fun LocalToolsSettingsPanel(
     var advancedDelegation by remember { mutableStateOf(false) }
     var showDelegation by remember { mutableStateOf(initialSection == "delegation") }
     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (!settingsOnly) TextButton(onClick = { showDoctor = true }) { Text(stringResource(R.string.local_tools_settings_panel_label_1)) }
-        if (settingsOnly) {
+        if (!settingsOnly && !delegationOnly) TextButton(onClick = { showDoctor = true }) { Text(stringResource(R.string.local_tools_settings_panel_label_1)) }
+        if (settingsOnly && !delegationOnly) {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
                     Text(stringResource(R.string.local_tools_settings_panel_label_2), style = MaterialTheme.typography.titleMedium)
@@ -72,7 +73,7 @@ fun LocalToolsSettingsPanel(
                 }
             }
         }
-        if (!settingsOnly) {
+        if (!settingsOnly && !delegationOnly) {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     LocalToolToggle("Local memory capture and recall", vault.enabled, !memoryBusy, memory::setEnabled)
@@ -82,6 +83,8 @@ fun LocalToolsSettingsPanel(
                     memoryError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 }
             }
+        }
+        if (!settingsOnly) {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     LocalToolToggle("Model delegation", config.enabled, !busy) { value ->
@@ -111,8 +114,14 @@ fun LocalToolsSettingsPanel(
                         if (advancedDelegation) {
                             DelegationNumber("Maximum input characters", config.maxInputCharacters, 500..16000, !busy) { value -> viewModel.update { it.copy(maxInputCharacters = value) } }
                             DelegationNumber("Maximum output tokens", config.maxOutputTokens, 64..2048, !busy) { value -> viewModel.update { it.copy(maxOutputTokens = value) } }
-                            DelegationNumber("Timeout in seconds", config.timeoutSeconds, 5..40, !busy) { value -> viewModel.update { it.copy(timeoutSeconds = value) } }
-                            DelegationNumber("Calls per conversation turn", config.maxCallsPerTurn, 1..3, !busy) { value -> viewModel.update { it.copy(maxCallsPerTurn = value) } }
+                            DelegationNumber("Timeout in seconds", config.timeoutSeconds, 5..120, !busy) { value -> viewModel.update { it.copy(timeoutSeconds = value) } }
+                            DelegationNumber("Calls per conversation turn", config.maxCallsPerTurn, 1..8, !busy) { value -> viewModel.update { it.copy(maxCallsPerTurn = value) } }
+                            DelegationNumber("Search breadth", config.searchBreadth, 1..12, !busy) { value -> viewModel.update { it.copy(searchBreadth = value) } }
+                            DelegationNumber("Maximum page reads", config.maxPageReads, 1..20, !busy) { value -> viewModel.update { it.copy(maxPageReads = value) } }
+                            DelegationNumber("Crawl depth", config.crawlDepth, 0..4, !busy) { value -> viewModel.update { it.copy(crawlDepth = value) } }
+                            DelegationNumber("Parallel local tasks", config.parallelism, 1..8, !busy) { value -> viewModel.update { it.copy(parallelism = value) } }
+                            DelegationNumber("Local workload percent", config.localWorkloadPercent, 0..100, !busy) { value -> viewModel.update { it.copy(localWorkloadPercent = value) } }
+                            DelegationNumber("Remote brief characters", config.remoteBriefCharacters, 1000..16000, !busy) { value -> viewModel.update { it.copy(remoteBriefCharacters = value) } }
                         }
                         Text(stringResource(R.string.local_tools_settings_panel_label_10), style = MaterialTheme.typography.bodySmall)
                         Text(stringResource(R.string.local_tools_settings_panel_label_11), style = MaterialTheme.typography.bodySmall)
