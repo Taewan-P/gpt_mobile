@@ -1,6 +1,10 @@
 name: Publish Signed Release
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - app/build.gradle.kts
 permissions:
   contents: read
 concurrency:

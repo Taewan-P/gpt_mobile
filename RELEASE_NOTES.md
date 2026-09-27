@@ -1,24 +1,20 @@
-# GPT Mobile AI 0.9.19.1
+# GPT Mobile AI 0.9.19.2
 
-## Local model reliability
+## Local model delegation
 
-- Budget system instructions, the current prompt, earlier turns and tool definitions against the model's effective context capacity, with headroom for replies and tool results.
-- Reject oversized current input before allocating a native engine and explain how to reduce it. Show a notice when earlier turns or tool definitions are omitted to fit.
-- Bound native tool results and close conversations containing hidden tool exchanges that cannot be safely reconstructed, while retaining the loaded engine for later requests.
-- Preserve saved output preferences, including unlimited output when unset. Actual context capacity remains a property of the model and runtime.
+- Adds a dedicated **Delegation** tab under **Local Models**.
+- Expands delegation controls for search breadth, webpage reads, crawl depth, parallel local tasks, local workload percentage, timeout, per-turn calls, and remote brief size.
+- Keeps private destinations as the default delegation boundary and preserves the existing free-model and self-delegation safeguards.
 
-## Claude and benchmark fixes
+## Memory and MCP
 
-- Omit unsupported temperature/top-p parameters for fixed-sampling Claude models, including Sonnet 5 with reasoning disabled.
-- Preserve the original streaming failure without masking it with a Flow exception-transparency error or swallowing a collector exception.
-- Validate local downloads and accelerator compatibility before starting a benchmark suite. Setup errors no longer create repeated failed tests or affect ratings.
-- Use the same installed-model selection for benchmarks and inference, including legacy GPU/NPU editions.
+- Adds **Graphiti Memory** as an optional self-hosted MCP memory integration.
+- Keeps the existing built-in encrypted Memory plus hosted Mem0 and Supermemory options without duplicating marketplace entries.
+- Retains Brave Search and the current web-search marketplace providers already present on main.
 
-## Diagnostic research
+## Local runtime
 
-- Include a detailed [upgrade review](https://github.com/tailscale-signin/GPT_Mobile_AI-improved/blob/v0.9.19.1/docs/diagnostics-upgrade-review-2026-09-27.md) with ten ranked proposals, twelve primary sources, integration points and device acceptance checks.
-- Runtime dependency upgrades and experimental acceleration options remain proposed follow-ups. This release does not claim to resolve native QNN teardown warnings; GPU/NPU inference and sustained thermal behavior still require physical-device verification.
+- Includes all LiteRT-LM and Qualcomm QNN upgrades already merged into main before this release, including runtime hardware detection, model/package validation, GPU/CPU execution paths, and automatic QNN-to-LiteRT fallback when NPU prerequisites are unavailable.
+- No database schema changes are included in this release.
 
-The fixes passed 1,140 unit tests, Android lint, Kotlin formatting, APK/native-library integrity checks, CodeQL and remote diagnostics before merge. The signed-release workflow validates the exact release commit and verifies package identity and signing-certificate continuity before publishing.
-
-Version code: **77**. Android 12 or newer. Use the ARM64 APK for most phones, including the ROG Phone 9 Pro.
+Version code: **78**. Android 12 or newer. Use the ARM64 APK for most modern Android phones.
