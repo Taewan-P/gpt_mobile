@@ -282,12 +282,14 @@ fun ChatModelDialog(
                         TextButton(onClick = { showConnectedTools = !showConnectedTools }) {
                             Text("Connected tools · ${mcpTools.size} ${if (showConnectedTools) "▴" else "▾"}")
                         }
-                        if (showConnectedTools) mcpTools.forEach { tool ->
-                            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(toolActivityIcon(tool.name), null, tint = MaterialTheme.colorScheme.primary)
-                                Spacer(Modifier.width(8.dp))
-                                Text(tool.name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                                Switch(checked = isToolEnabled(tool.id), enabled = tool.isEnabled, onCheckedChange = { onToolChanged(tool.id, it) })
+                        if (showConnectedTools) {
+                            mcpTools.forEach { tool ->
+                                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(toolActivityIcon(tool.name), null, tint = MaterialTheme.colorScheme.primary)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(tool.name, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                                    Switch(checked = isToolEnabled(tool.id), enabled = tool.isEnabled, onCheckedChange = { onToolChanged(tool.id, it) })
+                                }
                             }
                         }
                         Text("Web search queries all enabled search connections and combines their results. Individual switches control which engines participate.", style = MaterialTheme.typography.bodySmall)

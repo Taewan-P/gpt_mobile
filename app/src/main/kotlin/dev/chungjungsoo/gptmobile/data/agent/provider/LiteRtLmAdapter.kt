@@ -171,7 +171,11 @@ class LiteRtLmAdapter(
                     visionAccelerator = if (
                         LocalAccelerators.normalize(platform.accelerator) == LocalAccelerators.NPU &&
                         catalogEntry?.capabilities?.npuVision == true
-                    ) LocalAccelerators.NPU else LocalAccelerators.GPU
+                    ) {
+                        LocalAccelerators.NPU
+                    } else {
+                        LocalAccelerators.GPU
+                    }
                 )
                 val sampler = LocalSamplerConfig(
                     topK = platform.topK ?: DEFAULT_TOP_K,

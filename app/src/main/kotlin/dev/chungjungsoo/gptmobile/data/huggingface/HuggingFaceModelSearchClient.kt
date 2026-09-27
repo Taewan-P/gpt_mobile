@@ -228,7 +228,9 @@ internal fun isSupportedHubPackage(repoId: String, path: String, tags: List<Stri
     if (Regex("(?i)(?:^|[/_.-])(?:web|intel|qcs[0-9]+)(?:[/_.-]|$)").containsMatchIn(path)) return false
     if (tags.any { it.equals("feature-extraction", true) || it.equals("sentence-similarity", true) } ||
         repoId.contains("embedding", true)
-    ) return false
+    ) {
+        return false
+    }
     val packages = dev.chungjungsoo.gptmobile.data.localmodel.LocalModelPackages
     if (packages.isNpuFile(path)) return packages.npuSoc(path) != null
     // Explicit CPU-only exports cannot be advertised as GPU models.
