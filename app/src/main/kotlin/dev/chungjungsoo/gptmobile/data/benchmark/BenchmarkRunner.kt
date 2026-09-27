@@ -12,8 +12,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.security.DiagnosticRedactor
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -52,17 +51,21 @@ class BenchmarkRunner(
         var chunks = 0
         var tokens = 0
         var estimated = false
+        var roundTokens: Int? = null
+        var roundStart = 0
+        var roundAccounted = true
         val calls = linkedMapOf<String, ProviderEvent.ToolCall>()
         val successful = mutableSetOf<String>()
         val code = "PKG-${UUID.randomUUID().toString().take(8)}"
         val fixture = fixtureTool(code)
         fun sample(outcome: BenchmarkOutcome, error: String? = null) = BenchmarkSample(
             test.id, test.label, test.category, outcome, (now() - started).coerceAtLeast(0), first,
-            tokens, estimated, text.length, chunks, longestGap, calls.size, successful.size,
+            tokens + if (roundAccounted) 0 else roundTokens ?: ((text.length - roundStart + 3) / 4),
+            estimated || (!roundAccounted && roundTokens == null), text.length, chunks, longestGap, calls.size, successful.size,
             text.take(1000).toString(), error, lastChunk?.let { it - started }
         )
         try {
-            withTimeout(timeoutMs) {
+            val finished = withTimeoutOrNull(timeoutMs) {
                 val turns = buildList {
                     if (test.id == "context") add(ConversationTurn(message("Remember this parcel code: ORCHID-742."), message("I will remember ORCHID-742."), false))
                     add(ConversationTurn(message(test.prompt), null, true))
@@ -74,8 +77,9 @@ class BenchmarkRunner(
                 repeat(3) {
                     if (done) return@repeat
                     val roundCalls = linkedMapOf<String, ProviderEvent.ToolCall>()
-                    val roundStart = text.length
-                    var roundTokens: Int? = null
+                    roundStart = text.length
+                    roundTokens = null
+                    roundAccounted = false
                     var completed = false
                     session.streamRound(tools.map { it.definition }, exchanges.toList()).collect { event ->
                         when (event) {
@@ -108,6 +112,7 @@ class BenchmarkRunner(
                     check(completed) { "Provider ended without a completion event" }
                     if (roundTokens == null) estimated = true
                     tokens += roundTokens ?: ((text.length - roundStart + 3) / 4)
+                    roundAccounted = true
                     if (roundCalls.isEmpty() || session.handlesToolsInternally) {
                         done = true
                     } else {
@@ -127,7 +132,9 @@ class BenchmarkRunner(
                 }
                 check(done) { "Tool round limit reached" }
                 check(text.isNotBlank()) { "Provider returned no answer" }
+                true
             }
+            if (finished != true) return sample(BenchmarkOutcome.TIMED_OUT, "Exceeded ${timeoutMs / 1000}s per-test limit")
             val answer = text.toString().trim()
             val passed = when (test.category) {
                 "speed" -> answer.length >= 100
@@ -141,8 +148,6 @@ class BenchmarkRunner(
                 }
             }
             return sample(if (passed) BenchmarkOutcome.PASSED else BenchmarkOutcome.FAILED, if (passed) null else "Response did not meet the fixture's expected result.")
-        } catch (_: TimeoutCancellationException) {
-            return sample(BenchmarkOutcome.TIMED_OUT, "Exceeded ${timeoutMs / 1000}s per-test limit")
         } catch (cancel: CancellationException) {
             throw cancel
         } catch (error: Exception) {

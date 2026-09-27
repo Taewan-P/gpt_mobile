@@ -77,18 +77,20 @@ class ProfileBenchmarkViewModel @Inject constructor(
     val error = mutableError.asStateFlow()
     private val mutableReady = MutableStateFlow(false)
     val ready = mutableReady.asStateFlow()
+    private val mutableDays = MutableStateFlow(30)
+    val days = mutableDays.asStateFlow()
     private var job: Job? = null
 
     private val invocations = database.invocationDao().statistics()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val activeRequests = invocations.map { requests -> requests.any { it.status == "RUNNING" } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
-    val everyday = combine(invocations, profiles) { requests, list ->
-        val since = System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000
-        profilePerformance(requests.filter { it.kind != "benchmark" && it.startedAt >= since }, list.associate { it.uid to it.name })
+    val everyday = combine(invocations, profiles, days) { requests, list, range ->
+        val since = if (range == 0) 0L else System.currentTimeMillis() - range.toLong() * 24 * 60 * 60 * 1000
+        profilePerformance(requests.filter { it.kind != "benchmark" && !it.parentRunId.startsWith("benchmark-") && it.startedAt >= since }, list.associate { it.uid to it.name })
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-    val everydayTools = combine(runDao.observeRecent(10_000), persistenceDao.observeRecentToolEvents(10_000)) { runs, events ->
-        val since = System.currentTimeMillis() / 1000 - 30L * 24 * 60 * 60
+    val everydayTools = combine(runDao.observeRecent(10_000), persistenceDao.observeRecentToolEvents(10_000), days) { runs, events, range ->
+        val since = if (range == 0) 0L else System.currentTimeMillis() / 1000 - range.toLong() * 24 * 60 * 60
         val byId = runs.associateBy { it.runId }
         events.filter { (it.startedAt ?: 0) >= since && it.status in setOf(ToolEventStatus.COMPLETED, ToolEventStatus.FAILED) }
             .mapNotNull { event -> byId[event.runId]?.let { Triple(it.profileUid, it.providerSnapshot, it.modelSnapshot) to event } }
@@ -118,6 +120,11 @@ class ProfileBenchmarkViewModel @Inject constructor(
         mutableError.value = null
     }
 
+    fun selectRange(days: Int) {
+        require(days in setOf(0, 7, 30))
+        mutableDays.value = days
+    }
+
     fun cancel() {
         job?.cancel()
     }
@@ -137,6 +144,7 @@ class ProfileBenchmarkViewModel @Inject constructor(
     fun start(mode: BenchmarkMode) {
         val profile = selected.value ?: return
         if (job?.isActive == true || !mutableReady.value) return
+        if (profile.compatibleType == ClientType.LITERT_LM && localEnvironment.value.isBlank()) return
         if (activeRequests.value) {
             mutableError.value = "Wait for active model requests to finish before benchmarking."
             return
@@ -168,17 +176,18 @@ class ProfileBenchmarkViewModel @Inject constructor(
                     })
                     val sample = runner.run(test, supportsTools)
                     val pss = withContext(Dispatchers.IO) { Debug.getPss() }
-                    val actual = runtime.state.value.takeIf { run.local }
+                    val actual = runtime.state.value.takeIf { run.local && sample.completed }
                     run = run.copy(
                         samples = run.samples + sample,
                         peakClientPssKb = maxOf(run.peakClientPssKb ?: 0, pss),
-                        backend = actual?.backend?.displayName,
-                        accelerator = actual?.engineSpec?.accelerator
+                        backend = actual?.backend?.displayName ?: run.backend,
+                        accelerator = actual?.engineSpec?.accelerator ?: run.accelerator
                     )
                     store.save(run)
                 }
             } catch (_: CancellationException) {
-                run = run.copy(canceled = true, samples = run.samples + BenchmarkSample(currentTest.id, currentTest.label, currentTest.category, BenchmarkOutcome.CANCELED))
+                val canceledSample = if (run.samples.any { it.testId == currentTest.id }) emptyList() else listOf(BenchmarkSample(currentTest.id, currentTest.label, currentTest.category, BenchmarkOutcome.CANCELED))
+                run = run.copy(canceled = true, samples = run.samples + canceledSample)
             } catch (error: Exception) {
                 mutableError.value = safeMessage(error)
                 run = run.copy(canceled = true)

@@ -90,6 +90,8 @@ fun ProfileBenchmarkScreen(onBack: () -> Unit, onUsage: () -> Unit, viewModel: P
     val activeRequests by viewModel.activeRequests.collectAsStateWithLifecycle()
     val everyday by viewModel.everyday.collectAsStateWithLifecycle()
     val everydayTools by viewModel.everydayTools.collectAsStateWithLifecycle()
+    val days by viewModel.days.collectAsStateWithLifecycle()
+    val rangeLabel = if (days == 0) "stored history" else "$days days"
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var mode by rememberSaveable { mutableStateOf(BenchmarkMode.QUICK) }
     var typeFilter by rememberSaveable { mutableIntStateOf(0) }
@@ -145,6 +147,18 @@ fun ProfileBenchmarkScreen(onBack: () -> Unit, onUsage: () -> Unit, viewModel: P
                             TextButton(onClick = viewModel::cancel) {
                                 Icon(Icons.Default.Stop, null)
                                 Text("Stop benchmark")
+                            }
+                        }
+                    }
+                }
+                if (tab == 1 || tab == 2) {
+                    item {
+                        Column {
+                            Text("Everyday measurement window", style = MaterialTheme.typography.labelMedium)
+                            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf(7 to "7 days", 30 to "30 days", 0 to "Stored history").forEach { (value, label) ->
+                                    FilterChip(days == value, { viewModel.selectRange(value) }, label = { Text(label) })
+                                }
                             }
                         }
                     }
@@ -217,7 +231,7 @@ fun ProfileBenchmarkScreen(onBack: () -> Unit, onUsage: () -> Unit, viewModel: P
                         val rows = everyday.filter { it.profileUid == selected.uid && it.metrics.model == selected.model && it.metrics.provider == selected.compatibleType.name }
                         val toolMetrics = everydayTools.firstOrNull { it.profileUid == selected.uid && it.model == selected.model && it.provider == selected.compatibleType.name }
                         item {
-                            BenchmarkPanel("Everyday performance · 30 days") {
+                            BenchmarkPanel("Everyday performance · $rangeLabel") {
                                 Text("Measured from actual conversations for this profile and model. Prompt lengths, tools and server load vary; these observations do not change the controlled benchmark score.", style = MaterialTheme.typography.bodySmall)
                                 MetricLine("Tool success", percent(toolMetrics?.successPercent))
                                 MetricLine("Tool completions / failures", "${toolMetrics?.completed ?: 0} / ${toolMetrics?.failed ?: 0}")
@@ -273,7 +287,7 @@ fun ProfileBenchmarkScreen(onBack: () -> Unit, onUsage: () -> Unit, viewModel: P
                             }
                         }
                         item {
-                            BenchmarkPanel("Everyday rankings · 30 days") {
+                            BenchmarkPanel("Everyday rankings · $rangeLabel") {
                                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     PerformanceOrder.entries.forEach { option -> FilterChip(performanceOrder == option, { performanceOrder = option }, label = { Text(option.label) }) }
                                 }

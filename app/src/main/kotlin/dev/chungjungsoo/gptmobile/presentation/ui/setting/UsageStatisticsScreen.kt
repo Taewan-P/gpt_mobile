@@ -78,7 +78,7 @@ fun UsageStatisticsScreen(onBack: () -> Unit, viewModel: UsageStatisticsViewMode
                         Text(number(samples.size.toLong()), style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
                         Text("${number(measured.sumOf { it.outputTokens.toLong() })} reported output tokens", style = MaterialTheme.typography.titleMedium)
                         Text("${number(measured.sumOf { it.inputTokens.toLong() })} reported input · ${stats.profilePerformance.size} profile / model combinations", style = MaterialTheme.typography.bodySmall)
-                        if (samples.any { it.estimated }) Text("${samples.count { it.estimated }} requests have estimates; excluded from reported totals .", style = MaterialTheme.typography.labelSmall)
+                        if (samples.any { it.estimated }) Text("${samples.count { it.estimated }} requests have estimates; excluded from reported totals.", style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
@@ -113,7 +113,7 @@ fun UsageStatisticsScreen(onBack: () -> Unit, viewModel: UsageStatisticsViewMode
                 }
             }
             item {
-                Text("Based on up to 10,000 stored requests, runs and tool calls. Canceled requests and older requests with unknown outcomes are excluded from success rates. Estimates are not billing totals.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Based on up to 10,000 stored requests, runs and tool calls. Model request totals include benchmark requests. Estimates are not billing totals.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

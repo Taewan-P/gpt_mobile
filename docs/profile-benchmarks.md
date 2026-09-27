@@ -7,7 +7,7 @@ The old single-prompt connection-doctor benchmark and Usage performance rankings
 ## Views
 
 - **Overview:** quick/full test controls, progress/cancellation, an app score, component weights, coverage, raw timing/speed summaries, and score history.
-- **Everyday:** current profile/model observations from the last 30 days, actual tool success, request scatter plot, and detailed request history. Synthetic benchmarks are excluded.
+- **Everyday:** current profile/model observations over 7 days, 30 days or stored history, actual tool success, request scatter plot, and detailed request history. Synthetic benchmarks are excluded.
 - **Compare:** current configurations compared within local and remote groups, plus separate everyday rankings. Teal memory-chip icons indicate on-device execution; purple cloud icons indicate remote execution. Text labels accompany colors.
 - **History:** up to 200 runs, including partial/canceled runs, per-test outcomes/previews, runtime/device context and deletion with confirmation.
 

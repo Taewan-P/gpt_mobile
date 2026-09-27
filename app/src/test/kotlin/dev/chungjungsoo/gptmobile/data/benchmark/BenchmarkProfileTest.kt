@@ -2,6 +2,7 @@ package dev.chungjungsoo.gptmobile.data.benchmark
 
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.model.ClientType
+import dev.chungjungsoo.gptmobile.data.openrouter.OpenRouterOptions
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -42,5 +43,13 @@ class BenchmarkProfileTest {
         assertEquals("0.0", result.getValue("temperature").jsonPrimitive.content)
         assertEquals("6", result.getValue("num_thread").jsonPrimitive.content)
         assertTrue(benchmarkProfile(original, false).disableAllTools)
+    }
+
+    @Test
+    fun `default OpenRouter routing survives omitted default JSON fields`() {
+        val profile = PlatformV2(name = "Default", compatibleType = ClientType.OPENROUTER)
+        val result = Json.decodeFromString<OpenRouterOptions>(benchmarkProfile(profile, false).openRouterRouting!!)
+        assertEquals(OpenRouterOptions.DEFAULT_PROVIDER, result.provider)
+        assertEquals(0f, result.temperature)
     }
 }

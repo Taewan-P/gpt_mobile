@@ -13,7 +13,7 @@ internal fun benchmarkProfile(profile: PlatformV2, allowTools: Boolean): Platfor
     fun objectOrNull(value: String?): JsonObject? = value?.let { runCatching { Json.parseToJsonElement(it) as? JsonObject }.getOrNull() }
     val openRouter = if (profile.compatibleType == ClientType.OPENROUTER) {
         val saved = objectOrNull(profile.openRouterRouting) ?: objectOrNull(Json.encodeToString(OpenRouterOptions.createDefault()))!!
-        val legacyRouting = saved.keys.none { it in setOf("provider", "stream", "max_tokens", "temperature", "top_p", "top_k", "seed", "repetition_penalty", "frequency_penalty", "presence_penalty") }
+        val legacyRouting = saved.isNotEmpty() && saved.keys.none { it in setOf("provider", "stream", "max_tokens", "temperature", "top_p", "top_k", "seed", "repetition_penalty", "frequency_penalty", "presence_penalty") }
         val options = if (legacyRouting) mapOf("provider" to saved) else saved
         JsonObject(options + mapOf("temperature" to JsonPrimitive(0f), "stream" to JsonPrimitive(true), "max_tokens" to JsonPrimitive(512))).toString()
     } else {

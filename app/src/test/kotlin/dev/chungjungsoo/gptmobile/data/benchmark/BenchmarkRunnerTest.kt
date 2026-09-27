@@ -7,6 +7,7 @@ import dev.chungjungsoo.gptmobile.data.agent.ProviderEvent
 import dev.chungjungsoo.gptmobile.data.agent.ToolResultContent
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
@@ -151,6 +153,26 @@ class BenchmarkRunnerTest {
         assertEquals(BenchmarkOutcome.PASSED, result.outcome)
         assertTrue(result.estimatedTokens)
         assertNull(result.decodeTokensPerSecond)
+    }
+
+    @Test
+    fun `partial failed responses retain estimated token observations`() = runTest {
+        val result = BenchmarkRunner({ _, _ -> session(flowOf(ProviderEvent.TextDelta("partial text"), ProviderEvent.Failed("Server failed"))) }).run(instruction, true)
+        assertEquals(BenchmarkOutcome.ERROR, result.outcome)
+        assertEquals(3, result.outputTokens)
+        assertTrue(result.estimatedTokens)
+    }
+
+    @Test
+    fun `a parent timeout is not mistaken for the per-test limit`() = runTest {
+        val runner = BenchmarkRunner({ _, _ -> session(flow { awaitCancellation() }) }, timeoutMs = 10_000)
+        var parentCanceled = false
+        try {
+            withTimeout(100) { runner.run(instruction, true) }
+        } catch (_: TimeoutCancellationException) {
+            parentCanceled = true
+        }
+        assertTrue(parentCanceled)
     }
 
     @Test
