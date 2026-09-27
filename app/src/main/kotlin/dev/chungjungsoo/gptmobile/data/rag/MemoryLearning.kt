@@ -9,7 +9,9 @@ import kotlinx.serialization.json.JsonPrimitive
 internal object MemoryLearning {
     private val optOut = Regex("(?i)\\b(?:do not|don't|don’t|never)\\s+(?:remember|save|store|memorize)\\b")
     private val credentials = Regex("(?i)\\b(?:password|api[_ -]?key|access[_ -]?token|secret[_ -]?key|bearer)\\b|\\b(?:sk|ghp|github_pat)-?[A-Za-z0-9_]{16,}|-----BEGIN .*PRIVATE KEY")
-    private val explicit = Regex("(?i)^(?:please\\s+)?(?:remember(?:\\s+that)?|save\\s+this(?:\\s+fact)?[:]?)[ :]+(.+)$")
+
+    // Android's ICU treats [:] as an unfinished POSIX property, unlike desktop Java.
+    private val explicit = Regex("(?i)^(?:please\\s+)?(?:remember(?:\\s+that)?|save\\s+this(?:\\s+fact)?:?)[ :]+(.+)$")
 
     fun statements(text: String): List<String> {
         if (optOut.containsMatchIn(text)) return emptyList()

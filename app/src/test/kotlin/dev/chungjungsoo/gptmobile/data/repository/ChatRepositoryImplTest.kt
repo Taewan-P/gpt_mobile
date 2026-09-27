@@ -55,14 +55,21 @@ import dev.chungjungsoo.gptmobile.data.network.OpenAIAPI
 import dev.chungjungsoo.gptmobile.data.network.ProviderRequestConfig
 import dev.chungjungsoo.gptmobile.data.network.UploadedProviderFile
 import dev.chungjungsoo.gptmobile.data.network.error.CircuitBreakerOpenException
+import dev.chungjungsoo.gptmobile.data.rag.FactVaultRepository
+import dev.chungjungsoo.gptmobile.data.rag.FactVaultSnapshot
 import dev.chungjungsoo.gptmobile.data.security.SecretVault
 import io.ktor.client.engine.cio.CIO
+import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
 import java.io.File
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Proxy
 import java.util.UUID
+import java.util.regex.PatternSyntaxException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
@@ -76,6 +83,44 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ChatRepositoryImplTest {
+
+    @Test
+    fun `memory initialization failure and later class failures do not prevent chat replies`() = runBlocking {
+        val facts = mockk<FactVaultRepository>(relaxed = true)
+        every { facts.state } returns MutableStateFlow(FactVaultSnapshot(enabled = true))
+        val api = RecordingOpenAIAPI(ArrayDeque(List(2) { flowOf(ChatCompletionChunk(choices = listOf(Choice(0, Delta(content = "Hello"), finishReason = "stop")))) }))
+        val repository = createRepository(openAIAPI = api, factVault = facts)
+        val failures = listOf(
+            ExceptionInInitializerError(PatternSyntaxException("Invalid property", "[:]", 0)),
+            NoClassDefFoundError("Could not initialize memory")
+        )
+        for ((index, error) in failures.withIndex()) {
+            coEvery { facts.prepareTurn(any(), any(), any(), any(), any(), any(), any()) } throws error
+            val states = repository.completeChat(
+                userMessages = listOf(MessageV2(id = index + 1, chatId = 1, content = "Hello", platformType = null)),
+                assistantMessages = emptyList(),
+                platform = customPlatform(),
+                runId = "memory-initializer-$index"
+            ).toList()
+            assertTrue(states.filterIsInstance<ApiState.Notice>().any { it.message.contains("Local memory is unavailable") })
+            assertTrue(states.toString(), states.none { it is ApiState.Error || it is ApiState.MemoryRecalled })
+            assertEquals("Hello", states.filterIsInstance<ApiState.Success>().joinToString("") { it.textChunk })
+        }
+        assertEquals(2, api.streamChatCompletionCalls)
+    }
+
+    @Test(expected = CancellationException::class)
+    fun `memory cancellation still cancels the response`() = runBlocking {
+        val facts = mockk<FactVaultRepository>(relaxed = true)
+        coEvery { facts.prepareTurn(any(), any(), any(), any(), any(), any(), any()) } throws CancellationException("Stopped")
+        createRepository(factVault = facts).completeChat(
+            userMessages = listOf(MessageV2(id = 1, chatId = 1, content = "Hello", platformType = null)),
+            assistantMessages = emptyList(),
+            platform = customPlatform(),
+            runId = "memory-cancelled"
+        ).toList()
+        Unit
+    }
 
     @Test
     fun `Free requests neither recall saved facts nor capture new ones`() = runBlocking {

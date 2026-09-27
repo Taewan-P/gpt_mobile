@@ -364,6 +364,12 @@ class ChatRepositoryImpl(
                 }
             } catch (cancellation: CancellationException) {
                 throw cancellation
+            } catch (error: LinkageError) {
+                // A failed optional memory initializer becomes NoClassDefFoundError on later turns.
+                // Keep chat usable, but do not swallow cancellation or fatal VM errors.
+                dev.chungjungsoo.gptmobile.data.diagnostics.AppLogRecorder.record("Memory", "Memory initialization failed: ${error.javaClass.simpleName}", "E")
+                emit(ApiState.Notice("Local memory is unavailable. Continuing without saved facts.", persistent = true))
+                FactRecall()
             } catch (_: Exception) {
                 emit(ApiState.Notice("Local memory is unavailable. Continuing without saved facts.", persistent = true))
                 FactRecall()
@@ -758,6 +764,7 @@ class ChatRepositoryImpl(
             }
         }
     }.catch { error ->
+        if (error is CancellationException) throw error
         val classified = ErrorClassification.classify(error)
         emit(ApiState.Error(classified.userMessage))
     }.onCompletion {
