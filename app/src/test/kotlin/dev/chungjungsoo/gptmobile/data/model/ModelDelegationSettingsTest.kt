@@ -9,32 +9,40 @@ class ModelDelegationSettingsTest {
         val normalized = ModelDelegationSettings(
             timeoutSeconds = 999,
             maxCallsPerTurn = 99,
-            searchBreadth = 99,
-            maxPageReads = 99,
+            maxLocalModelCalls = 99,
+            maxSearchQueries = 99,
+            searchResultsPerEngine = 99,
+            maxPages = 99,
             crawlDepth = 99,
-            parallelism = 99,
-            localWorkloadPercent = 999,
-            remoteBriefCharacters = 999999
+            pageFetchConcurrency = 99,
+            maxPageCharacters = 999999,
+            handoffTokens = 999999,
+            compactionThresholdCharacters = 999999
         ).normalized()
 
-        assertEquals(120, normalized.timeoutSeconds)
+        assertEquals(300, normalized.timeoutSeconds)
         assertEquals(8, normalized.maxCallsPerTurn)
-        assertEquals(12, normalized.searchBreadth)
-        assertEquals(20, normalized.maxPageReads)
-        assertEquals(4, normalized.crawlDepth)
-        assertEquals(8, normalized.parallelism)
-        assertEquals(100, normalized.localWorkloadPercent)
-        assertEquals(16000, normalized.remoteBriefCharacters)
+        assertEquals(24, normalized.maxLocalModelCalls)
+        assertEquals(6, normalized.maxSearchQueries)
+        assertEquals(10, normalized.searchResultsPerEngine)
+        assertEquals(12, normalized.maxPages)
+        assertEquals(2, normalized.crawlDepth)
+        assertEquals(4, normalized.pageFetchConcurrency)
+        assertEquals(48000, normalized.maxPageCharacters)
+        assertEquals(4096, normalized.handoffTokens)
+        assertEquals(24000, normalized.compactionThresholdCharacters)
     }
 
     @Test
-    fun defaultsFavorLocalDelegationAndCompactRemoteBriefs() {
+    fun defaultsKeepResearchScopedAndHandoffCompact() {
         val defaults = ModelDelegationSettings()
-        assertEquals(4, defaults.searchBreadth)
-        assertEquals(6, defaults.maxPageReads)
-        assertEquals(1, defaults.crawlDepth)
-        assertEquals(2, defaults.parallelism)
-        assertEquals(70, defaults.localWorkloadPercent)
-        assertEquals(6000, defaults.remoteBriefCharacters)
+        assertEquals(2, defaults.maxSearchQueries)
+        assertEquals(4, defaults.searchResultsPerEngine)
+        assertEquals(4, defaults.maxPages)
+        assertEquals(0, defaults.crawlDepth)
+        assertEquals(2, defaults.pageFetchConcurrency)
+        assertEquals(12000, defaults.maxPageCharacters)
+        assertEquals(1024, defaults.handoffTokens)
+        assertEquals(3000, defaults.compactionThresholdCharacters)
     }
 }
