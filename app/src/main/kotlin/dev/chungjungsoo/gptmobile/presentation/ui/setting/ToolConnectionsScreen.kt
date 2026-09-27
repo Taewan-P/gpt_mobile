@@ -190,7 +190,7 @@ fun ToolConnectionsScreen(
                 .padding(innerPadding)
                 .verticalScroll(scrollState)
         ) {
-            androidx.compose.material3.TabRow(selectedTabIndex = if (settingsTab) 1 else 0) {
+            androidx.compose.material3.PrimaryTabRow(selectedTabIndex = if (settingsTab) 1 else 0) {
                 androidx.compose.material3.Tab(selected = !settingsTab, onClick = { settingsTab = false }, text = { Text("Connections") })
                 androidx.compose.material3.Tab(selected = settingsTab, onClick = { settingsTab = true }, text = { Text("Settings") })
             }
@@ -337,6 +337,7 @@ private fun ToolProviderIcon(type: String, modifier: Modifier = Modifier) {
         ToolConnectionType.FIRECRAWL -> Icons.Filled.Language
         ToolConnectionType.PERPLEXITY -> Icons.Filled.Search
         ToolConnectionType.EXA -> Icons.Filled.Search
+        ToolConnectionType.BRAVE -> Icons.Filled.Search
         else -> Icons.Filled.Cable
     }
     Surface(
@@ -1132,6 +1133,18 @@ private fun ConnectionDetailsStep(
             onCredentialChange = onCredentialChange,
             onClearCredentialChange = onClearCredentialChange
         )
+        if (provider?.type == ToolConnectionType.BRAVE) {
+            val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+            Text(
+                text = stringResource(R.string.brave_search_setup_description),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+            TextButton(onClick = { uriHandler.openUri("https://api-dashboard.search.brave.com/app/keys") }) {
+                Text(stringResource(R.string.brave_search_get_api_key))
+            }
+        }
     }
 }
 

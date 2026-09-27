@@ -157,7 +157,7 @@ object AppLogRecorder {
 
 internal fun redactLogMessage(message: String): String {
     var text = DiagnosticRedactor.redact(message)
-    text = text.replace(Regex("(?i)(authorization|proxy-authorization|cookie|set-cookie|x-api-key|x-goog-api-key|mcp-session-id)\\s*[:=]\\s*[^\\r\\n]+"), "$1: [redacted]")
+    text = text.replace(Regex("(?i)(authorization|proxy-authorization|cookie|set-cookie|x-api-key|x-goog-api-key|x-subscription-token|mcp-session-id)\\s*[:=]\\s*[^\\r\\n]+"), "$1: [redacted]")
     text = text.replace(Regex("(?i)(bearer|basic)\\s+[a-z0-9._~+/=-]+"), "$1 [redacted]")
     text = text.replace(Regex("(?i)([\\\"]?(?:api_?key|access_?token|refresh_?token|password|client_?secret)[\\\"]?\\s*[:=]\\s*[\\\"]?)[^\\\"\\s,}]+"), "$1[redacted]")
     text = text.replace(Regex("\\b(?:sk-|hf_|ghp_|github_pat_)[A-Za-z0-9_-]{8,}"), "[redacted]")

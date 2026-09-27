@@ -17,6 +17,21 @@ import org.junit.Test
 
 class ToolConnectionRepositoryTest {
     @Test
+    fun `all native search providers including Brave persist as simultaneous profile bindings`() = runBlocking {
+        val repository = ToolConnectionRepository(FakeToolConnectionDao(), ConnectionFakeSecretVault())
+        val ids = ToolConnectionType.WEB_SEARCH_TYPES.map { type ->
+            val uid = "search-${type.lowercase()}"
+            repository.upsertConnection(searchConnection(uid).copy(type = type))
+            uid
+        }.toSet()
+        repository.replaceWebSearchBindings("profile-1", ids)
+        assertEquals(ids, repository.listBindingsByProfile("profile-1").map { it.connectionUid }.toSet())
+        assertTrue(repository.listConnections().all { it.isWebSearch })
+        repository.removeWebSearchBinding("profile-1")
+        assertTrue(repository.listBindingsByProfile("profile-1").isEmpty())
+    }
+
+    @Test
     fun `connection CRUD stores only verified vault reference and lists deterministically`() = runBlocking {
         val dao = FakeToolConnectionDao()
         val vault = ConnectionFakeSecretVault()

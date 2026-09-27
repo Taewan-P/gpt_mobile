@@ -368,9 +368,13 @@ fun NavGraphBuilder.settingNavigation(
             )
         }
         composable(
-            Route.LOCAL_MODELS + "?marketplace={marketplace}",
+            Route.LOCAL_MODELS + "?marketplace={marketplace}&delegation={delegation}",
             arguments = listOf(
                 navArgument("marketplace") {
+                    type = NavType.BoolType
+                    defaultValue = false
+                },
+                navArgument("delegation") {
                     type = NavType.BoolType
                     defaultValue = false
                 }
@@ -378,6 +382,7 @@ fun NavGraphBuilder.settingNavigation(
         ) { entry ->
             LocalModelsScreen(
                 startInMarketplace = entry.arguments?.getBoolean("marketplace") == true,
+                startInDelegation = entry.arguments?.getBoolean("delegation") == true,
                 onOpenProfile = { uid -> navController.navigate(Route.PLATFORM_SETTINGS.replace("{platformUid}", uid)) },
                 onNavigationClick = { navController.navigateUp() }
             )
@@ -407,6 +412,7 @@ fun NavGraphBuilder.settingNavigation(
             }
             McpMarketplaceScreen(
                 installedAliases = installedAliases,
+                onOpenDelegation = { navController.navigate(Route.LOCAL_MODELS + "?delegation=true") },
                 onNavigationClick = { navController.navigateUp() },
                 onInstallPresetWithConfig = { preset, name, alias, endpoint, authType, credential, allowCleartext ->
                     toolConnectionsViewModel.saveConnection(

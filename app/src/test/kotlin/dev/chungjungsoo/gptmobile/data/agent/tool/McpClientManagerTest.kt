@@ -29,6 +29,26 @@ import org.junit.Test
 
 class McpClientManagerTest {
     @Test
+    fun `stalled initialization has a bounded timeout and releases its in flight slot`() = runBlocking {
+        val entered = CompletableDeferred<Unit>()
+        SlowInitializeMcpFixtureServer(entered, AtomicInteger()).use { server ->
+            val client = testClient()
+            try {
+                val manager = McpClientManager(client, sessionConnectTimeoutMs = 50)
+                val config = McpConnectionConfig("slow", server.url, allowCleartext = true)
+                repeat(2) {
+                    val error = withTimeout(3000) { runCatching { manager.listTools(config) }.exceptionOrNull() }
+                    assertTrue(error is IllegalStateException)
+                    assertTrue(error?.message.orEmpty().contains("timed out"))
+                }
+                manager.closeAll()
+            } finally {
+                client.close()
+            }
+        }
+    }
+
+    @Test
     fun `reuses initialized session for discovery and SSE tool call`() = runBlocking {
         McpFixtureServer().use { server ->
             val client = testClient()
@@ -131,7 +151,8 @@ class McpClientManagerTest {
 
     internal class McpFixtureServer(
         private val paginateTools: Boolean = false,
-        acceptedAuthorization: String? = null
+        acceptedAuthorization: String? = null,
+        private val toolsResponse: String? = null
     ) : AutoCloseable {
         @Volatile
         var acceptedAuthorization: String? = acceptedAuthorization
@@ -171,6 +192,7 @@ class McpClientManagerTest {
                     "tools/list" -> {
                         val cursor = (request["params"] as? JsonObject)?.get("cursor")?.jsonPrimitive?.content
                         when {
+                            toolsResponse != null -> toolsResponse
                             !paginateTools -> toolList("echo")
                             cursor == null -> toolList("echo", nextCursor = "page-2")
                             else -> toolList("second")

@@ -35,6 +35,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -129,7 +130,8 @@ class AgentToolResolverTest {
         val cases = listOf(
             ToolConnectionType.FIRECRAWL to WebSearchProvider.FIRECRAWL to "https://api.firecrawl.dev/v2/search",
             ToolConnectionType.PERPLEXITY to WebSearchProvider.PERPLEXITY to "https://api.perplexity.ai/search",
-            ToolConnectionType.EXA to WebSearchProvider.EXA to "https://api.exa.ai/search"
+            ToolConnectionType.EXA to WebSearchProvider.EXA to "https://api.exa.ai/search",
+            ToolConnectionType.BRAVE to WebSearchProvider.BRAVE to "https://api.search.brave.com/res/v1/web/search"
         )
 
         cases.forEachIndexed { index, (providerCase, defaultEndpoint) ->
@@ -477,6 +479,44 @@ class AgentToolResolverTest {
         )
         val resolvedWithEnabled = resolver.resolve("profile-1", chatToolConfig = enabledConfig)
         assertEquals(listOf("calculate_expression", "current_date", "read_file_slice", "read_url"), resolvedWithEnabled.map { it.modelToolName })
+    }
+
+    @Test
+    fun `only profile-selected marketplace searches join and the chat search switch covers them`() = runBlocking {
+        val searchSchema = """{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}"""
+        val toolsResponse = """{"tools":[{"name":"firecrawl_search","inputSchema":$searchSchema},{"name":"brave_web_search","inputSchema":$searchSchema},{"name":"read_url","inputSchema":{"type":"object","properties":{"url":{"type":"string"}},"required":["url"]}}]}"""
+        McpClientManagerTest.McpFixtureServer(toolsResponse = toolsResponse).use { server ->
+            val dao = ResolverFakeToolConnectionDao()
+            val vault = ResolverFakeSecretVault()
+            val repository = ToolConnectionRepository(dao, vault)
+            val networkClient = NetworkClient(CIO)
+            val manager = McpClientManager(networkClient())
+            try {
+                val resolver = AgentToolResolver(
+                    toolConnectionRepository = repository,
+                    settingRepository = ResolverFakeSettingRepository(),
+                    secretVault = vault,
+                    networkClient = networkClient,
+                    mcpClientManager = manager,
+                    mcpOAuthCoordinator = McpOAuthCoordinator(McpOAuthClient(networkClient()), repository, vault, manager),
+                    deviceLocationTool = DeviceLocationTool(mockk(relaxed = true), mockk(relaxed = true))
+                )
+                val connection = connection("marketplace", ToolConnectionType.MCP, endpointUrl = server.url, authType = ToolConnectionAuthType.NONE, allowCleartext = true)
+                dao.bind(connection, binding("profile-1", "marketplace", "firecrawl_search", bindingUid = "search"))
+                dao.bind(connection, binding("profile-1", "marketplace", "read_url", bindingUid = "reader"))
+                val enabled = resolver.resolve("profile-1")
+                assertTrue(enabled.any { it.realToolName == "firecrawl_search" && it.isWebSearchEngine() })
+                assertFalse(enabled.any { it.realToolName == "brave_web_search" })
+                val disabled = resolver.resolve("profile-1", chatToolConfig = ChatMcpToolConfig(disabledToolIds = setOf("web_search")))
+                assertFalse(disabled.any { it.isWebSearchEngine() })
+                assertTrue(disabled.any { it.connectionUid == "marketplace" && it.realToolName == "read_url" })
+                val connectionDisabled = resolver.resolve("profile-1", chatToolConfig = ChatMcpToolConfig(disabledToolIds = setOf("marketplace")))
+                assertFalse(connectionDisabled.any { it.connectionUid == "marketplace" })
+            } finally {
+                manager.closeAll()
+                networkClient().close()
+            }
+        }
     }
 
     @Test

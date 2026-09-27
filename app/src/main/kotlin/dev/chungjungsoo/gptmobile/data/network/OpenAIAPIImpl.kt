@@ -105,7 +105,7 @@ class OpenAIAPIImpl @Inject constructor(
                 check(free.isAvailable) { "LLM7 is awaiting provider approval for use in this app. Choose another Free provider." }
             }
             val preparedRequest = if (free == null) {
-                request
+                request.withEndpointSamplingPolicy(config.apiUrl)
             } else {
                 request.copy(
                     model = free.model,

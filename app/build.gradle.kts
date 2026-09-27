@@ -18,14 +18,14 @@ plugins {
 
 extensions.configure<ApplicationExtension> {
     namespace = "dev.chungjungsoo.gptmobile"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "dev.melo.gptmobile.improved"
         minSdk = 31
         targetSdk = 36
         versionCode = 78
-        versionName = "0.9.19.2"
+        versionName = "0.9.20.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -38,6 +38,7 @@ extensions.configure<ApplicationExtension> {
         require(hfClientId.all { it.isLetterOrDigit() || it in "-_" }) { "Invalid HF OAuth client ID" }
         require(hfRedirect.isEmpty() || Regex("[a-z][a-z0-9+.-]*://[A-Za-z0-9/_.-]+").matches(hfRedirect)) { "Invalid HF OAuth redirect URI" }
         manifestPlaceholders["appAuthRedirectScheme"] = hfRedirect.substringBefore(":").ifEmpty { "gptmobile-hf-unconfigured" }
+        buildConfigField("String", "LITERT_LM_VERSION", "\"${libs.versions.litertlm.get()}\"")
         buildConfigField("String", "HF_OAUTH_CLIENT_ID", "\"$hfClientId\"")
         buildConfigField("String", "HF_OAUTH_REDIRECT_URI", "\"$hfRedirect\"")
         // App owner confirmed LLM7 integration approval on 2026-09-26.
@@ -194,10 +195,10 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons.extended)
-    implementation("com.google.android.material:material:1.12.0")
+    implementation(libs.material.views)
 
     // Location
-    implementation("org.maplibre.gl:android-sdk:11.11.0")
+    implementation(libs.maplibre)
 
     // SplashScreen
     implementation(libs.splashscreen)
@@ -220,22 +221,19 @@ dependencies {
     implementation(libs.ktor.client.okhttp)
     implementation(libs.ktor.logging)
     implementation(libs.ktor.serialization)
-    implementation(libs.mcp.kotlin.sdk.client) {
-        // The SDK bytecode targets Kotlin 2.1, but its 2.4 stdlib confuses Hilt's 2.3 metadata reader.
-        exclude(group = "org.jetbrains.kotlin", module = "kotlin-stdlib")
-    }
+    implementation(libs.mcp.kotlin.sdk.client)
 
     // OAuth browser flow
     implementation(libs.androidx.browser)
     implementation(libs.openid.appauth)
 
     // Document text extraction for cloud and on-device models
-    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
-    implementation("org.apache.poi:poi:5.4.1")
-    implementation("org.apache.poi:poi-scratchpad:5.4.1")
+    implementation(libs.pdfbox)
+    implementation(libs.poi)
+    implementation(libs.poi.scratchpad)
 
     // JSON parsing
-    implementation("com.google.code.gson:gson:2.11.0")
+    implementation(libs.gson)
 
     // On-device LiteRT-LM serving
     implementation(libs.litertlm)

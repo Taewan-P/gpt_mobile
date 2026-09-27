@@ -4,6 +4,7 @@ import dev.chungjungsoo.gptmobile.data.model.FreeAiProvider
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.ArrayDeque
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 
@@ -21,9 +22,18 @@ class FreeAiRequestLimiter(
 
     suspend fun <T> withRequest(provider: FreeAiProvider, request: suspend () -> T): T =
         buckets.getValue(provider).permit.withPermit {
+            // Short local spacing is scheduling, not an exhausted provider quota.
+            // Keep the permit while waiting so parallel profiles cannot race the next slot.
+            delay(spacingDelayMillis(provider))
             reserve(provider)
             request()
         }
+
+    @Synchronized
+    private fun spacingDelayMillis(provider: FreeAiProvider): Long {
+        val previous = buckets.getValue(provider).requests.peekLast() ?: return 0L
+        return if (provider == FreeAiProvider.LLM7) (previous + 1000 - nowMillis()).coerceIn(0, 1000) else 0L
+    }
 
     @Synchronized
     internal fun reserve(provider: FreeAiProvider) {

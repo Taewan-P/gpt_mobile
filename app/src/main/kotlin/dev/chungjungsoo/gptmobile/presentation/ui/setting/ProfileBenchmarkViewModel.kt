@@ -18,6 +18,7 @@ import dev.chungjungsoo.gptmobile.data.benchmark.BenchmarkSample
 import dev.chungjungsoo.gptmobile.data.benchmark.BenchmarkStore
 import dev.chungjungsoo.gptmobile.data.benchmark.benchmarkConfigKey
 import dev.chungjungsoo.gptmobile.data.benchmark.benchmarkSuite
+import dev.chungjungsoo.gptmobile.data.benchmark.runBenchmarkSuite
 import dev.chungjungsoo.gptmobile.data.database.ChatDatabaseV2
 import dev.chungjungsoo.gptmobile.data.database.dao.AgentPersistenceDao
 import dev.chungjungsoo.gptmobile.data.database.dao.AgentRunDao
@@ -67,7 +68,8 @@ class ProfileBenchmarkViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val history = store.history
     val localEnvironment = combine(settings.observeLocalRuntimeBackend(), settings.observeFeatureSettings()) { backend, features ->
-        "$backend|${features.localCpuThreads}|${features.localModelCache}|${features.qnnAutomaticFallback}"
+        "$backend|${features.localCpuThreads}|${features.localModelCache}|${features.qnnAutomaticFallback}|" +
+            "${features.localSpeculativeDecoding}|${features.localNativeMetrics}|${dev.chungjungsoo.gptmobile.BuildConfig.LITERT_LM_VERSION}"
     }.stateIn(viewModelScope, SharingStarted.Eagerly, "")
     val legacyReport: String? = context.getSharedPreferences("connection_doctor", Context.MODE_PRIVATE)
         .getString("last_report", null)?.takeIf { it.startsWith("Benchmark v1") }
@@ -175,22 +177,30 @@ class ProfileBenchmarkViewModel @Inject constructor(
                 mutableProgress.value = BenchmarkProgress(profile.name, "Preparing tests", 0, suite.size)
                 store.save(run)
                 val supportsTools = chats.supportsBenchmarkTools(profile)
-                for ((index, test) in suite.withIndex()) {
-                    currentTest = test
-                    mutableProgress.value = BenchmarkProgress(profile.name, test.label, index, suite.size)
-                    val runner = BenchmarkRunner(openSession = { turns, tools ->
-                        chats.openBenchmarkSession(profile, turns, tools, "benchmark-${run.id}-${test.id}")
-                    })
-                    val sample = runner.run(test, supportsTools)
-                    val pss = withContext(Dispatchers.IO) { Debug.getPss() }
-                    val actual = runtime.state.value.takeIf { run.local && sample.completed }
-                    run = run.copy(
-                        samples = run.samples + sample,
-                        peakClientPssKb = maxOf(run.peakClientPssKb ?: 0, pss),
-                        backend = actual?.backend?.displayName ?: run.backend,
-                        accelerator = actual?.engineSpec?.accelerator ?: run.accelerator
-                    )
-                    store.save(run)
+                val stoppedReason = runBenchmarkSuite(
+                    suite = suite,
+                    runCase = { index, test ->
+                        currentTest = test
+                        mutableProgress.value = BenchmarkProgress(profile.name, test.label, index, suite.size)
+                        BenchmarkRunner(openSession = { turns, tools ->
+                            chats.openBenchmarkSession(profile, turns, tools, "benchmark-${run.id}-${test.id}")
+                        }).run(test, supportsTools)
+                    },
+                    onSample = { sample ->
+                        val pss = withContext(Dispatchers.IO) { Debug.getPss() }
+                        val actual = runtime.state.value.takeIf { run.local && sample.completed }
+                        run = run.copy(
+                            samples = run.samples + sample,
+                            peakClientPssKb = maxOf(run.peakClientPssKb ?: 0, pss),
+                            backend = actual?.backend?.displayName ?: run.backend,
+                            accelerator = actual?.engineSpec?.accelerator ?: run.accelerator
+                        )
+                        store.save(run)
+                    }
+                )
+                if (stoppedReason != null) {
+                    run = run.copy(stoppedReason = stoppedReason)
+                    mutableError.value = "Benchmark stopped: $stoppedReason"
                 }
             } catch (_: CancellationException) {
                 val canceledSample = if (run.samples.any { it.testId == currentTest.id }) emptyList() else listOf(BenchmarkSample(currentTest.id, currentTest.label, currentTest.category, BenchmarkOutcome.CANCELED))

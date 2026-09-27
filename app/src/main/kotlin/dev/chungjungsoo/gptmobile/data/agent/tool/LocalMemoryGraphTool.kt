@@ -7,6 +7,7 @@ import dev.chungjungsoo.gptmobile.data.agent.ToolResultContent
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.knowledge.MemoryDocumentRepository
 import dev.chungjungsoo.gptmobile.data.rag.FactVaultRepository
+import dev.chungjungsoo.gptmobile.data.rag.MemoryRecallPolicy
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -110,9 +111,10 @@ class LocalMemoryGraphTool(
                     val names = (arguments["names"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.orEmpty()
                     require(operation != "search_nodes" || query.isNotBlank()) { "Provide a search query." }
                     require(operation != "open_nodes" || names.isNotEmpty()) { "Provide entity names." }
-                    val selected = facts.filter { entry ->
+                    val ranked = if (operation == "search_nodes") MemoryRecallPolicy.rank(query, facts) else facts
+                    val selected = ranked.filter { entry ->
                         when (operation) {
-                            "search_nodes" -> listOf(entry.fact.entity.name, entry.fact.target.name, entry.fact.relation.relationType).any { it.contains(query, true) }
+                            "search_nodes" -> true
                             "open_nodes" -> names.any { it.equals(entry.fact.entity.name, true) || it.equals(entry.fact.target.name, true) }
                             else -> true
                         }

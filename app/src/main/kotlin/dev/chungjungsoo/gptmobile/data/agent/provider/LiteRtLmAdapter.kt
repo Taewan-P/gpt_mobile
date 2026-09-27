@@ -39,6 +39,7 @@ import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
@@ -68,6 +69,7 @@ class LiteRtLmAdapter(
         val systemPrompt: String?,
         val toolsKey: String,
         val maxOutputTokens: Int?,
+        val thinkingEnabled: Boolean,
         val consumed: ConversationFingerprint
     )
 
@@ -143,6 +145,7 @@ class LiteRtLmAdapter(
                 )
 
                 val outputLimit = constraints.outputLimit(platform.maxTokens)
+                val thinkingEnabled = platform.reasoning && constraints.allowReasoning
                 val throttlingPolicy = localRuntime.getAdaptiveThrottlingPolicy()
                 val effectiveContextTokens = if (throttlingPolicy.maxTokensClamp != null) {
                     minOf(resolvedMaxTokens, throttlingPolicy.maxTokensClamp)
@@ -243,11 +246,12 @@ class LiteRtLmAdapter(
                                     snapshot.profileUid == platform.uid &&
                                     snapshot.engineSpec == loadedSpec &&
                                     snapshot.maxOutputTokens == outputLimit &&
+                                    snapshot.thinkingEnabled == thinkingEnabled &&
                                     snapshot.sampler == sampler &&
                                     snapshot.systemPrompt == platform.systemPrompt &&
                                     snapshot.toolsKey == toolsKey &&
                                     snapshot.consumed == incomingPrior
-                                if (!canReuse) {
+                                suspend fun rebuildConversation() {
                                     if (hasOpenConversation()) {
                                         closeConversation()
                                     }
@@ -265,6 +269,7 @@ class LiteRtLmAdapter(
                                         LocalConversationConfig(
                                             sampler = sampler,
                                             maxOutputTokens = outputLimit,
+                                            thinkingEnabled = thinkingEnabled,
                                             systemPrompt = platform.systemPrompt,
                                             initialMessages = seedHistory,
                                             tools = descriptors,
@@ -287,42 +292,74 @@ class LiteRtLmAdapter(
                                         profileUid = platform.uid,
                                         engineSpec = loadedSpec,
                                         maxOutputTokens = outputLimit,
+                                        thinkingEnabled = thinkingEnabled,
                                         sampler = sampler,
                                         systemPrompt = platform.systemPrompt,
                                         toolsKey = toolsKey,
                                         consumed = incomingPrior
                                     )
                                 }
+                                if (!canReuse) rebuildConversation()
                                 isConversationDirty = true
-                                yield() // Cooperative yield before dispatching prompt evaluation
-                                sendMessage(latestUserText, latestImages).collect { event ->
-                                    when (event) {
-                                        is LocalRuntimeEvent.PhaseChanged -> {
-                                            send(ProviderEvent.PhaseChanged(event.phase))
+                                var templateRetried = false
+                                var generatedOutput = false
+                                while (true) {
+                                    var templateFailure: String? = null
+                                    yield()
+                                    sendMessage(latestUserText, latestImages)
+                                        .catch { error ->
+                                            if (error is CancellationException) throw error
+                                            emit(LocalRuntimeEvent.Error(error.message ?: "Local inference failed", error))
                                         }
+                                        .collect { event ->
+                                            when (event) {
+                                                is LocalRuntimeEvent.PhaseChanged -> {
+                                                    send(ProviderEvent.PhaseChanged(event.phase))
+                                                }
 
-                                        is LocalRuntimeEvent.TextDelta -> {
-                                            assistantReply.append(event.text)
-                                            send(ProviderEvent.TextDelta(event.text))
+                                                is LocalRuntimeEvent.TextDelta -> {
+                                                    if (event.text.isNotEmpty()) generatedOutput = true
+                                                    assistantReply.append(event.text)
+                                                    send(ProviderEvent.TextDelta(event.text))
+                                                }
+
+                                                is LocalRuntimeEvent.ThinkingDelta -> {
+                                                    if (event.text.isNotEmpty()) generatedOutput = true
+                                                    send(ProviderEvent.ThinkingDelta(event.text))
+                                                }
+
+                                                is LocalRuntimeEvent.Metrics -> {
+                                                    latestMetrics = event.metrics
+                                                }
+
+                                                is LocalRuntimeEvent.Error -> {
+                                                    if (isLocalTemplateMismatch(event.message)) {
+                                                        templateFailure = event.message
+                                                    } else {
+                                                        failed = true
+                                                        send(ProviderEvent.Failed(event.message))
+                                                    }
+                                                }
+
+                                                LocalRuntimeEvent.Done -> Unit
+                                            }
                                         }
-
-                                        is LocalRuntimeEvent.ThinkingDelta -> send(ProviderEvent.ThinkingDelta(event.text))
-
-                                        is LocalRuntimeEvent.Metrics -> {
-                                            latestMetrics = event.metrics
-                                        }
-
-                                        is LocalRuntimeEvent.Error -> {
-                                            failed = true
-                                            isConversationDirty = true
-                                            send(ProviderEvent.Failed(event.message))
-                                        }
-
-                                        LocalRuntimeEvent.Done -> Unit
+                                    if (templateFailure == null) break
+                                    if (!canReuse || templateRetried || generatedOutput || nativeToolsUsed || failed) {
+                                        failed = true
+                                        send(ProviderEvent.Failed(LOCAL_TEMPLATE_ERROR))
+                                        break
                                     }
+                                    // Only retry before output/tool execution. Keep the warm engine,
+                                    // rebuild from canonical visible history, and try the new turn once.
+                                    templateRetried = true
+                                    latestMetrics = null
+                                    send(ProviderEvent.Notice("Rebuilding local conversation state…"))
+                                    rebuildConversation()
                                 }
                                 if (!failed) {
                                     latestMetrics?.let { metrics ->
+                                        send(ProviderEvent.LocalMetrics(metrics))
                                         val telemetryNotice = formatTelemetryNotice(metrics, localRuntime)
                                         if (telemetryNotice.isNotBlank()) {
                                             send(ProviderEvent.Notice(telemetryNotice))
@@ -376,7 +413,8 @@ class LiteRtLmAdapter(
                     // Native diagnostics are retained in Logcat; keep the conversation error readable.
                     send(ProviderEvent.Failed(engineLoadFailedError))
                 } catch (error: Exception) {
-                    send(ProviderEvent.Failed(error.message ?: "Local inference failed"))
+                    val message = error.message ?: "Local inference failed"
+                    send(ProviderEvent.Failed(if (isLocalTemplateMismatch(message)) LOCAL_TEMPLATE_ERROR else message))
                 }
             }
         }
@@ -598,8 +636,15 @@ class LiteRtLmAdapter(
         runtime: LocalRuntime
     ): String {
         if (metrics.totalDurationMs <= 0L && metrics.totalChunks <= 0) return ""
-        val tpsFormatted = String.format(Locale.US, "%.1f", metrics.tokensPerSecond)
-        val baseNotice = "Local: $tpsFormatted tok/s · TTFT ${metrics.timeToFirstTokenMs}ms · ~${metrics.estimatedTokens} tokens"
+        val native = metrics.native?.takeIf { it.isValid }
+        val baseNotice = if (native != null) {
+            val speed = String.format(Locale.US, "%.1f", native.decodeTokensPerSecond)
+            val prefill = String.format(Locale.US, "%.1f", native.prefillTokensPerSecond)
+            "Local: $speed decode tok/s · $prefill prefill tok/s · ${native.decodeTokens} tokens (last segment) · First callback ${metrics.timeToFirstTokenMs}ms"
+        } else {
+            val speed = String.format(Locale.US, "%.1f", metrics.tokensPerSecond)
+            "Local: ~$speed tok/s end-to-end · First callback ${metrics.timeToFirstTokenMs}ms · ~${metrics.estimatedTokens} tokens"
+        }
 
         val hwState = runtime.getHardwareState()
         val throttleSuffix = when {
@@ -629,3 +674,10 @@ class LiteRtLmAdapter(
 }
 
 private class LocalEngineLoadException(message: String, cause: Throwable? = null) : Exception(message, cause)
+
+// Native mismatch errors include old/new rendered prompts; never expose those in diagnostics.
+internal fun isLocalTemplateMismatch(message: String): Boolean =
+    message.contains("does not start with the previous rendered", ignoreCase = true) ||
+        message.contains("new rendered string is shorter than the previous", ignoreCase = true)
+
+private const val LOCAL_TEMPLATE_ERROR = "The local model could not reuse its conversation state. Start a new conversation or select another model."

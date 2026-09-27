@@ -75,7 +75,7 @@ class McpPresetCatalogTest {
     @Test
     fun requestedProvidersArePresentExactlyOnce() {
         val ids = listOf(
-            "mem0-hosted", "supermemory", "mnemoverse", "pearls", "brave-search",
+            "mem0-hosted", "supermemory", "mnemoverse", "graphiti-memory", "pearls", "brave-search",
             "jina-mcp", "tavily-mcp", "stackoverflow", "huggingface", "semgrep",
             "deepwiki", "netlify", "supabase", "airtable", "prisma", "slack",
             "asana", "todoist", "google-drive", "google-sheets", "excalidraw", "bright-data"
@@ -96,7 +96,7 @@ class McpPresetCatalogTest {
 
     @Test
     fun selfHostedPresetsNeverAdvertiseAnExampleEndpoint() {
-        listOf("pearls", "brave-search").forEach { id ->
+        listOf("pearls", "brave-search", "graphiti-memory").forEach { id ->
             val preset = McpPresetCatalog.findById(id)!!
             assertTrue(preset.commandOrUrl.isBlank())
             assertFalse(preset.isDirectlyInstallable)
@@ -160,7 +160,7 @@ class McpPresetCatalogTest {
 
     @Test
     fun localServicesHaveExplicitSetupAndCompanionsCannotBeInstalledAsServers() {
-        assertEquals(32, LocalMcpPresets.presets.size)
+        assertEquals(31, LocalMcpPresets.presets.size)
         LocalMcpPresets.presets.filterNot { it.isPreinstalled }.forEach {
             assertTrue(it.commandOrUrl.isBlank())
             assertFalse(it.isDirectlyInstallable)
@@ -170,8 +170,6 @@ class McpPresetCatalogTest {
         }
         assertEquals("memory", McpPresetCatalog.findById("builtin-memory")!!.integratedTool)
         assertEquals("delegation", McpPresetCatalog.findById("builtin-model-delegation")!!.integratedTool)
-        assertEquals(McpCategory.MEMORY, McpPresetCatalog.findById("graphiti-memory")!!.category)
-        assertFalse(McpPresetCatalog.findById("graphiti-memory")!!.isDirectlyInstallable)
         assertTrue(McpPresetCatalog.findById("deskdrop")!!.documentationOnly)
         assertFalse(McpPresetCatalog.findById("houtini-lm")!!.documentationOnly)
     }

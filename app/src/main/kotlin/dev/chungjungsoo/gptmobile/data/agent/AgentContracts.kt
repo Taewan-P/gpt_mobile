@@ -14,6 +14,7 @@ sealed interface ProviderEvent {
     data class Failed(val message: String) : ProviderEvent
     data class Notice(val message: String, val persistent: Boolean = false) : ProviderEvent
     data class PhaseChanged(val phase: dev.chungjungsoo.gptmobile.data.localruntime.LocalInferencePhase) : ProviderEvent
+    data class LocalMetrics(val metrics: dev.chungjungsoo.gptmobile.data.localruntime.LocalInferenceMetrics) : ProviderEvent
     data class Usage(
         val inputTokens: Int? = null,
         val outputTokens: Int? = null,

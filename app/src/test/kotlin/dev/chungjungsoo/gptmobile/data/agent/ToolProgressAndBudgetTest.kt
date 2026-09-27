@@ -13,6 +13,22 @@ import org.junit.Assert.fail
 import org.junit.Test
 
 class ToolProgressAndBudgetTest {
+    @Test fun `orchestrators release permits for budgeted children at concurrency one`() = runBlocking {
+        val budget = ToolExecutionBudget(AgentRunLimits(maxConcurrentTools = 1, maxToolCalls = 4, toolTimeoutMillis = 100))
+        val child = budget.bind(object : AgentTool {
+            override val definition = AgentToolDefinition("read", "", buildJsonObject {})
+            override suspend fun execute(callId: String, arguments: JsonObject) = AgentToolResult(callId, ToolResultContent.Text("observed source"), false)
+        })
+        val parent = budget.bind(object : AgentTool {
+            override val definition = AgentToolDefinition("research", "", buildJsonObject {})
+            override val managesExecutionBudget = true
+            override suspend fun execute(callId: String, arguments: JsonObject) = child.execute("$callId:child", arguments)
+        })
+        val result = kotlinx.coroutines.withTimeout(1000) { parent.execute("parent", buildJsonObject {}) }
+        assertFalse(result.isError)
+        assertEquals("observed source", (result.content as ToolResultContent.Text).text)
+    }
+
     @Test fun `search excerpts remain visible when a result is truncated`() = runBlocking {
         val budget = ToolExecutionBudget(AgentRunLimits(maxToolOutputBytes = 48))
         val tool = budget.bind(object : AgentTool {

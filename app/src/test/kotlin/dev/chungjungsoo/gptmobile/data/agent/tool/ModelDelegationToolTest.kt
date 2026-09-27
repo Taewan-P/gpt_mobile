@@ -92,7 +92,7 @@ class ModelDelegationToolTest {
     @Test
     fun timesOutAndPropagatesParentCancellation() = runTest {
         val slow = ModelDelegationTool(source, { enabled.copy(timeoutSeconds = 5) }, { listOf(target) }) { _, _, _ ->
-            delay(6000)
+            delay(7000)
             "late"
         }
         assertTrue(slow.execute("1", task).isError)

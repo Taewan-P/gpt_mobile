@@ -47,6 +47,95 @@ import org.junit.Test
 
 class LiteRtLmAdapterTest {
     @Test
+    fun `template mismatch rebuilds warm conversation once without reloading weights`() = runBlocking {
+        val runtime = FakeLocalRuntime().apply {
+            scriptedEvents = listOf(
+                listOf(LocalRuntimeEvent.TextDelta("first answer"), LocalRuntimeEvent.Done),
+                listOf(LocalRuntimeEvent.Error("The new rendered template string does not start with the previous rendered template string. old_string: private prompt")),
+                listOf(LocalRuntimeEvent.TextDelta("recovered"), LocalRuntimeEvent.Done)
+            )
+        }
+        val adapter = adapter(runtime)
+        adapter.openSession(turns("first"), localPlatform()).streamRound(emptyList(), emptyList()).toList()
+        val events = adapter.openSession(listOf(completedTurn("first", "first answer"), pendingTurn("second")), localPlatform())
+            .streamRound(emptyList(), emptyList()).toList()
+        assertEquals(listOf("first", "second", "second"), runtime.sendMessageCalls)
+        assertEquals(1, runtime.loadEngineCalls.size)
+        assertEquals(2, runtime.createConversationCalls.size)
+        assertEquals(2, runtime.createConversationCalls.last().initialMessages.size)
+        assertTrue(events.none { it is ProviderEvent.Failed })
+        assertEquals("recovered", events.filterIsInstance<ProviderEvent.TextDelta>().single().text)
+        assertEquals(ProviderEvent.Completed, events.last())
+    }
+
+    @Test
+    fun `repeated template failure is bounded and never exposes rendered prompts`() = runBlocking {
+        val mismatch = LocalRuntimeEvent.Error("The new rendered template string does not start with the previous rendered template string. old_string: private prompt")
+        val runtime = FakeLocalRuntime().apply {
+            scriptedEvents = listOf(listOf(LocalRuntimeEvent.TextDelta("one"), LocalRuntimeEvent.Done), listOf(mismatch), listOf(mismatch))
+        }
+        val adapter = adapter(runtime)
+        adapter.openSession(turns("first"), localPlatform()).streamRound(emptyList(), emptyList()).toList()
+        val events = adapter.openSession(listOf(completedTurn("first", "one"), pendingTurn("next")), localPlatform())
+            .streamRound(emptyList(), emptyList()).toList()
+        assertEquals(3, runtime.sendMessageCalls.size)
+        assertEquals(1, events.filterIsInstance<ProviderEvent.Failed>().size)
+        assertFalse(events.toString().contains("private prompt"))
+        assertFalse(runtime.hasOpenConversation())
+    }
+
+    @Test
+    fun `template error after generated text never replays a request`() = runBlocking {
+        val runtime = FakeLocalRuntime().apply {
+            scriptedEvents = listOf(
+                listOf(LocalRuntimeEvent.TextDelta("one"), LocalRuntimeEvent.Done),
+                listOf(LocalRuntimeEvent.TextDelta("partial"), LocalRuntimeEvent.Error("The new rendered template string does not start with the previous rendered template string."))
+            )
+        }
+        val adapter = adapter(runtime)
+        adapter.openSession(turns("first"), localPlatform()).streamRound(emptyList(), emptyList()).toList()
+        val events = adapter.openSession(listOf(completedTurn("first", "one"), pendingTurn("next")), localPlatform())
+            .streamRound(emptyList(), emptyList()).toList()
+        assertEquals(2, runtime.sendMessageCalls.size)
+        assertTrue(events.any { it is ProviderEvent.Failed })
+    }
+
+    @Test
+    fun `template error after a native tool call never replays the tool`() = runBlocking {
+        val runtime = FakeLocalRuntime().apply {
+            scriptedEvents = listOf(
+                listOf(LocalRuntimeEvent.TextDelta("one"), LocalRuntimeEvent.Done),
+                listOf(LocalRuntimeEvent.PhaseChanged(LocalInferencePhase.PREFILL), LocalRuntimeEvent.Error("The new rendered template string does not start with the previous rendered template string."))
+            )
+            scriptedToolInvocations = listOf(emptyList(), listOf(ScriptedToolInvocation("lookup", """{"query":"a"}""")))
+        }
+        val adapter = adapter(runtime, catalog = toolsCatalog())
+        val tools = listOf(lookupTool())
+        adapter.openSession(turns("first"), localPlatform(), tools).streamRound(emptyList(), emptyList()).toList()
+        val events = adapter.openSession(listOf(completedTurn("first", "one"), pendingTurn("next")), localPlatform(), tools)
+            .streamRound(emptyList(), emptyList()).toList()
+        assertEquals(2, runtime.sendMessageCalls.size)
+        assertEquals(1, runtime.toolExecutorCalls.size)
+        assertTrue(events.any { it is ProviderEvent.Failed })
+        assertFalse(runtime.hasOpenConversation())
+    }
+
+    @Test
+    fun `reasoning preference and benchmark constraints reach native conversation config`() = runBlocking {
+        val runtime = FakeLocalRuntime().apply {
+            scriptedEvents = List(3) { listOf(LocalRuntimeEvent.TextDelta("answer"), LocalRuntimeEvent.Done) }
+        }
+        val adapter = adapter(runtime)
+        adapter.openSession(turns("first"), localPlatform().copy(reasoning = true))
+            .streamRound(emptyList(), emptyList()).toList()
+        adapter.openSession(listOf(completedTurn("first", "answer"), pendingTurn("second")), localPlatform().copy(reasoning = false))
+            .streamRound(emptyList(), emptyList()).toList()
+        adapter.openSession(turns("benchmark"), localPlatform().copy(reasoning = true), constraints = RequestConstraints(allowReasoning = false))
+            .streamRound(emptyList(), emptyList()).toList()
+        assertEquals(listOf(true, false, false), runtime.createConversationCalls.map { it.thinkingEnabled })
+    }
+
+    @Test
     fun `oversized fixed prompt fails before allocating a native engine`() = runBlocking {
         val runtime = FakeLocalRuntime()
         val events = adapter(runtime).openSession(turns("x".repeat(30000)), localPlatform())
@@ -1428,7 +1517,7 @@ class LiteRtLmAdapterTest {
 
         val notice = events.filterIsInstance<ProviderEvent.Notice>().singleOrNull()
         assertTrue(notice != null)
-        assertTrue(notice!!.message.contains("Local: 22.0 tok/s · TTFT 120ms · ~11 tokens"))
+        assertTrue(notice!!.message.contains("Local: ~22.0 tok/s end-to-end · First callback 120ms · ~11 tokens"))
         assertTrue(events.last() is ProviderEvent.Completed)
     }
 
@@ -1463,7 +1552,7 @@ class LiteRtLmAdapterTest {
 
         val notice = events.filterIsInstance<ProviderEvent.Notice>().singleOrNull()
         assertTrue(notice != null)
-        assertTrue(notice!!.message.contains("Local: 8.0 tok/s · TTFT 250ms · ~8 tokens · ⚡ Throttled"))
+        assertTrue(notice!!.message.contains("Local: ~8.0 tok/s end-to-end · First callback 250ms · ~8 tokens · ⚡ Throttled"))
     }
 
     @Test

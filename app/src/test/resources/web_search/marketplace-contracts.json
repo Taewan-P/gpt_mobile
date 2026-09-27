@@ -1,0 +1,407 @@
+[
+  {
+    "preset": "builtin-web",
+    "name": "web_search",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        },
+        "maxResults": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "includeDomains": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "recencyDays": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "query"
+      ]
+    },
+    "expectedArguments": {
+      "query": "local model speed",
+      "maxResults": 2,
+      "includeDomains": [
+        "example.org"
+      ],
+      "recencyDays": 2
+    },
+    "response": "{\"results\": [{\"title\": \"Native\", \"url\": \"https://example.org/web_search\", \"snippet\": \"Native snippet\"}]}",
+    "url": "https://example.org/web_search",
+    "unsupportedRecency": false
+  },
+  {
+    "preset": "exa-mcp",
+    "name": "web_search_exa",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        },
+        "numResults": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "query"
+      ]
+    },
+    "expectedArguments": {
+      "query": "local model speed",
+      "numResults": 2
+    },
+    "response": "Title: Exa\nURL: https://example.org/web_search_exa\nPublished: 2026-08-01\nAuthor: Example\nHighlights:\nExa snippet",
+    "url": "https://example.org/web_search_exa",
+    "unsupportedRecency": true
+  },
+  {
+    "preset": "exa-mcp",
+    "name": "web_search_advanced_exa",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        },
+        "numResults": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "includeDomains": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "startPublishedDate": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ]
+    },
+    "expectedArguments": {
+      "query": "local model speed",
+      "numResults": 2,
+      "includeDomains": [
+        "example.org"
+      ],
+      "startPublishedDate": "2026-07-30T00:00:00Z"
+    },
+    "response": "{\"results\": [{\"title\": \"Exa advanced\", \"url\": \"https://example.org/web_search_advanced_exa\", \"highlights\": [\"Advanced snippet\"]}]}",
+    "url": "https://example.org/web_search_advanced_exa",
+    "unsupportedRecency": false
+  },
+  {
+    "preset": "exa-mcp",
+    "name": "deep_search_exa",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "objective": {
+          "type": "string"
+        },
+        "numResults": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "objective"
+      ]
+    },
+    "expectedArguments": {
+      "objective": "local model speed",
+      "numResults": 2
+    },
+    "response": "## Results\n\n### 1. Exa deep\n**URL:** https://example.org/deep_search_exa\n**Published:** 2026-08-01\n\nDeep snippet",
+    "url": "https://example.org/deep_search_exa",
+    "unsupportedRecency": true
+  },
+  {
+    "preset": "tavily-mcp",
+    "name": "tavily_search",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        },
+        "max_results": {
+          "type": "number",
+          "minimum": 5,
+          "maximum": 20
+        },
+        "include_domains": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "start_date": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ]
+    },
+    "expectedArguments": {
+      "query": "local model speed",
+      "max_results": 5,
+      "include_domains": [
+        "example.org"
+      ],
+      "start_date": "2026-07-30"
+    },
+    "response": "Request ID: sample\nDetailed Results:\n\nTitle: Tavily\nID: source-1\nURL: https://example.org/tavily_search\nContent: Tavily snippet",
+    "url": "https://example.org/tavily_search",
+    "unsupportedRecency": false
+  },
+  {
+    "preset": "firecrawl-mcp",
+    "name": "firecrawl_search",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "includeDomains": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tbs": {
+          "type": "string"
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "web",
+                  "images",
+                  "news"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "required": [
+        "query"
+      ]
+    },
+    "expectedArguments": {
+      "query": "local model speed",
+      "limit": 2,
+      "includeDomains": [
+        "example.org"
+      ],
+      "tbs": "qdr:d2",
+      "sources": [
+        "web"
+      ]
+    },
+    "response": "{\"success\": true, \"data\": {\"web\": [{\"title\": \"Firecrawl\", \"url\": \"https://example.org/firecrawl_search\", \"description\": \"Firecrawl snippet\"}]}}",
+    "url": "https://example.org/firecrawl_search",
+    "unsupportedRecency": false
+  },
+  {
+    "preset": "jina-mcp",
+    "name": "search_web",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        },
+        "num": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "tbs": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ]
+    },
+    "expectedArguments": {
+      "query": "local model speed",
+      "num": 2,
+      "tbs": "qdr:d2"
+    },
+    "response": "title: \"Jina result\"\nurl: https://example.org/search_web\ndescription: >-\n  Jina snippet\n  continued",
+    "url": "https://example.org/search_web",
+    "unsupportedRecency": false
+  },
+  {
+    "preset": "brave-search",
+    "name": "brave_web_search",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        },
+        "count": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "freshness": {
+          "type": "string"
+        },
+        "result_filter": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "query"
+      ]
+    },
+    "expectedArguments": {
+      "query": "local model speed site:example.org",
+      "count": 2,
+      "freshness": "2026-07-30to2026-08-01",
+      "result_filter": [
+        "web"
+      ]
+    },
+    "response": "{\"title\": \"Brave\", \"url\": \"https://example.org/brave_web_search\", \"description\": \"Brave snippet\"}",
+    "url": "https://example.org/brave_web_search",
+    "unsupportedRecency": false
+  },
+  {
+    "preset": "bright-data",
+    "name": "search_engine",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        },
+        "engine": {
+          "type": "string",
+          "enum": [
+            "google",
+            "bing",
+            "yandex"
+          ],
+          "default": "google"
+        }
+      },
+      "required": [
+        "query",
+        "engine"
+      ]
+    },
+    "expectedArguments": {
+      "query": "local model speed",
+      "engine": "google"
+    },
+    "response": "{\n  \"organic\": [\n    {\n      \"title\": \"Bright Data\",\n      \"link\": \"https://example.org/search_engine\",\n      \"description\": \"Bright Data snippet\"\n    }\n  ]\n}",
+    "url": "https://example.org/search_engine",
+    "unsupportedRecency": true
+  },
+  {
+    "preset": "bright-data",
+    "name": "search_engine_batch",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "queries": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string"
+              },
+              "engine": {
+                "type": "string",
+                "enum": [
+                  "google",
+                  "bing",
+                  "yandex"
+                ],
+                "default": "google"
+              }
+            },
+            "required": [
+              "query",
+              "engine"
+            ]
+          }
+        }
+      },
+      "required": [
+        "queries"
+      ]
+    },
+    "expectedArguments": {
+      "queries": [
+        {
+          "query": "local model speed",
+          "engine": "google"
+        }
+      ]
+    },
+    "response": "[\n  {\n    \"query\": \"local model speed\",\n    \"engine\": \"google\",\n    \"result\": {\n      \"organic\": [\n        {\n          \"title\": \"Bright batch\",\n          \"link\": \"https://example.org/search_engine_batch\",\n          \"description\": \"Bright batch snippet\"\n        }\n      ]\n    }\n  }\n]",
+    "url": "https://example.org/search_engine_batch",
+    "unsupportedRecency": true
+  }
+]

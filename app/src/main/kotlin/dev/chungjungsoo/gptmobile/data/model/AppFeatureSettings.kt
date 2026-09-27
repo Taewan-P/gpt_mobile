@@ -26,6 +26,8 @@ data class AppFeatureSettings(
     val qnnAutomaticFallback: Boolean = true,
     val localCpuThreads: Int = 0,
     val localModelCache: Boolean = true,
+    val localSpeculativeDecoding: SpeculativeDecodingMode = SpeculativeDecodingMode.AUTO,
+    val localNativeMetrics: Boolean = false,
     val localIdleMinutes: Int = 10,
     val delegation: ModelDelegationSettings = ModelDelegationSettings(),
     val tokenBudget: dev.chungjungsoo.gptmobile.data.context.TokenBudgetSettings = dev.chungjungsoo.gptmobile.data.context.TokenBudgetSettings()
@@ -55,6 +57,13 @@ data class AppFeatureSettings(
         DebugMetric.HARDWARE -> copy(debugShowHardware = enabled)
         DebugMetric.NETWORK -> copy(debugShowNetwork = enabled)
     }
+}
+
+@Serializable
+enum class SpeculativeDecodingMode(val label: String, val enabled: Boolean?) {
+    AUTO("Model default", null),
+    OFF("Off", false),
+    ON("On", true)
 }
 
 enum class DebugMetric(val title: String, val description: String) {

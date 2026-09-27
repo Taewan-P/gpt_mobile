@@ -620,7 +620,7 @@ class ChatViewModel @Inject constructor(
                     it.connectionUid in boundConnectionIds && (it.type != ToolConnectionType.MCP || features.remoteMcpConnections)
                 }
             ) + listOf(
-                AvailableChatTool("web_search", "Web search", "Built-in web search", "Built-in", remoteProfiles.isNotEmpty()),
+                AvailableChatTool("web_search", "Web search", "All enabled web search engines", "Multi-engine", remoteProfiles.isNotEmpty()),
                 AvailableChatTool("device_location", "Device location", "Phone GPS location", "Built-in", locationEnabled)
             )
         }
