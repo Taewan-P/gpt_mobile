@@ -136,7 +136,10 @@ class InvocationLedger @Inject constructor(database: ChatDatabaseV2) {
                             event.outputTokens?.let { output = if (event.cumulative) maxOf(output ?: 0, it) else (output ?: 0) + it }
                         }
                         ProviderEvent.Completed -> if (status != "FAILED") status = "COMPLETED"
-                        is ProviderEvent.Failed -> status = "FAILED"
+                        is ProviderEvent.Failed -> {
+                            status = "FAILED"
+                            dev.chungjungsoo.gptmobile.data.diagnostics.AppLogRecorder.record("Model", "Failed ${record.id}: ${event.message}", "E")
+                        }
                         else -> Unit
                     }
                     val now = System.nanoTime()
@@ -161,10 +164,12 @@ class InvocationLedger @Inject constructor(database: ChatDatabaseV2) {
                 throw cancelled
             } catch (error: Exception) {
                 status = "FAILED"
+                dev.chungjungsoo.gptmobile.data.diagnostics.AppLogRecorder.record("Model", "Failed ${record.id}: ${error.javaClass.simpleName}: ${error.message.orEmpty()}", "E")
                 throw error
             } finally {
                 withContext(NonCancellable) {
-                    dev.chungjungsoo.gptmobile.data.diagnostics.AppLogRecorder.record("Model", "Finished ${record.id} · status=$status · durationMs=${(System.nanoTime() - started) / 1_000_000} · output=${output ?: -1}", if (status == "COMPLETED") "I" else "W")
+                    val recordedOutput = output ?: ((characters + 2) / 3).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+                    dev.chungjungsoo.gptmobile.data.diagnostics.AppLogRecorder.record("Model", "Finished ${record.id} · status=$status · durationMs=${(System.nanoTime() - started) / 1_000_000} · output=$recordedOutput · estimated=${output == null}", if (status == "COMPLETED") "I" else "W")
                     try {
                         dao.save(
                             record.copy(

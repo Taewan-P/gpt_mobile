@@ -55,7 +55,7 @@ class LocalRuntimeRouter(
                         throw LocalRuntimeFallbackDisabledException(error)
                     }
                     if (dev.chungjungsoo.gptmobile.data.localmodel.LocalModelPackages.isNpuFile(spec.modelPath)) {
-                        throw IllegalStateException("This NPU package could not start. Download the GPU / CPU edition from the model marketplace to use LiteRT.", error)
+                        throw LocalNpuPackageException(error)
                     }
                     Log.w(TAG, "QNN failed; trying LiteRT-LM", error)
                     // Retrying NPU with the same Qualcomm dispatch is not a fallback.
@@ -120,7 +120,11 @@ class LocalRuntimeRouter(
                 liteRtRuntime.unloadEngine()
             }
         }
-        throw checkNotNull(lastError)
+        val failure = checkNotNull(lastError)
+        if (dev.chungjungsoo.gptmobile.data.localmodel.LocalModelPackages.isNpuFile(spec.modelPath)) {
+            throw LocalNpuPackageException(failure)
+        }
+        throw failure
     }
 
     private fun activate(

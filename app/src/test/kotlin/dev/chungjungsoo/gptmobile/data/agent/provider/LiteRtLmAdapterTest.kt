@@ -9,6 +9,7 @@ import dev.chungjungsoo.gptmobile.data.catalog.CatalogCapabilities
 import dev.chungjungsoo.gptmobile.data.catalog.CatalogEntry
 import dev.chungjungsoo.gptmobile.data.catalog.SocVariant
 import dev.chungjungsoo.gptmobile.data.context.ConversationTurn
+import dev.chungjungsoo.gptmobile.data.database.entity.LocalModel
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.localruntime.DeviceHardwareState
@@ -20,6 +21,7 @@ import dev.chungjungsoo.gptmobile.data.localruntime.LocalHistoryMessage
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalHistoryRole
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalInferenceMetrics
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalInferencePhase
+import dev.chungjungsoo.gptmobile.data.localruntime.LocalNpuPackageException
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntimeEvent
 import dev.chungjungsoo.gptmobile.data.localruntime.ScriptedToolInvocation
@@ -317,6 +319,8 @@ class LiteRtLmAdapterTest {
         pause.complete(Unit)
 
         assertEquals(1, runtime.cancelActiveCalls)
+        assertFalse(runtime.hasOpenConversation())
+        assertEquals(1, runtime.closeConversationCalls)
         assertTrue(events.any { it is ProviderEvent.TextDelta })
     }
 
@@ -1451,6 +1455,99 @@ class LiteRtLmAdapterTest {
         assertFalse(failed.message.contains("CreateSharedMemoryManager"))
         assertFalse(failed.message.contains("Failed to create engine"))
     }
+
+    @Test
+    fun `legacy GPU profile resolves downloaded edition with its own capabilities and context`() = runBlocking {
+        val runtime = FakeLocalRuntime()
+        val models = FakeLocalModelRepository(
+            initialModels = listOf(installedModel("gemma3-1b-it", "gemma_SM8750.litertlm")),
+            downloadedPaths = mapOf(
+                "gemma3-1b-it" to "/models/gemma_SM8750.litertlm",
+                "gemma3-1b-it-litert" to "/models/gemma-gpu.litertlm"
+            )
+        )
+        val catalog = FakeModelCatalogRepository(
+            listOf(
+                CatalogEntry(id = "gemma3-1b-it", maxContextTokens = 1024, capabilities = CatalogCapabilities(vision = true)),
+                CatalogEntry(id = "gemma3-1b-it-litert", maxContextTokens = 2048)
+            )
+        )
+        val events = adapter(runtime, models, catalog).openSession(turns("hello"), localPlatform())
+            .streamRound(emptyList(), emptyList()).toList()
+        val spec = runtime.loadEngineCalls.single()
+        assertEquals("/models/gemma-gpu.litertlm", spec.modelPath)
+        assertEquals(2048, spec.maxTokens)
+        assertFalse(spec.isVisionEnabled)
+        assertTrue(events.last() is ProviderEvent.Completed)
+    }
+
+    @Test
+    fun `legacy GPU profile still works after original NPU download is removed`() = runBlocking {
+        val runtime = FakeLocalRuntime()
+        val models = FakeLocalModelRepository(downloadedPaths = mapOf("gemma3-1b-it-litert" to "/models/gemma.litertlm"))
+        val events = adapter(runtime, models).openSession(turns("hello"), localPlatform())
+            .streamRound(emptyList(), emptyList()).toList()
+        assertEquals("/models/gemma.litertlm", runtime.loadEngineCalls.single().modelPath)
+        assertTrue(events.last() is ProviderEvent.Completed)
+    }
+
+    @Test
+    fun `known broken downloaded MiniCpm export fails before allocating native memory`() = runBlocking {
+        val runtime = FakeLocalRuntime()
+        val file = "MiniCPM5-1B-qualcomm-sm8750.litertlm"
+        val model = "minicpm"
+        val models = FakeLocalModelRepository(
+            initialModels = listOf(installedModel(model, file)),
+            downloadedPaths = mapOf(model to "/models/$file")
+        )
+        val catalog = FakeModelCatalogRepository(
+            listOf(
+                CatalogEntry(
+                    id = model,
+                    downloadUrl = "https://huggingface.co/Tdamre/MiniCPM5-1B-litert-lm/resolve/revision/$file",
+                    supportedAccelerators = listOf("npu"),
+                    socToModelFiles = mapOf("SM8750" to SocVariant(modelFile = file))
+                )
+            )
+        )
+        val events = adapter(runtime, models, catalog, deviceSocModel = "SM8750")
+            .openSession(turns("hello"), localPlatform(model = model).copy(accelerator = "npu"))
+            .streamRound(emptyList(), emptyList()).toList()
+        assertTrue(events.filterIsInstance<ProviderEvent.Failed>().single().message.contains("QNN memory allocation"))
+        assertTrue(runtime.loadEngineCalls.isEmpty())
+    }
+
+    @Test
+    fun `NPU package startup guidance is preserved without an incompatible CPU retry`() = runBlocking {
+        val runtime = FakeLocalRuntime().apply {
+            failLoadEngineIf = { LocalNpuPackageException(IllegalStateException("native failure")) }
+        }
+        val events = adapter(runtime).openSession(turns("hello"), localPlatform())
+            .streamRound(emptyList(), emptyList()).toList()
+        assertEquals(1, runtime.loadEngineCalls.size)
+        assertTrue(events.filterIsInstance<ProviderEvent.Failed>().single().message.contains("GPU / CPU edition"))
+    }
+
+    @Test
+    fun `failed generation closes its native session before returning`() = runBlocking {
+        val runtime = FakeLocalRuntime().apply {
+            scriptedEvents = listOf(listOf(LocalRuntimeEvent.Error("context exhausted")))
+        }
+        val events = adapter(runtime).openSession(turns("hello"), localPlatform())
+            .streamRound(emptyList(), emptyList()).toList()
+        assertTrue(events.any { it is ProviderEvent.Failed })
+        assertFalse(events.any { it is ProviderEvent.Completed })
+        assertFalse(runtime.hasOpenConversation())
+        assertEquals(1, runtime.closeConversationCalls)
+    }
+
+    private fun installedModel(id: String, file: String) = LocalModel(
+        catalogEntryId = id,
+        commitHash = "revision",
+        fileName = file,
+        relativeDirectory = "$id/revision",
+        totalBytes = 1_000_000
+    )
 
     @Test
     fun `holding the fake mutex emits waiting notice before the run`() = runBlocking {

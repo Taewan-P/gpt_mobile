@@ -12,6 +12,8 @@ import dev.chungjungsoo.gptmobile.data.context.ConversationTurn
 import dev.chungjungsoo.gptmobile.data.context.RollingContextWindowCompactor
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
+import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelCompatibility
+import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelPackages
 import dev.chungjungsoo.gptmobile.data.localruntime.ConversationFingerprint
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalConversationConfig
@@ -19,6 +21,7 @@ import dev.chungjungsoo.gptmobile.data.localruntime.LocalEngineSpec
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalHistoryMessage
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalHistoryRole
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalInferenceMetrics
+import dev.chungjungsoo.gptmobile.data.localruntime.LocalNpuPackageException
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntimeEvent
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntimeFallbackDisabledException
@@ -33,9 +36,11 @@ import dev.chungjungsoo.gptmobile.data.repository.ModelCatalogRepository
 import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -86,11 +91,35 @@ class LiteRtLmAdapter(
                 tools: List<AgentToolDefinition>,
                 exchanges: List<AgentToolExchange>
             ): Flow<ProviderEvent> = channelFlow {
-                val installedRecord = localModelRepository.getById(platform.model)
-                val catalogEntry = modelCatalogRepository
-                    ?.getCachedVisibleEntries()
-                    ?.firstOrNull { entry -> entry.id == platform.model }
-                    ?.let { entry -> installedRecord?.let { dev.chungjungsoo.gptmobile.data.localmodel.LocalModelPackages.forInstalledFile(entry, it.fileName) } ?: entry }
+                val entries = modelCatalogRepository?.getCachedVisibleEntries().orEmpty()
+                val wantsNpu = LocalAccelerators.normalize(platform.accelerator) == LocalAccelerators.NPU
+                var resolvedModelId = platform.model
+                var installedRecord = localModelRepository.getById(resolvedModelId)
+                var modelPath = localModelRepository.resolveDownloadedPath(resolvedModelId)
+                val installedNpu = (installedRecord?.fileName ?: modelPath)?.let(LocalModelPackages::isNpuFile) == true
+                if (!wantsNpu && (modelPath == null || installedNpu)) {
+                    // Legacy profiles retain the original ID after the marketplace splits
+                    // the model into NPU and GPU editions. Resolve metadata together with
+                    // the file so context, tools and vision describe the engine we load.
+                    val gpuId = "${platform.model}-litert"
+                    modelPath = localModelRepository.resolveDownloadedPath(gpuId)
+                    resolvedModelId = gpuId
+                    installedRecord = localModelRepository.getById(gpuId)
+                }
+                if (modelPath == null) {
+                    send(ProviderEvent.Failed(if (!wantsNpu && installedNpu) "This download is an NPU package. Open Local models → Marketplace and download its GPU / CPU edition, or select NPU in this profile." else modelNotDownloadedError))
+                    return@channelFlow
+                }
+                if (!wantsNpu && LocalModelPackages.isNpuFile(modelPath)) {
+                    send(ProviderEvent.Failed("The selected download is an NPU package. Download its GPU / CPU edition to use this accelerator."))
+                    return@channelFlow
+                }
+                val catalogEntry = entries.firstOrNull { it.id == resolvedModelId }
+                    ?.let { entry -> installedRecord?.let { LocalModelPackages.forInstalledFile(entry, it.fileName) } ?: entry }
+                LocalModelCompatibility.installedPackageIssue(catalogEntry?.downloadUrl.orEmpty(), modelPath)?.let { reason ->
+                    send(ProviderEvent.Failed(reason))
+                    return@channelFlow
+                }
                 val visionCapable = catalogEntry?.capabilities?.vision == true
                 val toolsCapable = catalogEntry?.capabilities?.tools == true
                 val registeredTools = if (toolsCapable) boundTools else emptyList()
@@ -103,22 +132,10 @@ class LiteRtLmAdapter(
                     send(notice)
                 }
 
-                if (LocalAccelerators.normalize(platform.accelerator) == LocalAccelerators.NPU &&
+                if (wantsNpu &&
                     (catalogEntry == null || !LocalAccelerators.isNpuEligible(catalogEntry.supportedAccelerators, catalogEntry.socToModelFiles, deviceSocModel))
                 ) {
                     send(ProviderEvent.Failed("This package has no verified QNN build for this phone. Select a matching NPU package from the marketplace, or use its GPU edition."))
-                    return@channelFlow
-                }
-
-                val wantsGpu = LocalAccelerators.normalize(platform.accelerator) != LocalAccelerators.NPU
-                val installedNpu = installedRecord?.fileName?.let(dev.chungjungsoo.gptmobile.data.localmodel.LocalModelPackages::isNpuFile) == true
-                val modelPath = if (wantsGpu && installedNpu) {
-                    localModelRepository.resolveDownloadedPath("${platform.model}-litert")
-                } else {
-                    localModelRepository.resolveDownloadedPath(platform.model)
-                }
-                if (modelPath == null) {
-                    send(ProviderEvent.Failed(if (wantsGpu && installedNpu) "This download is an NPU package. Open Local models → Marketplace and download its GPU / CPU edition, or select NPU in this profile." else modelNotDownloadedError))
                     return@channelFlow
                 }
 
@@ -320,6 +337,15 @@ class LiteRtLmAdapter(
                                 isConversationDirty = true
                                 throw error
                             } finally {
+                                // Cancellation signals native generation asynchronously.
+                                // Close the dirty session while still holding the engine
+                                // lock, before a queued request can create its replacement.
+                                if (isConversationDirty) {
+                                    openConversation = null
+                                    withContext(NonCancellable) {
+                                        runCatching { closeConversation() }
+                                    }
+                                }
                                 exclusiveToolsByName = emptyMap()
                                 exclusiveToolEventSink = null
                             }
@@ -432,9 +458,13 @@ class LiteRtLmAdapter(
             throw error
         } catch (error: LocalRuntimeFallbackDisabledException) {
             throw error
+        } catch (error: LocalNpuPackageException) {
+            logEngineFailure(requested, error)
+            throw error
         } catch (error: Throwable) {
             if (error !is Exception && error !is LinkageError) throw error
             logEngineFailure(requested, error)
+            if (LocalModelPackages.isNpuFile(requested.modelPath)) throw LocalNpuPackageException(error)
             if (handlesEngineFallback) throw LocalEngineLoadException(engineLoadFailedError, error)
             if (LocalAccelerators.normalize(requested.accelerator) == LocalAccelerators.CPU) {
                 throw LocalEngineLoadException(engineLoadFailedError, error)

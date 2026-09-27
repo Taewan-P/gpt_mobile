@@ -50,4 +50,16 @@ class LocalModelPackagesTest {
         assertEquals(listOf("npu"), LocalModelPackages.forInstalledFile(model, "gemma_SM8750.litertlm").supportedAccelerators)
         assertEquals(listOf("gpu", "cpu"), LocalModelPackages.forInstalledFile(model, "gemma.litertlm").supportedAccelerators)
     }
+
+    @Test fun parentDirectoryDoesNotChangePackageAcceleratorOrSoc() {
+        assertFalse(LocalModelPackages.isNpuFile("/models/hf_qualcomm_sm8750/gemma.litertlm"))
+        assertEquals(null, LocalModelPackages.npuSoc("/models/sm8750/gemma.litertlm"))
+        assertTrue(LocalModelPackages.isNpuFile("/models/gemma/gemma_SM8750.litertlm"))
+    }
+
+    @Test fun installedSocOverridesOtherVariantsInCatalogMetadata() {
+        val installed = LocalModelPackages.forInstalledFile(model, "gemma_SM8650.litertlm")
+        assertFalse(LocalAccelerators.isNpuEligible(installed.supportedAccelerators, installed.socToModelFiles, "SM8750"))
+        assertTrue(LocalAccelerators.isNpuEligible(installed.supportedAccelerators, installed.socToModelFiles, "SM8650"))
+    }
 }

@@ -3,6 +3,7 @@ package dev.chungjungsoo.gptmobile.data.huggingface
 import dev.chungjungsoo.gptmobile.data.catalog.CatalogCapabilities
 import dev.chungjungsoo.gptmobile.data.catalog.CatalogDefaultConfig
 import dev.chungjungsoo.gptmobile.data.catalog.CatalogEntry
+import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelCompatibility
 import dev.chungjungsoo.gptmobile.data.network.NetworkClient
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.bearerAuth
@@ -62,6 +63,7 @@ data class HuggingFaceLiteRtResult(
             downloadUrl = url,
             sizeInBytes = sizeInBytes,
             minRamGb = estimateMinRamGb(sizeInBytes),
+            maxContextTokens = LocalModelCompatibility.validatedContextTokens(repoId, filePath) ?: 0,
             isGated = gated,
             capabilities = CatalogCapabilities(
                 vision = tags.any { it.contains("vision", ignoreCase = true) },
@@ -224,6 +226,8 @@ class HuggingFaceModelSearchClient @Inject constructor(
 /** Conservative discovery: arbitrary checkpoint archives are not executable model packages. */
 internal fun isSupportedHubPackage(repoId: String, path: String, tags: List<String>): Boolean {
     if (!path.endsWith(".litertlm", true)) return false
+    if (LocalModelCompatibility.unsupportedReason(repoId, path) != null) return false
+    if (LocalModelCompatibility.validatedContextTokens(repoId, path) != null) return true
     // These containers are not Android conversational models, even from trusted publishers.
     if (Regex("(?i)(?:^|[/_.-])(?:web|intel|qcs[0-9]+)(?:[/_.-]|$)").containsMatchIn(path)) return false
     if (tags.any { it.equals("feature-extraction", true) || it.equals("sentence-similarity", true) } ||
@@ -232,6 +236,9 @@ internal fun isSupportedHubPackage(repoId: String, path: String, tags: List<Stri
         return false
     }
     val packages = dev.chungjungsoo.gptmobile.data.localmodel.LocalModelPackages
+    // Downloads store only the basename. Do not lose an NPU-only constraint
+    // encoded solely in a Hub subdirectory and then advertise that file as GPU.
+    if (packages.isNpuFile(path.replace('/', '_')) && !packages.isNpuFile(path)) return false
     if (packages.isNpuFile(path)) return packages.npuSoc(path) != null
     // Explicit CPU-only exports cannot be advertised as GPU models.
     if (Regex("(?i)(?:^|[/_.-])cpu(?:[/_.-]|$)").containsMatchIn(path)) return false

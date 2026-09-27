@@ -1,11 +1,24 @@
 package dev.chungjungsoo.gptmobile.data.huggingface
 
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class HuggingFacePackageCompatibilityTest {
+    @Test
+    fun rejectsDocumentedNonWorkingMiniCpmNpuExportsAndAllowsTestedAndroidEdition() {
+        val repo = "Tdamre/MiniCPM5-1B-litert-lm"
+        assertFalse(isSupportedHubPackage(repo, "MiniCPM5-1B-qualcomm-sm8750.litertlm", emptyList()))
+        assertFalse(isSupportedHubPackage(repo, "MiniCPM5-1B-qualcomm-sm8750-c1024.litertlm", emptyList()))
+        assertTrue(isSupportedHubPackage(repo, "MiniCPM5-1B-web.litertlm", emptyList()))
+        assertFalse(isSupportedHubPackage("unknown/MiniCPM5-1B", "MiniCPM5-1B-web.litertlm", emptyList()))
+        val entry = HuggingFaceLiteRtResult(repo, "abc", "MiniCPM5-1B-web.litertlm", 1_500_000_000, 1, false, emptyList()).toCatalogEntry()
+        assertEquals(2048, entry.maxContextTokens)
+        assertEquals(listOf("gpu", "cpu"), entry.supportedAccelerators)
+    }
+
     @Test
     fun excludesRawArchivesCpuOnlyAndUnidentifiedExports() {
         assertFalse(isSupportedHubPackage("google/model", "weights.zip", emptyList()))
@@ -31,5 +44,6 @@ class HuggingFacePackageCompatibilityTest {
         assertFalse(LocalAccelerators.isNpuEligible(entry.supportedAccelerators, entry.socToModelFiles, "SM8650"))
         assertFalse("gpu" in entry.supportedAccelerators)
         assertFalse(isSupportedHubPackage("publisher/model", "model_npu.litertlm", emptyList()))
+        assertFalse(isSupportedHubPackage("google/model", "qualcomm/sm8750/model.litertlm", emptyList()))
     }
 }
