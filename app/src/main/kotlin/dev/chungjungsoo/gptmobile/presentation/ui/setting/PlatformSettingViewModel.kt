@@ -74,6 +74,8 @@ class PlatformSettingViewModel @Inject constructor(
 
     val platformUid: String = checkNotNull(savedStateHandle["platformUid"])
 
+    val debugMode = settingRepository.observeDebugMode().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
     val platformState: StateFlow<PlatformV2?> = settingRepository.observePlatformV2ByUid(platformUid)
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 

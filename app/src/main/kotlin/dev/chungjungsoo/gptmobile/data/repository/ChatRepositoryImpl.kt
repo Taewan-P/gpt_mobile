@@ -152,6 +152,42 @@ class ChatRepositoryImpl(
         }
     )
 
+    override suspend fun supportsBenchmarkTools(platform: PlatformV2): Boolean = when (platform.compatibleType) {
+        ClientType.FREE -> FreeAiProvider.requireFor(platform).supportsTools
+        ClientType.LITERT_LM -> {
+            val entries = modelCatalogRepository.getCachedVisibleEntries()
+            val installed = localModelRepository.getById(platform.model)
+            val gpuEdition = platform.accelerator != "npu" &&
+                (installed == null || dev.chungjungsoo.gptmobile.data.localmodel.LocalModelPackages.isNpuFile(installed.fileName))
+            val id = if (gpuEdition && localModelRepository.resolveDownloadedPath("${platform.model}-litert") != null) "${platform.model}-litert" else platform.model
+            entries.firstOrNull { it.id == id }?.capabilities?.tools == true
+        }
+        else -> true
+    }
+
+    override suspend fun openBenchmarkSession(
+        platform: PlatformV2,
+        turns: List<ConversationTurn>,
+        tools: List<dev.chungjungsoo.gptmobile.data.agent.AgentTool>,
+        runId: String
+    ): dev.chungjungsoo.gptmobile.data.agent.AgentProviderSession {
+        val constraints = RequestConstraints(maxOutputTokens = 512, allowTools = tools.isNotEmpty(), allowReasoning = false)
+        val target = dev.chungjungsoo.gptmobile.data.benchmark.benchmarkProfile(platform, tools.isNotEmpty())
+        val session = when (target.compatibleType) {
+            ClientType.OPENAI -> openAIResponsesAdapter.openSession(turns, target, constraints)
+            ClientType.NVIDIA, ClientType.GROQ, ClientType.OLLAMA, ClientType.OPENROUTER, ClientType.CUSTOM, ClientType.LLAMA, ClientType.FREE ->
+                openAICompatibleAdapter.openSession(turns, target, constraints)
+            ClientType.ANTHROPIC -> anthropicMessagesAdapter.openSession(turns, target, constraints)
+            ClientType.GOOGLE -> geminiAdapter.openSession(turns, target, constraints)
+            ClientType.LITERT_LM -> liteRtLmAdapter.openSession(turns, target, tools, constraints)
+        }
+        return invocationLedger?.wrap(
+            session, runId, runId, target.compatibleType.name, target.model, "benchmark",
+            turns.sumOf { dev.chungjungsoo.gptmobile.data.context.ContextBudgetService.estimate(it.userMessage.content) },
+            512, Int.MAX_VALUE, profileUid = target.uid
+        ) ?: session
+    }
+
     /** A single isolated text round. No resolver, history, memory injection or nested tool execution. */
     private suspend fun delegateToProfile(target: PlatformV2, task: String, maxTokens: Int, parentRunId: String, turnKey: String): String {
         val constraints = RequestConstraints(maxOutputTokens = maxTokens, allowTools = false, allowReasoning = false)
