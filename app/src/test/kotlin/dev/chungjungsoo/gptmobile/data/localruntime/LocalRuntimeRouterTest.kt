@@ -95,10 +95,26 @@ class LocalRuntimeRouterTest {
     }
 
     @Test
+    fun nativeOptionsInvalidateWarmEngineAndReachTheNextLoad() = runTest {
+        fakeSettingRepository.backend = LocalRuntimeBackend.LITERT_LM
+        val spec = testEngineSpec().copy(accelerator = LocalAccelerators.CPU)
+        router.loadEngine(spec)
+        assertTrue(router.isEngineLoaded(spec))
+        fakeSettingRepository.features = fakeSettingRepository.features.copy(
+            localSpeculativeDecoding = dev.chungjungsoo.gptmobile.data.model.SpeculativeDecodingMode.OFF,
+            localNativeMetrics = true
+        )
+        assertFalse(router.isEngineLoaded(spec))
+        router.loadEngine(spec)
+        assertEquals(false, liteRtRuntime.loadEngineCalls.last().speculativeDecoding)
+        assertTrue(liteRtRuntime.loadEngineCalls.last().nativeMetricsEnabled)
+    }
+
+    @Test
     fun threadCountIsBoundedToAvailableCoresAndZeroIsAutomatic() {
         val features = dev.chungjungsoo.gptmobile.data.model.AppFeatureSettings(localCpuThreads = 99)
-        assertEquals(4, features.localEngineTuning(4).first)
-        assertEquals(null, features.copy(localCpuThreads = 0).localEngineTuning(4).first)
+        assertEquals(4, features.localEngineTuning(4).cpuThreads)
+        assertEquals(null, features.copy(localCpuThreads = 0).localEngineTuning(4).cpuThreads)
     }
 
     @Test

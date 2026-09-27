@@ -31,7 +31,8 @@ data class BenchmarkSample(
     val successfulToolCalls: Int = 0,
     val preview: String = "",
     val error: String? = null,
-    val lastTextMs: Long? = null
+    val lastTextMs: Long? = null,
+    val nativeMetrics: dev.chungjungsoo.gptmobile.data.localruntime.NativeInferenceMetrics? = null
 ) {
     val completed: Boolean get() = outcome == BenchmarkOutcome.PASSED || outcome == BenchmarkOutcome.FAILED
 

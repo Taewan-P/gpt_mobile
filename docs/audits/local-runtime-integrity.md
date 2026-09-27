@@ -7,7 +7,9 @@ Starting revision: `6a38bc8`, including the merged marketplace update in #495. R
 
 The existing implementation had consequential integration defects. In particular, a QNN load could silently execute on GPU/CPU and keep showing QNN, including with automatic fallback disabled. This audit repairs those paths and adds regression coverage. Native execution on a physical phone remains a release verification requirement.
 
-QNN remains the saved default. Both runtime options use **LiteRT-LM 0.16.1**; the QNN option selects its Qualcomm NPU dispatch path. **QAIRT 2.47.0** supplies the matching host, stub and skeleton libraries. QNN is not a separate LLM implementation, and CPU/GPU execution is reported as LiteRT-LM.
+The September 27 modernization refreshes the JNI hash manifest from the published 0.17.1 AAR; QAIRT and the bundled dispatch library remain unchanged. See [upgrade validation](../AI_ANDROID_MODERNIZATION_2026-09-27.md).
+
+QNN remains the saved default. Both runtime options now use **LiteRT-LM 0.17.1**; the QNN option selects its Qualcomm NPU dispatch path. **QAIRT 2.47.0** supplies the matching host, stub and skeleton libraries. QNN is not a separate LLM implementation, and CPU/GPU execution is reported as LiteRT-LM.
 
 ## Findings and repairs
 

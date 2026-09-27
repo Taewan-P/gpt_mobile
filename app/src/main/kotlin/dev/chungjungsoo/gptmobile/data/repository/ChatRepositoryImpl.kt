@@ -411,8 +411,12 @@ class ChatRepositoryImpl(
                     }
                 )
             }
-            delegatedTools = dev.chungjungsoo.gptmobile.data.agent.tool.aggregateWebSearch(boundedTools.filterNot { it.realToolName == "delegate_to_model" })
-            val trace = ToolTraceSession(runId, boundedTools, toolEventRecorder)
+            val aggregatedTools = dev.chungjungsoo.gptmobile.data.agent.tool.aggregateWebSearch(boundedTools)
+            delegatedTools = aggregatedTools.filterNot { it.realToolName == "delegate_to_model" }
+            // The model calls the aggregate name, while local workers can call individual
+            // engines. Preserve both snapshots, preferring aggregate metadata on a name collision.
+            val traceTools = (aggregatedTools + boundedTools).distinctBy { it.modelToolName }
+            val trace = ToolTraceSession(runId, traceTools, toolEventRecorder)
             var preparedTurns = contextTurns
             fun appendPreparedEvidence(text: String) {
                 preparedTurns = preparedTurns.map { turn ->
@@ -463,7 +467,7 @@ class ChatRepositoryImpl(
                     emit(ApiState.Notice("Prepared evidence did not fit the main model's context budget. Continuing with the original context.", persistent = true))
                 }
             }
-            val effectiveTools = dev.chungjungsoo.gptmobile.data.agent.tool.aggregateWebSearch(boundedTools)
+            val effectiveTools = aggregatedTools
                 .filter { resolved -> contextPlan.tools.any { it.name == resolved.modelToolName } }
                 .map { if (resolvedTools.any { tool -> tool.realToolName == "delegate_to_model" }) localDelegation.processToolResults(it, latestUser?.content.orEmpty()) else it }
             val requestConstraints = RequestConstraints(maxOutputTokens = contextPlan.outputTokens)
@@ -599,6 +603,9 @@ class ChatRepositoryImpl(
                         is ProviderEvent.Notice -> emit(ApiState.Notice(providerEvent.message, providerEvent.persistent))
 
                         is ProviderEvent.PhaseChanged -> emit(ApiState.PhaseChanged(providerEvent.phase))
+
+                        // Native counters describe only the final decode segment, not billable turn usage.
+                        is ProviderEvent.LocalMetrics -> Unit
 
                         is ProviderEvent.Usage -> {
                             emit(ApiState.TokenUsage(providerEvent.inputTokens, providerEvent.outputTokens, providerEvent.totalTokens))

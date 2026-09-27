@@ -359,6 +359,7 @@ class LiteRtLmAdapter(
                                 }
                                 if (!failed) {
                                     latestMetrics?.let { metrics ->
+                                        send(ProviderEvent.LocalMetrics(metrics))
                                         val telemetryNotice = formatTelemetryNotice(metrics, localRuntime)
                                         if (telemetryNotice.isNotBlank()) {
                                             send(ProviderEvent.Notice(telemetryNotice))
@@ -635,8 +636,15 @@ class LiteRtLmAdapter(
         runtime: LocalRuntime
     ): String {
         if (metrics.totalDurationMs <= 0L && metrics.totalChunks <= 0) return ""
-        val tpsFormatted = String.format(Locale.US, "%.1f", metrics.tokensPerSecond)
-        val baseNotice = "Local: $tpsFormatted tok/s · TTFT ${metrics.timeToFirstTokenMs}ms · ~${metrics.estimatedTokens} tokens"
+        val native = metrics.native?.takeIf { it.isValid }
+        val baseNotice = if (native != null) {
+            val speed = String.format(Locale.US, "%.1f", native.decodeTokensPerSecond)
+            val prefill = String.format(Locale.US, "%.1f", native.prefillTokensPerSecond)
+            "Local: $speed decode tok/s · $prefill prefill tok/s · ${native.decodeTokens} tokens (last segment) · First callback ${metrics.timeToFirstTokenMs}ms"
+        } else {
+            val speed = String.format(Locale.US, "%.1f", metrics.tokensPerSecond)
+            "Local: ~$speed tok/s end-to-end · First callback ${metrics.timeToFirstTokenMs}ms · ~${metrics.estimatedTokens} tokens"
+        }
 
         val hwState = runtime.getHardwareState()
         val throttleSuffix = when {

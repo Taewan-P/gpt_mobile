@@ -11,7 +11,7 @@ This repository enables autonomous coding agents and automated tools to freely a
 - **Hilt Dependency Injection Bindings**: `app/src/main/kotlin/dev/chungjungsoo/gptmobile/di/`
   - When adding or replacing repository interfaces, register `@Binds` in `RepositoryModule.kt` or a dedicated feature module (e.g., `OpenRouterSettingsModule.kt`).
 - **Target SDK & Toolchain**:
-  - `compileSdk = 36`, `targetSdk = 36`, `minSdk = 26`
+  - `compileSdk = 37`, `targetSdk = 36`, `minSdk = 31`
   - Java 21, AGP 8.x, Gradle 8.13+
 - **Pre-stripped Native Libraries (JNI Keep Rules)**:
   - Must not remove entries from `packaging.jniLibs.keepDebugSymbols` in `app/build.gradle.kts` (e.g., `**/libLiteRt.so`, `**/liblitertlm_jni.so`, `**/libQnn*.so`, etc.).

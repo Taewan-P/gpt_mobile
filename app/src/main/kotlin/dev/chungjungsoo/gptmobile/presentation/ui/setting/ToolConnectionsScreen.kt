@@ -190,7 +190,7 @@ fun ToolConnectionsScreen(
                 .padding(innerPadding)
                 .verticalScroll(scrollState)
         ) {
-            androidx.compose.material3.TabRow(selectedTabIndex = if (settingsTab) 1 else 0) {
+            androidx.compose.material3.PrimaryTabRow(selectedTabIndex = if (settingsTab) 1 else 0) {
                 androidx.compose.material3.Tab(selected = !settingsTab, onClick = { settingsTab = false }, text = { Text("Connections") })
                 androidx.compose.material3.Tab(selected = settingsTab, onClick = { settingsTab = true }, text = { Text("Settings") })
             }

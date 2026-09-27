@@ -14,6 +14,7 @@ import dev.chungjungsoo.gptmobile.data.localruntime.QnnEnvironment
 import dev.chungjungsoo.gptmobile.data.model.AppFeatureSettings
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.model.LocalRuntimeBackend
+import dev.chungjungsoo.gptmobile.data.model.SpeculativeDecodingMode
 import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import javax.inject.Inject
@@ -78,13 +79,22 @@ class LocalRuntimeSettingsViewModel @Inject constructor(
         require(value != LocalRuntimeBackend.QUALCOMM_QNN || _qnnAvailable.value) { "NPU is unavailable on this device" }
         repository.updateLocalRuntimeBackend(value)
     }
-    fun updateTuning(threads: Int? = null, cache: Boolean? = null, idle: Int? = null, fallback: Boolean? = null) = perform {
+    fun updateTuning(
+        threads: Int? = null,
+        cache: Boolean? = null,
+        idle: Int? = null,
+        fallback: Boolean? = null,
+        speculative: SpeculativeDecodingMode? = null,
+        nativeMetrics: Boolean? = null
+    ) = perform {
         updates.withLock {
             val current = repository.getFeatureSettings()
             repository.updateFeatureSettings(
                 current.copy(
                     localCpuThreads = threads?.coerceIn(0, cores) ?: current.localCpuThreads,
                     localModelCache = cache ?: current.localModelCache,
+                    localSpeculativeDecoding = speculative ?: current.localSpeculativeDecoding,
+                    localNativeMetrics = nativeMetrics ?: current.localNativeMetrics,
                     localIdleMinutes = idle?.coerceIn(0, 60) ?: current.localIdleMinutes,
                     qnnAutomaticFallback = fallback ?: current.qnnAutomaticFallback
                 )

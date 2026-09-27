@@ -1517,7 +1517,7 @@ class LiteRtLmAdapterTest {
 
         val notice = events.filterIsInstance<ProviderEvent.Notice>().singleOrNull()
         assertTrue(notice != null)
-        assertTrue(notice!!.message.contains("Local: 22.0 tok/s · TTFT 120ms · ~11 tokens"))
+        assertTrue(notice!!.message.contains("Local: ~22.0 tok/s end-to-end · First callback 120ms · ~11 tokens"))
         assertTrue(events.last() is ProviderEvent.Completed)
     }
 
@@ -1552,7 +1552,7 @@ class LiteRtLmAdapterTest {
 
         val notice = events.filterIsInstance<ProviderEvent.Notice>().singleOrNull()
         assertTrue(notice != null)
-        assertTrue(notice!!.message.contains("Local: 8.0 tok/s · TTFT 250ms · ~8 tokens · ⚡ Throttled"))
+        assertTrue(notice!!.message.contains("Local: ~8.0 tok/s end-to-end · First callback 250ms · ~8 tokens · ⚡ Throttled"))
     }
 
     @Test

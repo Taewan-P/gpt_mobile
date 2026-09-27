@@ -14,7 +14,9 @@ data class LocalEngineSpec(
     val litertDispatchLibDir: String? = null,
     val visionAccelerator: String = LocalAccelerators.GPU,
     val cpuThreads: Int? = null,
-    val cacheEnabled: Boolean = true
+    val cacheEnabled: Boolean = true,
+    val speculativeDecoding: Boolean? = null,
+    val nativeMetricsEnabled: Boolean = false
 )
 
 data class LocalSamplerConfig(
@@ -82,8 +84,25 @@ data class LocalInferenceMetrics(
     val totalChunks: Int = 0,
     val totalCharacters: Int = 0,
     val estimatedTokens: Int = 0,
-    val tokensPerSecond: Double = 0.0
+    val tokensPerSecond: Double = 0.0,
+    val native: NativeInferenceMetrics? = null
 )
+
+/** Native counters cover the last prefill/decode segment, not an entire multi-tool turn. */
+@kotlinx.serialization.Serializable
+data class NativeInferenceMetrics(
+    val prefillTokens: Int,
+    val decodeTokens: Int,
+    val prefillTokensPerSecond: Double,
+    val decodeTokensPerSecond: Double
+) {
+    val isValid: Boolean get() = prefillTokens >= 0 &&
+        decodeTokens > 0 &&
+        prefillTokensPerSecond.isFinite() &&
+        prefillTokensPerSecond >= 0 &&
+        decodeTokensPerSecond.isFinite() &&
+        decodeTokensPerSecond > 0
+}
 
 sealed interface LocalRuntimeEvent {
     data class PhaseChanged(val phase: LocalInferencePhase) : LocalRuntimeEvent

@@ -31,6 +31,27 @@ class BenchmarkRunnerTest {
     private val toolTest = benchmarkSuite(BenchmarkMode.QUICK).first { it.id == "tool" }
 
     @Test
+    fun `native segment counters are preserved without replacing whole response usage`() = runTest {
+        val native = dev.chungjungsoo.gptmobile.data.localruntime.NativeInferenceMetrics(50, 4, 200.0, 40.0)
+        val runner = BenchmarkRunner({ _, _ ->
+            session(
+                flowOf(
+                    ProviderEvent.TextDelta("BENCHMARK_READY"),
+                    ProviderEvent.Usage(outputTokens = 12),
+                    ProviderEvent.LocalMetrics(dev.chungjungsoo.gptmobile.data.localruntime.LocalInferenceMetrics(native = native)),
+                    ProviderEvent.Completed
+                )
+            )
+        }, now = { testScheduler.currentTime })
+        val result = runner.run(instruction, true)
+        assertEquals(BenchmarkOutcome.PASSED, result.outcome)
+        assertEquals(12, result.outputTokens)
+        assertFalse(result.estimatedTokens)
+        assertEquals(native, result.nativeMetrics)
+        assertNull(result.decodeTokensPerSecond)
+    }
+
+    @Test
     fun `suite stops after provider error and saves the failed sample`() = runTest {
         for (outcome in listOf(BenchmarkOutcome.ERROR, BenchmarkOutcome.TIMED_OUT)) {
             val attempted = mutableListOf<String>()

@@ -54,6 +54,7 @@ class BenchmarkRunner(
         var roundTokens: Int? = null
         var roundStart = 0
         var roundAccounted = true
+        var nativeMetrics: dev.chungjungsoo.gptmobile.data.localruntime.NativeInferenceMetrics? = null
         val calls = linkedMapOf<String, ProviderEvent.ToolCall>()
         val successful = mutableSetOf<String>()
         val code = "PKG-${UUID.randomUUID().toString().take(8)}"
@@ -62,7 +63,7 @@ class BenchmarkRunner(
             test.id, test.label, test.category, outcome, (now() - started).coerceAtLeast(0), first,
             tokens + if (roundAccounted) 0 else roundTokens ?: ((text.length - roundStart + 3) / 4),
             estimated || (!roundAccounted && roundTokens == null), text.length, chunks, longestGap, calls.size, successful.size,
-            text.take(1000).toString(), error, lastChunk?.let { it - started }
+            text.take(1000).toString(), error, lastChunk?.let { it - started }, nativeMetrics
         )
         try {
             val finished = withTimeoutOrNull(timeoutMs) {
@@ -104,6 +105,7 @@ class BenchmarkRunner(
                             is ProviderEvent.Usage -> event.outputTokens?.takeIf { it >= 0 }?.let { count ->
                                 roundTokens = if (event.cumulative) count else (roundTokens ?: 0) + count
                             }
+                            is ProviderEvent.LocalMetrics -> nativeMetrics = event.metrics.native?.takeIf { it.isValid }
                             is ProviderEvent.Failed -> error(event.message)
                             ProviderEvent.Completed -> completed = true
                             else -> Unit

@@ -382,7 +382,10 @@ class WebSearchToolTest {
         val result = tool.execute("http-call", arguments())
 
         assertTrue(result.isError)
-        assertEquals("Web search failed: HTTP 429.", (result.content as ToolResultContent.Text).text)
+        val error = (result.content as ToolResultContent.Text).text
+        assertTrue(error.contains("Exa web search rate limit"))
+        assertTrue(error.contains("HTTP 429"))
+        assertTrue(error.contains("Wait before retrying"))
     }
 
     @Test

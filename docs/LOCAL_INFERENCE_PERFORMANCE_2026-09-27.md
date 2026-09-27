@@ -2,6 +2,8 @@
 
 Research date: 27 September 2026. Target: this Android app on the ASUS ROG Phone 9 Pro / Snapdragon 8 Elite (SM8750). Code baseline: `83fe6debc288ca7ba582e18db758959d47403d79`, LiteRT-LM 0.16.1 and QNN 2.47.0.
 
+Follow-up implementation is documented in [AI and Android modernization](AI_ANDROID_MODERNIZATION_2026-09-27.md), including native counters, speculative-decoding controls, thermal forecasting, and dependency upgrades.
+
 The best next experiments are native performance measurement, task-appropriate thinking, compatible GPU speculative decoding, and comparisons against the exact SM8750 NPU package. No device was attached during this investigation. Published measurements below describe other devices; they are evidence for experiments, not speed promises for this phone.
 
 ## What the repo and diagnostics establish

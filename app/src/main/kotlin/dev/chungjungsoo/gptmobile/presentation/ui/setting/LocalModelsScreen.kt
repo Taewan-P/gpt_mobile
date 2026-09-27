@@ -131,7 +131,7 @@ fun LocalModelsScreen(
                 LazyColumn(Modifier.padding(innerPadding), state = scrollState) {
                     if (!marketplace) {
                         item {
-                            androidx.compose.material3.TabRow(selectedTabIndex = selectedTab) {
+                            androidx.compose.material3.PrimaryTabRow(selectedTabIndex = selectedTab) {
                                 androidx.compose.material3.Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Library") })
                                 androidx.compose.material3.Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Settings") })
                                 androidx.compose.material3.Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 }, text = { Text("Delegation") })

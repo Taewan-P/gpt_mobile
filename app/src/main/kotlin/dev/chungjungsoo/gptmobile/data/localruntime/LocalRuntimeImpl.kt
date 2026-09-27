@@ -12,7 +12,6 @@ import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.ExperimentalApi
-import com.google.ai.edge.litertlm.ExperimentalFlags
 import com.google.ai.edge.litertlm.Message
 import com.google.ai.edge.litertlm.MessageCallback
 import com.google.ai.edge.litertlm.OpenApiTool
@@ -53,6 +52,7 @@ class LocalRuntimeImpl(
     @Volatile private var activeRequestJob: Job? = null
     private var loadedAccelerator: String = LocalAccelerators.CPU
     private var loadedSpec: LocalEngineSpec? = null
+    private val policyStabilizer = AdaptivePolicyStabilizer()
 
     private val activityManager: ActivityManager? by lazy {
         context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
@@ -82,7 +82,8 @@ class LocalRuntimeImpl(
         val lowMemory = activityManager != null &&
             (memoryInfo.lowMemory || memoryInfo.availMem < 500L * 1024L * 1024L)
         // Report the same limit to history compaction and engine initialization.
-        return if (lowMemory) policy.copy(maxTokensClamp = minOf(policy.maxTokensClamp ?: 1024, 1024)) else policy
+        val candidate = if (lowMemory) policy.copy(maxTokensClamp = minOf(policy.maxTokensClamp ?: 1024, 1024)) else policy
+        return policyStabilizer.update(candidate, SystemClock.elapsedRealtime())
     }
 
     override fun loadedEngineSpec(): LocalEngineSpec? = loadedSpec
@@ -129,7 +130,7 @@ class LocalRuntimeImpl(
                 )
             )
             try {
-                nextEngine.initialize()
+                LiteRtExperimentalSettings.engine(spec) { nextEngine.initialize() }
                 // JNI initialization is blocking. Release the result if its caller was
                 // cancelled while native code was working.
                 coroutineContext.ensureActive()
@@ -152,8 +153,6 @@ class LocalRuntimeImpl(
             val toolProviders = config.tools.map { descriptor ->
                 tool(BridgedOpenApiTool(descriptor, config.toolExecutor) { activeRequestJob })
             }
-            val previousConstrainedDecoding = ExperimentalFlags.enableConversationConstrainedDecoding
-            ExperimentalFlags.enableConversationConstrainedDecoding = config.isConstrainedDecodingEnabled
             val throttling = getAdaptiveThrottlingPolicy()
             val effectiveTopK = if (throttling.topKReductionRatio < 1.0f) {
                 (config.sampler.topK * throttling.topKReductionRatio).toInt().coerceAtLeast(1)
@@ -161,38 +160,39 @@ class LocalRuntimeImpl(
                 config.sampler.topK
             }
             try {
-                conversation = currentEngine.createConversation(
-                    ConversationConfig(
-                        systemInstruction = config.systemPrompt?.takeIf { it.isNotBlank() }?.let { Contents.of(it) },
-                        initialMessages = config.initialMessages.map { message ->
-                            when (message.role) {
-                                LocalHistoryRole.USER -> Message.user(contentsOf(message.text, message.images))
-                                LocalHistoryRole.MODEL -> Message.model(contentsOf(message.text, message.images))
+                conversation = LiteRtExperimentalSettings.conversation(config.isConstrainedDecodingEnabled) {
+                    currentEngine.createConversation(
+                        ConversationConfig(
+                            systemInstruction = config.systemPrompt?.takeIf { it.isNotBlank() }?.let { Contents.of(it) },
+                            initialMessages = config.initialMessages.map { message ->
+                                when (message.role) {
+                                    LocalHistoryRole.USER -> Message.user(contentsOf(message.text, message.images))
+                                    LocalHistoryRole.MODEL -> Message.model(contentsOf(message.text, message.images))
+                                }
+                            },
+                            tools = toolProviders,
+                            maxOutputToken = config.maxOutputTokens,
+                            thinkingConfig = config.thinkingEnabled?.let { ThinkingConfig(enableThinking = it) },
+                            samplerConfig = if (LocalAccelerators.shouldApplySampler(loadedAccelerator)) {
+                                SamplerConfig(
+                                    topK = effectiveTopK,
+                                    topP = config.sampler.topP.toDouble(),
+                                    temperature = config.sampler.temperature.toDouble()
+                                )
+                            } else {
+                                null
                             }
-                        },
-                        tools = toolProviders,
-                        maxOutputToken = config.maxOutputTokens,
-                        thinkingConfig = config.thinkingEnabled?.let { ThinkingConfig(enableThinking = it) },
-                        samplerConfig = if (LocalAccelerators.shouldApplySampler(loadedAccelerator)) {
-                            SamplerConfig(
-                                topK = effectiveTopK,
-                                topP = config.sampler.topP.toDouble(),
-                                temperature = config.sampler.temperature.toDouble()
-                            )
-                        } else {
-                            null
-                        }
+                        )
                     )
-                )
+                }
             } catch (error: Throwable) {
                 conversation = null
                 throw error
-            } finally {
-                ExperimentalFlags.enableConversationConstrainedDecoding = previousConstrainedDecoding
             }
         }
     }
 
+    @OptIn(ExperimentalApi::class)
     override fun sendMessage(text: String, images: List<ByteArray>): Flow<LocalRuntimeEvent> = callbackFlow {
         val activeConversation = conversation
         if (activeConversation == null) {
@@ -250,7 +250,21 @@ class LocalRuntimeImpl(
                             totalChunks = chunkCount.get(),
                             totalCharacters = chars,
                             estimatedTokens = estimatedTokens,
-                            tokensPerSecond = tps
+                            tokensPerSecond = tps,
+                            native = if (loadedSpec?.nativeMetricsEnabled == true) {
+                                // Instrumentation failure must never turn a completed answer into an error.
+                                runCatching {
+                                    val info = activeConversation.getBenchmarkInfo()
+                                    NativeInferenceMetrics(
+                                        info.lastPrefillTokenCount,
+                                        info.lastDecodeTokenCount,
+                                        info.lastPrefillTokensPerSecond,
+                                        info.lastDecodeTokensPerSecond
+                                    ).takeIf { it.isValid }
+                                }.getOrNull()
+                            } else {
+                                null
+                            }
                         )
                         trySend(LocalRuntimeEvent.Metrics(metrics))
                         trySend(LocalRuntimeEvent.Done)

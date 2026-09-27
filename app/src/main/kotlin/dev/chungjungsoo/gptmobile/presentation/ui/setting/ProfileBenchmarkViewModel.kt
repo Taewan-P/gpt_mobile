@@ -68,7 +68,8 @@ class ProfileBenchmarkViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val history = store.history
     val localEnvironment = combine(settings.observeLocalRuntimeBackend(), settings.observeFeatureSettings()) { backend, features ->
-        "$backend|${features.localCpuThreads}|${features.localModelCache}|${features.qnnAutomaticFallback}"
+        "$backend|${features.localCpuThreads}|${features.localModelCache}|${features.qnnAutomaticFallback}|" +
+            "${features.localSpeculativeDecoding}|${features.localNativeMetrics}|${dev.chungjungsoo.gptmobile.BuildConfig.LITERT_LM_VERSION}"
     }.stateIn(viewModelScope, SharingStarted.Eagerly, "")
     val legacyReport: String? = context.getSharedPreferences("connection_doctor", Context.MODE_PRIVATE)
         .getString("last_report", null)?.takeIf { it.startsWith("Benchmark v1") }
