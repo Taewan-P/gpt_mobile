@@ -70,11 +70,46 @@ import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 
 class ProviderAdaptersTest {
+    @Test
+    fun `Claude fixed sampling models omit temperature and top p with reasoning disabled`() = runBlocking {
+        for (model in listOf("claude-sonnet-5", "anthropic/claude-sonnet-5-20260630", "claude-opus-5-5", "claude-fable-5-1", "claude-mythos-5")) {
+            val api = FakeAnthropicAPI(ArrayDeque(listOf(emptyFlow())))
+            val profile = platform(ClientType.ANTHROPIC).copy(model = model, reasoning = false, temperature = 0f, topP = 0.5f)
+            AnthropicMessagesAdapter(api, attachmentEncoder()).openSession(turns(), profile)
+                .streamRound(emptyList(), emptyList()).toList()
+            assertNull(api.requests.single().temperature)
+            assertNull(api.requests.single().topP)
+        }
+        assertTrue(anthropicSupportsSampling("claude-haiku-4-5"))
+        assertTrue(anthropicSupportsSampling("claude-sonnet-4-6"))
+    }
+
+    @Test
+    fun `Anthropic collector failure is neither masked nor retried with another credential`() = runBlocking {
+        val failureChunk = dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ErrorResponseChunk(
+            error = dev.chungjungsoo.gptmobile.data.dto.anthropic.response.ErrorDetail("invalid_request_error", "temperature is deprecated")
+        )
+        val api = FakeAnthropicAPI(ArrayDeque(listOf(flowOf(failureChunk))))
+        val session = AnthropicMessagesAdapter(api, attachmentEncoder()).openSession(
+            turns(),
+            platform(ClientType.ANTHROPIC).copy(token = "one,two")
+        )
+        val failure = IllegalStateException("collector stopped")
+        try {
+            session.streamRound(emptyList(), emptyList()).collect { throw failure }
+            fail("Expected the original collector exception")
+        } catch (error: IllegalStateException) {
+            assertSame(failure, error)
+        }
+        assertEquals(1, api.requests.size)
+    }
+
     @Test
     fun `Anthropic always receives non-empty content for a failed tool result`() = runBlocking {
         val api = FakeAnthropicAPI(ArrayDeque(listOf(emptyFlow())))

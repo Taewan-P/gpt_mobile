@@ -25,6 +25,9 @@ interface ChatRepository {
 
     suspend fun supportsBenchmarkTools(platform: PlatformV2): Boolean = false
 
+    /** Validate setup before recording or sending any benchmark requests. */
+    suspend fun validateBenchmarkProfile(platform: PlatformV2) = Unit
+
     suspend fun completeChat(
         userMessages: List<MessageV2>,
         assistantMessages: List<List<MessageV2>>,

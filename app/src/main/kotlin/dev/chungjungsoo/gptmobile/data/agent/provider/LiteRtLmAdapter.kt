@@ -9,11 +9,12 @@ import dev.chungjungsoo.gptmobile.data.agent.AgentToolResult
 import dev.chungjungsoo.gptmobile.data.agent.ProviderEvent
 import dev.chungjungsoo.gptmobile.data.agent.ToolResultContent
 import dev.chungjungsoo.gptmobile.data.context.ConversationTurn
-import dev.chungjungsoo.gptmobile.data.context.RollingContextWindowCompactor
+import dev.chungjungsoo.gptmobile.data.context.LocalContextPlanner
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelCompatibility
 import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelPackages
+import dev.chungjungsoo.gptmobile.data.localmodel.resolveLocalModelSelection
 import dev.chungjungsoo.gptmobile.data.localruntime.ConversationFingerprint
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalConversationConfig
@@ -93,27 +94,15 @@ class LiteRtLmAdapter(
             ): Flow<ProviderEvent> = channelFlow {
                 val entries = modelCatalogRepository?.getCachedVisibleEntries().orEmpty()
                 val wantsNpu = LocalAccelerators.normalize(platform.accelerator) == LocalAccelerators.NPU
-                var resolvedModelId = platform.model
-                var installedRecord = localModelRepository.getById(resolvedModelId)
-                var modelPath = localModelRepository.resolveDownloadedPath(resolvedModelId)
-                val installedNpu = (installedRecord?.fileName ?: modelPath)?.let(LocalModelPackages::isNpuFile) == true
-                if (!wantsNpu && (modelPath == null || installedNpu)) {
-                    // Legacy profiles retain the original ID after the marketplace splits
-                    // the model into NPU and GPU editions. Resolve metadata together with
-                    // the file so context, tools and vision describe the engine we load.
-                    val gpuId = "${platform.model}-litert"
-                    modelPath = localModelRepository.resolveDownloadedPath(gpuId)
-                    resolvedModelId = gpuId
-                    installedRecord = localModelRepository.getById(gpuId)
-                }
-                if (modelPath == null) {
-                    send(ProviderEvent.Failed(if (!wantsNpu && installedNpu) "This download is an NPU package. Open Local models → Marketplace and download its GPU / CPU edition, or select NPU in this profile." else modelNotDownloadedError))
+                val selection = try {
+                    localModelRepository.resolveLocalModelSelection(platform.model, platform.accelerator)
+                } catch (error: IllegalStateException) {
+                    send(ProviderEvent.Failed(error.message ?: modelNotDownloadedError))
                     return@channelFlow
                 }
-                if (!wantsNpu && LocalModelPackages.isNpuFile(modelPath)) {
-                    send(ProviderEvent.Failed("The selected download is an NPU package. Download its GPU / CPU edition to use this accelerator."))
-                    return@channelFlow
-                }
+                val resolvedModelId = selection.modelId
+                val installedRecord = selection.record
+                val modelPath = selection.path
                 val catalogEntry = entries.firstOrNull { it.id == resolvedModelId }
                     ?.let { entry -> installedRecord?.let { LocalModelPackages.forInstalledFile(entry, it.fileName) } ?: entry }
                 LocalModelCompatibility.installedPackageIssue(catalogEntry?.downloadUrl.orEmpty(), modelPath)?.let { reason ->
@@ -122,11 +111,6 @@ class LiteRtLmAdapter(
                 }
                 val visionCapable = catalogEntry?.capabilities?.vision == true
                 val toolsCapable = catalogEntry?.capabilities?.tools == true
-                val registeredTools = if (toolsCapable) boundTools else emptyList()
-                val descriptors = registeredTools.map { tool -> tool.definition.toLocalDescriptor() }
-                val toolsKey = toolsFingerprint(descriptors)
-                val runToolsByName = registeredTools.associateBy { it.definition.name }
-                val runToolEventSink: suspend (ProviderEvent) -> Unit = { event -> send(event) }
                 val latestAttachments = turns.lastOrNull()?.userMessage?.attachments.orEmpty()
                 attachmentNotices(visionCapable, turns, latestAttachments).forEach { notice ->
                     send(notice)
@@ -166,15 +150,50 @@ class LiteRtLmAdapter(
                     resolvedMaxTokens
                 }
 
-                // Compact prior turns with anchor prefix preservation (Turn 0 + rolling window)
-                // budgeted against effectiveContextTokens to prevent KV-cache overflows under thermal/battery throttling
-                val rawPriorTurns = turns.dropLast(1)
-                val compactedPriorTurns = RollingContextWindowCompactor.compactPriorTurns(
-                    priorTurns = rawPriorTurns,
-                    maxContextTokens = effectiveContextTokens,
-                    systemPrompt = platform.systemPrompt,
-                    currentUserPrompt = latestUserText
+                val availableTools = if (toolsCapable) boundTools else emptyList()
+                val plan = try {
+                    LocalContextPlanner.plan(
+                        priorTurns = turns.dropLast(1),
+                        currentUserPrompt = latestUserText,
+                        systemPrompt = platform.systemPrompt,
+                        tools = availableTools.map { it.definition },
+                        contextTokens = effectiveContextTokens,
+                        outputLimit = outputLimit,
+                        imageCount = latestImages.size,
+                        historyImageCount = { turn -> visionImageIds(turn.userMessage.attachments, visionCapable).size }
+                    )
+                } catch (error: IllegalArgumentException) {
+                    send(ProviderEvent.Failed(error.message ?: "Local context is too small for this request."))
+                    return@channelFlow
+                }
+                if (plan.omittedTurns > 0 || plan.omittedTools > 0) {
+                    send(
+                        ProviderEvent.Notice(
+                            "Local context: ${plan.omittedTurns} earlier turns and ${plan.omittedTools} tools omitted to fit this model. " +
+                                "Select fewer tools or a larger-context model if needed.",
+                            persistent = true
+                        )
+                    )
+                }
+                val compactedPriorTurns = plan.priorTurns
+                val selectedNames = plan.tools.map { it.name }.toSet()
+                val toolBudget = dev.chungjungsoo.gptmobile.data.agent.ToolExecutionBudget(
+                    dev.chungjungsoo.gptmobile.data.agent.AgentRunLimits(
+                        maxToolCalls = Int.MAX_VALUE,
+                        maxToolOutputBytes = plan.toolResultBytes,
+                        toolTimeoutMillis = Long.MAX_VALUE
+                    ),
+                    failureMessage = { error -> error.message ?: "Local tool execution failed." }
                 )
+                val registeredTools = availableTools.filter { it.definition.name in selectedNames }.map { toolBudget.bind(it) }
+                val descriptors = registeredTools.map { it.definition.toLocalDescriptor() }
+                val toolsKey = toolsFingerprint(descriptors)
+                val runToolsByName = registeredTools.associateBy { it.definition.name }
+                var nativeToolsUsed = false
+                val runToolEventSink: suspend (ProviderEvent) -> Unit = { event ->
+                    if (event is ProviderEvent.ToolCall) nativeToolsUsed = true
+                    send(event)
+                }
 
                 val history = historyMessages(
                     priorTurns = compactedPriorTurns,
@@ -325,7 +344,7 @@ class LiteRtLmAdapter(
                                                 )
                                             )
                                         )
-                                        isConversationDirty = false
+                                        isConversationDirty = nativeToolsUsed
                                     }
                                 }
                                 if (!failed) send(ProviderEvent.Completed)

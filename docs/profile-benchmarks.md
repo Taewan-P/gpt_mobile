@@ -15,7 +15,9 @@ The old single-prompt connection-doctor benchmark and Usage performance rankings
 
 Quick contains five tests: generation, exact instruction, JSON structure/values, arithmetic, and a tool round trip. Full repeats generation three times and adds seeded conversation recall (eight tests total). The tool is an in-memory lookup fixture with a freshly generated result; no app, connected MCP, device or delegation tools are supplied.
 
-Each request uses a profile copy with a 512-token output ceiling, temperature zero, streaming enabled, reasoning disabled, and a fixed system instruction. Provider-specific temperature/stream overrides are normalized without changing saved settings or routing. Each test has a 90-second timeout; remote tool tests permit up to three model rounds and three fixture calls. Leaving the screen cancels the run. Remote requests use the selected account and may incur normal provider charges.
+Each request uses a profile copy with a 512-token output ceiling, temperature zero where the provider supports custom sampling, streaming enabled, reasoning disabled, and a fixed system instruction. Provider-specific temperature/stream overrides are normalized without changing saved settings or routing. Fixed-sampling Claude models omit temperature and top-p even with reasoning disabled. Each test has a 90-second timeout; remote tool tests permit up to three model rounds and three fixture calls. Leaving the screen cancels the run. Remote requests use the selected account and may incur normal provider charges.
+
+Local profiles resolve and validate their installed model and accelerator before a run is created. Missing downloads or incompatible packages stop at setup with an actionable error; they do not generate a suite of failed tests or enter profile ratings. Runtime failures after successful setup remain test failures.
 
 Run records checkpoint after each test. Incomplete, canceled and unsupported results never enter scores. Provider failures, missing/empty completions and timeouts remain failures. Unsupported tools are displayed as unavailable rather than zero success.
 

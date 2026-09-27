@@ -26,6 +26,8 @@ import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.serialization.Serializable
@@ -103,69 +105,72 @@ class AnthropicAPIImpl @Inject constructor(
         config: ProviderRequestConfig
     ): Flow<MessageResponseChunk> = flow {
         var receivedPayload = false
-        try {
-            val endpoint = config.buildEndpoint("messages")
+        emitAll(
+            flow<MessageResponseChunk> {
+                val endpoint = config.buildEndpoint("messages")
 
-            networkClient().preparePost(endpoint) {
-                applyPlatformStreamingTimeout(timeoutSeconds)
-                contentType(ContentType.Application.Json)
-                setBody(json.encodeToString(messageRequest))
-                accept(ContentType.Text.EventStream)
-                headers {
-                    append(API_KEY_HEADER, config.token ?: "")
-                    append(VERSION_HEADER, ANTHROPIC_VERSION)
-                    append(BETA_HEADER, anthropicBetaHeader(config.anthropicBetaFeatures))
-                }
-            }.execute { response ->
-                if (!response.status.isSuccess()) {
-                    val errorBody = response.body<String>()
-                    throwIfToolDefinitionsRejected(
-                        response.status.value,
-                        !messageRequest.tools.isNullOrEmpty(),
-                        errorBody
-                    )
+                networkClient().preparePost(endpoint) {
+                    applyPlatformStreamingTimeout(timeoutSeconds)
+                    contentType(ContentType.Application.Json)
+                    setBody(json.encodeToString(messageRequest))
+                    accept(ContentType.Text.EventStream)
+                    headers {
+                        append(API_KEY_HEADER, config.token ?: "")
+                        append(VERSION_HEADER, ANTHROPIC_VERSION)
+                        append(BETA_HEADER, anthropicBetaHeader(config.anthropicBetaFeatures))
+                    }
+                }.execute { response ->
+                    if (!response.status.isSuccess()) {
+                        val errorBody = response.body<String>()
+                        throwIfToolDefinitionsRejected(
+                            response.status.value,
+                            !messageRequest.tools.isNullOrEmpty(),
+                            errorBody
+                        )
 
-                    val errorMessage = try {
-                        val errorResponse = json.decodeFromString<AnthropicErrorResponse>(errorBody)
-                        errorResponse.error.message
-                    } catch (_: Exception) {
-                        "HTTP ${response.status.value}: $errorBody"
+                        val errorMessage = try {
+                            val errorResponse = json.decodeFromString<AnthropicErrorResponse>(errorBody)
+                            errorResponse.error.message
+                        } catch (_: Exception) {
+                            "HTTP ${response.status.value}: $errorBody"
+                        }
+
+                        emit(ErrorResponseChunk(error = ErrorDetail(type = "api_error", message = errorMessage)))
+                        return@execute
                     }
 
-                    emit(ErrorResponseChunk(error = ErrorDetail(type = "api_error", message = errorMessage)))
-                    return@execute
-                }
+                    val channel = response.bodyAsChannel()
+                    while (!channel.isClosedForRead) {
+                        val line = channel.readLine() ?: break
+                        val data = SseUtils.extractSseData(line) ?: continue
 
-                val channel = response.bodyAsChannel()
-                while (!channel.isClosedForRead) {
-                    val line = channel.readLine() ?: break
-                    val data = SseUtils.extractSseData(line) ?: continue
-
-                    try {
-                        val chunk = json.decodeFromString<MessageResponseChunk>(data)
+                        val chunk = try {
+                            json.decodeFromString<MessageResponseChunk>(data)
+                        } catch (_: kotlinx.serialization.SerializationException) {
+                            // Skip malformed payloads, never exceptions from downstream emit.
+                            continue
+                        }
                         receivedPayload = true
                         emit(chunk)
-                    } catch (_: Exception) {
-                        // Skip malformed chunks
                     }
                 }
+            }.catch { e ->
+                if (e is CancellationException || e is dev.chungjungsoo.gptmobile.data.agent.ToolDefinitionsRejectedException) throw e
+                if (ResilientStreamingClient.shouldTreatPrematureCloseAsStreamEnd(receivedPayload, e)) {
+                    return@catch
+                }
+                val errorMessage = when (e) {
+                    is java.net.UnknownHostException -> "Network error: Unable to resolve host."
+                    is java.nio.channels.UnresolvedAddressException -> "Network error: Unable to resolve address. Check your internet connection."
+                    is java.net.ConnectException -> "Network error: Connection refused. Check the API URL."
+                    is HttpRequestTimeoutException -> "Request timed out."
+                    is java.net.SocketTimeoutException -> "Response timed out while waiting for the next chunk."
+                    is javax.net.ssl.SSLException -> "Network error: SSL/TLS connection failed."
+                    else -> e.message ?: "Unknown network error"
+                }
+                emit(ErrorResponseChunk(error = ErrorDetail(type = "network_error", message = errorMessage)))
             }
-        } catch (e: Exception) {
-            if (e is CancellationException || e is dev.chungjungsoo.gptmobile.data.agent.ToolDefinitionsRejectedException) throw e
-            if (ResilientStreamingClient.shouldTreatPrematureCloseAsStreamEnd(receivedPayload, e)) {
-                return@flow
-            }
-            val errorMessage = when (e) {
-                is java.net.UnknownHostException -> "Network error: Unable to resolve host."
-                is java.nio.channels.UnresolvedAddressException -> "Network error: Unable to resolve address. Check your internet connection."
-                is java.net.ConnectException -> "Network error: Connection refused. Check the API URL."
-                is HttpRequestTimeoutException -> "Request timed out."
-                is java.net.SocketTimeoutException -> "Response timed out while waiting for the next chunk."
-                is javax.net.ssl.SSLException -> "Network error: SSL/TLS connection failed."
-                else -> e.message ?: "Unknown network error"
-            }
-            emit(ErrorResponseChunk(error = ErrorDetail(type = "network_error", message = errorMessage)))
-        }
+        )
     }.flowOn(Dispatchers.IO)
 
     companion object {

@@ -43,6 +43,36 @@ class ProviderToolRejectionTest {
     private val schema = buildJsonObject { put("type", "object") }
 
     @Test
+    fun `anthropic error collector exception remains transparent`() = withServer(400, anthropicValidationError()) { baseUrl ->
+        val failure = IllegalStateException("consumer stopped")
+        val caught = assertThrows(IllegalStateException::class.java) {
+            runBlocking {
+                AnthropicAPIImpl(NetworkClient(CIO)).streamChatMessage(anthropicRequest(false), 5, config(baseUrl))
+                    .collect { throw failure }
+            }
+        }
+        assertEquals(failure.message, caught.message)
+        assertTrue(generateSequence<Throwable>(caught) { it.cause }.any { it === failure })
+    }
+
+    @Test
+    fun `anthropic SSE collector exception is not treated as a malformed chunk`() = withServer(
+        200,
+        "data: {\"type\":\"message_stop\"}\n\n",
+        "text/event-stream"
+    ) { baseUrl ->
+        val failure = IllegalStateException("consumer stopped")
+        val caught = assertThrows(IllegalStateException::class.java) {
+            runBlocking {
+                AnthropicAPIImpl(NetworkClient(CIO)).streamChatMessage(anthropicRequest(false), 5, config(baseUrl))
+                    .collect { throw failure }
+            }
+        }
+        assertEquals(failure.message, caught.message)
+        assertTrue(generateSequence<Throwable>(caught) { it.cause }.any { it === failure })
+    }
+
+    @Test
     fun `openai responses rejects tool definitions before emitting provider events`() = withServer(400, openAIError()) { baseUrl ->
         val api = OpenAIAPIImpl(NetworkClient(CIO))
 
