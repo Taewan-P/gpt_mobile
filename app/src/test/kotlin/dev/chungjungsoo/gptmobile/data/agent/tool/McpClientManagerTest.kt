@@ -110,6 +110,24 @@ class McpClientManagerTest {
     }
 
     @Test
+    fun `caches tool catalog until explicitly refreshed`() = runBlocking {
+        McpFixtureServer().use { server ->
+            val client = testClient()
+            val manager = McpClientManager(client)
+            val config = McpConnectionConfig("connection-1", server.url, allowCleartext = true)
+
+            manager.listTools(config)
+            manager.listTools(config)
+            assertEquals(1, server.methods.count { it == "tools/list" })
+
+            manager.listTools(config, forceRefresh = true)
+            assertEquals(2, server.methods.count { it == "tools/list" })
+            manager.closeAll()
+            client.close()
+        }
+    }
+
+    @Test
     fun `connects independent sessions without holding the global lock`() = runBlocking {
         val started = CompletableDeferred<Unit>()
         val startCount = AtomicInteger()

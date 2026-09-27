@@ -23,6 +23,7 @@ import java.time.Clock
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -59,7 +60,9 @@ class WebSearchTool(
     private val config: WebSearchProviderConfig,
     private val networkClient: NetworkClient,
     private val clock: Clock = Clock.systemUTC(),
-    modelToolName: String = "web_search"
+    modelToolName: String = "web_search",
+    private val autoSearchEndpointTemplates: List<String> = DEFAULT_AUTO_SEARCH_ENDPOINTS,
+    private val autoSearchBlockedUntilMs: AtomicLong = DEFAULT_AUTO_SEARCH_BLOCKED_UNTIL_MS
 ) : AgentTool {
 
     override val definition: AgentToolDefinition = AgentToolDefinition(
@@ -224,11 +227,9 @@ class WebSearchTool(
     }
 
     private suspend fun queryDuckDuckGo(request: WebSearchRequest): List<JsonObject> {
+        if (clock.millis() < autoSearchBlockedUntilMs.get()) return emptyList()
         val encodedQuery = URLEncoder.encode(request.query, StandardCharsets.UTF_8.name())
-        val endpoints = listOf(
-            "https://html.duckduckgo.com/html/?q=$encodedQuery",
-            "https://duckduckgo.com/html/?q=$encodedQuery"
-        )
+        val endpoints = autoSearchEndpointTemplates.map { it.replace("{query}", encodedQuery) }
 
         for (url in endpoints) {
             try {
@@ -236,6 +237,12 @@ class WebSearchTool(
                     header("User-Agent", USER_AGENT)
                     header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
                     header("Accept-Language", "en-US,en;q=0.9")
+                }
+                if (response.status.value in AUTO_SEARCH_BACKOFF_STATUSES) {
+                    autoSearchBlockedUntilMs.updateAndGet { current ->
+                        maxOf(current, clock.millis() + AUTO_SEARCH_BACKOFF_MS)
+                    }
+                    return emptyList()
                 }
                 if (response.status.value in 200..299) {
                     val html = response.bodyAsText()
@@ -246,15 +253,13 @@ class WebSearchTool(
                             if (request.includeDomains.isNotEmpty()) {
                                 filtered = filtered.filter { result ->
                                     val resultUrl = result["url"]?.jsonPrimitive?.contentOrNull.orEmpty()
-                                    val host = runCatching { URI(resultUrl).host.orEmpty() }.getOrDefault("")
-                                    request.includeDomains.any { host.endsWith(it, ignoreCase = true) }
+                                    matchesSearchDomains(resultUrl, request.includeDomains, emptyList())
                                 }
                             }
                             if (request.excludeDomains.isNotEmpty()) {
                                 filtered = filtered.filter { result ->
                                     val resultUrl = result["url"]?.jsonPrimitive?.contentOrNull.orEmpty()
-                                    val host = runCatching { URI(resultUrl).host.orEmpty() }.getOrDefault("")
-                                    request.excludeDomains.none { host.endsWith(it, ignoreCase = true) }
+                                    matchesSearchDomains(resultUrl, emptyList(), request.excludeDomains)
                                 }
                             }
                             if (filtered.isNotEmpty()) {
@@ -280,6 +285,28 @@ class WebSearchTool(
             setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE)
         )
         val blocks = resultBlockRegex.findAll(html).map { it.groupValues[1] }.toList()
+
+        if (blocks.isEmpty()) {
+            val liteResults = Regex("""<a\b([^>]*)>(.*?)</a>""", setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE))
+                .findAll(html)
+                .mapNotNull { match ->
+                    val attributes = match.groupValues[1]
+                    if (!attributes.contains("result-link", ignoreCase = true)) return@mapNotNull null
+                    val rawUrl = Regex("""href\s*=\s*['\"]([^'\"]+)['\"]""", RegexOption.IGNORE_CASE)
+                        .find(attributes)?.groupValues?.get(1).orEmpty()
+                    val url = extractActualUrl(rawUrl)
+                    val title = cleanHtml(match.groupValues[2])
+                    if (url.isBlank() || title.isBlank()) return@mapNotNull null
+                    buildJsonObject {
+                        put("title", title)
+                        put("url", url)
+                        put("snippet", "")
+                    }
+                }
+                .take(maxResults)
+                .toList()
+            if (liteResults.isNotEmpty()) return liteResults
+        }
 
         val candidateBlocks = if (blocks.isNotEmpty()) blocks else html.split(Regex("""<div[^>]+class="[^"]*result[^"]*"[^>]*>""", RegexOption.IGNORE_CASE)).drop(1)
 
@@ -512,6 +539,13 @@ class WebSearchTool(
 
     private companion object {
         const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+        const val AUTO_SEARCH_BACKOFF_MS = 5 * 60 * 1000L
+        val AUTO_SEARCH_BACKOFF_STATUSES = setOf(202, 403, 429)
+        val DEFAULT_AUTO_SEARCH_ENDPOINTS = listOf(
+            "https://lite.duckduckgo.com/lite/?q={query}",
+            "https://html.duckduckgo.com/html/?q={query}"
+        )
+        val DEFAULT_AUTO_SEARCH_BLOCKED_UNTIL_MS = AtomicLong(0L)
     }
 }
 

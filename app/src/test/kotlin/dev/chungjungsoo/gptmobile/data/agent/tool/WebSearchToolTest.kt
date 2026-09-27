@@ -10,6 +10,7 @@ import java.net.URLDecoder
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
@@ -128,6 +129,39 @@ class WebSearchToolTest {
         assertEquals(3, results.size)
         assertEquals("https://example.com/1", results.first().jsonObject.getValue("url").jsonPrimitive.content)
         assertTrue(content.toString().toByteArray().size < 8000)
+    }
+
+    @Test
+    fun `automatic search parses Lite results and backs off after provider blocking`() = runBlocking {
+        val lite = server(
+            "/lite/",
+            """<html><a rel="nofollow" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fdocs.allowed.example%2Fkotlin" class='result-link'>Kotlin docs</a></html>"""
+        )
+        val client = NetworkClient(CIO).also { networkClients += it }
+        val successful = WebSearchTool(
+            WebSearchProviderConfig(WebSearchProvider.AUTO, "", ""),
+            client,
+            clock,
+            autoSearchEndpointTemplates = listOf(lite.url("/lite/?q={query}")),
+            autoSearchBlockedUntilMs = AtomicLong(0L)
+        ).execute("lite", arguments())
+        assertTrue(!successful.isError)
+        val liteResult = (successful.content as ToolResultContent.Json).value.jsonObject.getValue("results").jsonArray.single().jsonObject
+        assertEquals("Kotlin docs", liteResult.getValue("title").jsonPrimitive.content)
+        assertEquals("https://docs.allowed.example/kotlin", liteResult.getValue("url").jsonPrimitive.content)
+
+        val blocked = server("/blocked", "blocked", status = 403)
+        val gate = AtomicLong(0L)
+        val blockedTool = WebSearchTool(
+            WebSearchProviderConfig(WebSearchProvider.AUTO, "", ""),
+            client,
+            clock,
+            autoSearchEndpointTemplates = listOf(blocked.url("/blocked?q={query}")),
+            autoSearchBlockedUntilMs = gate
+        )
+        blockedTool.execute("blocked-1", arguments())
+        blockedTool.execute("blocked-2", arguments())
+        assertEquals(1, blocked.requestCount)
     }
 
     private val servers = mutableListOf<HttpServer>()
@@ -442,6 +476,7 @@ class WebSearchToolTest {
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         val recorder = RecordingServer(server)
         server.createContext(path) { exchange ->
+            recorder.requestCount += 1
             recorder.request = RecordedRequest(
                 method = exchange.requestMethod,
                 path = exchange.requestURI.path,
@@ -489,6 +524,7 @@ class WebSearchToolTest {
 
 private class RecordingServer(private val server: HttpServer) {
     var request: RecordedRequest = RecordedRequest("", "", "", "", "")
+    var requestCount: Int = 0
 
     fun url(path: String): String = "http://127.0.0.1:${server.address.port}$path"
 }
