@@ -1200,7 +1200,7 @@ class LiteRtLmAdapterTest {
         val runtime = FakeLocalRuntime().apply {
             scriptedEvents = listOf(listOf(LocalRuntimeEvent.TextDelta("ok"), LocalRuntimeEvent.Done))
         }
-        adapter(runtime).openSession(turns("hello"), localPlatform().copy(maxTokens = 100), RequestConstraints(maxOutputTokens = 50))
+        adapter(runtime).openSession(turns("hello"), localPlatform().copy(maxTokens = 100), constraints = RequestConstraints(maxOutputTokens = 50))
             .streamRound(emptyList(), emptyList()).toList()
         assertEquals(4096, runtime.loadEngineCalls.single().maxTokens)
         assertEquals(50, runtime.createConversationCalls.single().maxOutputTokens)
