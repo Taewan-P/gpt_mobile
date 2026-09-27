@@ -75,6 +75,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.withContext
@@ -515,250 +516,14 @@ class ChatRepositoryImpl(
                 effectiveTools.map { it.tool }
             }
 
-            val progressTracker = dev.chungjungsoo.gptmobile.data.agent.ToolProgressTracker()
-            val progressParser = dev.chungjungsoo.gptmobile.data.agent.PublicProgressParser()
-            var gatewayTelemetrySeen = false
-            var providerToolCalls = 0
-            var providerUsefulToolCalls = 0
-            var providerToolFailures = 0
-            var providerThinkingSeen = false
-            var providerTextSeen = false
-            var accumulatedInputTokens = 0L
-            var accumulatedOutputTokens = 0L
-            var accumulatedTotalTokens = 0L
-            var hasInputTokenUsage = false
-            var hasOutputTokenUsage = false
-            var hasTotalTokenUsage = false
-            val providerRoute = platform.compatibleType.name.lowercase()
-
-            fun providerProgress(
-                event: String,
-                stage: String,
-                message: String,
-                toolName: String? = null,
-                status: String? = null,
-                resultQuality: String? = null
-            ): GatewayProgress = GatewayProgress(
-                origin = "provider",
-                event = event,
-                stage = stage,
-                message = message,
-                timestamp = System.currentTimeMillis() / 1000.0,
-                status = status,
-                toolName = toolName,
-                toolSource = "client",
-                server = platform.name,
-                route = providerRoute,
-                resultQuality = resultQuality,
-                totalToolCalls = providerToolCalls,
-                usefulToolCalls = providerUsefulToolCalls,
-                noProgress = providerToolFailures,
-                selectedToolCount = resolvedTools.size
-            )
-
-            if (platform.compatibleType != ClientType.LITERT_LM) {
-                emit(
-                    ApiState.GatewayProgressChanged(
-                        providerProgress(
-                            event = "provider_started",
-                            stage = "requesting",
-                            message = "Connecting to ${platform.name.ifBlank { platform.compatibleType.name }}…"
-                        )
-                    )
+            val agentEvents = dev.chungjungsoo.gptmobile.data.agent.AgentRunner(
+                customRunner.limits.copy(
+                    contextTokens = limits.contextTokens,
+                    initialContextTokens = contextPlan.promptTokens,
+                    finalResponseReserveTokens = minOf(contextPlan.outputTokens ?: 32768, limits.contextTokens / 4)
                 )
-            }
-
-            dev.chungjungsoo.gptmobile.data.agent.AgentRunner(customRunner.limits.copy(contextTokens = limits.contextTokens, initialContextTokens = contextPlan.promptTokens, finalResponseReserveTokens = minOf(contextPlan.outputTokens ?: 32768, limits.contextTokens / 4))).run(groundedSession, runnerTools).collect { runEvent ->
-                when (runEvent) {
-                    is AgentRunEvent.Provider -> when (val providerEvent = runEvent.event) {
-                        is ProviderEvent.ThinkingDelta -> {
-                            if (!gatewayTelemetrySeen && !providerThinkingSeen) {
-                                providerThinkingSeen = true
-                                emit(
-                                    ApiState.GatewayProgressChanged(
-                                        providerProgress(
-                                            event = "reasoning_started",
-                                            stage = "reasoning",
-                                            message = "${platform.name.ifBlank { platform.compatibleType.name }} is reasoning…"
-                                        )
-                                    )
-                                )
-                            }
-                            emit(ApiState.Thinking(providerEvent.text))
-                        }
-
-                        is ProviderEvent.TextDelta -> {
-                            if (!gatewayTelemetrySeen && !providerTextSeen) {
-                                providerTextSeen = true
-                                emit(
-                                    ApiState.GatewayProgressChanged(
-                                        providerProgress(
-                                            event = "response_started",
-                                            stage = "generating",
-                                            message = "Writing the response…"
-                                        )
-                                    )
-                                )
-                            }
-                            progressParser.accept(providerEvent.text).forEach { (progress, text) ->
-                                if (progress) emit(ApiState.ProgressCheckpoint(text, modelAuthored = true)) else emit(ApiState.Success(text))
-                            }
-                        }
-
-                        is ProviderEvent.Failed -> emit(ApiState.Error(providerEvent.message))
-
-                        is ProviderEvent.Notice -> emit(ApiState.Notice(providerEvent.message, providerEvent.persistent))
-
-                        is ProviderEvent.PhaseChanged -> emit(ApiState.PhaseChanged(providerEvent.phase))
-
-                        // Native counters describe only the final decode segment, not billable turn usage.
-                        is ProviderEvent.LocalMetrics -> Unit
-
-                        is ProviderEvent.Usage -> {
-                            emit(ApiState.TokenUsage(providerEvent.inputTokens, providerEvent.outputTokens, providerEvent.totalTokens))
-                            providerEvent.inputTokens?.let {
-                                accumulatedInputTokens = if (providerEvent.cumulative) {
-                                    maxOf(accumulatedInputTokens, it.toLong())
-                                } else {
-                                    accumulatedInputTokens + it
-                                }
-                                hasInputTokenUsage = true
-                            }
-                            providerEvent.outputTokens?.let {
-                                accumulatedOutputTokens = if (providerEvent.cumulative) {
-                                    maxOf(accumulatedOutputTokens, it.toLong())
-                                } else {
-                                    accumulatedOutputTokens + it
-                                }
-                                hasOutputTokenUsage = true
-                            }
-                            providerEvent.totalTokens?.let {
-                                accumulatedTotalTokens = if (providerEvent.cumulative) {
-                                    maxOf(accumulatedTotalTokens, it.toLong())
-                                } else {
-                                    accumulatedTotalTokens + it
-                                }
-                                hasTotalTokenUsage = true
-                            }
-                            agentRunDao.updateUsage(
-                                runId = runId,
-                                inputTokens = if (hasInputTokenUsage) accumulatedInputTokens.coerceAtMost(Int.MAX_VALUE.toLong()).toInt() else null,
-                                outputTokens = if (hasOutputTokenUsage) accumulatedOutputTokens.coerceAtMost(Int.MAX_VALUE.toLong()).toInt() else null,
-                                totalTokens = if (hasTotalTokenUsage) accumulatedTotalTokens.coerceAtMost(Int.MAX_VALUE.toLong()).toInt() else null
-                            )
-                        }
-
-                        is ProviderEvent.GatewayMetadataCaptured -> {
-                            providerEvent.metadata.jobId?.let { jobId ->
-                                agentRunDao.bindGatewayJob(runId, jobId, platform.apiUrl)
-                            }
-                        }
-
-                        is ProviderEvent.GatewayProgressUpdate -> {
-                            gatewayTelemetrySeen = true
-                            providerEvent.progress.sequence?.let { seq ->
-                                agentRunDao.advanceGatewaySequence(runId, seq)
-                            }
-                            emit(ApiState.GatewayProgressChanged(providerEvent.progress))
-                            val gatewayToolEvent = trace.gateway(providerEvent.progress)
-                            if (gatewayToolEvent != null) {
-                                emit(gatewayToolEvent)
-                                val progress = providerEvent.progress
-                                if (progress.event in setOf("tool_completed", "tool_failed", "tool_finished")) {
-                                    progressTracker.complete(
-                                        progress.toolCallId ?: "gateway-${gatewayToolEvent.toolSequence}",
-                                        progress.toolName ?: "tool",
-                                        progress.event == "tool_failed"
-                                    )?.let {
-                                        emit(ApiState.ProgressCheckpoint(it))
-                                    }
-                                }
-                            }
-                        }
-
-                        is ProviderEvent.ToolCall -> {
-                            val toolEvent = trace.start(providerEvent)
-                            emit(
-                                ApiState.ToolCall(
-                                    toolEvent.sequence,
-                                    ToolPayloadMetrics(
-                                        argumentsCharacters = providerEvent.arguments.toString().length,
-                                        argumentsBytes = providerEvent.arguments.toString().toByteArray(Charsets.UTF_8).size
-                                    )
-                                )
-                            )
-                            if (!gatewayTelemetrySeen) {
-                                emit(
-                                    ApiState.GatewayProgressChanged(
-                                        providerProgress(
-                                            event = "tool_formulating",
-                                            stage = "tools",
-                                            message = "Preparing ${providerEvent.name}…",
-                                            toolName = providerEvent.name,
-                                            status = "preparing"
-                                        )
-                                    )
-                                )
-                            }
-                        }
-
-                        is ProviderEvent.ToolResult -> Unit
-
-                        ProviderEvent.Completed -> progressParser.accept("", flush = true).forEach { (progress, text) ->
-                            if (progress) emit(ApiState.ProgressCheckpoint(text, modelAuthored = true)) else emit(ApiState.Success(text))
-                        }
-                    }
-
-                    is AgentRunEvent.ToolStarted -> {
-                        providerToolCalls += 1
-                        if (!gatewayTelemetrySeen) {
-                            emit(
-                                ApiState.GatewayProgressChanged(
-                                    providerProgress(
-                                        event = "tool_started",
-                                        stage = "executing_tools",
-                                        message = "Running ${runEvent.call.name}…",
-                                        toolName = runEvent.call.name,
-                                        status = "running"
-                                    )
-                                )
-                            )
-                        }
-                    }
-
-                    is AgentRunEvent.ToolFinished -> {
-                        trace.finish(runEvent.call, runEvent.result)?.let { emit(it) }
-                        progressTracker.complete(runEvent.call.callId, runEvent.call.name, runEvent.result.isError)?.let {
-                            emit(ApiState.ProgressCheckpoint(it))
-                        }
-                        if (!gatewayTelemetrySeen) {
-                            if (runEvent.result.isError) {
-                                providerToolFailures += 1
-                            } else {
-                                providerUsefulToolCalls += 1
-                            }
-                            emit(
-                                ApiState.GatewayProgressChanged(
-                                    providerProgress(
-                                        event = if (runEvent.result.isError) "tool_failed" else "tool_completed",
-                                        stage = "tools",
-                                        message = if (runEvent.result.isError) {
-                                            "${runEvent.call.name} failed"
-                                        } else {
-                                            "Completed ${runEvent.call.name}"
-                                        },
-                                        toolName = runEvent.call.name,
-                                        status = if (runEvent.result.isError) "failed" else "completed",
-                                        resultQuality = if (runEvent.result.isError) "error" else "useful"
-                                    )
-                                )
-                            )
-                        }
-                    }
-
-                    is AgentRunEvent.Notice -> emit(ApiState.Notice(runEvent.message, runEvent.persistent))
-                }
-            }
+            ).run(groundedSession, runnerTools)
+            emitAll(streamAgentEvents(agentEvents, platform, runId, resolvedTools.size, trace))
         } finally {
             withContext(NonCancellable) {
                 toolEventRecorder.cancelRun(runId, currentEpochSeconds())
@@ -770,6 +535,178 @@ class ChatRepositoryImpl(
         emit(ApiState.Error(classified.userMessage))
     }.onCompletion {
         emit(ApiState.Done)
+    }
+
+    private fun streamAgentEvents(
+        events: Flow<AgentRunEvent>,
+        platform: PlatformV2,
+        runId: String,
+        selectedToolCount: Int,
+        trace: ToolTraceSession
+    ): Flow<ApiState> = flow {
+        val progressTracker = dev.chungjungsoo.gptmobile.data.agent.ToolProgressTracker()
+        val progressParser = dev.chungjungsoo.gptmobile.data.agent.PublicProgressParser()
+        var gatewayTelemetrySeen = false
+        var providerToolCalls = 0
+        var providerUsefulToolCalls = 0
+        var providerToolFailures = 0
+        var providerThinkingSeen = false
+        var providerTextSeen = false
+        var accumulatedInputTokens = 0L
+        var accumulatedOutputTokens = 0L
+        var accumulatedTotalTokens = 0L
+        var hasInputTokenUsage = false
+        var hasOutputTokenUsage = false
+        var hasTotalTokenUsage = false
+        val providerRoute = platform.compatibleType.name.lowercase()
+
+        fun providerProgress(
+            event: String,
+            stage: String,
+            message: String,
+            toolName: String? = null,
+            status: String? = null,
+            resultQuality: String? = null
+        ): GatewayProgress = GatewayProgress(
+            origin = "provider",
+            event = event,
+            stage = stage,
+            message = message,
+            timestamp = System.currentTimeMillis() / 1000.0,
+            status = status,
+            toolName = toolName,
+            toolSource = "client",
+            server = platform.name,
+            route = providerRoute,
+            resultQuality = resultQuality,
+            totalToolCalls = providerToolCalls,
+            usefulToolCalls = providerUsefulToolCalls,
+            noProgress = providerToolFailures,
+            selectedToolCount = selectedToolCount
+        )
+
+        if (platform.compatibleType != ClientType.LITERT_LM) {
+            emit(
+                ApiState.GatewayProgressChanged(
+                    providerProgress(
+                        event = "provider_started",
+                        stage = "requesting",
+                        message = "Connecting to ${platform.name.ifBlank { platform.compatibleType.name }}…"
+                    )
+                )
+            )
+        }
+
+        events.collect { runEvent ->
+            when (runEvent) {
+                is AgentRunEvent.Provider -> when (val providerEvent = runEvent.event) {
+                    is ProviderEvent.ThinkingDelta -> {
+                        if (!gatewayTelemetrySeen && !providerThinkingSeen) {
+                            providerThinkingSeen = true
+                            emit(ApiState.GatewayProgressChanged(providerProgress("reasoning_started", "reasoning", "${platform.name.ifBlank { platform.compatibleType.name }} is reasoning…")))
+                        }
+                        emit(ApiState.Thinking(providerEvent.text))
+                    }
+
+                    is ProviderEvent.TextDelta -> {
+                        if (!gatewayTelemetrySeen && !providerTextSeen) {
+                            providerTextSeen = true
+                            emit(ApiState.GatewayProgressChanged(providerProgress("response_started", "generating", "Writing the response…")))
+                        }
+                        progressParser.accept(providerEvent.text).forEach { (progress, text) ->
+                            if (progress) emit(ApiState.ProgressCheckpoint(text, modelAuthored = true)) else emit(ApiState.Success(text))
+                        }
+                    }
+
+                    is ProviderEvent.Failed -> emit(ApiState.Error(providerEvent.message))
+                    is ProviderEvent.Notice -> emit(ApiState.Notice(providerEvent.message, providerEvent.persistent))
+                    is ProviderEvent.PhaseChanged -> emit(ApiState.PhaseChanged(providerEvent.phase))
+                    is ProviderEvent.LocalMetrics -> Unit
+                    is ProviderEvent.Usage -> {
+                        emit(ApiState.TokenUsage(providerEvent.inputTokens, providerEvent.outputTokens, providerEvent.totalTokens))
+                        providerEvent.inputTokens?.let {
+                            accumulatedInputTokens = if (providerEvent.cumulative) maxOf(accumulatedInputTokens, it.toLong()) else accumulatedInputTokens + it
+                            hasInputTokenUsage = true
+                        }
+                        providerEvent.outputTokens?.let {
+                            accumulatedOutputTokens = if (providerEvent.cumulative) maxOf(accumulatedOutputTokens, it.toLong()) else accumulatedOutputTokens + it
+                            hasOutputTokenUsage = true
+                        }
+                        providerEvent.totalTokens?.let {
+                            accumulatedTotalTokens = if (providerEvent.cumulative) maxOf(accumulatedTotalTokens, it.toLong()) else accumulatedTotalTokens + it
+                            hasTotalTokenUsage = true
+                        }
+                        agentRunDao.updateUsage(
+                            runId = runId,
+                            inputTokens = if (hasInputTokenUsage) accumulatedInputTokens.coerceAtMost(Int.MAX_VALUE.toLong()).toInt() else null,
+                            outputTokens = if (hasOutputTokenUsage) accumulatedOutputTokens.coerceAtMost(Int.MAX_VALUE.toLong()).toInt() else null,
+                            totalTokens = if (hasTotalTokenUsage) accumulatedTotalTokens.coerceAtMost(Int.MAX_VALUE.toLong()).toInt() else null
+                        )
+                    }
+
+                    is ProviderEvent.GatewayMetadataCaptured -> providerEvent.metadata.jobId?.let { agentRunDao.bindGatewayJob(runId, it, platform.apiUrl) }
+                    is ProviderEvent.GatewayProgressUpdate -> {
+                        gatewayTelemetrySeen = true
+                        providerEvent.progress.sequence?.let { agentRunDao.advanceGatewaySequence(runId, it) }
+                        emit(ApiState.GatewayProgressChanged(providerEvent.progress))
+                        trace.gateway(providerEvent.progress)?.let { gatewayToolEvent ->
+                            emit(gatewayToolEvent)
+                            val progress = providerEvent.progress
+                            if (progress.event in setOf("tool_completed", "tool_failed", "tool_finished")) {
+                                progressTracker.complete(
+                                    progress.toolCallId ?: "gateway-${gatewayToolEvent.toolSequence}",
+                                    progress.toolName ?: "tool",
+                                    progress.event == "tool_failed"
+                                )?.let { emit(ApiState.ProgressCheckpoint(it)) }
+                            }
+                        }
+                    }
+
+                    is ProviderEvent.ToolCall -> {
+                        val toolEvent = trace.start(providerEvent)
+                        val arguments = providerEvent.arguments.toString()
+                        emit(ApiState.ToolCall(toolEvent.sequence, ToolPayloadMetrics(arguments.length, arguments.toByteArray(Charsets.UTF_8).size)))
+                        if (!gatewayTelemetrySeen) {
+                            emit(ApiState.GatewayProgressChanged(providerProgress("tool_formulating", "tools", "Preparing ${providerEvent.name}…", providerEvent.name, "preparing")))
+                        }
+                    }
+
+                    is ProviderEvent.ToolResult -> Unit
+                    ProviderEvent.Completed -> progressParser.accept("", flush = true).forEach { (progress, text) ->
+                        if (progress) emit(ApiState.ProgressCheckpoint(text, modelAuthored = true)) else emit(ApiState.Success(text))
+                    }
+                }
+
+                is AgentRunEvent.ToolStarted -> {
+                    providerToolCalls += 1
+                    if (!gatewayTelemetrySeen) {
+                        emit(ApiState.GatewayProgressChanged(providerProgress("tool_started", "executing_tools", "Running ${runEvent.call.name}…", runEvent.call.name, "running")))
+                    }
+                }
+
+                is AgentRunEvent.ToolFinished -> {
+                    trace.finish(runEvent.call, runEvent.result)?.let { emit(it) }
+                    progressTracker.complete(runEvent.call.callId, runEvent.call.name, runEvent.result.isError)?.let { emit(ApiState.ProgressCheckpoint(it)) }
+                    if (!gatewayTelemetrySeen) {
+                        if (runEvent.result.isError) providerToolFailures += 1 else providerUsefulToolCalls += 1
+                        emit(
+                            ApiState.GatewayProgressChanged(
+                                providerProgress(
+                                    event = if (runEvent.result.isError) "tool_failed" else "tool_completed",
+                                    stage = "tools",
+                                    message = if (runEvent.result.isError) "${runEvent.call.name} failed" else "Completed ${runEvent.call.name}",
+                                    toolName = runEvent.call.name,
+                                    status = if (runEvent.result.isError) "failed" else "completed",
+                                    resultQuality = if (runEvent.result.isError) "error" else "useful"
+                                )
+                            )
+                        )
+                    }
+                }
+
+                is AgentRunEvent.Notice -> emit(ApiState.Notice(runEvent.message, runEvent.persistent))
+            }
+        }
     }
 
     private fun buildSharedToolScope(contextTurns: List<ConversationTurn>): String? {
