@@ -747,7 +747,7 @@ class PlatformSettingViewModel @Inject constructor(
                     connections.map { connection ->
                         async {
                             runCatching {
-                                val tools = agentToolResolver.discoverMcpTools(connection)
+                                val tools = agentToolResolver.discoverMcpTools(connection, forceRefresh = true)
                                 tools.map { tool ->
                                     McpToolOption(
                                         connectionUid = connection.connectionUid,
