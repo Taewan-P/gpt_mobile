@@ -24,7 +24,7 @@ extensions.configure<ApplicationExtension> {
         applicationId = "dev.melo.gptmobile.improved"
         minSdk = 31
         targetSdk = 36
-        versionCode = 78
+        versionCode = 79
         versionName = "0.9.20.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
