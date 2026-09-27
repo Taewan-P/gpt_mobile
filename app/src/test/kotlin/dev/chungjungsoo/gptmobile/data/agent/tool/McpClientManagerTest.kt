@@ -151,7 +151,8 @@ class McpClientManagerTest {
 
     internal class McpFixtureServer(
         private val paginateTools: Boolean = false,
-        acceptedAuthorization: String? = null
+        acceptedAuthorization: String? = null,
+        private val toolsResponse: String? = null
     ) : AutoCloseable {
         @Volatile
         var acceptedAuthorization: String? = acceptedAuthorization
@@ -191,6 +192,7 @@ class McpClientManagerTest {
                     "tools/list" -> {
                         val cursor = (request["params"] as? JsonObject)?.get("cursor")?.jsonPrimitive?.content
                         when {
+                            toolsResponse != null -> toolsResponse
                             !paginateTools -> toolList("echo")
                             cursor == null -> toolList("echo", nextCursor = "page-2")
                             else -> toolList("second")

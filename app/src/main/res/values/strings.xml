@@ -362,6 +362,8 @@
     <string name="tool_trace_timing_started_at">Started at</string>
     <string name="tool_name_github">GitHub</string>
     <string name="tool_name_brave">Brave</string>
+    <string name="brave_search_setup_description">Use your Brave Search API key, then enable this connection under Web search in an AI profile. Usage follows your Brave plan.</string>
+    <string name="brave_search_get_api_key">Get a Brave Search API key</string>
     <string name="tool_name_microsoft">Microsoft</string>
     <string name="tool_name_mcp">MCP</string>
     <string name="tool_name_web">Web</string>

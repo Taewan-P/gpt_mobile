@@ -739,6 +739,15 @@ fun McpMarketplaceDetailCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
+            if (preset.webSearchToolNames.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Enable this provider's search tools in an AI profile to include them in multi-engine web search.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
             if (preset.setupInstructions.isNotBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(

@@ -6,6 +6,7 @@ import dev.chungjungsoo.gptmobile.data.agent.ToolResultContent
 import dev.chungjungsoo.gptmobile.data.network.NetworkClient
 import io.ktor.client.engine.cio.CIO
 import java.net.InetSocketAddress
+import java.net.URLDecoder
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
@@ -26,6 +27,85 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class WebSearchToolTest {
+    @Test
+    fun `Brave uses subscription header and GET filters with normalized sources`() = runBlocking {
+        val server = server("/web/search", """{"type":"search","web":{"results":[{"title":"Kotlin &amp; Android","url":"https://docs.allowed.example/kotlin","description":"Useful <b>documentation</b>","date":"2026-07-31"}]}}""")
+        val result = tool(WebSearchProvider.BRAVE, server.url("/web/search")).execute("brave", arguments())
+        assertTrue(!result.isError)
+        assertEquals("GET", server.request.method)
+        assertEquals("", server.request.authorization)
+        assertEquals("", server.request.apiKey)
+        assertEquals("brave-key", server.request.subscriptionToken)
+        assertEquals("", server.request.body)
+        assertEquals(
+            mapOf("q" to "latest kotlin site:allowed.example", "count" to "3", "result_filter" to "web", "text_decorations" to "false", "freshness" to "2026-07-30to2026-08-01"),
+            server.request.query
+        )
+        assertTrue(!server.request.query.toString().contains("brave-key"))
+        assertNormalized(result.content, "Kotlin & Android", "https://docs.allowed.example/kotlin", "Useful documentation", "2026-07-31")
+    }
+
+    @Test
+    fun `Brave accepts empty searches and optional descriptions but rejects malformed responses`() = runBlocking {
+        for (response in listOf("""{"type":"search"}""", """{"type":"search","web":{"results":[]}}""")) {
+            val server = server("/search", response)
+            val result = tool(WebSearchProvider.BRAVE, server.url("/search")).execute("empty", arguments())
+            assertTrue(!result.isError)
+            assertEquals(0, (result.content as ToolResultContent.Json).value.jsonObject.getValue("results").jsonArray.size)
+        }
+        val optional = server("/search", """{"web":{"results":[{"title":"Reference","url":"https://allowed.example/doc"}]}}""")
+        val result = tool(WebSearchProvider.BRAVE, optional.url("/search")).execute("source", arguments())
+        assertTrue(!result.isError)
+        val source = (result.content as ToolResultContent.Json).value.jsonObject.getValue("results").jsonArray.single().jsonObject
+        assertEquals("", source.getValue("snippet").jsonPrimitive.content)
+        val malformed = server("/search", """{"error":"not a search response"}""")
+        assertTrue(tool(WebSearchProvider.BRAVE, malformed.url("/search")).execute("bad", arguments()).isError)
+    }
+
+    @Test
+    fun `Brave errors explain authentication and quota without exposing provider bodies`() = runBlocking {
+        for (status in listOf(401, 403, 429)) {
+            val server = server("/search", """{"error":"brave-key private diagnostic"}""", status)
+            val result = tool(WebSearchProvider.BRAVE, server.url("/search")).execute("failed", arguments())
+            val text = (result.content as ToolResultContent.Text).text
+            assertTrue(result.isError)
+            assertTrue(text.contains("Brave Search"))
+            assertTrue(text.contains("HTTP $status"))
+            assertTrue(!text.contains("brave-key"))
+        }
+    }
+
+    @Test
+    fun `Brave domain exclusions preserve lookalikes and reject actual subdomains`() = runBlocking {
+        val server = server("/search", """{"web":{"results":[{"title":"Excluded","url":"https://docs.blocked.example/a"},{"title":"Different host","url":"https://notblocked.example/a"},{"title":"Different suffix","url":"https://blocked.example.other/a"}]}}""")
+        val result = tool(WebSearchProvider.BRAVE, server.url("/search")).execute(
+            "exclude",
+            buildJsonObject {
+                put("query", "reference")
+                put("excludeDomains", JsonArray(listOf(JsonPrimitive("blocked.example"))))
+            }
+        )
+        assertEquals("reference NOT site:blocked.example", server.request.query["q"])
+        val results = (result.content as ToolResultContent.Json).value.jsonObject.getValue("results").jsonArray
+        assertEquals(listOf("https://notblocked.example/a", "https://blocked.example.other/a"), results.map { it.jsonObject.getValue("url").jsonPrimitive.content })
+    }
+
+    @Test
+    fun `Brave rejects oversized queries and operator injection in domains before network`() = runBlocking {
+        val server = server("/search", """{"type":"search"}""")
+        val tool = tool(WebSearchProvider.BRAVE, server.url("/search"))
+        val invalid = listOf(
+            buildJsonObject { put("query", "x".repeat(601)) },
+            buildJsonObject { put("query", List(76) { "word" }.joinToString(" ")) },
+            buildJsonObject {
+                put("query", "reference")
+                put("includeDomains", JsonArray(listOf(JsonPrimitive("example.com)"))))
+            }
+        )
+        invalid.forEach { assertTrue(tool.execute("invalid", it).isError) }
+        assertEquals("", server.request.method)
+    }
+
     @Test
     fun `oversized search snippets keep source links and respect the requested count`() = runBlocking {
         val entries = (1..10).map { index ->
@@ -364,6 +444,11 @@ class WebSearchToolTest {
                 path = exchange.requestURI.path,
                 authorization = exchange.requestHeaders.getFirst("Authorization").orEmpty(),
                 apiKey = exchange.requestHeaders.getFirst("x-api-key").orEmpty(),
+                subscriptionToken = exchange.requestHeaders.getFirst("X-Subscription-Token").orEmpty(),
+                query = exchange.requestURI.rawQuery.orEmpty().split('&').filter { it.isNotEmpty() }.associate {
+                    val pair = it.split('=', limit = 2)
+                    URLDecoder.decode(pair[0], "UTF-8") to URLDecoder.decode(pair.getOrElse(1) { "" }, "UTF-8")
+                },
                 body = exchange.requestBody.bufferedReader().readText()
             )
             exchange.respond(status, response)
@@ -410,5 +495,7 @@ private data class RecordedRequest(
     val path: String,
     val authorization: String,
     val apiKey: String,
-    val body: String
+    val body: String,
+    val subscriptionToken: String = "",
+    val query: Map<String, String> = emptyMap()
 )

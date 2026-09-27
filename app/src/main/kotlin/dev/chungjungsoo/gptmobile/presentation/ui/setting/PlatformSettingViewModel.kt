@@ -890,7 +890,7 @@ class PlatformSettingViewModel @Inject constructor(
 
     companion object {
         private const val WEB_SEARCH_TOOL = "web_search"
-        private val WEB_SEARCH_TYPES = setOf(ToolConnectionType.FIRECRAWL, ToolConnectionType.PERPLEXITY, ToolConnectionType.EXA)
+        private val WEB_SEARCH_TYPES = ToolConnectionType.WEB_SEARCH_TYPES
         const val MIN_TOP_K = 1
         const val MAX_TOP_K = 128
         const val MIN_MAX_TOKENS = 1

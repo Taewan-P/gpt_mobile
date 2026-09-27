@@ -60,7 +60,9 @@ data class McpPreset(
     val setupInstructions: String = "",
     val requiredEndpointQueryParameter: String? = null,
     val integratedTool: String? = null,
-    val documentationOnly: Boolean = false
+    val documentationOnly: Boolean = false,
+    /** General web search tools folded into the profile's shared web_search when enabled. */
+    val webSearchToolNames: List<String> = emptyList()
 ) {
     fun hasRequiredEndpointParameters(endpoint: String): Boolean {
         val parameter = requiredEndpointQueryParameter ?: return true
@@ -179,6 +181,7 @@ object McpPresetCatalog {
         ),
         McpPreset(
             id = "builtin-web",
+            webSearchToolNames = listOf("web_search"),
             name = "Web Search & URL Reader",
             description = "Integrated search and webpage reading tools available to AI profiles without installing a separate MCP server.",
             category = McpCategory.SEARCH,
@@ -257,6 +260,7 @@ object McpPresetCatalog {
         ),
         McpPreset(
             id = "exa-mcp",
+            webSearchToolNames = listOf("web_search_exa", "web_search_advanced_exa", "deep_search_exa"),
             name = "Exa MCP Search",
             description = "Exa's hosted remote MCP endpoint for web search, code search, research and webpage retrieval. The hosted MCP service can be used without a separate local server.",
             category = McpCategory.SEARCH,
@@ -285,6 +289,7 @@ object McpPresetCatalog {
         ),
         McpPreset(
             id = "tavily-mcp", iconName = "tavily", name = "Tavily Search & Crawl", description = "Search, extract, crawl and map websites through Tavily. Requires a Tavily API key; usage is subject to your plan.",
+            webSearchToolNames = listOf("tavily_search"),
             category = McpCategory.SEARCH, commandOrUrl = "https://mcp.tavily.com/mcp/", author = "Tavily",
             alias = "tavily_mcp", suggestedAuthType = "BEARER", pricing = McpPricingType.FREE_WITH_SIGNUP,
             toolCapabilities = listOf("Search web", "Extract and crawl webpages", "Map website URLs"),
@@ -292,6 +297,7 @@ object McpPresetCatalog {
         ),
         McpPreset(
             id = "firecrawl-mcp", iconName = "firecrawl", name = "Firecrawl Web Research", description = "Hosted scrape, search and parse tools with a limited keyless tier. Choose Bearer for your Firecrawl API key and account limits.",
+            webSearchToolNames = listOf("firecrawl_search"),
             category = McpCategory.SEARCH, commandOrUrl = "https://mcp.firecrawl.dev/v2/mcp", author = "Firecrawl",
             alias = "firecrawl_mcp", suggestedAuthType = "NONE", pricing = McpPricingType.FREE,
             toolCapabilities = listOf("Search web", "Scrape webpages", "Parse documents"),
@@ -299,6 +305,7 @@ object McpPresetCatalog {
         ),
         McpPreset(
             id = "jina-mcp", iconName = "jina", name = "Jina Reader & Search", description = "Read webpages and retrieve content. Some tools, including search, require a Jina API key; choose Bearer to enable them.",
+            webSearchToolNames = listOf("search_web"),
             category = McpCategory.SEARCH, commandOrUrl = "https://mcp.jina.ai/v1", author = "Jina AI",
             alias = "jina_mcp", suggestedAuthType = "NONE", pricing = McpPricingType.FREE,
             toolCapabilities = listOf("Read URLs", "Search with a Jina key", "Rerank results"),
@@ -422,6 +429,7 @@ object McpPresetCatalog {
         ),
         McpPreset(
             id = "brave-search",
+            webSearchToolNames = listOf("brave_web_search"),
             name = "Brave Search",
             description = "Web, local, image, video and news search through a self-hosted Brave MCP server. API usage depends on your Brave plan.",
             category = McpCategory.SEARCH,
@@ -433,7 +441,7 @@ object McpPresetCatalog {
             toolCapabilities = listOf("Search web and local places", "Search images, videos and news"),
             websiteUrl = "https://github.com/brave/brave-search-mcp-server",
             verifiedRemote = false,
-            setupInstructions = "Run the official server with HTTP transport and BRAVE_API_KEY configured on the server. Enter its phone-reachable /mcp URL and select authentication required by your deployment. The Brave API key is not a bearer token for this MCP endpoint."
+            setupInstructions = "For direct web search, choose Add connection → Web search → Brave Search and enter your Brave API key. For MCP, run @brave/brave-search-mcp-server with --transport http and BRAVE_API_KEY configured on the server. Enter its phone-reachable /mcp URL and select your deployment authentication. Enable brave_web_search in your AI profile to include it in integrated web search. The Brave API key belongs on the MCP server, not in its bearer credential field."
         ),
         McpPreset(
             id = "stackoverflow",
@@ -620,6 +628,7 @@ object McpPresetCatalog {
         ),
         McpPreset(
             id = "bright-data",
+            webSearchToolNames = listOf("search_engine", "search_engine_batch"),
             name = "Bright Data",
             description = "Search and retrieve public web data through Bright Data's hosted MCP service. Paid usage may apply beyond plan allowances.",
             category = McpCategory.BROWSER,

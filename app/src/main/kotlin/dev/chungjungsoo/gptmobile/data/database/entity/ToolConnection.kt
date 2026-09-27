@@ -55,9 +55,7 @@ data class ToolConnection(
 ) {
     @get:Ignore
     val isWebSearch: Boolean
-        get() = type == ToolConnectionType.FIRECRAWL ||
-            type == ToolConnectionType.PERPLEXITY ||
-            type == ToolConnectionType.EXA
+        get() = type in ToolConnectionType.WEB_SEARCH_TYPES
 }
 
 object ToolConnectionType {
@@ -65,6 +63,8 @@ object ToolConnectionType {
     const val FIRECRAWL = "FIRECRAWL"
     const val PERPLEXITY = "PERPLEXITY"
     const val EXA = "EXA"
+    const val BRAVE = "BRAVE"
+    val WEB_SEARCH_TYPES = setOf(FIRECRAWL, PERPLEXITY, EXA, BRAVE)
 }
 
 object ToolConnectionAuthType {

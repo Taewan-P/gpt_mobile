@@ -308,6 +308,7 @@ class ToolConnectionsViewModel @Inject constructor(
             ToolConnectionProvider("Firecrawl", ToolConnectionType.FIRECRAWL, "https://api.firecrawl.dev/v2/search", ToolConnectionAuthType.BEARER),
             ToolConnectionProvider("Perplexity", ToolConnectionType.PERPLEXITY, "https://api.perplexity.ai/search", ToolConnectionAuthType.BEARER),
             ToolConnectionProvider("Exa", ToolConnectionType.EXA, "https://api.exa.ai/search", ToolConnectionAuthType.API_KEY),
+            ToolConnectionProvider("Brave Search", ToolConnectionType.BRAVE, "https://api.search.brave.com/res/v1/web/search", ToolConnectionAuthType.API_KEY),
             ToolConnectionProvider("MCP server", ToolConnectionType.MCP, "", ToolConnectionAuthType.NONE)
         )
 
