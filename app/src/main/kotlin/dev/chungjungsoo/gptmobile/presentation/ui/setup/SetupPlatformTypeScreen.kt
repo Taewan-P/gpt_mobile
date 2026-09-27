@@ -63,6 +63,7 @@ private val setupProviderGroups = listOf(
             PlatformTypeInfo(ClientType.OPENAI, R.string.openai, R.string.openai_description),
             PlatformTypeInfo(ClientType.ANTHROPIC, R.string.anthropic, R.string.anthropic_description),
             PlatformTypeInfo(ClientType.GOOGLE, R.string.google, R.string.google_description),
+            PlatformTypeInfo(ClientType.NVIDIA, R.string.nvidia, R.string.nvidia_description),
             PlatformTypeInfo(ClientType.GROQ, R.string.groq, R.string.groq_description)
         )
     ),
@@ -128,7 +129,7 @@ fun SetupPlatformTypeScreen(
             }
             item {
                 dev.chungjungsoo.gptmobile.presentation.common.AdvancedOptions("Connect a cloud provider") {
-                    setupProviderGroups.flatMap { it.items }.filter { it.clientType in setOf(ClientType.OPENAI, ClientType.ANTHROPIC, ClientType.GOOGLE, ClientType.GROQ, ClientType.OPENROUTER) }.forEach { item ->
+                    setupProviderGroups.flatMap { it.items }.filter { it.clientType in setOf(ClientType.NVIDIA, ClientType.OPENAI, ClientType.ANTHROPIC, ClientType.GOOGLE, ClientType.GROQ, ClientType.OPENROUTER) }.forEach { item ->
                         DestinationCard(title = stringResource(item.titleResId), description = "Use your API key", onClick = {
                             setupViewModel.selectClientType(item.clientType)
                             onPlatformTypeSelected()

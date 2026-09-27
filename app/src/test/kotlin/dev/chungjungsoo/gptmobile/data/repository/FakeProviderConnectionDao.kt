@@ -30,4 +30,8 @@ internal class FakeProviderConnectionDao(
     }
 
     override suspend fun profileCount(connectionUid: String): Int = 0
+
+    override suspend fun deleteToolBindings(uid: String) = Unit
+    override suspend fun deleteChatSelections(uid: String) = Unit
+    override suspend fun deleteProfiles(uid: String) = Unit
 }

@@ -39,6 +39,10 @@ object ApiKeyValidator {
                 val base = apiUrl.trim().trimEnd('/')
                 if (base.isNotEmpty()) "$base/api/tags" else "http://localhost:11434/api/tags"
             }
+            ClientType.NVIDIA -> {
+                val base = apiUrl.trim().ifBlank { dev.chungjungsoo.gptmobile.data.ModelConstants.NVIDIA_API_URL }.trimEnd('/')
+                "$base/models"
+            }
             ClientType.FREE, ClientType.CUSTOM -> {
                 val base = apiUrl.trim().trimEnd('/')
                 if (base.isNotEmpty()) "$base/models" else return@withContext ValidationResult.Success("Custom URL accepted")
@@ -55,7 +59,7 @@ object ApiKeyValidator {
                 setRequestProperty("Accept", "application/json")
                 setRequestProperty("User-Agent", "GPTMobile/1.0")
                 when (clientType) {
-                    ClientType.OPENAI, ClientType.GROQ, ClientType.LLAMA, ClientType.CUSTOM -> {
+                    ClientType.NVIDIA, ClientType.OPENAI, ClientType.GROQ, ClientType.LLAMA, ClientType.CUSTOM -> {
                         setRequestProperty("Authorization", "Bearer $apiKey")
                     }
                     ClientType.ANTHROPIC -> {

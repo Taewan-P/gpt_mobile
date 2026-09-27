@@ -103,6 +103,13 @@ class LiteRtLmAdapter(
                     send(notice)
                 }
 
+                if (LocalAccelerators.normalize(platform.accelerator) == LocalAccelerators.NPU &&
+                    (catalogEntry == null || !LocalAccelerators.isNpuEligible(catalogEntry.supportedAccelerators, catalogEntry.socToModelFiles, deviceSocModel))
+                ) {
+                    send(ProviderEvent.Failed("This package has no verified QNN build for this phone. Select a matching NPU package from the marketplace, or use its GPU edition."))
+                    return@channelFlow
+                }
+
                 val wantsGpu = LocalAccelerators.normalize(platform.accelerator) != LocalAccelerators.NPU
                 val installedNpu = installedRecord?.fileName?.let(dev.chungjungsoo.gptmobile.data.localmodel.LocalModelPackages::isNpuFile) == true
                 val modelPath = if (wantsGpu && installedNpu) {

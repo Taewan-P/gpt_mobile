@@ -212,6 +212,22 @@ fun FactVaultScreen(viewModel: FactVaultViewModel, onBack: () -> Unit) {
                         Card(Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Text("Learning & privacy", style = MaterialTheme.typography.titleMedium)
+                                var sensitivity by remember(settings.captureSensitivity) { mutableStateOf(settings.captureSensitivity.toFloat()) }
+                                Text("Memory sensitivity · ${sensitivity.toInt()}%", style = MaterialTheme.typography.titleSmall)
+                                Slider(
+                                    value = sensitivity,
+                                    onValueChange = { sensitivity = it },
+                                    onValueChangeFinished = { viewModel.updateSettings(settings.copy(captureSensitivity = sensitivity.toInt())) },
+                                    valueRange = 0f..100f,
+                                    enabled = !busy && vault.enabled && settings.learningEnabled,
+                                    modifier = Modifier.semantics { contentDescription = "Memory sensitivity" }
+                                )
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Only key facts", style = MaterialTheme.typography.labelSmall)
+                                    Text("More details", style = MaterialTheme.typography.labelSmall)
+                                }
+                                Text("Lower values keep stronger preferences and lasting facts. Higher values also capture stated projects, learning goals and needs. Existing memories and explicit save requests are unchanged.", style = MaterialTheme.typography.bodySmall)
+
                                 VaultToggle("Learn from new messages", settings.learningEnabled, !busy) { viewModel.updateSettings(settings.copy(learningEnabled = it)) }
                                 VaultToggle("Recall saved memories", settings.recallEnabled, !busy) { viewModel.updateSettings(settings.copy(recallEnabled = it)) }
                                 VaultToggle("Allow recall in cloud requests", settings.allowCloudRecall, !busy) { viewModel.updateSettings(settings.copy(allowCloudRecall = it)) }

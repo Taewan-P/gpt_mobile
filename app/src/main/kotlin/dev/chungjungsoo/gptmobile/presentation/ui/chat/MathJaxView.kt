@@ -11,9 +11,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -314,9 +316,14 @@ private fun MathJaxFormulaView(
     modifier: Modifier = Modifier,
     onMeasured: (Int) -> Unit = {}
 ) {
+    var rendererFailed by remember(request.tex) { mutableStateOf(false) }
+    if (rendererFailed) {
+        Text(request.tex, modifier = modifier)
+        return
+    }
     AndroidView(
         modifier = modifier,
-        factory = { context -> MathJaxWebView(context) },
+        factory = { context -> MathJaxWebView(context) { rendererFailed = true } },
         onReset = { webView -> webView.prepareForReuse() },
         onRelease = { webView -> webView.releaseFromComposition() },
         update = { webView ->
@@ -327,7 +334,8 @@ private fun MathJaxFormulaView(
 }
 
 @SuppressLint("SetJavaScriptEnabled")
-private class MathJaxWebView(context: Context) : WebView(context) {
+private class MathJaxWebView(context: Context, private val onRendererGone: () -> Unit) : WebView(context) {
+    private var disposed = false
     private var pageLoaded = false
     private var renderedRequest: MathRenderRequest? = null
     private var pendingRequest: MathRenderRequest? = null
@@ -353,6 +361,12 @@ private class MathJaxWebView(context: Context) : WebView(context) {
         settings.javaScriptEnabled = true
 
         webViewClient = object : WebViewClient() {
+            override fun onRenderProcessGone(view: WebView?, detail: android.webkit.RenderProcessGoneDetail?): Boolean {
+                releaseFromComposition()
+                onRendererGone()
+                return true
+            }
+
             override fun onPageFinished(view: WebView?, url: String?) {
                 pageLoaded = true
                 renderRetryCount = 0
@@ -373,6 +387,7 @@ private class MathJaxWebView(context: Context) : WebView(context) {
         request: MathRenderRequest,
         onMeasured: (Int) -> Unit
     ) {
+        if (disposed) return
         this.onMeasured = onMeasured
         if (request == renderedRequest && pendingRequest == null) {
             return
@@ -388,6 +403,7 @@ private class MathJaxWebView(context: Context) : WebView(context) {
     }
 
     fun prepareForReuse() {
+        if (disposed) return
         removeCallbacks(renderRetryRunnable)
         clearRenderedContent()
         renderedRequest = null
@@ -397,11 +413,19 @@ private class MathJaxWebView(context: Context) : WebView(context) {
     }
 
     fun releaseFromComposition() {
-        prepareForReuse()
+        if (disposed) return
+        disposed = true
+        removeCallbacks(renderRetryRunnable)
+        pageLoaded = false
+        pendingRequest = null
         renderedRequest = null
+        onMeasured = null
+        (parent as? android.view.ViewGroup)?.removeView(this)
+        destroy()
     }
 
     private fun renderPendingRequest() {
+        if (disposed) return
         val request = pendingRequest ?: return
         if (!pageLoaded) return
         if (applyCachedResult(request)) {
@@ -409,6 +433,7 @@ private class MathJaxWebView(context: Context) : WebView(context) {
         }
 
         evaluateJavascript(buildRenderScript(request)) { rawResult ->
+            if (disposed) return@evaluateJavascript
             if (rawResult == "\"loading\"") {
                 scheduleRenderRetry()
                 return@evaluateJavascript

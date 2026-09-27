@@ -52,7 +52,7 @@ class ValidatePlatformConnectionUseCase @Inject constructor(
                         )
                     }
                 }
-                ClientType.OPENAI, ClientType.GROQ -> {
+                ClientType.NVIDIA, ClientType.OPENAI, ClientType.GROQ -> {
                     // Test GET /models with Bearer auth
                     val endpoint = if (url.endsWith("/v1")) "$url/models" else "$url/v1/models"
                     val response = client.get(endpoint) {

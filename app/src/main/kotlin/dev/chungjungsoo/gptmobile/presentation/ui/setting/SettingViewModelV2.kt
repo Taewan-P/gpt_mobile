@@ -173,9 +173,13 @@ class SettingViewModelV2 @Inject constructor(
 
     fun deleteProviderConnection(connection: ProviderConnection) {
         viewModelScope.launch {
-            val deleted = settingRepository.deleteProviderConnection(connection)
-            if (!deleted) {
-                _uiEvent.emit(UiEvent.ShowToast("Remove or move the AI profiles using this connection first."))
+            try {
+                check(settingRepository.deleteProviderConnection(connection))
+                _uiEvent.emit(UiEvent.ShowToast("Provider deleted. Conversation history was kept."))
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                _uiEvent.emit(UiEvent.ShowToast("Could not delete the provider. Please try again."))
             }
         }
     }

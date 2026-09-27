@@ -294,7 +294,7 @@ class ProviderAdaptersTest {
         val encoder = object : ProviderAttachmentEncoder(ContextWrapper(null)) {
             override fun gatewayPerformanceHeaders(): Map<String, String> = error("Unexpected gateway settings read")
         }
-        for (type in listOf(ClientType.OPENROUTER, ClientType.CUSTOM, ClientType.OLLAMA)) {
+        for (type in listOf(ClientType.NVIDIA, ClientType.OPENROUTER, ClientType.CUSTOM, ClientType.OLLAMA)) {
             val api = FakeOpenAIAPI(chatRounds = ArrayDeque(listOf(emptyFlow())))
             OpenAICompatibleAdapter(api, FakeGroqAPI(), encoder)
                 .openSession(turns(), platform(type))

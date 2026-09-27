@@ -33,6 +33,7 @@ class ProfileModelCatalog(private val client: OkHttpClient = sharedClient) {
                 ClientType.OPENAI -> "https://api.openai.com/v1"
                 ClientType.ANTHROPIC -> "https://api.anthropic.com/v1"
                 ClientType.GOOGLE -> "https://generativelanguage.googleapis.com/v1beta"
+                ClientType.NVIDIA -> "https://integrate.api.nvidia.com/v1"
                 ClientType.GROQ -> "https://api.groq.com/openai/v1"
                 ClientType.OPENROUTER -> "https://openrouter.ai/api/v1"
                 else -> error("Configure this provider's API address first.")

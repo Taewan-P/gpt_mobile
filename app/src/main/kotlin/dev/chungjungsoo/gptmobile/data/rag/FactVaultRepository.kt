@@ -45,9 +45,10 @@ data class FactVaultSettings(
     val reviewBeforeRecall: Boolean = false,
     val maxFacts: Int = 256,
     val maxRecall: Int = 5,
-    val retentionDays: Int = 0
+    val retentionDays: Int = 0,
+    val captureSensitivity: Int = 50
 ) {
-    fun normalized() = copy(maxFacts = maxFacts.coerceIn(16, 2048), maxRecall = maxRecall.coerceIn(1, 10), retentionDays = retentionDays.coerceIn(0, 365))
+    fun normalized() = copy(maxFacts = maxFacts.coerceIn(16, 2048), maxRecall = maxRecall.coerceIn(1, 10), retentionDays = retentionDays.coerceIn(0, 365), captureSensitivity = captureSensitivity.coerceIn(0, 100))
 }
 
 @Serializable
@@ -153,9 +154,9 @@ class FactVaultRepository @Inject constructor(
         if (!capture || !settings.learningEnabled) return@withLock recall
         // Only extract user-provided text. Never learn from assistant output or tool responses.
         val extractor = KnowledgeGraphEngine()
-        extractor.extractAndStoreFromText(query.take(MAX_QUERY_CHARS))
+        extractor.extractAndStoreFromText(query.take(MAX_QUERY_CHARS), settings.captureSensitivity)
         val extracted = extractor.getAllEntities().flatMap { extractor.querySubgraph(it.id, maxDepth = 1) }
-            .map(::normalizeFact).distinctBy(::factId).filter {
+            .filter { MemoryCapturePolicy.accepts(it, settings.captureSensitivity) }.map(::normalizeFact).distinctBy(::factId).filter {
                 if (it.relation.relationType == "PREFERS") settings.learnPreferences else settings.learnRelationships
             }
         val known = current.facts.map { it.id }.toSet() + current.suppressedIds

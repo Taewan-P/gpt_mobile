@@ -1127,7 +1127,7 @@ class LiteRtLmAdapterTest {
     }
 
     @Test
-    fun `gpu fallback does not force a later npu selection onto cpu`() = runBlocking {
+    fun `unverified NPU selection is rejected before native loading`() = runBlocking {
         val runtime = FakeLocalRuntime().apply {
             failLoadEngineIf = { spec ->
                 if (spec.accelerator == LocalAccelerators.GPU || spec.accelerator == LocalAccelerators.NPU) {
@@ -1150,10 +1150,10 @@ class LiteRtLmAdapterTest {
         ).streamRound(emptyList(), emptyList()).toList()
 
         assertTrue(gpuEvents.any { it is ProviderEvent.Notice && it.message == LiteRtLmAdapter.DEFAULT_GPU_UNAVAILABLE })
-        assertTrue(npuEvents.any { it is ProviderEvent.Notice && it.message == LiteRtLmAdapter.DEFAULT_NPU_UNAVAILABLE })
+        assertTrue(npuEvents.any { it is ProviderEvent.Failed && it.message.contains("no verified QNN build") })
         assertFalse(npuEvents.any { it is ProviderEvent.Notice && it.message == LiteRtLmAdapter.DEFAULT_GPU_UNAVAILABLE })
         assertEquals(
-            listOf(LocalAccelerators.GPU, LocalAccelerators.CPU, LocalAccelerators.NPU, LocalAccelerators.CPU),
+            listOf(LocalAccelerators.GPU, LocalAccelerators.CPU),
             runtime.loadEngineCalls.map { it.accelerator }
         )
     }

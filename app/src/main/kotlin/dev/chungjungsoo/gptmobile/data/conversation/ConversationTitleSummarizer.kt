@@ -38,7 +38,7 @@ class ConversationTitleSummarizer(
         val title = when (platform.compatibleType) {
             ClientType.OPENAI -> summarizeWithOpenAI(prompt, platform, config)
             ClientType.GROQ -> summarizeWithGroq(prompt, platform, config)
-            ClientType.OLLAMA, ClientType.OPENROUTER, ClientType.CUSTOM ->
+            ClientType.NVIDIA, ClientType.OLLAMA, ClientType.OPENROUTER, ClientType.CUSTOM ->
                 summarizeWithOpenAI(prompt, platform, config)
             ClientType.GOOGLE -> summarizeWithGemini(prompt, platform, config)
             else -> null

@@ -401,10 +401,13 @@ class SettingRepositoryImpl @Inject constructor(
     }
 
     override suspend fun deleteProviderConnection(connection: ProviderConnection): Boolean {
-        if (providerConnectionDao.profileCount(connection.uid) > 0) return false
-        providerConnectionDao.delete(connection)
-        connection.secretRef?.let { secretVault.delete(it) }
-        invalidatePlatformCache()
+        val persisted = providerConnectionDao.getConnection(connection.uid) ?: return true
+        providerConnectionDao.deleteWithProfiles(persisted)
+        try {
+            persisted.secretRef?.let { secretVault.delete(it) }
+        } finally {
+            invalidatePlatformCache()
+        }
         return true
     }
 

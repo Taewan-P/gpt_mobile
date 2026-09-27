@@ -120,7 +120,7 @@ fun SandboxedArtifactView(
                 if (showPreview && isHtmlOrSvg) {
                     AndroidView(
                         factory = { ctx ->
-                            WebView(ctx).apply {
+                            ArtifactPreviewWebView(ctx).apply {
                                 settings.apply {
                                     javaScriptEnabled = false
                                     blockNetworkLoads = true
@@ -134,6 +134,12 @@ fun SandboxedArtifactView(
                                     cacheMode = WebSettings.LOAD_NO_CACHE
                                 }
                                 webViewClient = object : WebViewClient() {
+                                    override fun onRenderProcessGone(view: WebView?, detail: android.webkit.RenderProcessGoneDetail?): Boolean {
+                                        (view as? ArtifactPreviewWebView)?.dispose()
+                                        showPreview = false
+                                        return true
+                                    }
+
                                     override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean = true
 
                                     override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
@@ -156,16 +162,10 @@ fun SandboxedArtifactView(
                             }
                         },
                         onReset = null,
-                        onRelease = { view ->
-                            view.stopLoading()
-                            view.loadUrl("about:blank")
-                            view.clearHistory()
-                            view.removeAllViews()
-                            view.destroy()
-                        },
+                        onRelease = { view -> view.dispose() },
                         update = { view ->
                             val document = wrapInSandboxHtml(content, scriptsEnabled)
-                            if (view.tag != document) {
+                            if (!view.disposed && view.tag != document) {
                                 view.stopLoading()
                                 view.settings.javaScriptEnabled = scriptsEnabled
                                 view.tag = document
@@ -203,4 +203,16 @@ internal fun wrapInSandboxHtml(raw: String, scriptsEnabled: Boolean = false): St
         </body>
         </html>
     """.trimIndent()
+}
+
+private class ArtifactPreviewWebView(context: android.content.Context) : WebView(context) {
+    var disposed = false
+        private set
+
+    fun dispose() {
+        if (disposed) return
+        disposed = true
+        (parent as? android.view.ViewGroup)?.removeView(this)
+        destroy()
+    }
 }

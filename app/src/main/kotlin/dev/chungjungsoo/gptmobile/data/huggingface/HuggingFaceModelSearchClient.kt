@@ -12,6 +12,11 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.isSuccess
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
@@ -74,7 +79,7 @@ data class HuggingFaceLiteRtResult(
                         downloadUrl = url,
                         commitHash = revision,
                         sizeInBytes = sizeInBytes,
-                        contextSize = Regex("(?i)ctx([0-9]+)").find(fileName)?.groupValues?.get(1)?.toIntOrNull() ?: 1024
+                        contextSize = Regex("(?i)(?:ctx|ekv)([0-9]+)").find(fileName)?.groupValues?.get(1)?.toIntOrNull() ?: 1024
                     )
                 )
             } else {
@@ -110,8 +115,11 @@ class HuggingFaceModelSearchClient @Inject constructor(
     suspend fun searchNpu(query: String, deviceSoc: String): List<HuggingFaceLiteRtResult> {
         if (dev.chungjungsoo.gptmobile.data.localruntime.QualcommSocSupport.htpVersion(deviceSoc) == null) return emptyList()
         val requested = query.trim()
-        val candidates = search(requested.ifBlank { "litert" }, MAX_LIMIT) +
-            if (requested.isNotBlank() && !requested.equals("litert", true)) search("litert", MAX_LIMIT) else emptyList()
+        val candidates = coroutineScope {
+            listOf(requested.ifBlank { "litert" }, deviceSoc.lowercase(), "litert").distinct().map { term ->
+                async { search(term, MAX_LIMIT) }
+            }.awaitAll().flatten()
+        }
         return candidates.distinctBy { it.repoId to it.filePath }.filter { result ->
             val entry = result.toCatalogEntry()
             dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators.isNpuEligible(entry.supportedAccelerators, entry.socToModelFiles, deviceSoc) &&
@@ -137,12 +145,34 @@ class HuggingFaceModelSearchClient @Inject constructor(
 
         val root = NetworkClient.json.parseToJsonElement(response.bodyAsText())
         val models = root as? JsonArray ?: return emptyList()
-        return models.flatMap(::parseCompatibleFiles)
-            .sortedWith(
-                compareByDescending<HuggingFaceLiteRtResult> { it.downloads }
-                    .thenBy { it.repoId.lowercase() }
-                    .thenBy { it.filePath.lowercase() }
-            )
+        // Listing siblings omit sizes. Resolve metadata at the pinned revision before
+        // showing a package as suitable for the phone's memory budget.
+        val permits = Semaphore(4)
+        val files = coroutineScope {
+            models.filter { parseCompatibleFiles(it).isNotEmpty() }.map { model ->
+                async {
+                    permits.withPermit {
+                        val obj = model as JsonObject
+                        val repo = obj["id"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                        val revision = obj["sha"]?.jsonPrimitive?.contentOrNull?.takeIf { it.matches(Regex("[a-fA-F0-9]{40}")) }
+                            ?: return@withPermit emptyList<HuggingFaceLiteRtResult>()
+                        val metadata = networkClient().get("$MODELS_API/$repo/revision/$revision") {
+                            parameter("blobs", "true")
+                            timeout { requestTimeoutMillis = REQUEST_TIMEOUT_MS }
+                            token?.takeIf(String::isNotBlank)?.let { bearerAuth(it) }
+                        }
+                        if (!metadata.status.isSuccess()) return@withPermit emptyList<HuggingFaceLiteRtResult>()
+                        parseCompatibleFiles(NetworkClient.json.parseToJsonElement(metadata.bodyAsText()))
+                            .filter { it.sizeInBytes > 0 }
+                    }
+                }
+            }.awaitAll().flatten()
+        }
+        return files.sortedWith(
+            compareByDescending<HuggingFaceLiteRtResult> { it.downloads }
+                .thenBy { it.repoId.lowercase() }
+                .thenBy { it.filePath.lowercase() }
+        )
     }
 
     private fun parseCompatibleFiles(element: kotlinx.serialization.json.JsonElement): List<HuggingFaceLiteRtResult> {
@@ -163,6 +193,7 @@ class HuggingFaceModelSearchClient @Inject constructor(
             val sibling = siblingElement as? JsonObject ?: return@mapNotNull null
             val path = sibling["rfilename"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
             if (!path.endsWith(LITERTLM_EXTENSION, ignoreCase = true)) return@mapNotNull null
+            if (!isSupportedHubPackage(repoId, path, tags)) return@mapNotNull null
 
             val size = sibling["size"]?.jsonPrimitive?.longOrNull
                 ?: (sibling["lfs"] as? JsonObject)?.get("size")?.jsonPrimitive?.longOrNull
@@ -188,4 +219,17 @@ class HuggingFaceModelSearchClient @Inject constructor(
         const val MAX_LIMIT = 50
         const val REQUEST_TIMEOUT_MS = 20_000L
     }
+}
+
+/** Conservative discovery: arbitrary checkpoint archives are not executable model packages. */
+internal fun isSupportedHubPackage(repoId: String, path: String, tags: List<String>): Boolean {
+    if (!path.endsWith(".litertlm", true)) return false
+    val packages = dev.chungjungsoo.gptmobile.data.localmodel.LocalModelPackages
+    if (packages.isNpuFile(path)) return packages.npuSoc(path) != null
+    // Explicit CPU-only exports cannot be advertised as GPU models.
+    if (Regex("(?i)(?:^|[/_.-])cpu(?:[/_.-]|$)").containsMatchIn(path)) return false
+    val publisher = repoId.substringBefore('/').lowercase()
+    return publisher in setOf("litert-community", "google", "google-ai-edge") ||
+        tags.any { it.equals("gpu", true) || it.equals("litert-lm-gpu", true) } ||
+        Regex("(?i)(?:^|[/_.-])gpu(?:[/_.-]|$)").containsMatchIn(path)
 }

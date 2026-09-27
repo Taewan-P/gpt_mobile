@@ -8,6 +8,8 @@ object ModelConstants {
     const val OPENAI_DEFAULT_MODEL = "gpt-5.6"
     const val ANTHROPIC_DEFAULT_MODEL = "claude-sonnet-5"
     const val GOOGLE_DEFAULT_MODEL = "gemini-3.7-flash"
+    const val NVIDIA_DEFAULT_MODEL = "openai/gpt-oss-20b"
+    const val NVIDIA_API_URL = "https://integrate.api.nvidia.com/v1/"
     const val GROQ_DEFAULT_MODEL = "openai/gpt-oss-120b"
     const val OLLAMA_DEFAULT_MODEL = "gpt-oss"
     const val LLAMA_DEFAULT_MODEL = "llama3.3"
@@ -82,6 +84,7 @@ object ModelConstants {
         ClientType.OPENAI -> "OpenAI"
         ClientType.ANTHROPIC -> "Anthropic"
         ClientType.GOOGLE -> "Google"
+        ClientType.NVIDIA -> "NVIDIA"
         ClientType.GROQ -> "Groq"
         ClientType.OLLAMA -> "Ollama"
         ClientType.OPENROUTER -> "OpenRouter"
@@ -95,6 +98,7 @@ object ModelConstants {
         ClientType.OPENAI -> OPENAI_API_URL
         ClientType.ANTHROPIC -> ANTHROPIC_API_URL
         ClientType.GOOGLE -> GOOGLE_API_URL
+        ClientType.NVIDIA -> NVIDIA_API_URL
         ClientType.GROQ -> GROQ_API_URL
         ClientType.OLLAMA -> OLLAMA_API_URL
         ClientType.OPENROUTER -> OPENROUTER_API_URL
@@ -108,6 +112,7 @@ object ModelConstants {
         ClientType.OPENAI -> OPENAI_DEFAULT_MODEL
         ClientType.ANTHROPIC -> ANTHROPIC_DEFAULT_MODEL
         ClientType.GOOGLE -> GOOGLE_DEFAULT_MODEL
+        ClientType.NVIDIA -> NVIDIA_DEFAULT_MODEL
         ClientType.GROQ -> GROQ_DEFAULT_MODEL
         ClientType.OLLAMA -> OLLAMA_DEFAULT_MODEL
         ClientType.OPENROUTER -> OPENROUTER_DEFAULT_MODEL

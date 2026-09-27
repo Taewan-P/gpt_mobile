@@ -52,7 +52,7 @@ data class ProviderContextPolicy(
                 )
             }
 
-            ClientType.OLLAMA, ClientType.OPENROUTER, ClientType.CUSTOM, ClientType.LLAMA, ClientType.FREE -> {
+            ClientType.NVIDIA, ClientType.OLLAMA, ClientType.OPENROUTER, ClientType.CUSTOM, ClientType.LLAMA, ClientType.FREE -> {
                 ProviderContextPolicy(
                     recentTurnWindow = 6,
                     historicalImageTurnWindow = 0,

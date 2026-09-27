@@ -10,5 +10,6 @@ enum class ClientType {
     CUSTOM,
     LITERT_LM,
     LLAMA,
-    FREE
+    FREE,
+    NVIDIA
 }
