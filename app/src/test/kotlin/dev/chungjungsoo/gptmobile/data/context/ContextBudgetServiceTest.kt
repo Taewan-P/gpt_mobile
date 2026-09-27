@@ -19,10 +19,21 @@ class ContextBudgetServiceTest {
         val turns = (0..9).map { ConversationTurn(MessageV2(content = "history ".repeat(3000), platformType = null), null, it == 9) }
         val plan = ContextBudgetService.plan(turns, "system", emptyList(), TokenBudgetSettings())
         assertEquals(turns, plan.turns)
+        assertNull(plan.outputTokens)
         assertEquals(Int.MAX_VALUE, TokenBudgetSettings().contextTokens)
         assertEquals(Int.MAX_VALUE, TokenBudgetSettings().totalRunTokens)
         assertEquals(50, dev.chungjungsoo.gptmobile.data.agent.AgentRunLimits().maxToolCalls)
         assertEquals(50, PlatformV2(name = "New model").maxToolCalls)
+    }
+
+    @Test fun `explicit output limits above the old cap are retained`() {
+        val plan = ContextBudgetService.plan(emptyList(), "", emptyList(), TokenBudgetSettings(outputTokens = 100000))
+        assertEquals(100000, plan.outputTokens)
+    }
+
+    @Test fun `context reservation does not silently lower explicit output limits`() {
+        val plan = ContextBudgetService.plan(emptyList(), "", emptyList(), TokenBudgetSettings(contextTokens = 4096, outputTokens = 2048))
+        assertEquals(2048, plan.outputTokens)
     }
 
     @Test fun `small text only contexts do not reserve space for unavailable tools`() {
@@ -30,7 +41,7 @@ class ContextBudgetServiceTest {
         val plan = ContextBudgetService.plan(listOf(current), "Concise reply.", emptyList(), TokenBudgetSettings(contextTokens = 256))
         assertEquals(listOf(current), plan.turns)
         assertEquals(0, plan.toolResultBytes)
-        assertEquals(64, plan.outputTokens)
+        assertNull(plan.outputTokens)
     }
 
     @Test

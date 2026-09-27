@@ -777,4 +777,9 @@
     <string name="write_a_message">Write a message...</string>
     <string name="nvidia">NVIDIA</string>
     <string name="nvidia_description">Connect NVIDIA NIM with your NVIDIA API key. Browse hosted models or enter a model ID.</string>
+    <string name="output_tokens_unlimited">Unlimited (no app limit)</string>
+    <string name="output_tokens_description">Leave blank for no app-imposed response limit, or enter a positive token count. Provider limits and the local model’s total context capacity still apply.</string>
+    <string name="output_tokens_positive">Enter a positive whole number, or leave blank for unlimited.</string>
+    <string name="output_tokens_recommended">Recommended: %1$d tokens. This is a suggestion, not a maximum.</string>
+    <string name="output_tokens_use_recommended">Use recommended (%1$d)</string>
 </resources>

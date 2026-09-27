@@ -228,9 +228,7 @@ class ChatRepositoryImpl(
             val profileBudget = budgetSettings.copy(contextTokens = minOf(budgetSettings.contextTokens, budgetSettings.profileContextCeilings[platform.uid] ?: Int.MAX_VALUE))
             val limits = if (platform.compatibleType == ClientType.FREE && FreeAiProvider.requireFor(platform) == FreeAiProvider.POLLINATIONS) {
                 // The legacy GET endpoint accepts a small prompt in its URL.
-                profileBudget.copy(contextTokens = minOf(profileBudget.contextTokens, 1536), outputTokens = minOf(profileBudget.outputTokens, 256))
-            } else if (platform.compatibleType == ClientType.LITERT_LM) {
-                profileBudget.copy(contextTokens = minOf(profileBudget.contextTokens, platform.maxTokens ?: 4096))
+                profileBudget.copy(contextTokens = minOf(profileBudget.contextTokens, 1536), outputTokens = minOf(profileBudget.outputTokens.takeIf { it > 0 } ?: 256, 256))
             } else {
                 profileBudget
             }
@@ -338,7 +336,7 @@ class ChatRepositoryImpl(
                 session, runId, turnKey, platform.compatibleType.name, platform.model,
                 if (runId.startsWith("combined-synthesis:")) "synthesis" else "primary",
                 dev.chungjungsoo.gptmobile.data.context.ContextBudgetService.estimate(requestPlatform.systemPrompt.orEmpty() + contextPlan.turns.joinToString { it.userMessage.content + it.assistantMessage?.content.orEmpty() }) + contextPlan.tools.sumOf { dev.chungjungsoo.gptmobile.data.context.ContextBudgetService.estimate(it.inputSchema.toString()) },
-                contextPlan.outputTokens, budgetSettings.totalRunTokens,
+                requestConstraints.outputLimit(platform.maxTokens) ?: 0, budgetSettings.totalRunTokens,
                 profileUid = platform.uid
             ) ?: session
             val groundedSession = accountedSession.withDeviceLocation(
@@ -408,7 +406,7 @@ class ChatRepositoryImpl(
                 )
             }
 
-            dev.chungjungsoo.gptmobile.data.agent.AgentRunner(customRunner.limits.copy(contextTokens = limits.contextTokens, initialContextTokens = contextPlan.promptTokens, finalResponseReserveTokens = contextPlan.outputTokens)).run(groundedSession, runnerTools).collect { runEvent ->
+            dev.chungjungsoo.gptmobile.data.agent.AgentRunner(customRunner.limits.copy(contextTokens = limits.contextTokens, initialContextTokens = contextPlan.promptTokens, finalResponseReserveTokens = minOf(contextPlan.outputTokens ?: 32768, limits.contextTokens / 4))).run(groundedSession, runnerTools).collect { runEvent ->
                 when (runEvent) {
                     is AgentRunEvent.Provider -> when (val providerEvent = runEvent.event) {
                         is ProviderEvent.ThinkingDelta -> {

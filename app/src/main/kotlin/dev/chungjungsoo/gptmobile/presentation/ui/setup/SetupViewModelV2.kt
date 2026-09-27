@@ -276,7 +276,7 @@ class SetupViewModelV2 @Inject constructor(
                     temperature = defaults?.temperature ?: 1.0f,
                     topP = defaults?.topP ?: 1.0f,
                     topK = defaults?.topK,
-                    maxTokens = defaults?.maxTokens,
+                    maxTokens = null,
                     accelerator = defaults?.accelerator,
                     systemPrompt = ModelConstants.DEFAULT_PROMPT,
                     stream = true,

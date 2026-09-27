@@ -103,13 +103,12 @@ class LocalRuntimeSettingsViewModel @Inject constructor(
             return@perform
         }
         check(LocalAccelerators.selectable(entry.supportedAccelerators, entry.socToModelFiles, soc).isNotEmpty()) { "This package does not match this phone. Choose a compatible download in the marketplace." }
-        val defaults = dev.chungjungsoo.gptmobile.data.localruntime.localSamplingDefaults(entry, soc, ramGb)
         val profile = PlatformV2(
             name = entry.displayName,
             compatibleType = ClientType.LITERT_LM,
             model = entry.id,
             accelerator = LocalAccelerators.defaultFrom(entry.supportedAccelerators, entry.socToModelFiles, soc),
-            maxTokens = defaults.maxTokens,
+            maxTokens = null,
             temperature = 0.7f,
             topP = 0.95f,
             topK = 40
