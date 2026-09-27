@@ -31,6 +31,33 @@ class BenchmarkRunnerTest {
     private val toolTest = benchmarkSuite(BenchmarkMode.QUICK).first { it.id == "tool" }
 
     @Test
+    fun `suite stops after provider error and saves the failed sample`() = runTest {
+        for (outcome in listOf(BenchmarkOutcome.ERROR, BenchmarkOutcome.TIMED_OUT)) {
+            val attempted = mutableListOf<String>()
+            val saved = mutableListOf<BenchmarkSample>()
+            val reason = runBenchmarkSuite(benchmarkSuite(BenchmarkMode.FULL), { _, test ->
+                attempted += test.id
+                BenchmarkSample(test.id, test.label, test.category, outcome, error = "Provider unavailable")
+            }, { saved.add(it) })
+            assertEquals("Provider unavailable", reason)
+            assertEquals(1, attempted.size)
+            assertEquals(1, saved.size)
+            assertEquals(outcome, saved.single().outcome)
+        }
+    }
+
+    @Test
+    fun `wrong answers and unsupported tools do not stop the suite`() = runTest {
+        val suite = benchmarkSuite(BenchmarkMode.QUICK)
+        val saved = mutableListOf<BenchmarkSample>()
+        val reason = runBenchmarkSuite(suite, { _, test ->
+            BenchmarkSample(test.id, test.label, test.category, if (test.category == "tools") BenchmarkOutcome.UNSUPPORTED else BenchmarkOutcome.FAILED)
+        }, { saved.add(it) })
+        assertNull(reason)
+        assertEquals(suite.size, saved.size)
+    }
+
+    @Test
     fun `latency ignores thinking and token usage is not double counted`() = runTest {
         val runner = BenchmarkRunner({ _, tools ->
             assertTrue(tools.isEmpty())

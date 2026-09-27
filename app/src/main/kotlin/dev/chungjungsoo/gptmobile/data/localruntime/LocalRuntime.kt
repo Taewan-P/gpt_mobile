@@ -65,7 +65,8 @@ data class LocalConversationConfig(
     val tools: List<LocalToolDescriptor> = emptyList(),
     val isConstrainedDecodingEnabled: Boolean = false,
     val toolExecutor: LocalToolExecutor? = null,
-    val maxOutputTokens: Int? = null
+    val maxOutputTokens: Int? = null,
+    val thinkingEnabled: Boolean? = null
 )
 
 /** Execution phase of local on-device inference. */

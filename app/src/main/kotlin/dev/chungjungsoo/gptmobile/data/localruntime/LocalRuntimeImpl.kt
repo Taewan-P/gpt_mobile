@@ -17,6 +17,7 @@ import com.google.ai.edge.litertlm.Message
 import com.google.ai.edge.litertlm.MessageCallback
 import com.google.ai.edge.litertlm.OpenApiTool
 import com.google.ai.edge.litertlm.SamplerConfig
+import com.google.ai.edge.litertlm.ThinkingConfig
 import com.google.ai.edge.litertlm.tool
 import java.io.FileNotFoundException
 import java.util.concurrent.CancellationException
@@ -171,6 +172,7 @@ class LocalRuntimeImpl(
                         },
                         tools = toolProviders,
                         maxOutputToken = config.maxOutputTokens,
+                        thinkingConfig = config.thinkingEnabled?.let { ThinkingConfig(enableThinking = it) },
                         samplerConfig = if (LocalAccelerators.shouldApplySampler(loadedAccelerator)) {
                             SamplerConfig(
                                 topK = effectiveTopK,

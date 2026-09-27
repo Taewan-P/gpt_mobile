@@ -67,7 +67,8 @@ data class BenchmarkRun(
     val thermalAfter: Int? = null,
     val batteryBefore: Int? = null,
     val batteryAfter: Int? = null,
-    val engineWasLoaded: Boolean = false
+    val engineWasLoaded: Boolean = false,
+    val stoppedReason: String? = null
 )
 
 data class BenchmarkDimension(val label: String, val score: Double?, val weight: Int, val detail: String)
@@ -107,13 +108,13 @@ fun benchmarkConfigKey(profile: PlatformV2, localEnvironment: String = ""): Stri
 
 fun comparableRuns(history: List<BenchmarkRun>, profile: PlatformV2, mode: BenchmarkMode, localEnvironment: String = ""): List<BenchmarkRun> {
     val key = benchmarkConfigKey(profile, localEnvironment)
-    return history.filter { it.profileUid == profile.uid && it.configKey == key && it.mode == mode && it.suiteVersion == 1 && it.finished && !it.canceled }
+    return history.filter { it.profileUid == profile.uid && it.configKey == key && it.mode == mode && it.suiteVersion == 1 && it.finished && !it.canceled && it.stoppedReason == null }
         .sortedByDescending { it.startedAt }.take(5)
 }
 
 /** Versioned app score, not a general intelligence or hardware benchmark. Missing data is never a zero. */
 fun benchmarkRating(runs: List<BenchmarkRun>, local: Boolean = runs.firstOrNull()?.local == true): BenchmarkRating {
-    val samples = runs.filter { it.finished && !it.canceled }.flatMap { it.samples }
+    val samples = runs.filter { it.finished && !it.canceled && it.stoppedReason == null }.flatMap { it.samples }
         .filter { it.outcome !in setOf(BenchmarkOutcome.CANCELED, BenchmarkOutcome.UNSUPPORTED) }
     val completed = samples.filter { it.completed }
     val speedSamples = completed.filter { it.category == "speed" && it.outcome == BenchmarkOutcome.PASSED }

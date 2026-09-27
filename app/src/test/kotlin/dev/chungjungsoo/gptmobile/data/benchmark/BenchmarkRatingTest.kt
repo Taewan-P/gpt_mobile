@@ -29,7 +29,7 @@ class BenchmarkRatingTest {
     @Test
     fun `canceled and interrupted runs cannot improve a rating`() {
         val good = run(listOf(sample(), sample(), sample()))
-        assertNull(benchmarkRating(listOf(good.copy(canceled = true), good.copy(finished = false))).score)
+        assertNull(benchmarkRating(listOf(good.copy(canceled = true), good.copy(finished = false), good.copy(stoppedReason = "HTTP 429"))).score)
     }
 
     @Test

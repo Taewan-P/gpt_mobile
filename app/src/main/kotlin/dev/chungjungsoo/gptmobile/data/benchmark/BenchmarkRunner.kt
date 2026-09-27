@@ -187,3 +187,19 @@ private fun fixtureTool(code: String): AgentTool = object : AgentTool {
         return AgentToolResult(callId, ToolResultContent.Text(if (valid) code else "Expected exactly key=parcel"), !valid)
     }
 }
+
+/** Preserve completed samples, but do not send the rest of a suite to a blocked provider. */
+suspend fun runBenchmarkSuite(
+    suite: List<BenchmarkCase>,
+    runCase: suspend (Int, BenchmarkCase) -> BenchmarkSample,
+    onSample: suspend (BenchmarkSample) -> Unit
+): String? {
+    for ((index, test) in suite.withIndex()) {
+        val sample = runCase(index, test)
+        onSample(sample)
+        if (sample.outcome == BenchmarkOutcome.ERROR || sample.outcome == BenchmarkOutcome.TIMED_OUT) {
+            return sample.error ?: "The provider could not complete the benchmark request."
+        }
+    }
+    return null
+}

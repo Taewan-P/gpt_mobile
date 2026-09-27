@@ -124,8 +124,14 @@ class OpenAIResponsesAdapter @Inject constructor(
                     var roundFailed = false
                     var canRotate = false
 
-                    try {
-                        api.streamResponses(request, platform.timeout, config).collect { event ->
+                    api.streamResponses(request, platform.timeout, config)
+                        .catch { error ->
+                            if (error is CancellationException || error is ToolDefinitionsRejectedException) throw error
+                            roundFailed = true
+                            lastFailedMessage = providerFailureMessage(error, "OpenAI stream request failed")
+                            canRotate = previousResponseId == null && ApiCredentialRotator.isRotatableError(error)
+                        }
+                        .collect { event ->
                             when (event) {
                                 is ResponseCreatedEvent -> previousResponseId = event.response.id
                                 is ResponseInProgressEvent -> previousResponseId = event.response.id
@@ -140,28 +146,13 @@ class OpenAIResponsesAdapter @Inject constructor(
                                     is ProviderEvent.Failed -> {
                                         roundFailed = true
                                         lastFailedMessage = mapped.message
-                                        if (previousResponseId == null && ApiCredentialRotator.containsQuotaOrRateLimitMessage(mapped.message)) {
-                                            canRotate = true
-                                        } else {
-                                            emit(mapped)
-                                        }
+                                        canRotate = previousResponseId == null && ApiCredentialRotator.containsQuotaOrRateLimitMessage(mapped.message)
                                     }
 
                                     else -> emit(mapped)
                                 }
                             }
                         }
-                    } catch (t: Throwable) {
-                        if (t is CancellationException) throw t
-                        roundFailed = true
-                        lastFailedMessage = t.message
-                        if (previousResponseId == null && ApiCredentialRotator.isRotatableError(t) && attempt < attempts - 1) {
-                            canRotate = true
-                        } else {
-                            emit(ProviderEvent.Failed(providerFailureMessage(t, "OpenAI stream request failed")))
-                            return@flow
-                        }
-                    }
 
                     if (!roundFailed) {
                         emit(ProviderEvent.Completed)
@@ -169,7 +160,7 @@ class OpenAIResponsesAdapter @Inject constructor(
                     } else if (canRotate && attempt < attempts - 1) {
                         continue
                     } else if (roundFailed) {
-                        lastFailedMessage?.let { emit(ProviderEvent.Failed(it)) }
+                        emit(ProviderEvent.Failed(lastFailedMessage ?: "OpenAI stream request failed"))
                         return@flow
                     }
                 }
@@ -315,19 +306,21 @@ class OpenAICompatibleAdapter @Inject constructor(
                         val assembler = ChatCompletionsEventAssembler()
                         val reasoningParser = GroqReasoningParser()
 
-                        try {
-                            groqAPI.streamChatCompletion(request, platform.timeout, config).collect { chunk ->
+                        groqAPI.streamChatCompletion(request, platform.timeout, config)
+                            .catch { error ->
+                                if (error is CancellationException || error is ToolDefinitionsRejectedException) throw error
+                                roundFailed = true
+                                lastFailedMessage = providerFailureMessage(error, "Groq stream request failed")
+                                canRotate = ApiCredentialRotator.isRotatableError(error)
+                            }
+                            .collect { chunk ->
                                 (chunk.usage ?: chunk.groqMetadata?.usage)?.let { usage ->
                                     emit(ProviderEvent.Usage(usage.promptTokens, usage.completionTokens, usage.totalTokens))
                                 }
                                 chunk.error?.let { error ->
                                     roundFailed = true
                                     lastFailedMessage = error.message
-                                    if (ApiCredentialRotator.containsQuotaOrRateLimitMessage(error.message)) {
-                                        canRotate = true
-                                    } else {
-                                        emit(ProviderEvent.Failed(error.message))
-                                    }
+                                    canRotate = ApiCredentialRotator.containsQuotaOrRateLimitMessage(error.message)
                                 } ?: chunk.choices.orEmpty().forEach { choice ->
                                     reasoningParser.append(
                                         contentChunk = choice.delta?.content ?: choice.message?.content,
@@ -337,7 +330,7 @@ class OpenAICompatibleAdapter @Inject constructor(
                                     }
                                     if (choice.finishReason == "length") {
                                         roundFailed = true
-                                        emit(ProviderEvent.Failed(GROQ_OUTPUT_LIMIT_MESSAGE))
+                                        lastFailedMessage = GROQ_OUTPUT_LIMIT_MESSAGE
                                     } else {
                                         assembler.accept(
                                             content = null,
@@ -348,19 +341,8 @@ class OpenAICompatibleAdapter @Inject constructor(
                                     }
                                 }
                             }
-                            reasoningParser.flush().forEach { state ->
-                                state.toProviderEvent()?.let { emit(it) }
-                            }
-                        } catch (t: Throwable) {
-                            if (t is CancellationException) throw t
-                            roundFailed = true
-                            lastFailedMessage = t.message
-                            if (ApiCredentialRotator.isRotatableError(t) && attempt < attempts - 1) {
-                                canRotate = true
-                            } else {
-                                emit(ProviderEvent.Failed(providerFailureMessage(t, "Groq stream request failed")))
-                                return@flow
-                            }
+                        reasoningParser.flush().forEach { state ->
+                            state.toProviderEvent()?.let { emit(it) }
                         }
 
                         if (!roundFailed) {
@@ -369,7 +351,7 @@ class OpenAICompatibleAdapter @Inject constructor(
                         } else if (canRotate && attempt < attempts - 1) {
                             continue
                         } else {
-                            if (lastFailedMessage != null && canRotate) emit(ProviderEvent.Failed(lastFailedMessage!!))
+                            emit(ProviderEvent.Failed(lastFailedMessage ?: "Provider request failed"))
                             return@flow
                         }
                     }
@@ -483,8 +465,12 @@ class OpenAICompatibleAdapter @Inject constructor(
                                 // if the platform timeout is configured lower (e.g. 0 or 30s), so prompt evaluation on larger models has room.
                                 val effectiveOllamaTimeout = maxOf(platform.timeout, 180)
 
-                                try {
-                                    openAIAPI.streamChatCompletion(request, effectiveOllamaTimeout, currentConfig).collect { chunk ->
+                                openAIAPI.streamChatCompletion(request, effectiveOllamaTimeout, currentConfig)
+                                    .catch { error ->
+                                        if (error is CancellationException || error is ToolDefinitionsRejectedException) throw error
+                                        caughtThrowable = error
+                                    }
+                                    .collect { chunk ->
                                         if (chunk.streamFinished) assembler.finish().forEach { emit(it) }
                                         chunk.usage?.let { usage ->
                                             emit(
@@ -522,10 +508,6 @@ class OpenAICompatibleAdapter @Inject constructor(
                                             ).forEach { emit(it) }
                                         }
                                     }
-                                } catch (t: Throwable) {
-                                    if (t is CancellationException) throw t
-                                    caughtThrowable = t
-                                }
 
                                 assembler.discardIncomplete().forEach { emit(it) }
                                 val rawError = chunkError ?: caughtThrowable?.message
@@ -594,8 +576,14 @@ class OpenAICompatibleAdapter @Inject constructor(
 
                         val llamaReasoningParser = if (isLlama) GroqReasoningParser() else null
 
-                        try {
-                            openAIAPI.streamChatCompletion(request, platform.timeout, config).collect { chunk ->
+                        openAIAPI.streamChatCompletion(request, platform.timeout, config)
+                            .catch { error ->
+                                if (error is CancellationException || error is ToolDefinitionsRejectedException) throw error
+                                roundFailed = true
+                                lastFailedMessage = providerFailureMessage(error, "OpenAI-compatible stream request failed")
+                                canRotate = ApiCredentialRotator.isRotatableError(error)
+                            }
+                            .collect { chunk ->
                                 if (chunk.streamFinished) assembler.finish().forEach { emit(it) }
                                 chunk.usage?.let { usage ->
                                     emit(
@@ -623,11 +611,7 @@ class OpenAICompatibleAdapter @Inject constructor(
                                 chunk.error?.let { error ->
                                     roundFailed = true
                                     lastFailedMessage = error.message
-                                    if (ApiCredentialRotator.containsQuotaOrRateLimitMessage(error.message)) {
-                                        canRotate = true
-                                    } else {
-                                        emit(ProviderEvent.Failed(error.message))
-                                    }
+                                    canRotate = ApiCredentialRotator.containsQuotaOrRateLimitMessage(error.message)
                                 } ?: chunk.choices.orEmpty().forEach { choice ->
                                     val effectiveReasoning =
                                         if (chunk.gatewayProgress == null) choice.effectiveDelta.effectiveReasoning else null
@@ -655,20 +639,9 @@ class OpenAICompatibleAdapter @Inject constructor(
                                     }
                                 }
                             }
-                            assembler.discardIncomplete().forEach { emit(it) }
-                            llamaReasoningParser?.flush()?.forEach { state ->
-                                state.toProviderEvent()?.let { emit(it) }
-                            }
-                        } catch (t: Throwable) {
-                            if (t is CancellationException) throw t
-                            roundFailed = true
-                            lastFailedMessage = t.message
-                            if (ApiCredentialRotator.isRotatableError(t) && attempt < attempts - 1) {
-                                canRotate = true
-                            } else {
-                                emit(ProviderEvent.Failed(providerFailureMessage(t, "OpenAI-compatible stream request failed")))
-                                return@flow
-                            }
+                        assembler.discardIncomplete().forEach { emit(it) }
+                        llamaReasoningParser?.flush()?.forEach { state ->
+                            state.toProviderEvent()?.let { emit(it) }
                         }
 
                         if (!roundFailed) {
@@ -677,7 +650,7 @@ class OpenAICompatibleAdapter @Inject constructor(
                         } else if (canRotate && attempt < attempts - 1) {
                             break
                         } else {
-                            if (lastFailedMessage != null && canRotate) emit(ProviderEvent.Failed(lastFailedMessage!!))
+                            emit(ProviderEvent.Failed(lastFailedMessage ?: "Provider request failed"))
                             return@flow
                         }
                     }
@@ -991,8 +964,14 @@ class GeminiAdapter @Inject constructor(
                     var roundFailed = false
                     var canRotate = false
 
-                    try {
-                        api.streamGenerateContent(request, platform.model, platform.timeout, config).collect { response ->
+                    api.streamGenerateContent(request, platform.model, platform.timeout, config)
+                        .catch { error ->
+                            if (error is CancellationException || error is ToolDefinitionsRejectedException) throw error
+                            roundFailed = true
+                            lastFailedMessage = providerFailureMessage(error, "Gemini stream request failed")
+                            canRotate = ApiCredentialRotator.isRotatableError(error)
+                        }
+                        .collect { response ->
                             val parts = response.candidates.orEmpty().flatMap { it.content?.parts.orEmpty() }
                             if (parts.isNotEmpty()) {
                                 modelPartsByRound[exchanges.size] = modelPartsByRound[exchanges.size].orEmpty() + parts
@@ -1009,34 +988,18 @@ class GeminiAdapter @Inject constructor(
                             if (safetyError != null) {
                                 roundFailed = true
                                 lastFailedMessage = safetyError
-                                emit(ProviderEvent.Failed(safetyError))
                             } else {
                                 GeminiEventMapper.accept(response).forEach { mapped ->
                                     if (mapped is ProviderEvent.Failed) {
                                         roundFailed = true
                                         lastFailedMessage = mapped.message
-                                        if (ApiCredentialRotator.containsQuotaOrRateLimitMessage(mapped.message)) {
-                                            canRotate = true
-                                        } else {
-                                            emit(mapped)
-                                        }
+                                        canRotate = ApiCredentialRotator.containsQuotaOrRateLimitMessage(mapped.message)
                                     } else {
                                         emit(mapped)
                                     }
                                 }
                             }
                         }
-                    } catch (t: Throwable) {
-                        if (t is CancellationException) throw t
-                        roundFailed = true
-                        lastFailedMessage = t.message
-                        if (ApiCredentialRotator.isRotatableError(t) && attempt < attempts - 1) {
-                            canRotate = true
-                        } else {
-                            emit(ProviderEvent.Failed(providerFailureMessage(t, "Gemini stream request failed")))
-                            return@flow
-                        }
-                    }
 
                     if (!roundFailed) {
                         emit(ProviderEvent.Completed)
@@ -1044,7 +1007,7 @@ class GeminiAdapter @Inject constructor(
                     } else if (canRotate && attempt < attempts - 1) {
                         continue
                     } else {
-                        if (lastFailedMessage != null && canRotate) emit(ProviderEvent.Failed(lastFailedMessage!!))
+                        emit(ProviderEvent.Failed(lastFailedMessage ?: "Provider request failed"))
                         return@flow
                     }
                 }

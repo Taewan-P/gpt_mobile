@@ -186,12 +186,14 @@ class ToolConnectionsViewModel @Inject constructor(
 
     fun clearError() = _uiState.update { it.copy(errorMessage = null) }
 
-    fun probeConnections(connections: List<ToolConnection> = _uiState.value.connections) {
+    fun probeConnections(connections: List<ToolConnection> = _uiState.value.connections, force: Boolean = false) {
         val resolver = agentToolResolver ?: return
         connections
             .filter { it.type == ToolConnectionType.MCP }
             .forEach { connection ->
-                if (_uiState.value.connectionHealth[connection.connectionUid]?.status == ToolConnectionHealthStatus.CHECKING) {
+                val previous = _uiState.value.connectionHealth[connection.connectionUid]
+                val recentlyChecked = previous?.checkedAt?.let { System.currentTimeMillis() - it < 30_000 } == true
+                if (previous?.status == ToolConnectionHealthStatus.CHECKING || (!force && recentlyChecked)) {
                     return@forEach
                 }
                 _uiState.update { state ->
@@ -226,6 +228,7 @@ class ToolConnectionsViewModel @Inject constructor(
                                 }
                             },
                             onFailure = { error ->
+                                if (error is kotlinx.coroutines.CancellationException) throw error
                                 val message = error.message ?: "Unable to reach the MCP server."
                                 val limited = message.contains("401") ||
                                     message.contains("403") ||
@@ -253,7 +256,7 @@ class ToolConnectionsViewModel @Inject constructor(
             }
     }
 
-    fun probeConnection(connection: ToolConnection) = probeConnections(listOf(connection))
+    fun probeConnection(connection: ToolConnection) = probeConnections(listOf(connection), force = true)
 
     fun startOAuth(connectionUid: String) {
         if (oauthStartJob?.isActive == true) return

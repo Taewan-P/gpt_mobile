@@ -20,6 +20,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonObject
 
 class McpConnectionConfig(
@@ -33,7 +34,8 @@ class McpConnectionConfig(
 class McpClientManager internal constructor(
     private val httpClient: HttpClient,
     private val mediaStore: McpMediaStore? = null,
-    private val interactions: McpInteractions? = null
+    private val interactions: McpInteractions? = null,
+    private val sessionConnectTimeoutMs: Long = 15_000
 ) {
     @Inject
     constructor(networkClient: NetworkClient, mediaStore: McpMediaStore, interactions: McpInteractions) : this(networkClient(), mediaStore, interactions)
@@ -172,10 +174,14 @@ class McpClientManager internal constructor(
                 )
                 interactions?.let { handler -> client.setElicitationHandler { handler.request(dev.chungjungsoo.gptmobile.data.security.DiagnosticRedactor.redact(config.endpointUrl), it) } }
                 try {
-                    client.connect(transport)
+                    val connected = withTimeoutOrNull(sessionConnectTimeoutMs) {
+                        client.connect(transport)
+                        true
+                    }
+                    check(connected == true) { "MCP connection timed out. Check the server address and VPN connection, then retry." }
                     Session(key, client)
                 } catch (error: Exception) {
-                    withContext(NonCancellable) { runCatching { client.close() } }
+                    withContext(NonCancellable) { runCatching { withTimeoutOrNull(2_000) { client.close() } } }
                     throw error
                 }
             }
