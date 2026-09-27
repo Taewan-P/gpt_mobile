@@ -48,6 +48,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.GatewayProgress
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
+import dev.chungjungsoo.gptmobile.data.localmodel.resolveLocalModelSelection
 import dev.chungjungsoo.gptmobile.data.model.ChatMcpToolConfig
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.model.FreeAiProvider
@@ -152,15 +153,25 @@ class ChatRepositoryImpl(
         }
     )
 
+    override suspend fun validateBenchmarkProfile(platform: PlatformV2) {
+        if (platform.compatibleType != ClientType.LITERT_LM) return
+        val selected = localModelRepository.resolveLocalModelSelection(platform.model, platform.accelerator)
+        val entry = modelCatalogRepository.getCachedVisibleEntries().firstOrNull { it.id == selected.modelId }
+            ?.let { entry -> selected.record?.let { dev.chungjungsoo.gptmobile.data.localmodel.LocalModelPackages.forInstalledFile(entry, it.fileName) } ?: entry }
+        dev.chungjungsoo.gptmobile.data.localmodel.LocalModelCompatibility.installedPackageIssue(entry?.downloadUrl.orEmpty(), selected.path)?.let { error(it) }
+        if (dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators.normalize(platform.accelerator) == "npu") {
+            check(entry != null && dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators.isNpuEligible(entry.supportedAccelerators, entry.socToModelFiles, deviceSocModel)) {
+                "This package has no verified QNN build for this phone. Choose a matching NPU package or its GPU edition."
+            }
+        }
+    }
+
     override suspend fun supportsBenchmarkTools(platform: PlatformV2): Boolean = when (platform.compatibleType) {
         ClientType.FREE -> FreeAiProvider.requireFor(platform).supportsTools
         ClientType.LITERT_LM -> {
             val entries = modelCatalogRepository.getCachedVisibleEntries()
-            val installed = localModelRepository.getById(platform.model)
-            val gpuEdition = platform.accelerator != "npu" &&
-                (installed == null || dev.chungjungsoo.gptmobile.data.localmodel.LocalModelPackages.isNpuFile(installed.fileName))
-            val id = if (gpuEdition && localModelRepository.resolveDownloadedPath("${platform.model}-litert") != null) "${platform.model}-litert" else platform.model
-            entries.firstOrNull { it.id == id }?.capabilities?.tools == true
+            val selected = localModelRepository.resolveLocalModelSelection(platform.model, platform.accelerator)
+            entries.firstOrNull { it.id == selected.modelId }?.capabilities?.tools == true
         }
         else -> true
     }

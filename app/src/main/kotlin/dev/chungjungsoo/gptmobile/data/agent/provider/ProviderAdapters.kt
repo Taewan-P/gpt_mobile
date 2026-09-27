@@ -4,6 +4,7 @@ import dev.chungjungsoo.gptmobile.data.agent.AgentProviderSession
 import dev.chungjungsoo.gptmobile.data.agent.AgentToolDefinition
 import dev.chungjungsoo.gptmobile.data.agent.AgentToolExchange
 import dev.chungjungsoo.gptmobile.data.agent.ProviderEvent
+import dev.chungjungsoo.gptmobile.data.agent.ToolDefinitionsRejectedException
 import dev.chungjungsoo.gptmobile.data.agent.ToolResultContent
 import dev.chungjungsoo.gptmobile.data.context.ConversationTurn
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
@@ -64,6 +65,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -757,6 +759,7 @@ class AnthropicMessagesAdapter @Inject constructor(
                     hasTools = tools.isNotEmpty()
                 )
                 val isThinkingActive = thinkingPolicy.config?.type?.let { it != "disabled" } == true
+                val allowSampling = !isThinkingActive && anthropicSupportsSampling(platform.model)
                 val request = MessageRequest(
                     model = platform.model,
                     messages = initialMessages + exchanges.flatMapIndexed { index, exchange ->
@@ -765,8 +768,8 @@ class AnthropicMessagesAdapter @Inject constructor(
                     maxTokens = constraints.outputLimit(platform.maxTokens) ?: if (isThinkingActive) 16000 else 4096,
                     stream = platform.stream,
                     systemPrompt = platform.systemPrompt,
-                    temperature = if (isThinkingActive) null else platform.temperature,
-                    topP = if (isThinkingActive) null else platform.topP,
+                    temperature = if (allowSampling) platform.temperature else null,
+                    topP = if (allowSampling) platform.topP else null,
                     thinking = thinkingPolicy.config?.let { config ->
                         if (config.budgetTokens != null) config.copy(budgetTokens = minOf(config.budgetTokens, (constraints.outputLimit(platform.maxTokens) ?: 16000) - 1)) else config
                     },
@@ -792,41 +795,28 @@ class AnthropicMessagesAdapter @Inject constructor(
                     var roundFailed = false
                     var canRotate = false
 
-                    try {
-                        api.streamChatMessage(
-                            request,
-                            platform.timeout,
-                            config
-                        ).collect { chunk ->
+                    // catch is upstream of collect: a collector failure must never be
+                    // mistaken for an API failure, rotated, or emitted a second time.
+                    api.streamChatMessage(request, platform.timeout, config)
+                        .catch { error ->
+                            if (error is CancellationException || error is ToolDefinitionsRejectedException) throw error
+                            roundFailed = true
+                            lastFailedMessage = providerFailureMessage(error, "Anthropic stream request failed")
+                            canRotate = ApiCredentialRotator.isRotatableError(error)
+                        }
+                        .collect { chunk ->
                             assembler.accept(chunk).forEach { mapped ->
                                 when (mapped) {
                                     ProviderEvent.Completed -> Unit
-
                                     is ProviderEvent.Failed -> {
                                         roundFailed = true
                                         lastFailedMessage = mapped.message
-                                        if (ApiCredentialRotator.containsQuotaOrRateLimitMessage(mapped.message)) {
-                                            canRotate = true
-                                        } else {
-                                            emit(mapped)
-                                        }
+                                        canRotate = ApiCredentialRotator.containsQuotaOrRateLimitMessage(mapped.message)
                                     }
-
                                     else -> emit(mapped)
                                 }
                             }
                         }
-                    } catch (t: Throwable) {
-                        if (t is CancellationException) throw t
-                        roundFailed = true
-                        lastFailedMessage = t.message
-                        if (ApiCredentialRotator.isRotatableError(t) && attempt < attempts - 1) {
-                            canRotate = true
-                        } else {
-                            emit(ProviderEvent.Failed(providerFailureMessage(t, "Anthropic stream request failed")))
-                            return@flow
-                        }
-                    }
 
                     if (!roundFailed) {
                         assembler.replayContent().takeIf { it.isNotEmpty() }?.let { assistantContentByRound[exchanges.size] = it }
@@ -835,7 +825,7 @@ class AnthropicMessagesAdapter @Inject constructor(
                     } else if (canRotate && attempt < attempts - 1) {
                         continue
                     } else {
-                        if (lastFailedMessage != null && canRotate) emit(ProviderEvent.Failed(lastFailedMessage!!))
+                        emit(ProviderEvent.Failed(lastFailedMessage ?: "Anthropic stream request failed"))
                         return@flow
                     }
                 }
@@ -884,6 +874,13 @@ internal fun anthropicThinkingPolicy(
 }
 
 internal const val ANTHROPIC_INTERLEAVED_THINKING_BETA = "interleaved-thinking-2025-05-14"
+// These models reject custom sampling even when thinking is explicitly disabled.
+// Match provider-prefixed IDs and dated snapshots as well as the direct API IDs.
+internal fun anthropicSupportsSampling(model: String): Boolean = !FIXED_SAMPLING_ANTHROPIC_MODEL_PATTERN.containsMatchIn(model.lowercase())
+
+private val FIXED_SAMPLING_ANTHROPIC_MODEL_PATTERN = Regex(
+    "claude-(?:(?:opus|sonnet|haiku|fable|mythos)-5|5-(?:opus|sonnet|haiku|fable|mythos))(?:[-.:]|$)|claude-opus-4-[78](?:[-.:]|$)"
+)
 private val ADAPTIVE_ANTHROPIC_MODEL_PATTERN = Regex(
     "(?:^|-)4-(?:6|7|8)(?:-|$)|claude-(?:opus|sonnet|haiku)-5(?:-|$)|claude-5-(?:opus|sonnet|haiku)(?:-|$)"
 )

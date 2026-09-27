@@ -35,12 +35,39 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ProviderToolRejectionTest {
     private val schema = buildJsonObject { put("type", "object") }
+
+    @Test
+    fun `anthropic error collector exception remains transparent`() = withServer(400, anthropicValidationError()) { baseUrl ->
+        val failure = IllegalStateException("consumer stopped")
+        val caught = assertThrows(IllegalStateException::class.java) {
+            runBlocking {
+                AnthropicAPIImpl(NetworkClient(CIO)).streamChatMessage(anthropicRequest(false), 5, config(baseUrl))
+                    .collect { throw failure }
+            }
+        }
+        assertSame(failure, caught)
+    }
+
+    @Test
+    fun `anthropic SSE collector exception is not treated as a malformed chunk`() = withServer(
+        200, "data: {\"type\":\"message_stop\"}\n\n", "text/event-stream"
+    ) { baseUrl ->
+        val failure = IllegalStateException("consumer stopped")
+        val caught = assertThrows(IllegalStateException::class.java) {
+            runBlocking {
+                AnthropicAPIImpl(NetworkClient(CIO)).streamChatMessage(anthropicRequest(false), 5, config(baseUrl))
+                    .collect { throw failure }
+            }
+        }
+        assertSame(failure, caught)
+    }
 
     @Test
     fun `openai responses rejects tool definitions before emitting provider events`() = withServer(400, openAIError()) { baseUrl ->

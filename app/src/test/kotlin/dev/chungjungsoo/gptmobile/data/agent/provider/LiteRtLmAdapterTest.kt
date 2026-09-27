@@ -47,6 +47,32 @@ import org.junit.Test
 
 class LiteRtLmAdapterTest {
     @Test
+    fun `oversized fixed prompt fails before allocating a native engine`() = runBlocking {
+        val runtime = FakeLocalRuntime()
+        val events = adapter(runtime).openSession(turns("x".repeat(30000)), localPlatform())
+            .streamRound(emptyList(), emptyList()).toList()
+        assertTrue(events.filterIsInstance<ProviderEvent.Failed>().single().message.contains("context"))
+        assertTrue(runtime.loadEngineCalls.isEmpty())
+        assertTrue(runtime.sendMessageCalls.isEmpty())
+    }
+
+    @Test
+    fun `native tool results respect the local context reservation and invalidate hidden tool history`() = runBlocking {
+        val runtime = FakeLocalRuntime().apply {
+            scriptedEvents = listOf(listOf(LocalRuntimeEvent.TextDelta("done"), LocalRuntimeEvent.Done))
+            scriptedToolInvocations = listOf(listOf(ScriptedToolInvocation("lookup", "{}", afterEventIndex = 0)))
+        }
+        val events = adapter(runtime, catalog = toolsCatalog()).openSession(
+            turns("look up the result"), localPlatform(),
+            listOf(lookupTool { id, _ -> AgentToolResult(id, ToolResultContent.Text("x".repeat(50000)), false) })
+        ).streamRound(emptyList(), emptyList()).toList()
+        assertTrue(runtime.toolExecutorResults.single().toByteArray().size <= 1024)
+        assertTrue(events.filterIsInstance<ProviderEvent.ToolResult>().single().result.outputBudgetExhausted)
+        assertEquals(1, runtime.closeConversationCalls)
+        assertTrue(events.last() is ProviderEvent.Completed)
+    }
+
+    @Test
     fun `runtime phase events are forwarded before generated text`() = runBlocking {
         val runtime = FakeLocalRuntime().apply {
             scriptedEvents = listOf(
@@ -1351,7 +1377,7 @@ class LiteRtLmAdapterTest {
         val runtime = FakeLocalRuntime().apply {
             scriptedEvents = listOf(listOf(LocalRuntimeEvent.TextDelta("ok"), LocalRuntimeEvent.Done))
         }
-        val adapter = adapter(runtime, catalog = FakeModelCatalogRepository(listOf(CatalogEntry(id = "gemma3-1b-it", maxContextTokens = 40))))
+        val adapter = adapter(runtime, catalog = FakeModelCatalogRepository(listOf(CatalogEntry(id = "gemma3-1b-it", maxContextTokens = 256))))
         val platform = localPlatform().copy(maxTokens = null) // Small compiled context, independent of output limit
 
         val anchor = completedTurn("Anchor prompt setup instructions", "Anchor reply confirmation")

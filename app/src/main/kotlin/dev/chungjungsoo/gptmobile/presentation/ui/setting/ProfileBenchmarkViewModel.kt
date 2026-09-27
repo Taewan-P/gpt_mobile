@@ -155,6 +155,13 @@ class ProfileBenchmarkViewModel @Inject constructor(
         }
         mutableError.value = null
         job = viewModelScope.launch {
+            try {
+                chats.validateBenchmarkProfile(profile)
+            } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                mutableError.value = safeMessage(error)
+                return@launch
+            }
             val suite = benchmarkSuite(mode)
             var run = BenchmarkRun(
                 UUID.randomUUID().toString(), profile.uid, profile.name, profile.compatibleType.name,
