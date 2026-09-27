@@ -36,7 +36,7 @@ class LocalModelsViewModel @Inject constructor(
     private val localModelRepository: LocalModelRepository,
     gatedDownloadCoordinator: GatedDownloadCoordinator,
     private val huggingFaceTokenStore: HuggingFaceTokenStore,
-    downloadGuards: LocalDownloadGuards,
+    private val downloadGuards: LocalDownloadGuards,
     huggingFaceAuthClient: HuggingFaceAuthClient,
     @param:DeviceSocModel private val deviceSocModel: String,
     private val huggingFaceModelSearchClient: HuggingFaceModelSearchClient? = null
@@ -210,10 +210,18 @@ class LocalModelsViewModel @Inject constructor(
 
         huggingFaceSearchJob = viewModelScope.launch {
             if (!immediate) delay(HUGGING_FACE_SEARCH_DEBOUNCE_MS)
+            huggingFaceEntries.value = emptyList()
             huggingFaceSearchState.value = HuggingFaceSearchState(isLoading = true)
             runCatching { if (npuOnly) client.searchNpu(query, deviceSocModel) else client.search(query) }
                 .onSuccess { results ->
-                    huggingFaceEntries.value = results.map { it.toCatalogEntry() }
+                    huggingFaceEntries.value = results.map { it.toCatalogEntry() }.filter { entry ->
+                        !downloadGuards.belowRamRequirement(entry) &&
+                            if (entry.supportedAccelerators.any { it.equals("npu", true) }) {
+                                dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators.isNpuEligible(entry.supportedAccelerators, entry.socToModelFiles, deviceSocModel)
+                            } else {
+                                !npuOnly && entry.supportedAccelerators.any { it.equals("gpu", true) }
+                            }
+                    }
                     huggingFaceSearchState.value = HuggingFaceSearchState()
                 }
                 .onFailure { error ->

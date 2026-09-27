@@ -85,7 +85,14 @@ class ModelCatalogRepositoryImpl(
         cached: suspend () -> ModelCatalog?,
         bundled: suspend () -> ModelCatalog?
     ): List<CatalogEntry> {
-        val catalog = remote() ?: cached() ?: bundled() ?: return emptyList()
+        val preferred = remote() ?: cached()
+        val snapshot = bundled()
+        // A branch/release may ship a newer catalogue than the hosted main branch.
+        val catalog = if (snapshot != null && (preferred == null || snapshot.revision > preferred.revision)) {
+            snapshot
+        } else {
+            preferred ?: snapshot ?: return emptyList()
+        }
         inMemoryCatalogCache.set(catalog)
         val entries = ModelCatalogParser.visibleEntries(catalog, appVersionName)
         val deviceEntries = if (deviceSocModel.isBlank()) entries else dev.chungjungsoo.gptmobile.data.localmodel.LocalModelPackages.forDevice(entries, deviceSocModel)

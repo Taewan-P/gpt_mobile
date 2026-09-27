@@ -774,4 +774,7 @@
     <string name="free_ai_awaiting_approval">Awaiting provider approval</string>
     <string name="free_ai_approval_description">LLM7 requires provider approval for use in this app. Choose another Free provider for now.</string>
     <string name="free_ai_switch_failed">Could not switch Free provider. Please try again.</string>
+    <string name="write_a_message">Write a message...</string>
+    <string name="nvidia">NVIDIA</string>
+    <string name="nvidia_description">Connect NVIDIA NIM with your NVIDIA API key. Browse hosted models or enter a model ID.</string>
 </resources>

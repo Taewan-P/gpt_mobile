@@ -9,6 +9,26 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class ProfileModelCatalogTest {
+    @Test
+    fun nvidiaDiscoversModelsUsingConfiguredEndpointAndBearerKey() = runBlocking {
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        var authorization: String? = null
+        server.createContext("/v1/models") { exchange ->
+            authorization = exchange.requestHeaders.getFirst("Authorization")
+            val bytes = """{"data":[{"id":"openai/gpt-oss-20b"}]}""".toByteArray()
+            exchange.sendResponseHeaders(200, bytes.size.toLong())
+            exchange.responseBody.use { it.write(bytes) }
+        }
+        server.start()
+        try {
+            val result = ProfileModelCatalog().load(PlatformV2(name = "NVIDIA", compatibleType = ClientType.NVIDIA, apiUrl = "http://127.0.0.1:${server.address.port}/v1/", token = "test-nvidia-key"))
+            assertEquals("Bearer test-nvidia-key", authorization)
+            assertEquals(listOf("openai/gpt-oss-20b"), result.map { it.id })
+        } finally {
+            server.stop(0)
+        }
+    }
+
     @Test fun googleModelDiscoveryUsesHeaderPaginationAndChatCapabilityFilter() = runBlocking {
         val requests = mutableListOf<String>()
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)

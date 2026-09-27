@@ -1371,8 +1371,8 @@ fun ChatInputBox(
     onSendButtonClick: () -> Unit = {}
 ) {
     val localStyle = LocalTextStyle.current
-    val inputColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 1f)
-    val mergedStyle = localStyle.merge(TextStyle(color = MaterialTheme.colorScheme.onPrimaryContainer))
+    val inputColor = MaterialTheme.colorScheme.background
+    val mergedStyle = localStyle.merge(TextStyle(color = MaterialTheme.colorScheme.onBackground))
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val chatInputLineLimits = TextFieldLineLimits.MultiLine(maxHeightInLines = 5)
@@ -1397,7 +1397,7 @@ fun ChatInputBox(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         shape = MaterialTheme.shapes.large,
         color = inputColor,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        contentColor = MaterialTheme.colorScheme.onBackground,
         tonalElevation = 0.dp,
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)),
         shadowElevation = 0.dp
@@ -1441,11 +1441,11 @@ fun ChatInputBox(
                         ) {
                             if (inputState.text.isEmpty()) {
                                 Text(
-                                    modifier = Modifier.alpha(0.38f),
-                                    text = if (chatEnabled) stringResource(R.string.ask_a_question) else stringResource(R.string.some_platforms_disabled)
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                                    text = if (chatEnabled) stringResource(R.string.write_a_message) else stringResource(R.string.some_platforms_disabled)
                                 )
                             }
-                            Box(modifier = Modifier.fillMaxWidth().background(inputColor)) {
+                            Box(modifier = Modifier.fillMaxWidth()) {
                                 innerTextField()
                             }
                         }

@@ -50,7 +50,7 @@ data class WebSearchProviderConfig(
     val provider: WebSearchProvider,
     val bearerToken: String,
     val endpointUrl: String,
-    val allowLocalSearch: Boolean = true
+    val allowLocalSearch: Boolean = false
 )
 
 class WebSearchTool(
@@ -151,7 +151,7 @@ class WebSearchTool(
 
     private suspend fun executeAutoSearch(callId: String, request: WebSearchRequest): AgentToolResult = coroutineScope {
         val local = async {
-            if (!config.allowLocalSearch) return@async emptyList<JsonObject>()
+            if (!config.allowLocalSearch || config.endpointUrl.isBlank()) return@async emptyList<JsonObject>()
             try {
                 withTimeoutOrNull(2_000) { tryTermuxMcpSearch(request) }.orEmpty()
             } catch (cancelled: CancellationException) {
@@ -181,7 +181,7 @@ class WebSearchTool(
     }
 
     private suspend fun tryTermuxMcpSearch(request: WebSearchRequest): List<JsonObject>? {
-        val endpoint = config.endpointUrl.takeIf { it.isNotBlank() } ?: "http://127.0.0.1:8000/search"
+        val endpoint = config.endpointUrl.takeIf { it.isNotBlank() } ?: return null
         val response = networkClient().get(endpoint) {
             parameter("query", request.query)
             parameter("limit", request.maxResults)

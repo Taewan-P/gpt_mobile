@@ -465,6 +465,32 @@ class LiteRtLmAdapterTest {
     }
 
     @Test
+    fun `NPU vision package selects NPU for both executors`() = runBlocking {
+        val runtime = FakeLocalRuntime().apply {
+            scriptedEvents = listOf(listOf(LocalRuntimeEvent.TextDelta("a cat"), LocalRuntimeEvent.Done))
+        }
+        val catalog = FakeModelCatalogRepository(
+            listOf(
+                CatalogEntry(
+                    id = "gemma-3n-e2b-it",
+                    capabilities = CatalogCapabilities(vision = true, npuVision = true),
+                    supportedAccelerators = listOf("npu"),
+                    socToModelFiles = mapOf("SM8750" to dev.chungjungsoo.gptmobile.data.catalog.SocVariant(contextSize = 1280))
+                )
+            )
+        )
+        val adapter = adapter(runtime, catalog = catalog, deviceSocModel = "SM8750")
+        adapter.openSession(
+            listOf(pendingTurn("describe this", listOf(imageAttachment()))),
+            visionPlatform().copy(accelerator = "npu")
+        ).streamRound(emptyList(), emptyList()).toList()
+
+        assertEquals("npu", runtime.loadEngineCalls.single().accelerator)
+        assertEquals("npu", runtime.loadEngineCalls.single().visionAccelerator)
+        assertTrue(runtime.sendMessageImages.single().isNotEmpty())
+    }
+
+    @Test
     fun `vision model declines a pdf with the notice and still sends text`() = runBlocking {
         val runtime = FakeLocalRuntime().apply {
             scriptedEvents = listOf(listOf(LocalRuntimeEvent.TextDelta("ok"), LocalRuntimeEvent.Done))
@@ -1127,7 +1153,7 @@ class LiteRtLmAdapterTest {
     }
 
     @Test
-    fun `gpu fallback does not force a later npu selection onto cpu`() = runBlocking {
+    fun `unverified NPU selection is rejected before native loading`() = runBlocking {
         val runtime = FakeLocalRuntime().apply {
             failLoadEngineIf = { spec ->
                 if (spec.accelerator == LocalAccelerators.GPU || spec.accelerator == LocalAccelerators.NPU) {
@@ -1150,10 +1176,10 @@ class LiteRtLmAdapterTest {
         ).streamRound(emptyList(), emptyList()).toList()
 
         assertTrue(gpuEvents.any { it is ProviderEvent.Notice && it.message == LiteRtLmAdapter.DEFAULT_GPU_UNAVAILABLE })
-        assertTrue(npuEvents.any { it is ProviderEvent.Notice && it.message == LiteRtLmAdapter.DEFAULT_NPU_UNAVAILABLE })
+        assertTrue(npuEvents.any { it is ProviderEvent.Failed && it.message.contains("no verified QNN build") })
         assertFalse(npuEvents.any { it is ProviderEvent.Notice && it.message == LiteRtLmAdapter.DEFAULT_GPU_UNAVAILABLE })
         assertEquals(
-            listOf(LocalAccelerators.GPU, LocalAccelerators.CPU, LocalAccelerators.NPU, LocalAccelerators.CPU),
+            listOf(LocalAccelerators.GPU, LocalAccelerators.CPU),
             runtime.loadEngineCalls.map { it.accelerator }
         )
     }

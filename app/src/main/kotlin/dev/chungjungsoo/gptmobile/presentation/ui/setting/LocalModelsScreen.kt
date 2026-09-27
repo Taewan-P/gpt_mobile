@@ -467,7 +467,7 @@ private fun ModelCatalogSearch(
 
         Text(
             if (selectedSource == LocalModelSource.HUGGING_FACE) {
-                "Live Hub results are filtered to repositories exposing .litertlm packages that this LiteRT-LM runtime can load."
+                "Searches Hub repositories for LiteRT-LM GPU exports and matching Qualcomm NPU packages within this phone’s RAM budget. Raw checkpoints and ZIP archives are excluded. Runtime compatibility is checked when loading."
             } else {
                 "Curated downloads include app-tested models and device-specific variants. Use Import model for other validated local files."
             },

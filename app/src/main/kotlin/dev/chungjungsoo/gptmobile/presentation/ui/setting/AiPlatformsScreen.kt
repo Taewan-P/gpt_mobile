@@ -20,10 +20,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -73,7 +75,23 @@ fun AiPlatformsScreen(
 ) {
     val platforms by settingViewModel.platformState.collectAsStateWithLifecycle()
     val providerConnections by settingViewModel.providerConnections.collectAsStateWithLifecycle()
-    val dialogState by settingViewModel.dialogState.collectAsStateWithLifecycle()
+    var freeExpanded by rememberSaveable { mutableStateOf(false) }
+    var deletingProvider by remember { mutableStateOf<ProviderConnection?>(null) }
+    deletingProvider?.let { connection ->
+        val linked = platforms.filter { it.providerConnectionUid == connection.uid }
+        AlertDialog(
+            onDismissRequest = { deletingProvider = null },
+            title = { Text("Delete ${connection.name}?") },
+            text = { Text("This removes the provider, its saved API keys and ${linked.size} AI profiles${if (linked.isEmpty()) "" else ": " + linked.joinToString { it.name }}. Existing conversation history is kept.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    deletingProvider = null
+                    settingViewModel.deleteProviderConnection(connection)
+                }) { Text("Delete provider", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { deletingProvider = null }) { Text("Cancel") } }
+        )
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -107,10 +125,10 @@ fun AiPlatformsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            if (platforms.isEmpty()) {
+            if (platforms.isEmpty() && providerConnections.isEmpty()) {
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -141,26 +159,34 @@ fun AiPlatformsScreen(
                 val freeStandalone = platforms.filter { it.compatibleType == ClientType.FREE && it.providerConnectionUid == null }
                 if (freeConnections.isNotEmpty() || freeStandalone.isNotEmpty()) {
                     item {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(stringResource(R.string.free_ai), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                            Text(stringResource(R.string.free_ai_description), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Card(onClick = { freeExpanded = !freeExpanded }, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+                            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(stringResource(R.string.free_ai), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                                    Text("No account required · ${freeConnections.size + freeStandalone.size} connections", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Icon(if (freeExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, if (freeExpanded) "Collapse free AI" else "Expand free AI")
+                            }
                         }
                     }
-                    items(freeConnections, key = { "connection:${it.uid}" }) { connection ->
-                        ProviderConnectionGroupCard(
-                            connection = connection,
-                            profiles = platforms.filter { it.providerConnectionUid == connection.uid },
-                            onToggleFavorite = { settingViewModel.togglePlatformFavorite(it.id) },
-                            onEdit = { onNavigateToPlatformSetting(it.uid) },
-                            onProviderSettings = { onNavigateToProviderSettings(connection.uid) }
-                        )
-                    }
-                    items(freeStandalone, key = { "profile:${it.id}" }) { platform ->
-                        PlatformItemCard(
-                            platform = platform,
-                            onToggleFavorite = { settingViewModel.togglePlatformFavorite(platform.id) },
-                            onEdit = { onNavigateToPlatformSetting(platform.uid) }
-                        )
+                    if (freeExpanded) {
+                        items(freeConnections, key = { "connection:${it.uid}" }) { connection ->
+                            ProviderConnectionGroupCard(
+                                connection = connection,
+                                onDelete = { deletingProvider = connection },
+                                profiles = platforms.filter { it.providerConnectionUid == connection.uid },
+                                onToggleFavorite = { settingViewModel.togglePlatformFavorite(it.id) },
+                                onEdit = { onNavigateToPlatformSetting(it.uid) },
+                                onProviderSettings = { onNavigateToProviderSettings(connection.uid) }
+                            )
+                        }
+                        items(freeStandalone, key = { "profile:${it.id}" }) { platform ->
+                            PlatformItemCard(
+                                platform = platform,
+                                onToggleFavorite = { settingViewModel.togglePlatformFavorite(platform.id) },
+                                onEdit = { onNavigateToPlatformSetting(platform.uid) }
+                            )
+                        }
                     }
                 }
                 val otherConnections = providerConnections.filter { it.compatibleType != ClientType.FREE }
@@ -172,6 +198,7 @@ fun AiPlatformsScreen(
                 items(otherConnections, key = { "connection:${it.uid}" }) { connection ->
                     ProviderConnectionGroupCard(
                         connection = connection,
+                        onDelete = { deletingProvider = connection },
                         profiles = platforms.filter { it.providerConnectionUid == connection.uid },
                         onToggleFavorite = { settingViewModel.togglePlatformFavorite(it.id) },
                         onEdit = { onNavigateToPlatformSetting(it.uid) },
@@ -184,7 +211,7 @@ fun AiPlatformsScreen(
                 if (standaloneProfiles.isNotEmpty()) {
                     item {
                         Text(
-                            text = stringResource(R.string.local_and_legacy_profiles),
+                            text = "Independent profiles",
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(top = 4.dp)
@@ -208,12 +235,13 @@ private fun ProviderConnectionGroupCard(
     connection: ProviderConnection,
     profiles: List<PlatformV2>,
     onToggleFavorite: (PlatformV2) -> Unit,
+    onDelete: () -> Unit,
     onEdit: (PlatformV2) -> Unit,
     onProviderSettings: (() -> Unit)? = null,
     onSpecialSettings: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    var expanded by rememberSaveable(connection.uid) { mutableStateOf(true) }
+    var expanded by rememberSaveable(connection.uid) { mutableStateOf(false) }
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -278,9 +306,13 @@ private fun ProviderConnectionGroupCard(
                     Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null)
                     Text(if (expanded) "Hide profiles" else "Show profiles")
                 }
-                onSpecialSettings?.let { action -> TextButton(onClick = action) { Text("OpenRouter options") } }
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Default.Delete, "Delete provider ${connection.name}", tint = MaterialTheme.colorScheme.error)
+                }
             }
-            if (connection.hasCredential) {
+            if (expanded) onSpecialSettings?.let { action -> TextButton(onClick = action) { Text("OpenRouter options") } }
+            if (expanded && connection.hasCredential) {
                 Text(
                     text = stringResource(R.string.credential_saved),
                     style = MaterialTheme.typography.labelSmall,

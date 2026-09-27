@@ -103,6 +103,13 @@ class LiteRtLmAdapter(
                     send(notice)
                 }
 
+                if (LocalAccelerators.normalize(platform.accelerator) == LocalAccelerators.NPU &&
+                    (catalogEntry == null || !LocalAccelerators.isNpuEligible(catalogEntry.supportedAccelerators, catalogEntry.socToModelFiles, deviceSocModel))
+                ) {
+                    send(ProviderEvent.Failed("This package has no verified QNN build for this phone. Select a matching NPU package from the marketplace, or use its GPU edition."))
+                    return@channelFlow
+                }
+
                 val wantsGpu = LocalAccelerators.normalize(platform.accelerator) != LocalAccelerators.NPU
                 val installedNpu = installedRecord?.fileName?.let(dev.chungjungsoo.gptmobile.data.localmodel.LocalModelPackages::isNpuFile) == true
                 val modelPath = if (wantsGpu && installedNpu) {
@@ -160,7 +167,15 @@ class LiteRtLmAdapter(
                     modelPath = modelPath,
                     accelerator = LocalAccelerators.normalize(platform.accelerator),
                     maxTokens = effectiveContextTokens,
-                    isVisionEnabled = visionCapable
+                    isVisionEnabled = visionCapable,
+                    visionAccelerator = if (
+                        LocalAccelerators.normalize(platform.accelerator) == LocalAccelerators.NPU &&
+                        catalogEntry?.capabilities?.npuVision == true
+                    ) {
+                        LocalAccelerators.NPU
+                    } else {
+                        LocalAccelerators.GPU
+                    }
                 )
                 val sampler = LocalSamplerConfig(
                     topK = platform.topK ?: DEFAULT_TOP_K,
@@ -383,13 +398,15 @@ class LiteRtLmAdapter(
         modelPath: String,
         accelerator: String,
         maxTokens: Int,
-        isVisionEnabled: Boolean
+        isVisionEnabled: Boolean,
+        visionAccelerator: String
     ): LocalEngineSpec {
         val requested = LocalEngineSpec(
             modelPath = modelPath,
             accelerator = accelerator,
             maxTokens = maxTokens,
-            isVisionEnabled = isVisionEnabled
+            isVisionEnabled = isVisionEnabled,
+            visionAccelerator = visionAccelerator
         )
         return if (cpuFallbackKey(modelPath, accelerator) in cpuFallbackByModelAccelerator) {
             requested.copy(accelerator = LocalAccelerators.CPU)

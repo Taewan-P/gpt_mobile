@@ -61,6 +61,10 @@ class ReadUrlTool(
             throw exception
         } catch (exception: ReadUrlException) {
             error(callId, "Read URL failed: ${exception.message}.")
+        } catch (_: UnknownHostException) {
+            error(callId, "Read URL failed: hostname could not be resolved. Check the URL and network connection.")
+        } catch (_: java.net.SocketTimeoutException) {
+            error(callId, "Read URL failed: the website timed out. Try another source.")
         } catch (ignored: Exception) {
             error(callId, "Read URL failed: request failed.")
         }

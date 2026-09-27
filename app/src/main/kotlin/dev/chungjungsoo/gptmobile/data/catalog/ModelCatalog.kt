@@ -5,6 +5,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class ModelCatalog(
     val schemaVersion: Int = 0,
+    val revision: Int = 0,
     val models: List<CatalogEntry> = emptyList()
 )
 
@@ -20,12 +21,14 @@ data class CatalogEntry(
     val supportedAccelerators: List<String> = emptyList(),
     val defaultConfig: CatalogDefaultConfig = CatalogDefaultConfig(),
     val minAppVersion: String = "0.0.0",
+    val maxContextTokens: Int = 0,
     val socToModelFiles: Map<String, SocVariant> = emptyMap()
 )
 
 @Serializable
 data class CatalogCapabilities(
     val vision: Boolean = false,
+    val npuVision: Boolean = false,
     val tools: Boolean = false,
     val thinking: Boolean = false
 )

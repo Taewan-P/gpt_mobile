@@ -30,7 +30,7 @@ fun resolvedEngineMaxTokens(
         deviceRamGb < 6L -> 1024
         else -> 4096
     }
-    return minOf(positiveTokens, memoryCap)
+    return minOf(positiveTokens, memoryCap, entry?.maxContextTokens?.takeIf { it > 0 } ?: Int.MAX_VALUE)
 }
 
 const val MAX_HIGH_RAM_CONTEXT_TOKENS: Int = 8192

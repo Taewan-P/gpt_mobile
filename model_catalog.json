@@ -13,7 +13,11 @@
         "tools": false,
         "thinking": false
       },
-      "supportedAccelerators": ["gpu", "cpu", "npu"],
+      "supportedAccelerators": [
+        "gpu",
+        "cpu",
+        "npu"
+      ],
       "defaultConfig": {
         "topK": 64,
         "topP": 0.95,
@@ -100,7 +104,10 @@
         "tools": false,
         "thinking": false
       },
-      "supportedAccelerators": ["cpu", "gpu"],
+      "supportedAccelerators": [
+        "cpu",
+        "gpu"
+      ],
       "defaultConfig": {
         "topK": 64,
         "topP": 0.95,
@@ -121,7 +128,11 @@
         "tools": true,
         "thinking": true
       },
-      "supportedAccelerators": ["gpu", "cpu", "npu"],
+      "supportedAccelerators": [
+        "gpu",
+        "cpu",
+        "npu"
+      ],
       "defaultConfig": {
         "topK": 64,
         "topP": 0.95,
@@ -158,7 +169,10 @@
         "tools": false,
         "thinking": false
       },
-      "supportedAccelerators": ["gpu", "cpu"],
+      "supportedAccelerators": [
+        "gpu",
+        "cpu"
+      ],
       "defaultConfig": {
         "topK": 20,
         "topP": 0.8,
@@ -179,7 +193,10 @@
         "tools": false,
         "thinking": true
       },
-      "supportedAccelerators": ["gpu", "cpu"],
+      "supportedAccelerators": [
+        "gpu",
+        "cpu"
+      ],
       "defaultConfig": {
         "topK": 64,
         "topP": 0.95,
@@ -189,46 +206,210 @@
       "minAppVersion": "0.8.0"
     },
     {
-      "id": "qwen2.5-7b-instruct",
-      "displayName": "Qwen2.5-7B-Instruct",
-      "downloadUrl": "https://huggingface.co/litert-community/Qwen2.5-7B-Instruct/resolve/main/Qwen2.5-7B-Instruct_q4_ekv4096.litertlm?download=true",
-      "sizeInBytes": 4724464025,
-      "minRamGb": 12,
+      "id": "gemma-3-270m-it",
+      "displayName": "Gemma 3 270M Instruct",
+      "downloadUrl": "https://huggingface.co/litert-community/gemma-3-270m-it/resolve/9d2093270fb5aa49a986b49b5779d763dde7b630/gemma3-270m-it-q8.litertlm?download=true",
+      "sizeInBytes": 304005120,
+      "minRamGb": 4,
+      "isGated": true,
+      "capabilities": {
+        "vision": false,
+        "tools": false,
+        "thinking": false
+      },
+      "supportedAccelerators": [
+        "gpu",
+        "cpu",
+        "npu"
+      ],
+      "defaultConfig": {
+        "topK": 40,
+        "topP": 0.95,
+        "temperature": 0.7,
+        "maxTokens": 1024
+      },
+      "maxContextTokens": 1024,
+      "minAppVersion": "0.9.17.0",
+      "socToModelFiles": {
+        "SM8550": {
+          "modelFile": "gemma3-270m-it-q8.qualcomm.sm8550.litertlm",
+          "downloadUrl": "https://huggingface.co/litert-community/gemma-3-270m-it/resolve/9d2093270fb5aa49a986b49b5779d763dde7b630/gemma3-270m-it-q8.qualcomm.sm8550.litertlm?download=true",
+          "commitHash": "9d2093270fb5aa49a986b49b5779d763dde7b630",
+          "sizeInBytes": 461750272,
+          "contextSize": 1024,
+          "quantization": "q8"
+        },
+        "SM8650": {
+          "modelFile": "gemma3-270m-it-q8.qualcomm.sm8650.litertlm",
+          "downloadUrl": "https://huggingface.co/litert-community/gemma-3-270m-it/resolve/9d2093270fb5aa49a986b49b5779d763dde7b630/gemma3-270m-it-q8.qualcomm.sm8650.litertlm?download=true",
+          "commitHash": "9d2093270fb5aa49a986b49b5779d763dde7b630",
+          "sizeInBytes": 461766656,
+          "contextSize": 1024,
+          "quantization": "q8"
+        },
+        "SM8750": {
+          "modelFile": "gemma3-270m-it-q8.qualcomm.sm8750.litertlm",
+          "downloadUrl": "https://huggingface.co/litert-community/gemma-3-270m-it/resolve/9d2093270fb5aa49a986b49b5779d763dde7b630/gemma3-270m-it-q8.qualcomm.sm8750.litertlm?download=true",
+          "commitHash": "9d2093270fb5aa49a986b49b5779d763dde7b630",
+          "sizeInBytes": 461340672,
+          "contextSize": 1024,
+          "quantization": "q8"
+        },
+        "SM8850": {
+          "modelFile": "gemma3-270m-it-q8.qualcomm.sm8850.litertlm",
+          "downloadUrl": "https://huggingface.co/litert-community/gemma-3-270m-it/resolve/9d2093270fb5aa49a986b49b5779d763dde7b630/gemma3-270m-it-q8.qualcomm.sm8850.litertlm?download=true",
+          "commitHash": "9d2093270fb5aa49a986b49b5779d763dde7b630",
+          "sizeInBytes": 463011840,
+          "contextSize": 1024,
+          "quantization": "q8"
+        }
+      }
+    },
+    {
+      "id": "qwen3-0.6b",
+      "displayName": "Qwen3 0.6B",
+      "downloadUrl": "https://huggingface.co/litert-community/Qwen3-0.6B/resolve/a3c5d805ae362dff7f580bc25f2dfb9a5a7eaa76/Qwen3-0.6B.litertlm?download=true",
+      "sizeInBytes": 614236160,
+      "minRamGb": 6,
       "isGated": false,
       "capabilities": {
         "vision": false,
-        "tools": true,
-        "thinking": false
+        "tools": false,
+        "thinking": true
       },
-      "supportedAccelerators": ["gpu", "cpu"],
+      "supportedAccelerators": [
+        "gpu",
+        "cpu"
+      ],
       "defaultConfig": {
         "topK": 40,
-        "topP": 0.9,
+        "topP": 0.95,
         "temperature": 0.7,
-        "maxTokens": 8192
+        "maxTokens": 4096
       },
-      "minAppVersion": "0.9.0"
+      "maxContextTokens": 4096,
+      "minAppVersion": "0.9.17.0"
     },
     {
-      "id": "nanbeige-4.2-3b",
-      "displayName": "Nanbeige-4.2-3B",
-      "downloadUrl": "https://huggingface.co/Tdamre/Nanbeige4.2-3B-GGUF/resolve/main/Nanbeige4.2-3B-Q4_K_M.gguf?download=true",
-      "sizeInBytes": 2574807840,
-      "minRamGb": 4,
+      "id": "qwen2.5-coder-3b-instruct",
+      "displayName": "Qwen2.5 Coder 3B Instruct",
+      "downloadUrl": "https://huggingface.co/litert-community/Qwen2.5-Coder-3B-Instruct/resolve/f02778f1b0bb06315051c1e212abd19a389bff34/Qwen2.5_Coder_3B_It.litertlm?download=true",
+      "sizeInBytes": 3433083824,
+      "minRamGb": 8,
       "isGated": false,
       "capabilities": {
         "vision": false,
         "tools": false,
         "thinking": false
       },
-      "supportedAccelerators": ["gpu", "cpu"],
+      "supportedAccelerators": [
+        "gpu",
+        "cpu"
+      ],
       "defaultConfig": {
         "topK": 40,
-        "topP": 0.9,
+        "topP": 0.95,
+        "temperature": 0.7,
+        "maxTokens": 1024
+      },
+      "maxContextTokens": 1024,
+      "minAppVersion": "0.9.17.0"
+    },
+    {
+      "id": "phi-4-mini-instruct",
+      "displayName": "Phi-4 Mini Instruct",
+      "downloadUrl": "https://huggingface.co/litert-community/Phi-4-mini-instruct/resolve/8cd368be75fdb94d5a6f6f5b40f1ab22a6c2543e/Phi-4-mini-instruct_multi-prefill-seq_q8_ekv4096.litertlm?download=true",
+      "sizeInBytes": 3910090752,
+      "minRamGb": 12,
+      "isGated": false,
+      "capabilities": {
+        "vision": false,
+        "tools": false,
+        "thinking": false
+      },
+      "supportedAccelerators": [
+        "gpu",
+        "cpu"
+      ],
+      "defaultConfig": {
+        "topK": 40,
+        "topP": 0.95,
         "temperature": 0.7,
         "maxTokens": 4096
       },
-      "minAppVersion": "0.9.0"
+      "maxContextTokens": 4096,
+      "minAppVersion": "0.9.17.0"
+    },
+    {
+      "id": "gemma-3n-e4b-it",
+      "displayName": "Gemma 3n E4B Instruct",
+      "downloadUrl": "https://huggingface.co/google/gemma-3n-E4B-it-litert-lm/resolve/297ed75955702dec3503e00c2c2ecbbf475300bc/gemma-3n-E4B-it-int4.litertlm?download=true",
+      "sizeInBytes": 4919541760,
+      "minRamGb": 12,
+      "isGated": true,
+      "capabilities": {
+        "vision": true,
+        "tools": false,
+        "thinking": false
+      },
+      "supportedAccelerators": [
+        "gpu",
+        "cpu"
+      ],
+      "defaultConfig": {
+        "topK": 40,
+        "topP": 0.95,
+        "temperature": 0.7,
+        "maxTokens": 4096
+      },
+      "maxContextTokens": 4096,
+      "minAppVersion": "0.9.17.0"
+    },
+    {
+      "id": "fastvlm-0.5b",
+      "displayName": "FastVLM 0.5B",
+      "downloadUrl": "https://huggingface.co/litert-community/FastVLM-0.5B/resolve/460013246392191f8532e45e518576bb6513eace/FastVLM-0.5B.litertlm?download=true",
+      "sizeInBytes": 1156342768,
+      "minRamGb": 6,
+      "isGated": false,
+      "capabilities": {
+        "vision": true,
+        "tools": false,
+        "thinking": false,
+        "npuVision": true
+      },
+      "supportedAccelerators": [
+        "gpu",
+        "cpu",
+        "npu"
+      ],
+      "defaultConfig": {
+        "topK": 40,
+        "topP": 0.95,
+        "temperature": 0.7,
+        "maxTokens": 1280
+      },
+      "maxContextTokens": 1280,
+      "minAppVersion": "0.9.17.0",
+      "socToModelFiles": {
+        "SM8750": {
+          "modelFile": "FastVLM-0.5B.qualcomm.sm8750.litertlm",
+          "downloadUrl": "https://huggingface.co/litert-community/FastVLM-0.5B/resolve/460013246392191f8532e45e518576bb6513eace/FastVLM-0.5B.qualcomm.sm8750.litertlm?download=true",
+          "commitHash": "460013246392191f8532e45e518576bb6513eace",
+          "sizeInBytes": 943226880,
+          "contextSize": 1280,
+          "quantization": "q8"
+        },
+        "SM8850": {
+          "modelFile": "FastVLM-0.5B.qualcomm.sm8850.litertlm",
+          "downloadUrl": "https://huggingface.co/litert-community/FastVLM-0.5B/resolve/460013246392191f8532e45e518576bb6513eace/FastVLM-0.5B.qualcomm.sm8850.litertlm?download=true",
+          "commitHash": "460013246392191f8532e45e518576bb6513eace",
+          "sizeInBytes": 942374912,
+          "contextSize": 1280,
+          "quantization": "q8"
+        }
+      }
     }
-  ]
+  ],
+  "revision": 1
 }

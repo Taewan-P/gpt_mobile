@@ -59,13 +59,14 @@ enum class NearbyCategory(val wireName: String, val selector: String) {
 class NearbyPlacesClient @Inject constructor(private val network: NetworkClient) {
     private val mutex = Mutex()
     private var nextRequestAt = 0L
+    private val unavailableHosts = mutableMapOf<String, Long>()
     private val cache = linkedMapOf<String, Pair<Long, JsonObject>>()
 
     suspend fun nearby(origin: MapCoordinate, category: NearbyCategory, radiusMeters: Int, name: String = ""): List<NearbyPlace> {
         require(origin.isValid)
         val radius = radiusMeters.coerceIn(100, 5000)
         val query = "[out:json][timeout:18][maxsize:4194304];nwr(around:$radius,${origin.latitude},${origin.longitude})${category.selector};out center tags 500;"
-        val result = request(query) {
+        val result = request(query, "overpass-api.de") {
             network().preparePost("https://overpass-api.de/api/interpreter") {
                 contentType(ContentType.Text.Plain)
                 header("User-Agent", USER_AGENT)
@@ -86,7 +87,7 @@ class NearbyPlacesClient @Inject constructor(private val network: NetworkClient)
         val service = if (walking) "routed-foot" else "routed-car"
         val coords = "${origin.longitude},${origin.latitude};${destination.longitude},${destination.latitude}"
         val url = "https://routing.openstreetmap.de/$service/route/v1/driving/$coords?overview=full&geometries=geojson&steps=false"
-        val result = request(url) {
+        val result = request(url, "routing.openstreetmap.de") {
             network().prepareGet(url) {
                 header("User-Agent", USER_AGENT)
                 timeout {
@@ -99,12 +100,25 @@ class NearbyPlacesClient @Inject constructor(private val network: NetworkClient)
         return parsePlaceRoute(result) ?: error("No ${if (walking) "walking" else "driving"} route available")
     }
 
-    private suspend fun request(key: String, fetch: suspend () -> JsonObject): JsonObject = mutex.withLock {
+    private suspend fun request(key: String, host: String, fetch: suspend () -> JsonObject): JsonObject = mutex.withLock {
         val now = System.nanoTime() / 1_000_000
         cache[key]?.takeIf { now - it.first < 300_000 }?.let { return@withLock it.second }
+        check((unavailableHosts[host] ?: 0L) <= now) { "Map service is temporarily unreachable. Check your connection and retry in a minute." }
         delay((nextRequestAt - now).coerceAtLeast(0))
         nextRequestAt = System.nanoTime() / 1_000_000 + 1100
-        val response = fetch()
+        val response = try {
+            fetch()
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            val dnsFailure = generateSequence<Throwable>(error) { it.cause }.take(12).any { it is java.net.UnknownHostException }
+            if (dnsFailure) {
+                unavailableHosts[host] = System.nanoTime() / 1_000_000 + 60_000
+                throw IllegalStateException("Map service address could not be resolved. Check your connection and retry in a minute.", error)
+            }
+            throw error
+        }
+        unavailableHosts.remove(host)
         cache[key] = System.nanoTime() / 1_000_000 to response
         while (cache.size > 32) cache.remove(cache.keys.first())
         response

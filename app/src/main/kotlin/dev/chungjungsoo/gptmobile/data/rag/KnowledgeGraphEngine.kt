@@ -159,7 +159,7 @@ class KnowledgeGraphEngine @Inject constructor() {
      * Extracts entities and relations from conversational or structured text using pattern and keyword heuristics.
      */
     @Synchronized
-    fun extractAndStoreFromText(text: String) {
+    fun extractAndStoreFromText(text: String, sensitivity: Int = 50) {
         val lines = text.split(Regex("[\\r\\n]+|(?<=[.!])\\s+"))
         val subject = "([\\p{L}\\p{N}_-]+(?:[ ]+[\\p{L}\\p{N}_-]+){0,5})"
         val target = "([^.!?;\\n]{1,120})"
@@ -170,6 +170,14 @@ class KnowledgeGraphEngine @Inject constructor() {
             Regex("(?iu)$subject\\s+(?:located in|lives in|live in|based in|moro em|vivo en|habite à)\\s+$target") to "LOCATED_IN"
         )
 
+        val expandedKeywords = if (sensitivity > 50) {
+            listOf(
+                Regex("(?iu)^$subject\\s+(?:am working on|am building|am developing|am learning|am studying)\\s+$target") to "WORKING_ON",
+                Regex("(?iu)^$subject\\s+(?:need|needs|want|wants|plan to|plans to)\\s+$target") to "GOAL"
+            )
+        } else {
+            emptyList()
+        }
         for (line in lines) {
             val trimmed = line.trim()
             // Only affirmative statements are candidates. Questions and negation can
@@ -181,7 +189,7 @@ class KnowledgeGraphEngine @Inject constructor() {
                 continue
             }
 
-            for ((pattern, relType) in relationKeywords) {
+            for ((pattern, relType) in relationKeywords + expandedKeywords) {
                 val match = pattern.matchAt(trimmed, 0)
                 if (match != null && match.groupValues.size >= 3) {
                     val subject = match.groupValues[1].trim()

@@ -163,7 +163,7 @@ class ChatRepositoryImpl(
         val turns = listOf(ConversationTurn(MessageV2(content = task, platformType = null), null, true))
         val session = when (bounded.compatibleType) {
             ClientType.OPENAI -> openAIResponsesAdapter.openSession(turns, bounded, constraints)
-            ClientType.GROQ, ClientType.OLLAMA, ClientType.OPENROUTER, ClientType.CUSTOM, ClientType.LLAMA, ClientType.FREE -> openAICompatibleAdapter.openSession(turns, bounded, constraints)
+            ClientType.NVIDIA, ClientType.GROQ, ClientType.OLLAMA, ClientType.OPENROUTER, ClientType.CUSTOM, ClientType.LLAMA, ClientType.FREE -> openAICompatibleAdapter.openSession(turns, bounded, constraints)
             ClientType.ANTHROPIC -> anthropicMessagesAdapter.openSession(turns, bounded, constraints)
             ClientType.GOOGLE -> geminiAdapter.openSession(turns, bounded, constraints)
             ClientType.LITERT_LM -> liteRtLmAdapter.openSession(turns, bounded, emptyList(), constraints)
@@ -320,7 +320,7 @@ class ChatRepositoryImpl(
             val session = when (platform.compatibleType) {
                 ClientType.OPENAI -> openAIResponsesAdapter.openSession(contextPlan.turns, requestPlatform, requestConstraints)
 
-                ClientType.GROQ, ClientType.OLLAMA, ClientType.OPENROUTER, ClientType.CUSTOM, ClientType.LLAMA, ClientType.FREE ->
+                ClientType.NVIDIA, ClientType.GROQ, ClientType.OLLAMA, ClientType.OPENROUTER, ClientType.CUSTOM, ClientType.LLAMA, ClientType.FREE ->
                     openAICompatibleAdapter.openSession(contextPlan.turns, requestPlatform, requestConstraints)
 
                 ClientType.ANTHROPIC -> anthropicMessagesAdapter.openSession(contextPlan.turns, requestPlatform, requestConstraints)

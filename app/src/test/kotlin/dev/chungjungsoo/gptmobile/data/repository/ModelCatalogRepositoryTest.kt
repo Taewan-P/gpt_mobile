@@ -6,6 +6,21 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ModelCatalogRepositoryTest {
+    @Test
+    fun `new bundled revision survives older hosted catalogue and cached reads`() = runBlocking {
+        val repository = ModelCatalogRepositoryImpl(
+            fetchRemoteJson = { remoteCatalog("old-model", "0.1.0") },
+            readCacheJson = { null },
+            writeCacheJson = {},
+            readBundledJson = {
+                remoteCatalog("new-model", "0.1.0").replace("\"schemaVersion\": 1", "\"schemaVersion\": 1, \"revision\": 1")
+            },
+            appVersionName = "0.9.17.0"
+        )
+
+        assertEquals(listOf("new-model"), repository.getVisibleEntries().map { it.id })
+        assertEquals(listOf("new-model"), repository.getCachedVisibleEntries().map { it.id })
+    }
 
     @Test
     fun `successful fetch returns remote entries and writes cache`() = runBlocking {

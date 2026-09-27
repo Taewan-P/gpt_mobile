@@ -6,6 +6,7 @@ fun getClientTypeDisplayName(clientType: ClientType): String = when (clientType)
     ClientType.OPENAI -> "OpenAI"
     ClientType.ANTHROPIC -> "Anthropic"
     ClientType.GOOGLE -> "Google"
+    ClientType.NVIDIA -> "NVIDIA"
     ClientType.GROQ -> "Groq"
     ClientType.OPENROUTER -> "OpenRouter"
     ClientType.OLLAMA -> "Ollama"
