@@ -336,7 +336,7 @@ class ChatRepositoryImpl(
                 session, runId, turnKey, platform.compatibleType.name, platform.model,
                 if (runId.startsWith("combined-synthesis:")) "synthesis" else "primary",
                 dev.chungjungsoo.gptmobile.data.context.ContextBudgetService.estimate(requestPlatform.systemPrompt.orEmpty() + contextPlan.turns.joinToString { it.userMessage.content + it.assistantMessage?.content.orEmpty() }) + contextPlan.tools.sumOf { dev.chungjungsoo.gptmobile.data.context.ContextBudgetService.estimate(it.inputSchema.toString()) },
-                contextPlan.outputTokens, budgetSettings.totalRunTokens,
+                requestConstraints.outputLimit(platform.maxTokens) ?: 0, budgetSettings.totalRunTokens,
                 profileUid = platform.uid
             ) ?: session
             val groundedSession = accountedSession.withDeviceLocation(
