@@ -35,7 +35,10 @@ internal object LocalContextPlanner {
         // to silently receive zero tools on small-context models.
         val toolResultReserve = if (tools.isEmpty()) 0 else minOf(1024, contextTokens / 8)
         val templateReserve = minOf(256, contextTokens / 8)
-        val promptLimit = contextTokens.toLong() - outputReserve - templateReserve - toolResultReserve
+        // Reserve explicit result headroom for small local contexts; larger engines have
+        // provider-level response budgeting and should not lose tools unnecessarily.
+        val promptLimit = contextTokens.toLong() - outputReserve - templateReserve -
+            if (contextTokens <= 2048) toolResultReserve else 0
         var used = estimate(systemPrompt.orEmpty()) + estimate(currentUserPrompt) + imageCount.toLong() * IMAGE_TOKEN_ESTIMATE
         require(used < promptLimit) {
             "This message and system instructions exceed this local model's $contextTokens-token context. " +
