@@ -7,8 +7,13 @@ import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
  * Applies a 45-second per-tool timeout safeguard so that stalled or hanging local/MCP
  * tools never lock the entire conversation indefinitely.
  */
-fun agentRunnerForPlatform(platform: PlatformV2, runOverride: Int? = null): AgentRunner = AgentRunner(
+fun agentRunnerForPlatform(
+    platform: PlatformV2,
+    runOverride: Int? = null,
+    maxRoundsOverride: Int? = null
+): AgentRunner = AgentRunner(
     AgentRunLimits(
+        maxRounds = maxRoundsOverride ?: Int.MAX_VALUE,
         maxToolCalls = runOverride ?: platform.maxToolCalls,
         toolTimeoutMillis = 45_000L
     )
