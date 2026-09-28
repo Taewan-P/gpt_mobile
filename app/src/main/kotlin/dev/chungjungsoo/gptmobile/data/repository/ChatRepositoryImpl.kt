@@ -176,19 +176,16 @@ class ChatRepositoryImpl(
         else -> true
     }
 
-    /** Resolve the installed package before checking capabilities.
+    /** Resolve the installed package before exposing tools.
      *
-     * GPU/CPU editions of a model that also has an NPU build use the generated
-     * `-litert` catalogue ID. Looking up [PlatformV2.model] directly hides every
-     * tool (including MCP tools) from those local profiles even though the
-     * resolved LiteRT-LM package supports native tool calling.
+     * LiteRT-LM owns the OpenAPI tool bridge and constrained decoding; tool
+     * availability is not a model-catalog capability. Treating the optional
+     * catalogue recommendation as a hard gate made every imported/legacy local
+     * model, and most bundled models, silently lose MCP tools.
      */
     private suspend fun localModelSupportsTools(platform: PlatformV2): Boolean = try {
-        val selected = localModelRepository.resolveLocalModelSelection(platform.model, platform.accelerator)
-        modelCatalogRepository.getCachedVisibleEntries()
-            .firstOrNull { it.id == selected.modelId }
-            ?.capabilities
-            ?.tools == true
+        localModelRepository.resolveLocalModelSelection(platform.model, platform.accelerator)
+        true
     } catch (cancellation: CancellationException) {
         throw cancellation
     } catch (_: Exception) {

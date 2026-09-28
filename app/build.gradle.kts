@@ -39,6 +39,7 @@ extensions.configure<ApplicationExtension> {
         require(hfRedirect.isEmpty() || Regex("[a-z][a-z0-9+.-]*://[A-Za-z0-9/_.-]+").matches(hfRedirect)) { "Invalid HF OAuth redirect URI" }
         manifestPlaceholders["appAuthRedirectScheme"] = hfRedirect.substringBefore(":").ifEmpty { "gptmobile-hf-unconfigured" }
         buildConfigField("String", "LITERT_LM_VERSION", "\"${libs.versions.litertlm.get()}\"")
+        buildConfigField("String", "QAIRT_VERSION", "\"${libs.versions.qnn.get()}\"")
         buildConfigField("String", "HF_OAUTH_CLIENT_ID", "\"$hfClientId\"")
         buildConfigField("String", "HF_OAUTH_REDIRECT_URI", "\"$hfRedirect\"")
         // App owner confirmed LLM7 integration approval on 2026-09-26.

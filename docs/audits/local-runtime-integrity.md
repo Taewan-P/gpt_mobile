@@ -7,9 +7,9 @@ Starting revision: `6a38bc8`, including the merged marketplace update in #495. R
 
 The existing implementation had consequential integration defects. In particular, a QNN load could silently execute on GPU/CPU and keep showing QNN, including with automatic fallback disabled. This audit repairs those paths and adds regression coverage. Native execution on a physical phone remains a release verification requirement.
 
-The September 27 modernization refreshes the JNI hash manifest from the published 0.17.1 AAR; QAIRT and the bundled dispatch library remain unchanged. See [upgrade validation](../AI_ANDROID_MODERNIZATION_2026-09-27.md).
+The September 28 follow-up upgrades the packaged QAIRT libraries to 2.50.0 and replaces the Qualcomm dispatch library with a build from LiteRT-LM 0.17.1's pinned LiteRT revision. See [dispatch build provenance](litert-qualcomm-dispatch-build.md) and [upgrade validation](../AI_ANDROID_MODERNIZATION_2026-09-27.md).
 
-QNN remains the saved default. Both runtime options now use **LiteRT-LM 0.17.1**; the QNN option selects its Qualcomm NPU dispatch path. **QAIRT 2.47.0** supplies the matching host, stub and skeleton libraries. QNN is not a separate LLM implementation, and CPU/GPU execution is reported as LiteRT-LM.
+QNN remains the saved default. Both runtime options use **LiteRT-LM 0.17.1**; the QNN option selects its Qualcomm NPU dispatch path. The app now packages **QAIRT 2.50.0**, a matching rebuilt dispatch library, and native-crash quarantine. QNN is not a separate LLM implementation, and CPU/GPU execution is reported as LiteRT-LM.
 
 ## Findings and repairs
 
@@ -18,6 +18,8 @@ QNN remains the saved default. Both runtime options now use **LiteRT-LM 0.17.1**
 | High | LiteRT-LM retried accelerators internally, hiding failure from QNN fallback policy. The adapter could retry CPU after fallback was disabled. | Native loading uses the requested accelerator exactly. The router handles production retries, publishes the actual backend/spec, and persists LiteRT only after successful fallback. Disabled QNN fallback is terminal. |
 | High | DI shared the same mutable native runtime behind both router branches. Send routing guessed from whichever conversation appeared open. | Separate runtime instances; only the successfully initialized instance receives conversation operations. Failed/cancelled loads release resources. |
 | High | The APK mixed checked-in QNN libraries with different 2.47.0 Maven copies through `pickFirsts`. | One pinned QAIRT source. Removed the unused interpreter delegate, old host/stub/skeleton files, and compiler plugin. Compiled NPU packages use the dispatch/AOT route. APK hash checks now run in debug/release build workflows and the local validation script. |
+| High | A repository-prebuilt Qualcomm dispatch library was not tied to the LiteRT-LM dependency and could call through a mismatched dispatch ABI. | Rebuilt `libLiteRtDispatch_Qualcomm.so` from LiteRT revision `9fe5be45564c868408e6514c8aabb83e211a0911`, pinned by LiteRT-LM 0.17.1, against QAIRT 2.50.0.260828 headers. Its inputs, checksum, size and 16 KiB alignment are recorded in the audit. |
+| High | A fatal signal during native initialization restarted the process into the same crashing model/runtime tuple. | A per-install initialization marker now quarantines that tuple on the next launch, allowing the existing automatic CPU/GPU fallback instead of repeating the native crash. |
 | High | Readiness only checked a V79 skeleton and dispatch file; it did not require Qualcomm hardware or every dependency. | Device/ABI gate plus the correct HTP host/stub/skeleton set. Split APK extraction is supported and scoped to the app installation version. Readiness is labeled as prerequisites, not proof of execution. |
 | High | Files truncated by up to 5% could be considered complete. Imports advertised GGUF and unrelated binary formats despite using LiteRT-LM. | Exact HTTP response/range length validation, package signature checks, strict ready-file length checks and `.litertlm` import filtering. Imports are written to a temporary file before replacing a valid model. |
 | High | Cancelling a queued local run could cancel a different run that owned the engine. Conversation fingerprints were updated outside the generation lock. | Request cancellation, tool bindings and conversation bookkeeping stay under the exclusive generation lock. Native tool execution is tied to the active request job. |
@@ -59,11 +61,13 @@ Validated the runtime changes on top of `c5e10c1` before incorporating the subse
 - Debug APK build passed (`:app:assembleDebug`): arm64-v8a, x86_64 and universal APKs.
 - APK integrity checks passed on all three: 12 pinned runtime libraries in arm64, 1 in x86_64 and 13 in universal; no duplicate ZIP entries or obsolete delegate/compiler payloads; all checked AArch64 LOAD segments satisfy 16KB alignment.
 
+The QAIRT 2.50 follow-up additionally passed six focused QNN routing/crash-guard tests and rebuilt all three debug APK variants. The regenerated universal APK contains 14 hash-pinned runtime libraries; `scripts/check_local_runtime_apk.py` verified every hash and 18 Android host libraries with 16 KiB `LOAD` alignment.
+
 Tests use fake/mock native engines; they verify routing and SDK configuration, not Hexagon execution. The document integration test uses the actual repository → adapter → native-boundary path. The final combined branch also runs the repository CI suite. No physical-device or optimized-release execution was performed for this audit.
 
 ## Physical-device follow-up
 
-The most important remaining check is a real Qualcomm NPU run with the packaged APK, pinned model and device firmware. The existing Qualcomm dispatch binary is unchanged and hash-pinned; its source/build provenance and compatibility with this SDK combination remain unverified. A successful build cannot establish dispatch ABI, QNN graph compatibility, driver access, or native crash freedom.
+The most important remaining check is a real Qualcomm NPU run with the packaged APK, pinned model and device firmware. The dispatch binary and QAIRT host libraries are now version-matched and hash-pinned, but a successful build cannot establish QNN graph compatibility, driver access, or native crash freedom on every supported phone.
 
 1. Install the APK on an eligible arm64 Snapdragon device. Record the SoC and Android/firmware version. Download its matching Gemma 3 NPU package.
 2. Choose QNN and disable automatic fallback. Generate two turns. Confirm Advanced Settings reports QNN/NPU and no GPU/CPU fallback; inspect Logcat for actual HTP initialization.

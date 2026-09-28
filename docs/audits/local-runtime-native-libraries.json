@@ -1,61 +1,61 @@
 {
   "litertlmVersion": "0.17.1",
-  "qairtVersion": "2.47.0",
+  "qairtVersion": "2.50.0",
   "libraries": {
     "lib/arm64-v8a/libQnnHtp.so": {
-      "sha256": "ab01bb8b74a933009bfb0518c3f73d5c972f72ea2d358136e6f72ecfedb2d693",
-      "bytes": 3664752,
-      "source": "com.qualcomm.qti:qnn-runtime:2.47.0"
+      "sha256": "30e2981965e687d71626c91397867da81247c639e598f49fa5d139cbb21255d0",
+      "bytes": 3979248,
+      "source": "com.qualcomm.qti:qnn-runtime:2.50.0"
     },
     "lib/arm64-v8a/libQnnHtpPrepare.so": {
-      "sha256": "ce1b30c8d77e2d551da020255c2586b8a9b0267d0eafb5efb0bf9d0422be301b",
-      "bytes": 86301616,
-      "source": "com.qualcomm.qti:qnn-runtime:2.47.0"
+      "sha256": "9290ee987dbc8f6924574dd23fff1f109f2f153889035af7b34e41acfdd7e0b8",
+      "bytes": 85026392,
+      "source": "com.qualcomm.qti:qnn-runtime:2.50.0"
     },
     "lib/arm64-v8a/libQnnHtpV73Skel.so": {
-      "sha256": "993f11c0c527cd0c97f14c775b1e4d13cced4801b6f10ec5ed9fb7615d9214b6",
-      "bytes": 17261488,
-      "source": "com.qualcomm.qti:qnn-runtime:2.47.0"
+      "sha256": "024a0aea3d8d44fc5b59ffab20bde4348d07d05ad7d23f27c8bd06aa3d240d8a",
+      "bytes": 18709712,
+      "source": "com.qualcomm.qti:qnn-runtime:2.50.0"
     },
     "lib/arm64-v8a/libQnnHtpV73Stub.so": {
-      "sha256": "ac640934ba85f87b3adbfe6b3a312a6f99574ea0b612b7919d54f20fb9a4ca3b",
-      "bytes": 748168,
-      "source": "com.qualcomm.qti:qnn-runtime:2.47.0"
+      "sha256": "33ff99698707e84ea6f4f1d5e588ff8d79354e962c0f6c9e3a14c42c08c69bd7",
+      "bytes": 791696,
+      "source": "com.qualcomm.qti:qnn-runtime:2.50.0"
     },
     "lib/arm64-v8a/libQnnHtpV75Skel.so": {
-      "sha256": "2034cb2aa7632bb3021b6325a2a0f65c123c7307997cc9ccdbc26810ce5da2e9",
-      "bytes": 17265488,
-      "source": "com.qualcomm.qti:qnn-runtime:2.47.0"
+      "sha256": "3e9774b74769915b4f54364f8fc25887b3439561a970dca57c9f4dc9612b38af",
+      "bytes": 18693300,
+      "source": "com.qualcomm.qti:qnn-runtime:2.50.0"
     },
     "lib/arm64-v8a/libQnnHtpV75Stub.so": {
-      "sha256": "2598b0bdbbdbd51024399051e56a1b070cbe4920ece9369038a180adc979760f",
-      "bytes": 748168,
-      "source": "com.qualcomm.qti:qnn-runtime:2.47.0"
+      "sha256": "eca06fdf5bba9d9a291eae6d53ca46c7432e57be6c8e0565a628f2acc353b0a1",
+      "bytes": 791696,
+      "source": "com.qualcomm.qti:qnn-runtime:2.50.0"
     },
     "lib/arm64-v8a/libQnnHtpV79Skel.so": {
-      "sha256": "bcec19697d8f0d9bbc1699d2d184245f41c7d7dd637cc723cf9e28d4458ada11",
-      "bytes": 17067728,
-      "source": "com.qualcomm.qti:qnn-runtime:2.47.0"
+      "sha256": "860c9d2e7c937c9fb8f8f18daa9a79cab6c566066a2d36f235f6c8708fdc75bd",
+      "bytes": 18513604,
+      "source": "com.qualcomm.qti:qnn-runtime:2.50.0"
     },
     "lib/arm64-v8a/libQnnHtpV79Stub.so": {
-      "sha256": "eb599ef4ece1b11abb9aff0b3f01c63a1e554c6f2c80c850aca6005b502ee7a0",
-      "bytes": 748168,
-      "source": "com.qualcomm.qti:qnn-runtime:2.47.0"
+      "sha256": "d9f5eca67297125c572995526fc97b1c04cf6b8eb14c81eb0cef5115f58aa766",
+      "bytes": 791696,
+      "source": "com.qualcomm.qti:qnn-runtime:2.50.0"
     },
     "lib/arm64-v8a/libQnnHtpV81Skel.so": {
-      "sha256": "fe665468281c4a6785ffba6d8c37b80db629776b8f2f7b0a269733f6401ca69b",
-      "bytes": 18172240,
-      "source": "com.qualcomm.qti:qnn-runtime:2.47.0"
+      "sha256": "02047c9fef8a22801c0eefaa79188e87b600372c9813dea3f621ba256d1ddce0",
+      "bytes": 19708192,
+      "source": "com.qualcomm.qti:qnn-runtime:2.50.0"
     },
     "lib/arm64-v8a/libQnnHtpV81Stub.so": {
-      "sha256": "ce8d124b24ac936ecd0c17e61cf6112aad79d079d652644ec3e8495caf32491b",
-      "bytes": 771296,
-      "source": "com.qualcomm.qti:qnn-runtime:2.47.0"
+      "sha256": "e672e6047088a4440e3027663805b6de7b0531f3e21c45ddb2e19e3f29583d6c",
+      "bytes": 816456,
+      "source": "com.qualcomm.qti:qnn-runtime:2.50.0"
     },
     "lib/arm64-v8a/libQnnSystem.so": {
-      "sha256": "d6da066808f50fb2e5a3363a4f4a2ac616b7605ea8c5a42e3beda1e550ae4c41",
-      "bytes": 3931808,
-      "source": "com.qualcomm.qti:qnn-runtime:2.47.0"
+      "sha256": "ca9e5429c77380e1c3f5a401f00288915ec2f6cc478979bafd57c665391d432f",
+      "bytes": 4068296,
+      "source": "com.qualcomm.qti:qnn-runtime:2.50.0"
     },
     "lib/arm64-v8a/liblitertlm_jni.so": {
       "sha256": "44f900f3ea6c5224f3395c1548dfa7e825f4412ba3833f994c5c306831a57086",
@@ -68,9 +68,9 @@
       "source": "com.google.ai.edge.litertlm:litertlm-android:0.17.1"
     },
     "lib/arm64-v8a/libLiteRtDispatch_Qualcomm.so": {
-      "sha256": "c4abfff6c99ec218f545415a81a2a03a3ee3e21df2ea911902d6b7bbfeda80bf",
-      "bytes": 445576,
-      "source": "existing repository prebuilt; unchanged by audit"
+      "sha256": "b248013db82f1b6f397473205b1f492d4ab6965a537dcab6dfe6b92d8cbb87d1",
+      "bytes": 691040,
+      "source": "LiteRT 9fe5be45564c868408e6514c8aabb83e211a0911 (LiteRT-LM 0.17.1 pin), built against QAIRT 2.50.0.260828 headers with Android NDK r28b"
     }
   }
 }

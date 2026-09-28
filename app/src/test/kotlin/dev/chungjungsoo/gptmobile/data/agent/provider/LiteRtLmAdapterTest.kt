@@ -977,7 +977,7 @@ class LiteRtLmAdapterTest {
     }
 
     @Test
-    fun `non capable model does not register tools`() = runBlocking {
+    fun `model without catalog tool recommendation still registers bound tools`() = runBlocking {
         val runtime = FakeLocalRuntime().apply {
             scriptedEvents = listOf(listOf(LocalRuntimeEvent.TextDelta("ok"), LocalRuntimeEvent.Done))
         }
@@ -988,9 +988,9 @@ class LiteRtLmAdapterTest {
             .toList()
 
         val config = runtime.createConversationCalls.single()
-        assertTrue(config.tools.isEmpty())
-        assertFalse(config.isConstrainedDecodingEnabled)
-        assertEquals(null, config.toolExecutor)
+        assertEquals(listOf("lookup"), config.tools.map { it.name })
+        assertTrue(config.isConstrainedDecodingEnabled)
+        assertTrue(config.toolExecutor != null)
     }
 
     @Test

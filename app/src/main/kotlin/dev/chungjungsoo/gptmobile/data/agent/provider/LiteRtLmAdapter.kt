@@ -113,7 +113,11 @@ class LiteRtLmAdapter(
                     return@channelFlow
                 }
                 val visionCapable = catalogEntry?.capabilities?.vision == true
-                val toolsCapable = catalogEntry?.capabilities?.tools == true
+                // Tool execution is provided by LiteRT-LM's OpenAPI bridge. The
+                // catalogue flag is a recommendation, not a runtime capability;
+                // using it as a gate hid all MCP tools from imported, legacy and
+                // most bundled local models.
+                val toolsCapable = true
                 val latestAttachments = turns.lastOrNull()?.userMessage?.attachments.orEmpty()
                 attachmentNotices(visionCapable, turns, latestAttachments).forEach { notice ->
                     send(notice)

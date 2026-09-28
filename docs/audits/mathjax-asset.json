@@ -1,0 +1,17 @@
+{
+  "component": "mathjax",
+  "version": "4.1.2",
+  "source": "https://registry.npmjs.org/mathjax/-/mathjax-4.1.2.tgz",
+  "npmIntegrity": "sha512-EQDS8xBpVg179BXoLeZ9JlwUFftOC5qylw20UlAMDhrTuooENigOocY79aNkkFSyvj/AST/89ZAo12+r5bPI4w==",
+  "tarballSha1": "1a0295bca1b7d4ea54f1ecbb66a7334bf1f4d176",
+  "files": {
+    "app/src/main/assets/mathjax/tex-svg.js": {
+      "sha256": "e201dba4a20191563337e7f95ebeef6724bd2fbdc079c431b4bb8ecdfc059c33",
+      "bytes": 1846372
+    },
+    "app/src/main/assets/mathjax/LICENSE": {
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "bytes": 11358
+    }
+  }
+}

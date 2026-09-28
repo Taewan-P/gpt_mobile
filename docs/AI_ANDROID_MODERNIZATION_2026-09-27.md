@@ -34,11 +34,11 @@ Versions were checked against Google Maven or Maven Central, excluding alpha/bet
 | MapLibre | 11.11.0 | 13.6.1 OpenGL |
 | Apache POI / Gson | 5.4.1 / 2.11.0 | 5.5.1 / 2.14.0 |
 | Mockito / Robolectric | 5.23.0 / 4.16.1 | 5.24.0 / 4.17 |
-| Qualcomm QAIRT | 2.47.0 | 2.47.0 retained; 2.50.0 available |
+| Qualcomm QAIRT | 2.47.0 | 2.50.0, with the LiteRT-LM-pinned Qualcomm dispatch rebuilt against QAIRT 2.50.0.260828 and the native-library audit regenerated |
 
 AGP 9.4 requires Gradle 9.6 and supports API 37; Java 21 remains the project toolchain. Compile SDK upgrades enable dependency/API compatibility, while target SDK remains 36 pending an Android 17 behavior-change/device pass. [AGP compatibility](https://developer.android.com/build/releases/agp-9-4-0-release-notes), [Core releases](https://developer.android.com/jetpack/androidx/releases/core), [Hilt releases](https://github.com/google/dagger/releases).
 
-QAIRT remains pinned because the packaged HTP host libraries, stubs, skeletons, and SoC-compiled model artifacts must be considered together. Upgrading this dependency alone does not convert existing NPU models or prove compatibility. Test a separate 2.50 artifact set on the exact phone before changing the pin. Libraries already on their current stable versions remain pinned, including MCP Kotlin SDK 0.15.0, coroutines 1.11.0, serialization 1.11.0, DataStore 1.2.1, Activity 1.13.0, AppAuth 0.11.1, and PDFBox Android 2.0.27.0.
+QAIRT remains pinned because the packaged HTP host libraries, stubs, skeletons, dispatch library, and SoC-compiled model artifacts must be considered together. The host/runtime set is now coordinated at 2.50.0; this does not convert existing NPU models or prove AOT context compatibility. Test the pinned model on the exact phone before release. Libraries already on their current stable versions remain pinned, including MCP Kotlin SDK 0.15.0, coroutines 1.11.0, serialization 1.11.0, DataStore 1.2.1, Activity 1.13.0, AppAuth 0.11.1, and PDFBox Android 2.0.27.0.
 
 ## Wider GitHub and research assessment
 

@@ -447,7 +447,7 @@ class ChatRepositoryImplTest {
     }
 
     @Test
-    fun `litert GPU package keeps local and MCP tools when profile stores parent model id`() = runBlocking {
+    fun `litert GPU package keeps MCP tools without catalog tool recommendation`() = runBlocking {
         val runtime = FakeLocalRuntime().apply {
             deviceRamGb = 12L
             scriptedEvents = listOf(listOf(LocalRuntimeEvent.TextDelta("tools visible"), LocalRuntimeEvent.Done))
@@ -482,7 +482,7 @@ class ChatRepositoryImplTest {
                 downloadedPaths = mapOf("gemma3-1b-it-litert" to "/models/gemma-gpu.litertlm")
             ),
             modelCatalogRepository = FakeModelCatalogRepository(
-                listOf(CatalogEntry(id = "gemma3-1b-it-litert", capabilities = CatalogCapabilities(tools = true)))
+                listOf(CatalogEntry(id = "gemma3-1b-it-litert", capabilities = CatalogCapabilities(tools = false)))
             ),
             agentToolResolver = resolver
         )
