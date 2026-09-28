@@ -38,6 +38,14 @@ fun ModelDelegationSettingsPanel(viewModel: LocalToolsViewModel = hiltViewModel(
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 LocalToolToggle("Model delegation", config.enabled, !busy) { value -> viewModel.update { it.copy(enabled = value) } }
                 Text("Let a local model plan searches, read pages and process tool results. Your remote model receives a compact brief with sources and any missing evidence.", style = MaterialTheme.typography.bodyMedium)
+                DelegationSlider(
+                    "Token efficiency strategy: ${strategyLabel(config.strategy)}",
+                    config.strategy,
+                    0..100,
+                    10,
+                    !busy,
+                    "Extremely efficient uses fewer searches, smaller briefs and fewer local calls. Higher accuracy spends more tokens and gathers broader evidence."
+                ) { value -> viewModel.update { it.withStrategy(value) } }
                 LocalToolToggle("Only private destinations", config.localPlatformsOnly, !busy) { value -> viewModel.update { it.copy(localPlatformsOnly = value) } }
                 Text("Local research and result processing require an on-device model or private server. Other destinations support text delegation only.", style = MaterialTheme.typography.bodySmall)
                 Text("Helper profile", style = MaterialTheme.typography.titleSmall)
@@ -88,6 +96,14 @@ fun ModelDelegationSettingsPanel(viewModel: LocalToolsViewModel = hiltViewModel(
             }
         }
     }
+}
+
+private fun strategyLabel(value: Int): String = when {
+    value < 25 -> "Extremely efficient"
+    value < 45 -> "Efficient"
+    value < 65 -> "Balanced"
+    value < 85 -> "Accurate"
+    else -> "Maximum accuracy"
 }
 
 @Composable

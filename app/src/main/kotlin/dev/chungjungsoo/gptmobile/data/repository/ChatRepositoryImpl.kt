@@ -90,8 +90,15 @@ private fun delegatedToolPriority(tool: ResolvedAgentTool): Int = when (tool.rea
     else -> 3
 }
 
-private const val REMOTE_SYNTHESIS_HISTORY_LIMIT = 6
-private const val REMOTE_SYNTHESIS_RECENT_TURNS = 5
+private const val MAX_REMOTE_PRIMARY_TOOLS = 8
+
+private fun compactRemotePrimaryTools(tools: List<ResolvedAgentTool>): List<ResolvedAgentTool> =
+    tools
+        .sortedWith(compareBy<ResolvedAgentTool> { delegatedToolPriority(it) }.thenBy { it.modelToolName })
+        .take(MAX_REMOTE_PRIMARY_TOOLS)
+
+private const val REMOTE_SYNTHESIS_HISTORY_LIMIT = 4
+private const val REMOTE_SYNTHESIS_RECENT_TURNS = 3
 
 class ChatRepositoryImpl(
     private val context: Context,
@@ -352,7 +359,21 @@ class ChatRepositoryImpl(
             val diagnosticsEnabled = runCatching {
                 settingRepository.getFeatureSettings().diagnosticsCollection
             }.getOrDefault(false)
-            val customRunner = agentRunnerForPlatform(platform, chatToolConfig?.maxToolCalls)
+            // A remote provider can otherwise keep replaying the growing conversation indefinitely.
+            // Tie the round ceiling to the delegation strategy, with a deliberately small hard cap.
+            // This protects token spend even when the accuracy slider is at its maximum.
+            val delegationStrategy = settingRepository.getFeatureSettings().delegation.normalized().strategy
+            val maxRemoteRounds = when {
+                delegationStrategy < 25 -> 3
+                delegationStrategy < 50 -> 4
+                delegationStrategy < 75 -> 5
+                else -> 6
+            }
+            val customRunner = agentRunnerForPlatform(
+                platform = platform,
+                runOverride = chatToolConfig?.maxToolCalls,
+                maxRoundsOverride = maxRemoteRounds
+            )
             val budgetSettings = settingRepository.getFeatureSettings().tokenBudget.normalized()
             val profileBudget = budgetSettings.copy(contextTokens = minOf(budgetSettings.contextTokens, budgetSettings.profileContextCeilings[platform.uid] ?: Int.MAX_VALUE))
             val limits = if (platform.compatibleType == ClientType.FREE && FreeAiProvider.requireFor(platform) == FreeAiProvider.POLLINATIONS) {
@@ -440,7 +461,7 @@ class ChatRepositoryImpl(
             }
             if (recalled.facts.isNotEmpty()) emit(ApiState.MemoryRecalled(recalled.references))
             var localResearch = resolvedTools.any { it.realToolName == "delegate_to_model" } && localDelegation.researchAvailable()
-            var exposedTools = dev.chungjungsoo.gptmobile.data.agent.tool.aggregateWebSearch(resolvedTools)
+            var exposedTools = compactRemotePrimaryTools(dev.chungjungsoo.gptmobile.data.agent.tool.aggregateWebSearch(resolvedTools))
                 .filterNot { localResearch && (it.isWebSearchEngine() || it.isResearchPageReader()) }
                 .sortedBy { it.realToolName != "delegate_to_model" }
             fun baseSystemPrompt() = liveToolSystemPrompt(platform.systemPrompt, exposedTools.map { it.modelToolName }, compact = localResearch || limits.contextTokens < 4096) +

@@ -5,6 +5,8 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class ModelDelegationSettings(
     val enabled: Boolean = false,
+    /** 0 = extremely token efficient, 50 = balanced, 100 = maximum accuracy. */
+    val strategy: Int = 50,
     val targetProfileUid: String = "",
     val localPlatformsOnly: Boolean = true,
     val maxInputCharacters: Int = 8000,
@@ -24,7 +26,31 @@ data class ModelDelegationSettings(
     val handoffTokens: Int = 1024,
     val compactionThresholdCharacters: Int = 3000
 ) {
+    /** Apply the master slider to every delegation budget and breadth setting. */
+    fun withStrategy(value: Int): ModelDelegationSettings {
+        val level = value.coerceIn(0, 100)
+        fun scale(min: Int, max: Int): Int = min + ((max - min) * level / 100)
+        return copy(
+            strategy = level,
+            maxInputCharacters = scale(4000, 16000),
+            maxOutputTokens = scale(256, 1024),
+            timeoutSeconds = scale(30, 180),
+            maxCallsPerTurn = scale(1, 4),
+            maxLocalModelCalls = scale(4, 16),
+            maxSearchQueries = scale(1, 6),
+            searchResultsPerEngine = scale(2, 10),
+            maxPages = scale(1, 8),
+            crawlDepth = scale(0, 2),
+            pageFetchConcurrency = scale(1, 3),
+            maxPageCharacters = scale(6000, 30000),
+            handoffTokens = scale(512, 2048),
+            compactionThresholdCharacters = scale(1500, 6000),
+            compactToolResults = level < 20
+        )
+    }
+
     fun normalized() = copy(
+        strategy = strategy.coerceIn(0, 100),
         maxInputCharacters = maxInputCharacters.coerceIn(1000, 64000),
         maxOutputTokens = maxOutputTokens.coerceIn(64, 4096),
         timeoutSeconds = timeoutSeconds.coerceIn(5, 300),
