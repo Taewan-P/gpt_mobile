@@ -296,6 +296,7 @@ class ChatRepositoryImpl(
                     is ProviderEvent.Failed -> error("The delegated provider failed.")
                     else -> Unit
                 }
+                is AgentRunEvent.ToolStarted -> Unit
                 is AgentRunEvent.ToolFinished -> Unit
                 is AgentRunEvent.Notice -> Unit
             }
