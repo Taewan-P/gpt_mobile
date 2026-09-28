@@ -238,7 +238,7 @@ class ChatRepositoryImpl(
         if (turns.size <= REMOTE_SYNTHESIS_HISTORY_LIMIT) return turns
         val first = turns.firstOrNull()
         val recent = turns.takeLast(REMOTE_SYNTHESIS_RECENT_TURNS)
-        return (listOfNotNull(first) + recent).distinctBy { it.userMessage.id }
+        return listOfNotNull(first) + recent
     }
 
     private suspend fun delegateToProfile(target: PlatformV2, task: String, maxTokens: Int, parentRunId: String, turnKey: String): String {
