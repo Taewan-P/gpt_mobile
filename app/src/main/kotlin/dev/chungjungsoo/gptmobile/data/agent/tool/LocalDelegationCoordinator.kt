@@ -32,7 +32,7 @@ internal class LocalDelegationCoordinator(
         return try {
             val config = settings().normalized()
             val target = localTarget(config) ?: return false
-            if (!config.researchEnabled) return false
+            if (!config.researchEnabled || config.processingOwnership >= 85) return false
             inputBudget(target, config.maxOutputTokens) >= 600
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -42,7 +42,7 @@ internal class LocalDelegationCoordinator(
     }
 
     private suspend fun localTarget(config: ModelDelegationSettings): PlatformV2? {
-        if (!config.enabled || source.disableAllTools || source.disableLocalTools || source.isPrivateDestination() || source.excludesMemory()) return null
+        if (!config.enabled || config.processingOwnership >= 85 || source.disableAllTools || source.disableLocalTools || source.isPrivateDestination() || source.excludesMemory()) return null
         return profiles().firstOrNull {
             it.uid == config.targetProfileUid && it.uid != source.uid && it.enabled && !it.excludesMemory() && it.isPrivateDestination()
         }
