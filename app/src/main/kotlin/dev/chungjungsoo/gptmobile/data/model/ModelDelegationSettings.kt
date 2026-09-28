@@ -1,10 +1,13 @@
 package dev.chungjungsoo.gptmobile.data.model
 
 import kotlinx.serialization.Serializable
+import kotlin.math.roundToInt
 
 @Serializable
 data class ModelDelegationSettings(
     val enabled: Boolean = false,
+    /** 0 = extremely token efficient, 50 = balanced, 100 = maximum accuracy. */
+    val strategy: Int = 50,
     val targetProfileUid: String = "",
     val localPlatformsOnly: Boolean = true,
     val maxInputCharacters: Int = 8000,
@@ -25,6 +28,7 @@ data class ModelDelegationSettings(
     val compactionThresholdCharacters: Int = 3000
 ) {
     fun normalized() = copy(
+        strategy = strategy.coerceIn(0, 100),
         maxInputCharacters = maxInputCharacters.coerceIn(1000, 64000),
         maxOutputTokens = maxOutputTokens.coerceIn(64, 4096),
         timeoutSeconds = timeoutSeconds.coerceIn(5, 300),
