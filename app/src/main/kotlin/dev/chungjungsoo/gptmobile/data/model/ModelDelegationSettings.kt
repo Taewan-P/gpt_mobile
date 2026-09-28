@@ -7,6 +7,8 @@ data class ModelDelegationSettings(
     val enabled: Boolean = false,
     /** 0 = extremely token efficient, 50 = balanced, 100 = maximum accuracy. */
     val strategy: Int = 50,
+    /** 0 = local-first, 50 = shared concurrent-capable, 100 = remote-first. */
+    val processingOwnership: Int = 50,
     val targetProfileUid: String = "",
     val localPlatformsOnly: Boolean = true,
     val maxInputCharacters: Int = 8000,
@@ -49,8 +51,14 @@ data class ModelDelegationSettings(
         )
     }
 
+    /** Apply the local-to-remote processing ownership slider without changing token budgets. */
+    fun withProcessingOwnership(value: Int): ModelDelegationSettings = copy(
+        processingOwnership = value.coerceIn(0, 100)
+    )
+
     fun normalized() = copy(
         strategy = strategy.coerceIn(0, 100),
+        processingOwnership = processingOwnership.coerceIn(0, 100),
         maxInputCharacters = maxInputCharacters.coerceIn(1000, 64000),
         maxOutputTokens = maxOutputTokens.coerceIn(64, 4096),
         timeoutSeconds = timeoutSeconds.coerceIn(5, 300),

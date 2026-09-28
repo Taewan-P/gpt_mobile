@@ -46,6 +46,15 @@ fun ModelDelegationSettingsPanel(viewModel: LocalToolsViewModel = hiltViewModel(
                     !busy,
                     "Extremely efficient uses fewer searches, smaller briefs and fewer local calls. Higher accuracy spends more tokens and gathers broader evidence."
                 ) { value -> viewModel.update { it.withStrategy(value) } }
+                DelegationSlider(
+                    "Processing ownership: ${ownershipLabel(config.processingOwnership)}",
+                    config.processingOwnership,
+                    0..100,
+                    10,
+                    !busy,
+                    "Controls who performs the work. Shared keeps remote reasoning and local research active together when possible."
+                ) { value -> viewModel.update { it.withProcessingOwnership(value) } }
+                Text("Local-first prioritizes on-device research. Shared runs both sides when possible. Remote-first lets the remote model lead tool work.", style = MaterialTheme.typography.bodySmall)
                 LocalToolToggle("Only private destinations", config.localPlatformsOnly, !busy) { value -> viewModel.update { it.copy(localPlatformsOnly = value) } }
                 Text("Local research and result processing require an on-device model or private server. Other destinations support text delegation only.", style = MaterialTheme.typography.bodySmall)
                 Text("Helper profile", style = MaterialTheme.typography.titleSmall)
@@ -104,6 +113,14 @@ private fun strategyLabel(value: Int): String = when {
     value < 65 -> "Balanced"
     value < 85 -> "Accurate"
     else -> "Maximum accuracy"
+}
+
+private fun ownershipLabel(value: Int): String = when {
+    value < 25 -> "Local-first"
+    value < 45 -> "Local-balanced"
+    value < 65 -> "Shared"
+    value < 85 -> "Remote-balanced"
+    else -> "Remote-first"
 }
 
 @Composable
