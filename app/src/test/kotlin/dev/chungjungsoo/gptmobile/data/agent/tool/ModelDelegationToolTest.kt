@@ -16,7 +16,7 @@ import org.junit.Test
 class ModelDelegationToolTest {
     private val source = PlatformV2(uid = "source", name = "Main", compatibleType = ClientType.OPENAI)
     private val target = PlatformV2(uid = "target", name = "Local", compatibleType = ClientType.LLAMA, apiUrl = "http://192.168.1.20:8080/v1")
-    private val enabled = ModelDelegationSettings(enabled = true, targetProfileUid = target.uid)
+    private val enabled = ModelDelegationSettings(enabled = true, targetProfileUid = target.uid, maxCallsPerTurn = 1)
     private val task = buildJsonObject { put("task", "Summarize this text") }
 
     @Test
