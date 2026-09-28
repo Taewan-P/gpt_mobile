@@ -21,6 +21,13 @@ class LocalContextPlannerTest {
     }
 
     @Test
+    fun `tool definitions are not double charged against the context budget`() {
+        val tools = (1..8).map { AgentToolDefinition("tool$it", "short", buildJsonObject {}) }
+        val plan = LocalContextPlanner.plan(emptyList(), "Use a tool", "", tools, 1024, null)
+        assertTrue(plan.tools.isNotEmpty())
+    }
+
+    @Test
     fun `single oversized anchor is evicted instead of bypassing compaction`() {
         val huge = turn("x".repeat(40000))
         val plan = LocalContextPlanner.plan(listOf(huge), "Current question", "System", emptyList(), 1024, null)
