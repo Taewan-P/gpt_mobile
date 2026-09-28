@@ -32,6 +32,10 @@ class LocalToolsViewModel @Inject constructor(private val settings: SettingRepos
     private val _error = MutableStateFlow<String?>(null)
     val error = _error.asStateFlow()
 
+    fun resetDelegationDefaults() {
+        update { ModelDelegationSettings() }
+    }
+
     fun update(transform: (ModelDelegationSettings) -> ModelDelegationSettings) {
         if (_busy.value) return
         _busy.value = true

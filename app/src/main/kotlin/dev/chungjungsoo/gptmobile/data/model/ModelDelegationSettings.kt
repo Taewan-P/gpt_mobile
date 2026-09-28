@@ -11,22 +11,32 @@ data class ModelDelegationSettings(
     val processingOwnership: Int = 50,
     val targetProfileUid: String = "",
     val localPlatformsOnly: Boolean = true,
-    val maxInputCharacters: Int = 8000,
+    /** Allow enabled remote profiles to receive delegated worker tasks. */
+    val allowRemoteWorkers: Boolean = false,
+    /** Maximum worker-to-worker delegation depth; 1 prevents delegation loops by default. */
+    val maxDelegationDepth: Int = 1,
+    val maxInputCharacters: Int = 3500,
     val maxOutputTokens: Int = 512,
-    val timeoutSeconds: Int = 120,
-    val maxCallsPerTurn: Int = 1,
+    val timeoutSeconds: Int = 75,
+    val maxCallsPerTurn: Int = 5,
     val researchEnabled: Boolean = true,
     val automaticResearch: Boolean = true,
     val compactToolResults: Boolean = true,
-    val maxLocalModelCalls: Int = 8,
-    val maxSearchQueries: Int = 2,
-    val searchResultsPerEngine: Int = 4,
-    val maxPages: Int = 4,
-    val crawlDepth: Int = 0,
-    val pageFetchConcurrency: Int = 2,
-    val maxPageCharacters: Int = 12000,
-    val handoffTokens: Int = 1024,
-    val compactionThresholdCharacters: Int = 3000
+    val maxLocalModelCalls: Int = 10,
+    val maxSearchQueries: Int = 6,
+    val searchResultsPerEngine: Int = 10,
+    val maxPages: Int = 10,
+    val crawlDepth: Int = 2,
+    val pageFetchConcurrency: Int = 4,
+    val maxPageCharacters: Int = 36000,
+    val handoffTokens: Int = 256,
+    val compactionThresholdCharacters: Int = 500,
+    /** Maximum local retry attempts after the initial delegation attempt. */
+    val localRetryLimit: Int = 0,
+    /** Pause aggressive local research at or below this battery percentage. */
+    val lowBatteryThresholdPercent: Int = 15,
+    /** Keep remote synthesis compact after local research has prepared evidence. */
+    val remoteSynthesisOutputTokens: Int = 256
 ) {
     /** Apply the master slider to every delegation budget and breadth setting. */
     fun withStrategy(value: Int): ModelDelegationSettings {
@@ -34,19 +44,19 @@ data class ModelDelegationSettings(
         fun scale(min: Int, max: Int): Int = min + ((max - min) * level / 100)
         return copy(
             strategy = level,
-            maxInputCharacters = scale(4000, 16000),
-            maxOutputTokens = scale(256, 1024),
-            timeoutSeconds = scale(30, 180),
-            maxCallsPerTurn = scale(1, 4),
-            maxLocalModelCalls = scale(4, 16),
-            maxSearchQueries = scale(1, 6),
-            searchResultsPerEngine = scale(2, 10),
+            maxInputCharacters = scale(2000, 32000),
+            maxOutputTokens = scale(256, 2048),
+            timeoutSeconds = scale(30, 360),
+            maxCallsPerTurn = scale(1, 16),
+            maxLocalModelCalls = scale(4, 32),
+            maxSearchQueries = scale(1, 12),
+            searchResultsPerEngine = scale(2, 20),
             maxPages = scale(1, 8),
-            crawlDepth = scale(0, 2),
-            pageFetchConcurrency = scale(1, 3),
-            maxPageCharacters = scale(6000, 30000),
-            handoffTokens = scale(512, 2048),
-            compactionThresholdCharacters = scale(1500, 6000),
+            crawlDepth = scale(0, 4),
+            pageFetchConcurrency = scale(1, 6),
+            maxPageCharacters = scale(6000, 60000),
+            handoffTokens = scale(256, 4096),
+            compactionThresholdCharacters = scale(256, 12000),
             compactToolResults = level < 20
         )
     }
@@ -59,19 +69,23 @@ data class ModelDelegationSettings(
     fun normalized() = copy(
         strategy = strategy.coerceIn(0, 100),
         processingOwnership = processingOwnership.coerceIn(0, 100),
+        maxDelegationDepth = maxDelegationDepth.coerceIn(1, 2),
         maxInputCharacters = maxInputCharacters.coerceIn(1000, 64000),
         maxOutputTokens = maxOutputTokens.coerceIn(64, 4096),
         timeoutSeconds = timeoutSeconds.coerceIn(5, 300),
-        maxCallsPerTurn = maxCallsPerTurn.coerceIn(1, 8),
-        maxLocalModelCalls = maxLocalModelCalls.coerceIn(1, 24),
-        maxSearchQueries = maxSearchQueries.coerceIn(1, 6),
-        searchResultsPerEngine = searchResultsPerEngine.coerceIn(1, 10),
-        maxPages = maxPages.coerceIn(0, 12),
-        crawlDepth = crawlDepth.coerceIn(0, 2),
-        pageFetchConcurrency = pageFetchConcurrency.coerceIn(1, 4),
-        maxPageCharacters = maxPageCharacters.coerceIn(1000, 48000),
-        handoffTokens = handoffTokens.coerceIn(128, 4096),
-        compactionThresholdCharacters = compactionThresholdCharacters.coerceIn(500, 24000)
+        maxCallsPerTurn = maxCallsPerTurn.coerceIn(1, 16),
+        maxLocalModelCalls = maxLocalModelCalls.coerceIn(1, 48),
+        maxSearchQueries = maxSearchQueries.coerceIn(1, 20),
+        searchResultsPerEngine = searchResultsPerEngine.coerceIn(1, 28),
+        maxPages = maxPages.coerceIn(0, 32),
+        crawlDepth = crawlDepth.coerceIn(0, 8),
+        pageFetchConcurrency = pageFetchConcurrency.coerceIn(1, 16),
+        maxPageCharacters = maxPageCharacters.coerceIn(1000, 96000),
+        handoffTokens = handoffTokens.coerceIn(128, 8192),
+        compactionThresholdCharacters = compactionThresholdCharacters.coerceIn(256, 48000),
+        localRetryLimit = localRetryLimit.coerceIn(0, 1),
+        lowBatteryThresholdPercent = lowBatteryThresholdPercent.coerceIn(0, 50),
+        remoteSynthesisOutputTokens = remoteSynthesisOutputTokens.coerceIn(256, 4096)
     )
 }
 

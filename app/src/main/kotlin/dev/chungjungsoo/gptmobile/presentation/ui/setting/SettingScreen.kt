@@ -44,6 +44,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -88,6 +90,7 @@ fun SettingScreen(
     val backupStatus by settingViewModel.backupStatus.collectAsState()
     val backupUi by settingViewModel.backupUi.collectAsState()
     val context = LocalContext.current
+    var showDelegation by remember { mutableStateOf(false) }
 
     val backupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/octet-stream"),
@@ -146,6 +149,11 @@ fun SettingScreen(
                         icon = Icons.Default.Storage,
                         title = stringResource(R.string.local_models),
                         onClick = onNavigateToLocalModels
+                    )
+                    SettingsDestination(
+                        icon = Icons.Default.Psychology,
+                        title = "Model Delegation",
+                        onClick = { showDelegation = true }
                     )
                 }
             }
@@ -210,6 +218,10 @@ fun SettingScreen(
             }
             item { Spacer(Modifier.height(48.dp)) }
         }
+    }
+
+    if (showDelegation) {
+        LocalToolConfigurationDialog(section = "delegation", onDismiss = { showDelegation = false })
     }
 
     if (dialogState.isThemeDialogOpen) {
