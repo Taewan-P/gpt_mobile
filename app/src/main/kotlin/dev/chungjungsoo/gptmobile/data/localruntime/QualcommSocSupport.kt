@@ -17,6 +17,7 @@ object QualcommSocSupport {
         return listOf(
             "libLiteRtDispatch_Qualcomm.so",
             "libQnnHtp.so",
+            "libQnnHtpPrepare.so",
             "libQnnSystem.so",
             "libQnnHtpV${version}Stub.so",
             "libQnnHtpV${version}Skel.so"

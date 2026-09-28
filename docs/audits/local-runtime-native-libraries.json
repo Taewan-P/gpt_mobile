@@ -7,6 +7,11 @@
       "bytes": 3664752,
       "source": "com.qualcomm.qti:qnn-runtime:2.47.0"
     },
+    "lib/arm64-v8a/libQnnHtpPrepare.so": {
+      "sha256": "ce1b30c8d77e2d551da020255c2586b8a9b0267d0eafb5efb0bf9d0422be301b",
+      "bytes": 86301616,
+      "source": "com.qualcomm.qti:qnn-runtime:2.47.0"
+    },
     "lib/arm64-v8a/libQnnHtpV73Skel.so": {
       "sha256": "993f11c0c527cd0c97f14c775b1e4d13cced4801b6f10ec5ed9fb7615d9214b6",
       "bytes": 17261488,

@@ -172,12 +172,27 @@ class ChatRepositoryImpl(
 
     override suspend fun supportsBenchmarkTools(platform: PlatformV2): Boolean = when (platform.compatibleType) {
         ClientType.FREE -> FreeAiProvider.requireFor(platform).supportsTools
-        ClientType.LITERT_LM -> {
-            val entries = modelCatalogRepository.getCachedVisibleEntries()
-            val selected = localModelRepository.resolveLocalModelSelection(platform.model, platform.accelerator)
-            entries.firstOrNull { it.id == selected.modelId }?.capabilities?.tools == true
-        }
+        ClientType.LITERT_LM -> localModelSupportsTools(platform)
         else -> true
+    }
+
+    /** Resolve the installed package before checking capabilities.
+     *
+     * GPU/CPU editions of a model that also has an NPU build use the generated
+     * `-litert` catalogue ID. Looking up [PlatformV2.model] directly hides every
+     * tool (including MCP tools) from those local profiles even though the
+     * resolved LiteRT-LM package supports native tool calling.
+     */
+    private suspend fun localModelSupportsTools(platform: PlatformV2): Boolean = try {
+        val selected = localModelRepository.resolveLocalModelSelection(platform.model, platform.accelerator)
+        modelCatalogRepository.getCachedVisibleEntries()
+            .firstOrNull { it.id == selected.modelId }
+            ?.capabilities
+            ?.tools == true
+    } catch (cancellation: CancellationException) {
+        throw cancellation
+    } catch (_: Exception) {
+        false
     }
 
     override suspend fun openBenchmarkSession(
@@ -310,7 +325,7 @@ class ChatRepositoryImpl(
             val unavailableConnections = mutableListOf<String>()
             val supportsTools = when (platform.compatibleType) {
                 ClientType.FREE -> FreeAiProvider.requireFor(platform).supportsTools
-                ClientType.LITERT_LM -> modelCatalogRepository.getCachedVisibleEntries().firstOrNull { it.id == platform.model }?.capabilities?.tools == true
+                ClientType.LITERT_LM -> localModelSupportsTools(platform)
                 else -> true
             }
             val resolvedTools = if (platform.disableAllTools || !supportsTools) {
