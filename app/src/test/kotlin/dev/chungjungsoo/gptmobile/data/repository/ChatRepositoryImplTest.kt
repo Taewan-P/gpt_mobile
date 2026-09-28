@@ -1,12 +1,17 @@
 package dev.chungjungsoo.gptmobile.data.repository
 
 import android.content.ContextWrapper
+import dev.chungjungsoo.gptmobile.data.agent.AgentTool
+import dev.chungjungsoo.gptmobile.data.agent.AgentToolDefinition
+import dev.chungjungsoo.gptmobile.data.agent.AgentToolResult
+import dev.chungjungsoo.gptmobile.data.agent.ToolResultContent
 import dev.chungjungsoo.gptmobile.data.agent.provider.LiteRtLmAdapter
 import dev.chungjungsoo.gptmobile.data.agent.tool.AgentToolResolver
 import dev.chungjungsoo.gptmobile.data.agent.tool.DeviceLocationTool
 import dev.chungjungsoo.gptmobile.data.agent.tool.McpClientManager
 import dev.chungjungsoo.gptmobile.data.agent.tool.McpOAuthClient
 import dev.chungjungsoo.gptmobile.data.agent.tool.McpOAuthCoordinator
+import dev.chungjungsoo.gptmobile.data.agent.tool.ResolvedAgentTool
 import dev.chungjungsoo.gptmobile.data.catalog.CatalogCapabilities
 import dev.chungjungsoo.gptmobile.data.catalog.CatalogEntry
 import dev.chungjungsoo.gptmobile.data.context.ContextBuilder
@@ -76,6 +81,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.JsonObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -438,6 +444,61 @@ class ChatRepositoryImplTest {
         assertEquals("current_date", event.toolName)
         assertEquals(ToolEventStatus.COMPLETED, event.status)
         assertFalse(event.isError)
+    }
+
+    @Test
+    fun `litert GPU package keeps local and MCP tools when profile stores parent model id`() = runBlocking {
+        val runtime = FakeLocalRuntime().apply {
+            deviceRamGb = 12L
+            scriptedEvents = listOf(listOf(LocalRuntimeEvent.TextDelta("tools visible"), LocalRuntimeEvent.Done))
+        }
+        val mcpTool = object : AgentTool {
+            override val definition = AgentToolDefinition(
+                name = "mcp__search__web_search",
+                description = "Search the web through the connected MCP server.",
+                inputSchema = JsonObject(emptyMap())
+            )
+
+            override suspend fun execute(callId: String, arguments: JsonObject) = AgentToolResult(
+                callId,
+                ToolResultContent.Text("unused"),
+                isError = false
+            )
+        }
+        val resolver = mockk<AgentToolResolver>()
+        coEvery { resolver.resolve(any(), any(), any(), any(), any()) } returns listOf(
+            ResolvedAgentTool(
+                tool = mcpTool,
+                connectionUid = "search-server",
+                connectionName = "Search MCP",
+                realToolName = "web_search",
+                modelToolName = mcpTool.definition.name,
+                shareableReadOnly = true
+            )
+        )
+        val repository = createRepository(
+            localRuntime = runtime,
+            localModelRepository = FakeLocalModelRepository(
+                downloadedPaths = mapOf("gemma3-1b-it-litert" to "/models/gemma-gpu.litertlm")
+            ),
+            modelCatalogRepository = FakeModelCatalogRepository(
+                listOf(CatalogEntry(id = "gemma3-1b-it-litert", capabilities = CatalogCapabilities(tools = true)))
+            ),
+            agentToolResolver = resolver
+        )
+
+        repository.completeChat(
+            userMessages = listOf(MessageV2(content = "What tools do you have?", platformType = null)),
+            assistantMessages = emptyList(),
+            platform = localPlatform().copy(maxTokens = 16384),
+            runId = "run-local-litert-tools"
+        ).toList()
+
+        assertEquals(
+            listOf("mcp__search__web_search"),
+            runtime.createConversationCalls.single().tools.map { it.name }.sorted()
+        )
+        assertTrue(runtime.createConversationCalls.single().isConstrainedDecodingEnabled)
     }
 
     @Test

@@ -128,7 +128,9 @@ extensions.configure<ApplicationExtension> {
             )
             // LLM packages are AOT compiled. Keep one QAIRT version from qnn-runtime;
             // do not mix it with checked-in HTP stubs/skeletons via pickFirsts.
-            excludes += setOf("**/libQnnDsp*.so", "**/libQnnGpu.so", "**/libQnnHtpPrepare.so")
+            // libQnnHtpPrepare is part of Qualcomm's documented LiteRT dispatch
+            // runtime, including for precompiled contexts, and must be packaged.
+            excludes += setOf("**/libQnnDsp*.so", "**/libQnnGpu.so")
         }
     }
 }

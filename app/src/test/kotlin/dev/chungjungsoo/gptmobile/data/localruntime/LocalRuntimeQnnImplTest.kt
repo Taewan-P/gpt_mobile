@@ -63,9 +63,19 @@ class LocalRuntimeQnnImplTest {
 
     @Test
     fun libraryRequirementsFollowTheDeviceHtpVersion() {
+        assertEquals(
+            listOf(
+                "libLiteRtDispatch_Qualcomm.so",
+                "libQnnHtp.so",
+                "libQnnHtpPrepare.so",
+                "libQnnSystem.so",
+                "libQnnHtpV79Stub.so",
+                "libQnnHtpV79Skel.so"
+            ),
+            QualcommSocSupport.requiredLibraries("SM8750")
+        )
         assertTrue("libQnnHtpV73Skel.so" in QualcommSocSupport.requiredLibraries("SM8550"))
         assertTrue("libQnnHtpV75Stub.so" in QualcommSocSupport.requiredLibraries("sm8650"))
-        assertTrue("libQnnHtpV79Skel.so" in QualcommSocSupport.requiredLibraries("SM8750"))
         assertTrue("libQnnHtpV81Skel.so" in QualcommSocSupport.requiredLibraries("SM8850"))
         assertTrue(QualcommSocSupport.requiredLibraries("Tensor G5").isEmpty())
         assertTrue(QualcommSocSupport.requiredLibraries("MT6991").isEmpty())
