@@ -81,6 +81,15 @@ import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 
+private const val MAX_DELEGATED_CHILD_TOOLS = 8
+
+private fun delegatedToolPriority(tool: ResolvedAgentTool): Int = when (tool.realToolName.lowercase()) {
+    "web_search", "read_url" -> 0
+    "read_file_slice", "current_date", "calculate_expression" -> 1
+    "device_location" -> 2
+    else -> 3
+}
+
 private const val REMOTE_SYNTHESIS_HISTORY_LIMIT = 6
 private const val REMOTE_SYNTHESIS_RECENT_TURNS = 5
 
@@ -253,7 +262,12 @@ class ChatRepositoryImpl(
                 chatToolConfig = null,
                 userMessage = null,
                 delegate = null
-            ).map { it.tool }
+            )
+                // Delegated workers do not need the entire app catalog. Keep the
+                // highest-value tools so schemas do not dominate local context.
+                .sortedWith(compareBy<ResolvedAgentTool> { delegatedToolPriority(it) }.thenBy { it.modelToolName })
+                .take(MAX_DELEGATED_CHILD_TOOLS)
+                .map { it.tool }
         }
         val constraints = RequestConstraints(
             maxOutputTokens = maxTokens,
