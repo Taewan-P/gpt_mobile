@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">جی‌پی‌تی موبایل</string>
     <string name="gpt_mobile_introduction_logo">لوگوی معرفی جی‌پی‌تی موبایل</string>
-    <string name="welcome_title">بهترین دستیار هوش‌مصنوعی\nشما میتونید ان را در\nتفلن همراه خود داشته باشید</string>
+    <string name="welcome_title">بهترین دستیار هوش مصنوعی\nکه میتونی داشته باشی روی\nگوشیت</string>
     <string name="gemini_safety_settings">تنظیمات ایمنی Gemini</string>
     <string name="gemini_safety_settings_description">آزار، نفرت پراکنی، محتوای جنسی، محتوای خطرناک</string>
     <string name="gemini_safety_settings_icon">نماد تنظیمات ایمنی Gemini</string>
@@ -14,4 +14,28 @@
     <string name="gemini_safety_block_only_high">فقط سطح بالا را مسدود کن</string>
     <string name="gemini_safety_block_medium_and_above">سطح متوسط و بالاتر را مسدود کن</string>
     <string name="gemini_safety_block_low_and_above">سطح پایین و بالاتر را مسدود کن</string>
+    <string name="welcome_description">مدلی که بیشتر ازهمه مناسب شماست\nاستفاده کنید.هرچه می‌خواهید بپرسید!</string>
+    <string name="get_started">شروع کنید</string>
+    <string name="platform_select_description">پلتفرمی را که می‌خواهید استفاده کنید انتخاب کنید. می‌توانید این مورد را بعداً در تنظیمات تغییر دهید. پلتفرم‌های بیشتری پشتیبانی خواهند شد.</string>
+    <string name="sample_item_title">مورد ۱</string>
+    <string name="sample_item_description">توضیحات کالا</string>
+    <string name="openai_description">سازنده چت جی پی تی.</string>
+    <string name="anthropic_description">کلود اینجا به دنیا آمد.</string>
+    <string name="google_description">جمینی در راه است.</string>
+    <string name="next">بعدی</string>
+    <string name="enter_api_key">کلید API را وارد کن</string>
+    <string name="token_input_description">کلید API پلتفرمی که انتخاب کرده‌اید را وارد کنید. این برنامه هرگز این داده‌ها را جمع‌آوری نمی‌کند. این کلیدها و داده‌های چت فقط در دستگاه شما ذخیره می‌شوند و به سرورهای دیگر غیر از نقاط پایانی API ارسال نمی‌شوند.</string>
+    <string name="clear_token">پاک کردن</string>
+    <string name="need_help">به کمک نیاز دارید؟</string>
+    <string name="openai_api_key">کلید API اوپن‌ای‌آی</string>
+    <string name="anthropic_api_key">کلید API آنتروپیک</string>
+    <string name="google_api_key">کلید API گوگل</string>
+    <string name="select_openai_model">مدل چت openAi را انتخاب کنید</string>
+    <string name="select_openai_model_description">لطفاً مدل چت OpenAI را انتخاب کنید. حتی اگر مدل انتخابی چندوجهی باشد، برنامه در حال حاضر فقط از ورودی‌های متنی پشتیبانی می‌کند. ممکن است در آینده پشتیبانی شود.</string>
+    <string name="gpt_4o_description">سریع‌ترین و مقرون‌به‌صرفه‌ترین مدل پرچمدار.</string>
+    <string name="gpt_4o_mini_description">مدل کوچک، مقرون به صرفه و هوشمند برای کارهای سریع و سبک</string>
+    <string name="gpt_4_turbo_description">قابلیت اطمینان مناسب، ۳ برابر ارزان‌تر از GPT-4.</string>
+    <string name="gpt_4_description">در حل مسائل انتزاعی بهترین عملکرد را دارد.</string>
+    <string name="select_anthropic_model">مدل چت آنتروپیک را انتخاب کنید</string>
+    <string name="select_anthropic_model_description">لطفا مدل چت آنتروپیک را انتخاب کنید. ما در حال حاضر از خانواده مدل‌های کلاد 3 که فقط ورودی متن دارند، پشتیبانی می‌کنیم.</string>
 </resources>
