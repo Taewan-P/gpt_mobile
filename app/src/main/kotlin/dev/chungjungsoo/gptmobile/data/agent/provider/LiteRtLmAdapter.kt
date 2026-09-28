@@ -244,7 +244,12 @@ class LiteRtLmAdapter(
                 } catch (error: LocalEngineLoadException) {
                     isConversationDirty = true
                     send(ProviderEvent.Failed(error.message ?: engineLoadFailedError))
-                } catch (error: Exception) {
+                } catch (error: Throwable) {
+                    // LiteRT-LM failures can surface as Error (UnsatisfiedLinkError),
+                    // which Exception handlers never see and which would otherwise take
+                    // the whole process down. VM errors are not recoverable though: they
+                    // mean the VM is already broken, so never swallow them here.
+                    if (error is VirtualMachineError || error is ThreadDeath) throw error
                     isConversationDirty = true
                     send(ProviderEvent.Failed(error.message ?: "Local inference failed"))
                 }
@@ -338,7 +343,10 @@ class LiteRtLmAdapter(
             return requested
         } catch (error: CancellationException) {
             throw error
-        } catch (error: Exception) {
+        } catch (error: Throwable) {
+            // Retrying the load on CPU after a VM error would only allocate again on an
+            // already exhausted VM, so let it propagate instead of falling back.
+            if (error is VirtualMachineError || error is ThreadDeath) throw error
             logEngineFailure(requested, error)
             if (LocalAccelerators.normalize(requested.accelerator) == LocalAccelerators.CPU) {
                 throw LocalEngineLoadException(engineLoadFailedError)
@@ -348,7 +356,8 @@ class LiteRtLmAdapter(
                 loadEngine(cpuSpec)
             } catch (cpuCancelled: CancellationException) {
                 throw cpuCancelled
-            } catch (cpuError: Exception) {
+            } catch (cpuError: Throwable) {
+                if (cpuError is VirtualMachineError || cpuError is ThreadDeath) throw cpuError
                 logEngineFailure(cpuSpec, cpuError)
                 throw LocalEngineLoadException(engineLoadFailedError)
             }
