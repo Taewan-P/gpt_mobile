@@ -13,7 +13,7 @@ internal data class LocalContextPlan(
 )
 
 /**
- * A local engine's KV capacity covers the system prompt, chat template, tools, history,
+ * A local engine's KV capacity covers the system prompt, chat template, tools,
  * tool replies AND generation. Output preferences are independent of this reservation.
  * Estimates are deliberately conservative; only the native tokenizer is authoritative.
  */
@@ -30,9 +30,12 @@ internal object LocalContextPlanner {
     ): LocalContextPlan {
         require(contextTokens > 0)
         val outputReserve = minOf(outputLimit?.takeIf { it > 0 } ?: 1024, maxOf(1, contextTokens / 4))
-        val toolReserve = if (tools.isEmpty()) 0 else minOf(1024, contextTokens / 8)
+        // Tool definitions are charged below at their measured cost. Reserving another
+        // tool block here double-counted the same tokens and caused local conversations
+        // to silently receive zero tools on small-context models.
+        val toolResultReserve = if (tools.isEmpty()) 0 else minOf(1024, contextTokens / 8)
         val templateReserve = minOf(256, contextTokens / 8)
-        val promptLimit = contextTokens.toLong() - outputReserve - toolReserve - templateReserve
+        val promptLimit = contextTokens.toLong() - outputReserve - templateReserve
         var used = estimate(systemPrompt.orEmpty()) + estimate(currentUserPrompt) + imageCount.toLong() * IMAGE_TOKEN_ESTIMATE
         require(used < promptLimit) {
             "This message and system instructions exceed this local model's $contextTokens-token context. " +
@@ -63,7 +66,7 @@ internal object LocalContextPlanner {
         return LocalContextPlan(
             retained,
             selectedTools,
-            toolReserve * 2,
+            toolResultReserve * 2,
             used,
             priorTurns.size - retained.size,
             tools.size - selectedTools.size
