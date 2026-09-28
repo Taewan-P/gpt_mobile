@@ -17,7 +17,10 @@ class ModelDelegationSettingsTest {
             pageFetchConcurrency = 99,
             maxPageCharacters = 999999,
             handoffTokens = 999999,
-            compactionThresholdCharacters = 999999
+            compactionThresholdCharacters = 999999,
+            localRetryLimit = 99,
+            lowBatteryThresholdPercent = 99,
+            remoteSynthesisOutputTokens = 9999
         ).normalized()
 
         assertEquals(300, normalized.timeoutSeconds)
