@@ -359,7 +359,21 @@ class ChatRepositoryImpl(
             val diagnosticsEnabled = runCatching {
                 settingRepository.getFeatureSettings().diagnosticsCollection
             }.getOrDefault(false)
-            val customRunner = agentRunnerForPlatform(platform, chatToolConfig?.maxToolCalls)
+            // A remote provider can otherwise keep replaying the growing conversation indefinitely.
+            // Tie the round ceiling to the delegation strategy, with a deliberately small hard cap.
+            // This protects token spend even when the accuracy slider is at its maximum.
+            val delegationStrategy = settingRepository.getFeatureSettings().delegation.normalized().strategy
+            val maxRemoteRounds = when {
+                delegationStrategy < 25 -> 3
+                delegationStrategy < 50 -> 4
+                delegationStrategy < 75 -> 5
+                else -> 6
+            }
+            val customRunner = agentRunnerForPlatform(
+                platform = platform,
+                runOverride = chatToolConfig?.maxToolCalls,
+                maxRoundsOverride = maxRemoteRounds
+            )
             val budgetSettings = settingRepository.getFeatureSettings().tokenBudget.normalized()
             val profileBudget = budgetSettings.copy(contextTokens = minOf(budgetSettings.contextTokens, budgetSettings.profileContextCeilings[platform.uid] ?: Int.MAX_VALUE))
             val limits = if (platform.compatibleType == ClientType.FREE && FreeAiProvider.requireFor(platform) == FreeAiProvider.POLLINATIONS) {
