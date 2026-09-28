@@ -460,9 +460,14 @@ class ChatRepositoryImpl(
                 FactRecall()
             }
             if (recalled.facts.isNotEmpty()) emit(ApiState.MemoryRecalled(recalled.references))
-            var localResearch = resolvedTools.any { it.realToolName == "delegate_to_model" } && localDelegation.researchAvailable()
+            val processingOwnership = settingRepository.getFeatureSettings().delegation.normalized().processingOwnership
+            var localResearch = resolvedTools.any { it.realToolName == "delegate_to_model" } &&
+                processingOwnership < 85 &&
+                localDelegation.researchAvailable()
             var exposedTools = compactRemotePrimaryTools(dev.chungjungsoo.gptmobile.data.agent.tool.aggregateWebSearch(resolvedTools))
-                .filterNot { localResearch && (it.isWebSearchEngine() || it.isResearchPageReader()) }
+                // Local-first hides duplicate remote search tools. Shared and remote-balanced
+                // keep them available so remote reasoning can proceed while local research runs.
+                .filterNot { processingOwnership < 35 && localResearch && (it.isWebSearchEngine() || it.isResearchPageReader()) }
                 .sortedBy { it.realToolName != "delegate_to_model" }
             fun baseSystemPrompt() = liveToolSystemPrompt(platform.systemPrompt, exposedTools.map { it.modelToolName }, compact = localResearch || limits.contextTokens < 4096) +
                 (if (resolvedTools.isNotEmpty()) "\nBefore the first tool call and after every 10 completed tool calls, " + dev.chungjungsoo.gptmobile.data.agent.ToolProgressTracker.SUMMARY_INSTRUCTION else "") +
