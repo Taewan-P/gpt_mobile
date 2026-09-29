@@ -11,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -89,6 +90,7 @@ fun LocalToolsSettingsPanel(
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 fun LocalToolConfigurationDialog(section: String, onDismiss: () -> Unit) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -101,7 +103,7 @@ fun LocalToolConfigurationDialog(section: String, onDismiss: () -> Unit) {
                         }
                     }
                 )
-                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
                     if (section == "delegation") ModelDelegationSettingsPanel() else LocalToolsSettingsPanel(initialSection = section)
                 }
             }
