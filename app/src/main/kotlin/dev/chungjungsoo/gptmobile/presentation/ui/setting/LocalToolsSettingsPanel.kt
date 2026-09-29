@@ -4,17 +4,21 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,6 +33,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
@@ -84,11 +90,20 @@ fun LocalToolsSettingsPanel(
 
 @Composable
 fun LocalToolConfigurationDialog(section: String, onDismiss: () -> Unit) {
-    Dialog(onDismissRequest = onDismiss) {
-        Card {
-            Column(Modifier.heightIn(max = 650.dp).verticalScroll(rememberScrollState())) {
-                TextButton(onClick = onDismiss) { Text(stringResource(R.string.local_tools_settings_panel_label_12)) }
-                if (section == "delegation") ModelDelegationSettingsPanel() else LocalToolsSettingsPanel(initialSection = section)
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            Column(Modifier.fillMaxSize()) {
+                androidx.compose.material3.TopAppBar(
+                    title = { Text(if (section == "delegation") "Model Delegation" else stringResource(R.string.local_tools_settings_panel_label_12)) },
+                    navigationIcon = {
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.local_tools_settings_panel_label_12))
+                        }
+                    }
+                )
+                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                    if (section == "delegation") ModelDelegationSettingsPanel() else LocalToolsSettingsPanel(initialSection = section)
+                }
             }
         }
     }
