@@ -98,8 +98,11 @@ private fun compactRemotePrimaryTools(tools: List<ResolvedAgentTool>): List<Reso
         .sortedWith(compareBy<ResolvedAgentTool> { delegatedToolPriority(it) }.thenBy { it.modelToolName })
         .take(MAX_REMOTE_PRIMARY_TOOLS)
 
-private const val REMOTE_SYNTHESIS_HISTORY_LIMIT = 4
-private const val REMOTE_SYNTHESIS_RECENT_TURNS = 3
+private const val REMOTE_SYNTHESIS_CONTEXT_TOKENS = 8_000
+private const val REMOTE_SYNTHESIS_CURRENT_TURN_TOKENS = 5_000
+private const val REMOTE_SYNTHESIS_FIRST_TURN_TOKENS = 800
+private const val REMOTE_SYNTHESIS_RECENT_TURN_TOKENS = 1_100
+private const val REMOTE_SYNTHESIS_RECENT_TURNS = 2
 
 class ChatRepositoryImpl(
     private val context: Context,
@@ -250,12 +253,72 @@ class ChatRepositoryImpl(
         return (available * 2 - 600).coerceIn(0, Int.MAX_VALUE.toLong()).toInt()
     }
 
-    /** Isolated worker round; the coordinator executes authorized tools between these rounds. */
+    /**
+     * Remote synthesis should receive the user's current task plus a small amount of
+     * continuity, not the full historical transcript. A turn-count limit is not
+     * sufficient because a single document-heavy turn can contain tens of thousands
+     * of tokens.
+     */
     private fun compactForRemoteSynthesis(turns: List<ConversationTurn>): List<ConversationTurn> {
-        if (turns.size <= REMOTE_SYNTHESIS_HISTORY_LIMIT) return turns
-        val first = turns.firstOrNull()
-        val recent = turns.takeLast(REMOTE_SYNTHESIS_RECENT_TURNS)
-        return listOfNotNull(first) + recent
+        if (turns.isEmpty()) return turns
+        val indexes = buildList {
+            add(0)
+            addAll((turns.size - REMOTE_SYNTHESIS_RECENT_TURNS).coerceAtLeast(0) until turns.size)
+        }.distinct().sorted()
+
+        val compacted = indexes.map { index ->
+            val turn = turns[index]
+            val turnBudget = when {
+                turn.isCurrentTurn -> REMOTE_SYNTHESIS_CURRENT_TURN_TOKENS
+                index == 0 -> REMOTE_SYNTHESIS_FIRST_TURN_TOKENS
+                else -> REMOTE_SYNTHESIS_RECENT_TURN_TOKENS
+            }
+            val userBudget = if (turn.isCurrentTurn) turnBudget else maxOf(256, turnBudget / 2)
+            val assistantBudget = (turnBudget - userBudget).coerceAtLeast(0)
+            turn.copy(
+                userMessage = turn.userMessage.copy(content = truncateSynthesisText(turn.userMessage.content, userBudget)),
+                assistantMessage = turn.assistantMessage?.copy(
+                    content = truncateSynthesisText(turn.assistantMessage.content, assistantBudget)
+                )
+            )
+        }
+
+        val originalTokens = turns.sumOf {
+            dev.chungjungsoo.gptmobile.data.context.ContextBudgetService.estimate(
+                it.userMessage.content + it.assistantMessage?.content.orEmpty()
+            )
+        }
+        val compactTokens = compacted.sumOf {
+            dev.chungjungsoo.gptmobile.data.context.ContextBudgetService.estimate(
+                it.userMessage.content + it.assistantMessage?.content.orEmpty()
+            )
+        }
+        if (originalTokens > compactTokens) {
+            dev.chungjungsoo.gptmobile.data.diagnostics.AppLogRecorder.record(
+                "Delegation",
+                "Remote synthesis history compacted · inputTokens=$originalTokens · keptTokens=$compactTokens · savedTokens=${originalTokens - compactTokens} · target=$REMOTE_SYNTHESIS_CONTEXT_TOKENS"
+            )
+        }
+        return compacted
+    }
+
+    private fun truncateSynthesisText(text: String, maxTokens: Int): String {
+        if (text.isBlank() || maxTokens <= 0) return ""
+        if (dev.chungjungsoo.gptmobile.data.context.ContextBudgetService.estimate(text) <= maxTokens) return text
+        val maxBytes = maxTokens * 3
+        val marker = "\n[… older context trimmed for remote synthesis …]\n"
+        val markerBytes = marker.toByteArray().size
+        if (maxBytes <= markerBytes + 32) {
+            return dev.chungjungsoo.gptmobile.data.agent.truncateUtf8(text, maxBytes)
+        }
+        val headBytes = (maxBytes - markerBytes) * 2 / 3
+        val tailBytes = maxBytes - markerBytes - headBytes
+        val head = dev.chungjungsoo.gptmobile.data.agent.truncateUtf8(text, headBytes)
+        val tail = dev.chungjungsoo.gptmobile.data.agent.truncateUtf8(
+            text.takeLast(minOf(text.length, tailBytes * 2)),
+            tailBytes
+        )
+        return head + marker + tail
     }
 
     private suspend fun delegateToProfile(target: PlatformV2, task: String, maxTokens: Int, parentRunId: String, turnKey: String): String {
