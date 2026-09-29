@@ -94,7 +94,10 @@ class LocalDelegationCoordinatorTest {
             source,
             { config.copy(researchEnabled = false, maxInputCharacters = 64_000) },
             { listOf(target) },
-            { _, prompt, _ -> dispatchedPrompt = prompt; "done" },
+            { _, prompt, _ ->
+                dispatchedPrompt = prompt
+                "done"
+            },
             inputBudget = { _, _ -> Int.MAX_VALUE }
         )
 
