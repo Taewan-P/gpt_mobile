@@ -26,6 +26,10 @@ class ModelDelegationTool(
     private val generate: suspend (PlatformV2, String, Int) -> String
 ) : AgentTool {
     private val calls = AtomicInteger(0)
+
+    private companion object {
+        const val OUTER_TIMEOUT_GRACE_SECONDS = 20
+    }
     override val managesExecutionBudget = true
     override val definition = AgentToolDefinition(
         "delegate_to_model",
@@ -60,7 +64,10 @@ class ModelDelegationTool(
             return error("The on-device engine is busy with this response. Select a llama/Ollama server or another provider as the delegate.").also { AppLogRecorder.record("Delegation", "Rejected dual LiteRT dispatch · target=${target.uid}", "W") }
         }
         if (calls.incrementAndGet() > config.maxCallsPerTurn) return error("The delegation call limit for this turn has been reached.").also { AppLogRecorder.record("Delegation", "Rejected call budget · target=${target.uid} · max=${config.maxCallsPerTurn}", "W") }
-        val timeoutMs = config.timeoutSeconds * 1000L + 1000L
+        // The coordinator applies its own timeout with a 15-second cleanup/telemetry grace.
+        // Keep this outer guard looser so it cannot cancel a healthy child while the inner
+        // layer is still collecting final provider usage/error events.
+        val timeoutMs = (config.timeoutSeconds + OUTER_TIMEOUT_GRACE_SECONDS) * 1000L
         val startedAtMs = System.currentTimeMillis()
         AppLogRecorder.record("Delegation", "Dispatching · call=$callId · source=${source.compatibleType} · sourceUid=${source.uid} · target=${target.compatibleType} · targetUid=${target.uid} · model=${target.model.take(96)} · timeoutMs=$timeoutMs · requestedOutputCap=${config.maxOutputTokens} · taskChars=${task.length} · callIndex=${calls.get()}/${config.maxCallsPerTurn}")
         return try {
