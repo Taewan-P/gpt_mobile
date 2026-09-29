@@ -66,7 +66,19 @@ fun ModelDelegationSettingsPanel(viewModel: LocalToolsViewModel = hiltViewModel(
                         Text("Model delegation", style = MaterialTheme.typography.headlineSmall)
                         Text(if (config.enabled) "Ready to share bounded work" else "Turn on to give tasks to a helper", style = MaterialTheme.typography.bodyMedium)
                     }
-                    LocalToolToggle("Enable delegation", config.enabled, !busy) { value -> viewModel.update { it.copy(enabled = value) } }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            if (config.enabled) "Enabled" else "Disabled",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        androidx.compose.material3.Switch(
+                            checked = config.enabled,
+                            onCheckedChange = { value -> viewModel.update { it.copy(enabled = value) } },
+                            enabled = !busy,
+                            modifier = Modifier.semantics { contentDescription = "Enable delegation" }
+                        )
+                    }
                 }
                 Text("A helper can research, read pages, and compress tool results so the main model receives a focused answer with evidence.", style = MaterialTheme.typography.bodyMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
