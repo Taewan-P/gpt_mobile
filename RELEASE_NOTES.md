@@ -1,12 +1,12 @@
-# GPT Mobile AI 0.9.20.1
+# GPT Mobile AI 0.9.21.3
 
-## Memory and chat fixes
-- Fixes an Android regex incompatibility that prevented memory learning from initializing, including explicit save and remember requests.
-- Keeps chat replies working if optional memory initialization fails, with a visible notice when memory is unavailable.
-- Preserves cancellation when stopping a chat request instead of reporting it as a chat error.
+## Delegation and Tool Calling Improvements
+- Enforce provider output caps and report configured/requested/effective limits.
+- Delegate safety: cap delegated input tokens by default, preflight worker requests including tool schemas, and chunk oversized delegations.
+- Stall and watchdog controls: adaptive worker runtime deadlines, time-to-first-progress and idle watchdogs.
+- Expanded tool exposure: remove hardcoded tool caps from primary and delegated child runs, allowing context-driven tool scheduling.
 
-## Regression coverage
-- Adds tests for explicit memory requests, repeated memory initialization failures, and chat cancellation.
-- Checks literal Kotlin regex patterns against ICU during pull request validation to catch Android compatibility problems before release.
-
-Includes the local AI, search, and Android runtime improvements from 0.9.20.0.
+## MCP Reliability & Agent Round Budget
+- Added MCP endpoint health tracking, exponential backoff, and circuit breakers.
+- Concurrently resolve independent MCP endpoints with dedicated initialization vs transport timeouts.
+- Raised agent round budgets for complex workflows and finalized gracefully at step caps.
