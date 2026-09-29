@@ -44,6 +44,10 @@ internal class LocalDelegationCoordinator(
                 return false
             }
             if (!config.researchEnabled || config.processingOwnership >= 85) return false
+            if (localCalls.get() >= config.maxLocalModelCalls) {
+                AppLogRecorder.record("Delegation", "Research unavailable · worker budget exhausted · calls=${localCalls.get()}/${config.maxLocalModelCalls}", "W")
+                return false
+            }
             val available = inputBudget(target, config.maxOutputTokens)
             val result = available >= 600
             AppLogRecorder.record("Delegation", "Research availability=$result · target=${target.uid} · inputBudget=$available · ownership=${config.processingOwnership}")
@@ -81,6 +85,14 @@ internal class LocalDelegationCoordinator(
         )
     }
 
+    private fun reserveWorkerCall(limit: Int): Int? {
+        while (true) {
+            val current = localCalls.get()
+            if (current >= limit) return null
+            if (localCalls.compareAndSet(current, current + 1)) return current + 1
+        }
+    }
+
     private fun capPrompt(prompt: String, maxCharacters: Int): String {
         val charLimit = maxCharacters.coerceAtLeast(600)
         val tokenLimit = (charLimit / 4).coerceAtLeast(150)
@@ -108,8 +120,7 @@ internal class LocalDelegationCoordinator(
                 profile.uid == source.uid ||
                 (latest.localPlatformsOnly && !profile.isPrivateDestination() && !latest.allowRemoteWorkers) ||
                 (requirePrivate && !profile.isPrivateDestination() && !latest.allowRemoteWorkers) ||
-                (source.compatibleType == ClientType.LITERT_LM && profile.compatibleType == ClientType.LITERT_LM) ||
-                localCalls.getAndIncrement() >= latest.maxLocalModelCalls
+                (source.compatibleType == ClientType.LITERT_LM && profile.compatibleType == ClientType.LITERT_LM)
             ) {
                 AppLogRecorder.record("Delegation", "Worker rejected by gate · target=${target.uid}", "W")
                 return@withPermit null
@@ -120,8 +131,13 @@ internal class LocalDelegationCoordinator(
                     AppLogRecorder.record("Delegation", "Worker rejected · input budget too small · target=${profile.uid} · inputBudget=$budget", "W")
                     return@withPermit null
                 }
+                val callNumber = reserveWorkerCall(latest.maxLocalModelCalls)
+                if (callNumber == null) {
+                    AppLogRecorder.record("Delegation", "Worker rejected · call budget exhausted · target=${profile.uid} · calls=${localCalls.get()}/${latest.maxLocalModelCalls}", "W")
+                    return@withPermit null
+                }
                 val boundedPrompt = capPrompt(prompt, minOf(latest.maxInputCharacters, MAX_DELEGATION_INPUT_CHARACTERS, budget))
-                AppLogRecorder.record("Delegation", "Worker dispatch · target=${profile.uid} · inputChars=${boundedPrompt.length} · inputBudget=$budget · outputCap=${minOf(tokens, latest.maxOutputTokens)}")
+                AppLogRecorder.record("Delegation", "Worker dispatch · target=${profile.uid} · inputChars=${boundedPrompt.length} · inputBudget=$budget · call=$callNumber/${latest.maxLocalModelCalls} · outputCap=${minOf(tokens, latest.maxOutputTokens)}")
                 val response = withTimeoutOrNull((latest.timeoutSeconds + WORKER_TIMEOUT_GRACE_SECONDS) * 1000L) {
                     generate(profile, boundedPrompt, minOf(tokens, latest.maxOutputTokens))
                 }
@@ -178,6 +194,11 @@ internal class LocalDelegationCoordinator(
     }
 
     suspend fun delegate(target: PlatformV2, task: String, maxTokens: Int, tools: List<ResolvedAgentTool>, callId: String): String {
+        val config = settings().normalized()
+        if (localCalls.get() >= config.maxLocalModelCalls) {
+            AppLogRecorder.record("Delegation", "Delegation skipped · worker budget exhausted · call=$callId · calls=${localCalls.get()}/${config.maxLocalModelCalls}", "W")
+            return "The local delegation allowance for this turn is exhausted. Use evidence already available; do not retry this delegation in the same turn."
+        }
         if (researchAvailable()) {
             val result = prepare(task, tools, callId)
             return result.handoff.ifBlank { "The local research allowance for this turn is exhausted. Use evidence already available; do not retry the delegated research." }
