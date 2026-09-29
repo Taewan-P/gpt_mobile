@@ -60,18 +60,24 @@ class ModelDelegationTool(
             return error("The on-device engine is busy with this response. Select a llama/Ollama server or another provider as the delegate.").also { AppLogRecorder.record("Delegation", "Rejected dual LiteRT dispatch · target=${target.uid}", "W") }
         }
         if (calls.incrementAndGet() > config.maxCallsPerTurn) return error("The delegation call limit for this turn has been reached.").also { AppLogRecorder.record("Delegation", "Rejected call budget · target=${target.uid} · max=${config.maxCallsPerTurn}", "W") }
-        AppLogRecorder.record("Delegation", "Dispatching · call=$callId · source=${source.compatibleType} · target=${target.compatibleType} · timeoutSec=${config.timeoutSeconds} · outputCap=${config.maxOutputTokens}")
+        val timeoutMs = config.timeoutSeconds * 1000L + 1000L
+        val startedAtMs = System.currentTimeMillis()
+        AppLogRecorder.record("Delegation", "Dispatching · call=$callId · source=${source.compatibleType} · sourceUid=${source.uid} · target=${target.compatibleType} · targetUid=${target.uid} · model=${target.model.take(96)} · timeoutMs=$timeoutMs · requestedOutputCap=${config.maxOutputTokens} · taskChars=${task.length} · callIndex=${calls.get()}/${config.maxCallsPerTurn}")
         return try {
-            val response = withTimeoutOrNull(config.timeoutSeconds * 1000L + 1000L) { generate(target, task, config.maxOutputTokens) }
-                ?: return error("The delegated task timed out after ${config.timeoutSeconds} seconds.").also { AppLogRecorder.record("Delegation", "Timed out · call=$callId · target=${target.uid}", "E") }
-            if (response.isBlank()) return error("The target model returned no text.").also { AppLogRecorder.record("Delegation", "Empty response · call=$callId · target=${target.uid}", "W") }
-            AppLogRecorder.record("Delegation", "Completed · call=$callId · target=${target.uid} · outputChars=${response.length}")
+            val response = withTimeoutOrNull(timeoutMs) { generate(target, task, config.maxOutputTokens) }
+            val elapsedMs = System.currentTimeMillis() - startedAtMs
+            if (response == null) {
+                AppLogRecorder.record("Delegation", "Timed out · call=$callId · target=${target.uid} · elapsedMs=$elapsedMs · timeoutMs=$timeoutMs · requestedOutputCap=${config.maxOutputTokens} · taskChars=${task.length}", "E")
+                return error("The delegated task timed out after ${config.timeoutSeconds} seconds.")
+            }
+            if (response.isBlank()) return error("The target model returned no text.").also { AppLogRecorder.record("Delegation", "Empty response · call=$callId · target=${target.uid} · elapsedMs=$elapsedMs", "W") }
+            AppLogRecorder.record("Delegation", "Completed · call=$callId · target=${target.uid} · elapsedMs=$elapsedMs · outputChars=${response.length} · approxOutputTokens=${(response.length + 3) / 4} · requestedOutputCap=${config.maxOutputTokens}")
             AgentToolResult(callId, ToolResultContent.Text(response), false)
         } catch (cancellation: CancellationException) {
-            AppLogRecorder.record("Delegation", "Cancelled · call=$callId · target=${target.uid}", "W")
+            AppLogRecorder.record("Delegation", "Cancelled · call=$callId · target=${target.uid} · elapsedMs=${System.currentTimeMillis() - startedAtMs} · timeoutMs=$timeoutMs · cancellation=${cancellation.javaClass.simpleName} · reason=${cancellation.message.orEmpty()}", "W")
             throw cancellation
         } catch (failure: Exception) {
-            AppLogRecorder.record("Delegation", "Failed · call=$callId · target=${target.uid} · ${failure.javaClass.simpleName}: ${failure.message.orEmpty()}", "E")
+            AppLogRecorder.record("Delegation", "Failed · call=$callId · target=${target.uid} · elapsedMs=${System.currentTimeMillis() - startedAtMs} · requestedOutputCap=${config.maxOutputTokens} · ${failure.javaClass.simpleName}: ${failure.message.orEmpty()}", "E")
             error("Delegation failed. Check the target profile, credentials and model availability.")
         }
     }
