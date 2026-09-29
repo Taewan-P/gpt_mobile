@@ -65,7 +65,7 @@ internal class LocalDelegationCoordinator(
                 AppLogRecorder.record("Delegation", "Research unavailable · no eligible target · source=${source.uid}", "W")
                 return false
             }
-            if (!config.researchEnabled || config.processingOwnership >= 85) return false
+            if (!config.researchEnabled || config.processingOwnership >= 100) return false
             if (localCalls.get() >= config.maxLocalModelCalls) {
                 AppLogRecorder.record("Delegation", "Research unavailable · worker budget exhausted · calls=${localCalls.get()}/${config.maxLocalModelCalls}", "W")
                 return false
@@ -83,7 +83,7 @@ internal class LocalDelegationCoordinator(
     }
 
     private suspend fun localTarget(config: ModelDelegationSettings): PlatformV2? {
-        if (!config.enabled || config.processingOwnership >= 85 || source.disableAllTools || source.disableLocalTools || source.excludesMemory()) return null
+        if (!config.enabled || config.processingOwnership >= 100 || source.disableAllTools || source.disableLocalTools || source.excludesMemory()) return null
         val battery = batteryPercent()
         if (battery != null && battery <= config.lowBatteryThresholdPercent && config.processingOwnership < 65) return null
         return profiles().firstOrNull {
