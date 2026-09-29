@@ -64,6 +64,7 @@ class WebSearchTool(
     private val autoSearchEndpointTemplates: List<String> = DEFAULT_AUTO_SEARCH_ENDPOINTS,
     private val autoSearchBlockedUntilMs: AtomicLong = DEFAULT_AUTO_SEARCH_BLOCKED_UNTIL_MS
 ) : AgentTool {
+    private val authenticationBlockedUntilMs = AtomicLong(0)
 
     override val definition: AgentToolDefinition = AgentToolDefinition(
         name = modelToolName,
@@ -110,6 +111,9 @@ class WebSearchTool(
 
     private suspend fun executeConfiguredProvider(callId: String, request: WebSearchRequest): AgentToolResult {
         return try {
+            if (config.provider == WebSearchProvider.PERPLEXITY && clock.millis() < authenticationBlockedUntilMs.get()) {
+                return error(callId, "Perplexity web search is temporarily disabled after an authentication failure. Update its API key in Settings → Tool Connections before retrying.")
+            }
             val response = if (config.provider == WebSearchProvider.BRAVE) {
                 if (config.bearerToken.isBlank()) return error(callId, "Add a Brave Search API key in Settings → Tool Connections.")
                 networkClient().get(config.endpointUrl) {
@@ -133,6 +137,9 @@ class WebSearchTool(
                 }
             }
             if (response.status.value !in 200..299) {
+                if (config.provider == WebSearchProvider.PERPLEXITY && response.status.value == 401) {
+                    authenticationBlockedUntilMs.set(clock.millis() + 10 * 60 * 1000L)
+                }
                 return error(callId, providerFailureMessage(response.status.value))
             }
             val content = runCatching { normalized(config.provider, response.bodyAsText(), request) }.getOrElse { exception ->
