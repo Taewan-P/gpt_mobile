@@ -51,12 +51,16 @@ internal object ToolExchangeCompactor {
                 val index = resultIndex++
                 val raw = render(result.content)
                 val duplicate = lastOccurrence[fingerprints[index]] != index
-                val text = if (duplicate) {
-                    "[Earlier duplicate tool result omitted; the newest identical result is retained.]"
-                } else {
-                    compactText(raw, resultBudgets[index] * CHARS_PER_TOKEN)
+                val maxChars = resultBudgets[index] * CHARS_PER_TOKEN
+                when {
+                    duplicate -> result.copy(
+                        content = ToolResultContent.Text(
+                            "[Earlier duplicate tool result omitted; the newest identical result is retained.]"
+                        )
+                    )
+                    raw.length <= maxChars -> result
+                    else -> result.copy(content = ToolResultContent.Text(compactText(raw, maxChars)))
                 }
-                result.copy(content = ToolResultContent.Text(text))
             }
             exchange.copy(results = compacted)
         }
