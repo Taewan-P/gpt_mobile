@@ -447,6 +447,14 @@ class WebSearchToolTest {
     }
 
     @Test
+    fun `Perplexity authentication failure backs off across tool instances`() = runBlocking {
+        val server = server("/search", """{"error":{"message":"invalid key"}}""", status = 401)
+        assertTrue(tool(WebSearchProvider.PERPLEXITY, server.url("/search")).execute("first", arguments()).isError)
+        assertTrue(tool(WebSearchProvider.PERPLEXITY, server.url("/search")).execute("second", arguments()).isError)
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
     fun pastedSearchKeysAreTrimmedBeforeSending() = runBlocking {
         val server = server("/search", """{"results":[]}""")
         val client = NetworkClient(CIO).also { networkClients += it }
