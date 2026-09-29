@@ -88,6 +88,45 @@ class LocalDelegationCoordinatorTest {
         assertEquals(raw, coordinator.processToolResults(tool(), "task").tool.execute("call", buildJsonObject {}).content)
     }
 
+    @Test fun `worker prompt remains bounded when global input budget is unlimited`() = runTest {
+        var dispatchedPrompt = ""
+        val coordinator = LocalDelegationCoordinator(
+            source,
+            { config.copy(researchEnabled = false, maxInputCharacters = 64_000) },
+            { listOf(target) },
+            { _, prompt, _ ->
+                dispatchedPrompt = prompt
+                "done"
+            },
+            inputBudget = { _, _ -> Int.MAX_VALUE }
+        )
+
+        coordinator.delegate(target, "x".repeat(30_000), 512, emptyList(), "bounded")
+
+        assertTrue(dispatchedPrompt.length <= 12_000)
+    }
+
+    @Test fun `exhausted worker budget does not drift or invite another delegation`() = runTest {
+        var generations = 0
+        val oneCall = config.copy(researchEnabled = false, maxLocalModelCalls = 1)
+        val coordinator = LocalDelegationCoordinator(
+            source,
+            { oneCall },
+            { listOf(target) },
+            { _, _, _ ->
+                generations++
+                "done"
+            }
+        )
+
+        assertEquals("done", coordinator.delegate(target, "first", 128, emptyList(), "first"))
+        val exhausted = coordinator.delegate(target, "second", 128, emptyList(), "second")
+
+        assertEquals(1, generations)
+        assertTrue(exhausted.contains("allowance for this turn is exhausted"))
+        assertFalse(coordinator.researchAvailable())
+    }
+
     @Test fun `settings failure after completed action returns original success without reexecution`() = runTest {
         var actions = 0
         val coordinator = LocalDelegationCoordinator(source, { error("Settings unavailable") }, { listOf(target) }, { _, _, _ -> error("Unused") })
