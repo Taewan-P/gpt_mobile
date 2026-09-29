@@ -55,9 +55,9 @@ data class ModelDelegationSettings(
             crawlDepth = scale(0, 4),
             pageFetchConcurrency = scale(1, 6),
             maxPageCharacters = scale(6000, 60000),
-            handoffTokens = scale(256, 4096),
+            handoffTokens = scale(256, 2048),
             compactionThresholdCharacters = scale(256, 12000),
-            compactToolResults = level < 20
+            compactToolResults = level < 90
         )
     }
 
