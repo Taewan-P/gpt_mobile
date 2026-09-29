@@ -61,7 +61,7 @@ class ModelDelegationToolTest {
         blocked(source, target, enabled.copy(enabled = false))
         blocked(source, source, enabled.copy(targetProfileUid = source.uid))
         blocked(source, target.copy(enabled = false), enabled)
-        blocked(source, target.copy(compatibleType = ClientType.GOOGLE, apiUrl = "https://generativelanguage.googleapis.com"), enabled)
+        blocked(source, target.copy(compatibleType = ClientType.GOOGLE, apiUrl = "https://generativelanguage.googleapis.com"), enabled.copy(localPlatformsOnly = true))
         blocked(source, target.copy(apiUrl = "https://public.example.com/v1"), enabled.copy(localPlatformsOnly = true))
         blocked(source.copy(compatibleType = ClientType.LITERT_LM), target.copy(compatibleType = ClientType.LITERT_LM), enabled)
     }
