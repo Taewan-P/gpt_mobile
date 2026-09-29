@@ -29,7 +29,11 @@ internal class LocalDelegationCoordinator(
     private companion object {
         // Delegation must remain bounded even when the app-wide context budget is unlimited.
         private const val MAX_DELEGATION_INPUT_CHARACTERS = 12_000
-        private const val WORKER_TIMEOUT_GRACE_SECONDS = 15
+
+        // The outer delegation tool adds a 1-second wrapper margin. Keep the worker
+        // deadline at the configured timeout so it resolves first instead of being
+        // misclassified as an outer cancellation.
+        private const val WORKER_TIMEOUT_GRACE_SECONDS = 0
     }
 
     private val localCalls = AtomicInteger()
@@ -137,21 +141,29 @@ internal class LocalDelegationCoordinator(
                     return@withPermit null
                 }
                 val boundedPrompt = capPrompt(prompt, minOf(latest.maxInputCharacters, MAX_DELEGATION_INPUT_CHARACTERS, budget))
-                AppLogRecorder.record("Delegation", "Worker dispatch · target=${profile.uid} · inputChars=${boundedPrompt.length} · inputBudget=$budget · call=$callNumber/${latest.maxLocalModelCalls} · outputCap=${minOf(tokens, latest.maxOutputTokens)}")
-                val response = withTimeoutOrNull((latest.timeoutSeconds + WORKER_TIMEOUT_GRACE_SECONDS) * 1000L) {
-                    generate(profile, boundedPrompt, minOf(tokens, latest.maxOutputTokens))
+                val requestedOutputCap = minOf(tokens, latest.maxOutputTokens)
+                val timeoutMs = (latest.timeoutSeconds + WORKER_TIMEOUT_GRACE_SECONDS) * 1000L
+                val startedAtMs = System.currentTimeMillis()
+                AppLogRecorder.record("Delegation", "Worker dispatch · target=${profile.uid} · type=${profile.compatibleType} · model=${profile.model} · inputChars=${boundedPrompt.length} · originalInputChars=${prompt.length} · inputBudget=$budget · call=$callNumber/${latest.maxLocalModelCalls} · requestedOutputCap=$requestedOutputCap · configuredOutputCap=${latest.maxOutputTokens} · timeoutMs=$timeoutMs · queuedCalls=${localCalls.get()}")
+                val response = withTimeoutOrNull(timeoutMs) {
+                    generate(profile, boundedPrompt, requestedOutputCap)
                 }
+                val elapsedMs = System.currentTimeMillis() - startedAtMs
                 if (response == null) {
-                    AppLogRecorder.record("Delegation", "Worker generation timed out · target=${profile.uid} · timeoutSec=${latest.timeoutSeconds} · graceSec=$WORKER_TIMEOUT_GRACE_SECONDS", "E")
+                    AppLogRecorder.record("Delegation", "Worker generation timed out · target=${profile.uid} · call=$callNumber/${latest.maxLocalModelCalls} · elapsedMs=$elapsedMs · timeoutMs=$timeoutMs · requestedOutputCap=$requestedOutputCap · inputChars=${boundedPrompt.length}", "E")
                     return@withPermit null
                 }
                 response.takeIf { it.isNotBlank() }?.also {
-                    AppLogRecorder.record("Delegation", "Worker completed · target=${profile.uid} · outputChars=${it.length}")
+                    AppLogRecorder.record("Delegation", "Worker completed · target=${profile.uid} · call=$callNumber/${latest.maxLocalModelCalls} · elapsedMs=$elapsedMs · outputChars=${it.length} · requestedOutputCap=$requestedOutputCap · approxOutputTokens=${(it.length + 3) / 4}")
+                } ?: run {
+                    AppLogRecorder.record("Delegation", "Worker completed empty · target=${profile.uid} · call=$callNumber/${latest.maxLocalModelCalls} · elapsedMs=$elapsedMs · requestedOutputCap=$requestedOutputCap", "W")
+                    null
                 }
             } catch (cancelled: CancellationException) {
+                AppLogRecorder.record("Delegation", "Worker cancelled · target=${target.uid} · calls=${localCalls.get()} · reason=${cancelled.message.orEmpty()}", "W")
                 throw cancelled
             } catch (failure: Exception) {
-                AppLogRecorder.record("Delegation", "Worker failed · target=${target.uid} · ${failure.javaClass.simpleName}: ${failure.message.orEmpty()}", "E")
+                AppLogRecorder.record("Delegation", "Worker failed · target=${target.uid} · calls=${localCalls.get()} · ${failure.javaClass.simpleName}: ${failure.message.orEmpty()}", "E")
                 null
             }
         }

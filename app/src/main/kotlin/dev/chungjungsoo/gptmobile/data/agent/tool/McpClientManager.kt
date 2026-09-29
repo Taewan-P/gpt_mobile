@@ -1,7 +1,9 @@
 package dev.chungjungsoo.gptmobile.data.agent.tool
 
+import dev.chungjungsoo.gptmobile.data.diagnostics.AppLogRecorder
 import dev.chungjungsoo.gptmobile.data.network.NetworkClient
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.timeout
 import io.ktor.client.request.header
 import io.ktor.http.HttpHeaders
 import io.modelcontextprotocol.kotlin.sdk.client.Client
@@ -168,8 +170,16 @@ class McpClientManager internal constructor(
             if (awaiting != null) continue
             withContext(NonCancellable) { stale?.let { runCatching { it.client.close() } } }
 
+            val connectStartedAtMs = nowMs()
+            val endpointHost = runCatching { URI(config.endpointUrl).host }.getOrNull().orEmpty()
+            AppLogRecorder.record("MCP", "Connect started · connection=${config.connectionUid} · host=$endpointHost · sessionTimeoutMs=$sessionConnectTimeoutMs")
             val result = runCatching {
                 val transport = StreamableHttpClientTransport(httpClient, config.endpointUrl) {
+                    timeout {
+                        connectTimeoutMillis = sessionConnectTimeoutMs
+                        requestTimeoutMillis = sessionConnectTimeoutMs + 2_000
+                        socketTimeoutMillis = sessionConnectTimeoutMs + 2_000
+                    }
                     config.authorizationHeader?.let { header(HttpHeaders.Authorization, it) }
                 }
                 val client = Client(
@@ -187,8 +197,10 @@ class McpClientManager internal constructor(
                         true
                     }
                     check(connected == true) { "MCP connection timed out. Check the server address and VPN connection, then retry." }
+                    AppLogRecorder.record("MCP", "Connect completed · connection=${config.connectionUid} · host=$endpointHost · elapsedMs=${nowMs() - connectStartedAtMs}")
                     Session(key, client)
                 } catch (error: Exception) {
+                    AppLogRecorder.record("MCP", "Connect failed · connection=${config.connectionUid} · host=$endpointHost · elapsedMs=${nowMs() - connectStartedAtMs} · timeoutMs=$sessionConnectTimeoutMs · ${error.javaClass.simpleName}: ${error.message.orEmpty()}", "E")
                     withContext(NonCancellable) { runCatching { withTimeoutOrNull(2_000) { client.close() } } }
                     throw error
                 }
