@@ -8,6 +8,7 @@ Configure **Local models → Delegation** and select an enabled on-device or pri
 2. The app invokes the main profile's enabled `web_search` engines and page reader. The helper ranks observed sources. Optional crawling follows links on the same host, within the total page limit.
 3. Long pages contribute query-relevant passages. Local summaries preserve observed source IDs, exact values, disagreements and gaps. The remote model receives a compact JSON brief with source URLs, evidence types and limitations. Model-invented source references are removed.
 4. Further research can use `delegate_to_model`. Large results from other tools are processed by the same helper. The original result or its existing redacted trace remains available in the tool trace. Small results and tool errors pass through.
+5. After a tool result has been consumed, later primary-model rounds replay only a bounded compact view. Newest results are prioritized; older consumed payloads become placeholders once the replay allowance is exhausted. This prevents successful delegation from being followed by repeated 10K+ remote-context replays.
 
 The helper uses isolated text/JSON requests; it needs no native tool-calling capability. All local inference is serialized per main-model turn. Planning, source selection and summarization share a local-call allowance. Search and page requests use the main profile's authorization checks and shared tool budget. Composite orchestration does not hold a child execution permit, so a concurrency limit of one cannot deadlock nested calls.
 

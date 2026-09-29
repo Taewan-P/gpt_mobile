@@ -57,9 +57,9 @@ data class ModelDelegationSettings(
     /** Keep remote synthesis compact after local research has prepared evidence. */
     val remoteSynthesisOutputTokens: Int = 256,
     /** Maximum prior tool-exchange tokens replayed to the primary model on each round. */
-    val primaryReplayTokens: Int = 12000,
+    val primaryReplayTokens: Int = 4000,
     /** Maximum tokens retained from one already-consumed tool result on later rounds. */
-    val primaryReplayResultTokens: Int = 1200
+    val primaryReplayResultTokens: Int = 512
 ) {
     /** Apply the master slider to every delegation budget and breadth setting. */
     fun withStrategy(value: Int): ModelDelegationSettings {
@@ -90,8 +90,8 @@ data class ModelDelegationSettings(
             handoffTokens = scale(256, 2048),
             compactionThresholdCharacters = scale(256, 12000),
             compactToolResults = level < 90,
-            primaryReplayTokens = scale(6000, 24000),
-            primaryReplayResultTokens = scale(512, 2400)
+            primaryReplayTokens = scale(2000, 8000),
+            primaryReplayResultTokens = scale(256, 1200)
         )
     }
 
@@ -133,8 +133,8 @@ data class ModelDelegationSettings(
             localRetryLimit = localRetryLimit.coerceIn(0, 1),
             lowBatteryThresholdPercent = lowBatteryThresholdPercent.coerceIn(0, 50),
             remoteSynthesisOutputTokens = remoteSynthesisOutputTokens.coerceIn(256, 4096),
-            primaryReplayTokens = primaryReplayTokens.coerceIn(2048, 64000),
-            primaryReplayResultTokens = primaryReplayResultTokens.coerceIn(128, 8192)
+            primaryReplayTokens = primaryReplayTokens.coerceIn(1024, 16000),
+            primaryReplayResultTokens = primaryReplayResultTokens.coerceIn(128, 2048)
         )
     }
 }

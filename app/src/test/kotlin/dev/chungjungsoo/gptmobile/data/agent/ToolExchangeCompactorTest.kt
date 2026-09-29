@@ -43,6 +43,37 @@ class ToolExchangeCompactorTest {
     }
 
     @Test
+    fun compact_omits_older_consumed_payloads_when_replay_budget_is_exhausted() {
+        fun exchange(index: Int) = AgentToolExchange(
+            calls = listOf(
+                ProviderEvent.ToolCall(
+                    callId = "call-$index",
+                    name = "read_url",
+                    arguments = buildJsonObject { put("url", "https://example.com/$index") }
+                )
+            ),
+            results = listOf(
+                AgentToolResult(
+                    callId = "call-$index",
+                    content = ToolResultContent.Text("result-$index\n" + "x".repeat(9_000)),
+                    isError = false
+                )
+            )
+        )
+
+        val compacted = ToolExchangeCompactor.compact(
+            exchanges = (0 until 8).map(::exchange),
+            maxReplayTokens = 1_200,
+            maxResultTokens = 400
+        )
+
+        val texts = compacted.map { (it.results.single().content as ToolResultContent.Text).text }
+        assertTrue(texts.first().contains("omitted from primary replay", ignoreCase = true))
+        assertTrue(texts.last().contains("result-7"))
+        assertTrue(ToolExchangeCompactor.estimateTokens(compacted) < 2_000)
+    }
+
+    @Test
     fun compact_preserves_unmodified_json_result_type() {
         val call = ProviderEvent.ToolCall(
             "location",

@@ -13,6 +13,8 @@ import kotlinx.serialization.json.Json
 internal object ToolExchangeCompactor {
     private const val MIN_RESULT_TOKENS = 64
     private const val CHARS_PER_TOKEN = 3
+    private const val OMITTED_RESULT = "[Earlier consumed tool result omitted from primary replay.]"
+    private const val DUPLICATE_RESULT = "[Earlier duplicate tool result omitted; newest identical result retained.]"
 
     fun compact(
         exchanges: List<AgentToolExchange>,
@@ -34,14 +36,14 @@ internal object ToolExchangeCompactor {
         }
         remaining = remaining.coerceAtLeast(0)
 
-        val resultBudgets = IntArray(fingerprints.size) { MIN_RESULT_TOKENS }
+        // Spend replay allowance newest-first. Once exhausted, older consumed
+        // payloads become tiny placeholders instead of each receiving a minimum
+        // slice that can silently grow the next provider request past budget.
+        val resultBudgets = IntArray(fingerprints.size)
         for (index in fingerprints.indices.reversed()) {
             val duplicate = lastOccurrence[fingerprints[index]] != index
-            if (duplicate) {
-                resultBudgets[index] = MIN_RESULT_TOKENS
-                continue
-            }
-            val allowance = minOf(perResultBudget, remaining.coerceAtLeast(MIN_RESULT_TOKENS))
+            if (duplicate || remaining < MIN_RESULT_TOKENS) continue
+            val allowance = minOf(perResultBudget, remaining)
             resultBudgets[index] = allowance
             remaining = (remaining - allowance).coerceAtLeast(0)
         }
@@ -53,11 +55,8 @@ internal object ToolExchangeCompactor {
                 val duplicate = lastOccurrence[fingerprints[index]] != index
                 val maxChars = resultBudgets[index] * CHARS_PER_TOKEN
                 when {
-                    duplicate -> result.copy(
-                        content = ToolResultContent.Text(
-                            "[Earlier duplicate tool result omitted; the newest identical result is retained.]"
-                        )
-                    )
+                    duplicate -> result.copy(content = ToolResultContent.Text(DUPLICATE_RESULT))
+                    resultBudgets[index] == 0 -> result.copy(content = ToolResultContent.Text(OMITTED_RESULT))
                     raw.length <= maxChars -> result
                     else -> result.copy(content = ToolResultContent.Text(compactText(raw, maxChars)))
                 }

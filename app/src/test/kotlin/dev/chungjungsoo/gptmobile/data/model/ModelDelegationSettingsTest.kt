@@ -91,5 +91,7 @@ class ModelDelegationSettingsTest {
         assertEquals(0, defaults.localRetryLimit)
         assertEquals(15, defaults.lowBatteryThresholdPercent)
         assertEquals(256, defaults.remoteSynthesisOutputTokens)
+        assertEquals(4000, defaults.primaryReplayTokens)
+        assertEquals(512, defaults.primaryReplayResultTokens)
     }
 }

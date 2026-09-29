@@ -26,9 +26,9 @@ data class AgentRunLimits(
     val finalResponseReserveTokens: Int = 2048,
     val finalResponseToolCallReserve: Int = 0,
     /** Maximum replay budget for prior tool exchanges sent on each provider round. */
-    val maxReplayTokens: Int = 12_000,
+    val maxReplayTokens: Int = 4_000,
     /** Maximum budget retained from any one consumed tool result on later rounds. */
-    val maxReplayResultTokens: Int = 1_200
+    val maxReplayResultTokens: Int = 512
 ) {
     companion object {
         const val DEFAULT_MAX_TOOL_CALLS: Int = 50
@@ -152,6 +152,13 @@ class AgentRunner(
                     AppLogRecorder.record(
                         "Agent",
                         "PRIMARY_REPLAY_COMPACTED · rawTokens=$rawReplayTokens · replayTokens=$compactedReplayTokens · savedTokens=${rawReplayTokens - compactedReplayTokens} · exchanges=${exchanges.size} · budget=${limits.maxReplayTokens}"
+                    )
+                }
+                if (compactedReplayTokens > limits.maxReplayTokens) {
+                    AppLogRecorder.record(
+                        "Agent",
+                        "PRIMARY_REPLAY_BUDGET_OVERRUN · replayTokens=$compactedReplayTokens · budget=${limits.maxReplayTokens} · exchanges=${exchanges.size}",
+                        "W"
                     )
                 }
                 session.streamRound(exposedDefinitions, replayExchanges)
