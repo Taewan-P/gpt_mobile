@@ -88,6 +88,21 @@ class LocalDelegationCoordinatorTest {
         assertEquals(raw, coordinator.processToolResults(tool(), "task").tool.execute("call", buildJsonObject {}).content)
     }
 
+    @Test fun `worker prompt remains bounded when global input budget is unlimited`() = runTest {
+        var dispatchedPrompt = ""
+        val coordinator = LocalDelegationCoordinator(
+            source,
+            { config.copy(researchEnabled = false, maxInputCharacters = 64_000) },
+            { listOf(target) },
+            { _, prompt, _ -> dispatchedPrompt = prompt; "done" },
+            inputBudget = { _, _ -> Int.MAX_VALUE }
+        )
+
+        coordinator.delegate(target, "x".repeat(30_000), 512, emptyList(), "bounded")
+
+        assertTrue(dispatchedPrompt.length <= 12_000)
+    }
+
     @Test fun `settings failure after completed action returns original success without reexecution`() = runTest {
         var actions = 0
         val coordinator = LocalDelegationCoordinator(source, { error("Settings unavailable") }, { listOf(target) }, { _, _, _ -> error("Unused") })
