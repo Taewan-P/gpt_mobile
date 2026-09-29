@@ -413,12 +413,22 @@ class ChatRepositoryImpl(
             }
         }
         val elapsedMs = System.currentTimeMillis() - startedAtMs
+        val rawText = text.toString()
+        val cappedText = truncateSynthesisText(rawText, maxTokens)
+        val usageExceededCap = sawUsage && usageOutputTokens > maxTokens
+        if (usageExceededCap || cappedText.length < rawText.length) {
+            AppLogRecorder.record(
+                "Delegation",
+                "Child output cap mismatch · parentRun=$parentRunId · target=${target.uid} · requestedOutputCap=$maxTokens · usageOutput=${if (sawUsage) usageOutputTokens else -1} · rawOutputChars=${rawText.length} · returnedOutputChars=${cappedText.length}",
+                "W"
+            )
+        }
         AppLogRecorder.record(
             "Delegation",
-            "Child finished · parentRun=$parentRunId · target=${target.uid} · elapsedMs=$elapsedMs · outputChars=${text.length} · requestedOutputCap=$maxTokens · usageInput=${if (sawUsage) usageInputTokens else -1} · usageOutput=${if (sawUsage) usageOutputTokens else -1} · usageTotal=${if (sawUsage) usageTotalTokens else -1} · failed=${providerFailure != null}"
+            "Child finished · parentRun=$parentRunId · target=${target.uid} · elapsedMs=$elapsedMs · outputChars=${cappedText.length} · rawOutputChars=${rawText.length} · requestedOutputCap=$maxTokens · usageInput=${if (sawUsage) usageInputTokens else -1} · usageOutput=${if (sawUsage) usageOutputTokens else -1} · usageTotal=${if (sawUsage) usageTotalTokens else -1} · outputCapExceeded=$usageExceededCap · failed=${providerFailure != null}"
         )
         providerFailure?.let { error("The delegated provider failed: $it") }
-        return text.toString()
+        return cappedText
     }
 
     override suspend fun completeChat(
