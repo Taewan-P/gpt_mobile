@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.agent
 
+import dev.chungjungsoo.gptmobile.data.diagnostics.AppLogRecorder
 import dev.chungjungsoo.gptmobile.data.network.error.ErrorClassification
 import java.nio.charset.StandardCharsets
 import kotlinx.coroutines.CancellationException
@@ -23,7 +24,11 @@ data class AgentRunLimits(
     val contextTokens: Int = Int.MAX_VALUE,
     val initialContextTokens: Int = 0,
     val finalResponseReserveTokens: Int = 2048,
-    val finalResponseToolCallReserve: Int = 0
+    val finalResponseToolCallReserve: Int = 0,
+    /** Maximum replay budget for prior tool exchanges sent on each provider round. */
+    val maxReplayTokens: Int = 12_000,
+    /** Maximum budget retained from any one consumed tool result on later rounds. */
+    val maxReplayResultTokens: Int = 1_200
 ) {
     companion object {
         const val DEFAULT_MAX_TOOL_CALLS: Int = 50
@@ -136,7 +141,20 @@ class AgentRunner(
             }
 
             try {
-                session.streamRound(exposedDefinitions, exchanges)
+                val rawReplayTokens = ToolExchangeCompactor.estimateTokens(exchanges)
+                val replayExchanges = ToolExchangeCompactor.compact(
+                    exchanges = exchanges,
+                    maxReplayTokens = limits.maxReplayTokens,
+                    maxResultTokens = limits.maxReplayResultTokens
+                )
+                val compactedReplayTokens = ToolExchangeCompactor.estimateTokens(replayExchanges)
+                if (rawReplayTokens > compactedReplayTokens) {
+                    AppLogRecorder.record(
+                        "Agent",
+                        "PRIMARY_REPLAY_COMPACTED · rawTokens=$rawReplayTokens · replayTokens=$compactedReplayTokens · savedTokens=${rawReplayTokens - compactedReplayTokens} · exchanges=${exchanges.size} · budget=${limits.maxReplayTokens}"
+                    )
+                }
+                session.streamRound(exposedDefinitions, replayExchanges)
                     .collect { event ->
                         if (failed) return@collect
                         when (event) {
@@ -247,8 +265,14 @@ class AgentRunner(
             }
             val allResults = (executedResults + deferredResults).toMutableList()
             val outputBudgetExhausted = allResults.any { it.outputBudgetExhausted }
-            replayTokens += calls.sumOf { dev.chungjungsoo.gptmobile.data.context.ContextBudgetService.estimate(it.arguments.toString()).toLong() + 32 } +
-                allResults.sumOf { dev.chungjungsoo.gptmobile.data.context.ContextBudgetService.estimate(it.content.toString()).toLong() + 32 }
+            val projectedExchanges = exchanges + AgentToolExchange(calls, allResults)
+            replayTokens = ToolExchangeCompactor.estimateTokens(
+                ToolExchangeCompactor.compact(
+                    exchanges = projectedExchanges,
+                    maxReplayTokens = limits.maxReplayTokens,
+                    maxResultTokens = limits.maxReplayResultTokens
+                )
+            ).toLong()
             val contextNearLimit = limits.contextTokens != Int.MAX_VALUE &&
                 limits.initialContextTokens.toLong() + replayTokens + limits.finalResponseReserveTokens + 256 >= limits.contextTokens
             val mustFinalize = roundLimitReached ||

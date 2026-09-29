@@ -55,7 +55,11 @@ data class ModelDelegationSettings(
     /** Pause aggressive local research at or below this battery percentage. */
     val lowBatteryThresholdPercent: Int = 15,
     /** Keep remote synthesis compact after local research has prepared evidence. */
-    val remoteSynthesisOutputTokens: Int = 256
+    val remoteSynthesisOutputTokens: Int = 256,
+    /** Maximum prior tool-exchange tokens replayed to the primary model on each round. */
+    val primaryReplayTokens: Int = 12000,
+    /** Maximum tokens retained from one already-consumed tool result on later rounds. */
+    val primaryReplayResultTokens: Int = 1200
 ) {
     /** Apply the master slider to every delegation budget and breadth setting. */
     fun withStrategy(value: Int): ModelDelegationSettings {
@@ -85,7 +89,9 @@ data class ModelDelegationSettings(
             maxPageCharacters = scale(6000, 60000),
             handoffTokens = scale(256, 2048),
             compactionThresholdCharacters = scale(256, 12000),
-            compactToolResults = level < 90
+            compactToolResults = level < 90,
+            primaryReplayTokens = scale(6000, 24000),
+            primaryReplayResultTokens = scale(512, 2400)
         )
     }
 
@@ -126,7 +132,9 @@ data class ModelDelegationSettings(
             compactionThresholdCharacters = compactionThresholdCharacters.coerceIn(256, 48000),
             localRetryLimit = localRetryLimit.coerceIn(0, 1),
             lowBatteryThresholdPercent = lowBatteryThresholdPercent.coerceIn(0, 50),
-            remoteSynthesisOutputTokens = remoteSynthesisOutputTokens.coerceIn(256, 4096)
+            remoteSynthesisOutputTokens = remoteSynthesisOutputTokens.coerceIn(256, 4096),
+            primaryReplayTokens = primaryReplayTokens.coerceIn(2048, 64000),
+            primaryReplayResultTokens = primaryReplayResultTokens.coerceIn(128, 8192)
         )
     }
 }
