@@ -38,6 +38,17 @@ class ModelDelegationSettingsTest {
     }
 
     @Test
+    fun balancedStrategyKeepsToolCompactionEnabled() {
+        val balanced = ModelDelegationSettings().withStrategy(50)
+        val maximumAccuracy = ModelDelegationSettings().withStrategy(100)
+
+        assertEquals(true, balanced.compactToolResults)
+        assertEquals(1152, balanced.handoffTokens)
+        assertEquals(false, maximumAccuracy.compactToolResults)
+        assertEquals(2048, maximumAccuracy.handoffTokens)
+    }
+
+    @Test
     fun defaultsKeepResearchScopedAndHandoffCompact() {
         val defaults = ModelDelegationSettings()
         assertEquals(6, defaults.maxSearchQueries)
