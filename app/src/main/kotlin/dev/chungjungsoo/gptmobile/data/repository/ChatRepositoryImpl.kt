@@ -681,7 +681,7 @@ class ChatRepositoryImpl(
             if (recalled.facts.isNotEmpty()) emit(ApiState.MemoryRecalled(recalled.references))
             val processingOwnership = settingRepository.getFeatureSettings().delegation.normalized().processingOwnership
             var localResearch = resolvedTools.any { it.realToolName == "delegate_to_model" } &&
-                processingOwnership < 85 &&
+                processingOwnership < 100 &&
                 localDelegation.researchAvailable()
             var exposedTools = orderPrimaryTools(dev.chungjungsoo.gptmobile.data.agent.tool.aggregateWebSearch(resolvedTools))
                 // Local-first hides duplicate remote search tools. Shared and remote-balanced
@@ -862,7 +862,9 @@ class ChatRepositoryImpl(
                     contextTokens = limits.contextTokens,
                     initialContextTokens = contextPlan.promptTokens,
                     finalResponseReserveTokens = minOf(contextPlan.outputTokens ?: 32768, limits.contextTokens / 4),
-                    finalResponseToolCallReserve = maxOf(customRunner.limits.finalResponseToolCallReserve, reservedFinalToolCalls)
+                    finalResponseToolCallReserve = maxOf(customRunner.limits.finalResponseToolCallReserve, reservedFinalToolCalls),
+                    maxReplayTokens = delegationSettings.primaryReplayTokens,
+                    maxReplayResultTokens = delegationSettings.primaryReplayResultTokens
                 )
             ).run(groundedSession, runnerTools)
             emitAll(streamAgentEvents(agentEvents, platform, runId, resolvedTools.size, trace))
