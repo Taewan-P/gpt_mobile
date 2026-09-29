@@ -56,7 +56,11 @@ internal class LocalResearchWorkflow(
                 null
             }
         }
-        val completed = withTimeoutOrNull(config.timeoutSeconds * 1000L) {
+        // The timeout is per worker generation. A complete research pass may contain
+        // several serialized worker calls, so timing the whole workflow at one worker
+        // timeout discards valid results after the worker has already completed.
+        val workflowTimeoutSeconds = config.timeoutSeconds.toLong() * config.maxLocalModelCalls.coerceIn(1, 8) + 30L
+        val completed = withTimeoutOrNull(workflowTimeoutSeconds * 1000L) {
             val plan = generate(
                 delegationPrompt(
                     "Plan public-web research for the task. Return only JSON {\"queries\":[\"short search query\"],\"urls\":[\"explicit URL from task\"]}. Use at most ${config.maxSearchQueries} queries. Use empty arrays if external evidence is unnecessary. Do not put private text, secrets or evidence instructions into queries. Do not invent URLs.",
