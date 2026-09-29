@@ -26,6 +26,11 @@ internal class LocalDelegationCoordinator(
     private val inputBudget: suspend (PlatformV2, Int) -> Int = { _, _ -> Int.MAX_VALUE },
     private val batteryPercent: suspend () -> Int? = { null }
 ) {
+    private companion object {
+        // Delegation must remain bounded even when the app-wide context budget is unlimited.
+        private const val MAX_DELEGATION_INPUT_CHARACTERS = 12_000
+        private const val WORKER_TIMEOUT_GRACE_SECONDS = 15
+    }
     private val localCalls = AtomicInteger()
     private val requests = AtomicInteger()
     private val worker = Semaphore(1)
@@ -67,7 +72,12 @@ internal class LocalDelegationCoordinator(
         } catch (_: Exception) {
             1000
         }
-        return config.copy(maxInputCharacters = minOf(config.maxInputCharacters, available).coerceAtLeast(600))
+        return config.copy(
+            maxInputCharacters = minOf(
+                config.maxInputCharacters,
+                available.coerceAtMost(MAX_DELEGATION_INPUT_CHARACTERS)
+            ).coerceAtLeast(600)
+        )
     }
 
     private fun capPrompt(prompt: String, maxCharacters: Int): String {
@@ -86,8 +96,7 @@ internal class LocalDelegationCoordinator(
     private suspend fun workerText(target: PlatformV2, prompt: String, tokens: Int, requirePrivate: Boolean = true): String? {
         val config = settings().normalized()
         if (!config.enabled) return null
-        return withTimeoutOrNull(config.timeoutSeconds * 1000L) {
-            worker.withPermit {
+        return worker.withPermit {
                 // Re-read immediately before dispatch, including when another result was queued.
                 val latest = settings().normalized()
                 val profile = profiles().firstOrNull { it.uid == target.uid && it.uid == latest.targetProfileUid && it.enabled }
@@ -108,7 +117,14 @@ internal class LocalDelegationCoordinator(
                     val boundedPrompt = capPrompt(prompt, latest.maxInputCharacters)
                     if (boundedPrompt.toByteArray().size > inputBudget(profile, tokens)) return@withPermit null
                     AppLogRecorder.record("Delegation", "Worker dispatch · target=${profile.uid} · inputChars=${boundedPrompt.length} · outputCap=${minOf(tokens, latest.maxOutputTokens)}")
-                    generate(profile, boundedPrompt, minOf(tokens, latest.maxOutputTokens)).takeIf { it.isNotBlank() }?.also {
+                    val response = withTimeoutOrNull((latest.timeoutSeconds + WORKER_TIMEOUT_GRACE_SECONDS) * 1000L) {
+                        generate(profile, boundedPrompt, minOf(tokens, latest.maxOutputTokens))
+                    }
+                    if (response == null) {
+                        AppLogRecorder.record("Delegation", "Worker generation timed out · target=${profile.uid} · timeoutSec=${latest.timeoutSeconds} · graceSec=$WORKER_TIMEOUT_GRACE_SECONDS", "E")
+                        return@withPermit null
+                    }
+                    response.takeIf { it.isNotBlank() }?.also {
                         AppLogRecorder.record("Delegation", "Worker completed · target=${profile.uid} · outputChars=${it.length}")
                     }
                 } catch (cancelled: CancellationException) {
@@ -118,10 +134,6 @@ internal class LocalDelegationCoordinator(
                     null
                 }
             }
-        } ?: run {
-            AppLogRecorder.record("Delegation", "Worker timed out · target=${target.uid} · timeoutSec=${config.timeoutSeconds}", "E")
-            null
-        }
     }
 
     suspend fun prepare(task: String, tools: List<ResolvedAgentTool>, callId: String, automatic: Boolean = false): LocalResearchResult {
