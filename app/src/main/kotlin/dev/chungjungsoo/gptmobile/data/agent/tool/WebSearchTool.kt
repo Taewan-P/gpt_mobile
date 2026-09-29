@@ -20,9 +20,11 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.text.Normalizer
 import java.time.Clock
+import java.security.MessageDigest
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
@@ -64,7 +66,12 @@ class WebSearchTool(
     private val autoSearchEndpointTemplates: List<String> = DEFAULT_AUTO_SEARCH_ENDPOINTS,
     private val autoSearchBlockedUntilMs: AtomicLong = DEFAULT_AUTO_SEARCH_BLOCKED_UNTIL_MS
 ) : AgentTool {
-    private val authenticationBlockedUntilMs = AtomicLong(0)
+    private val authenticationBlockedUntilMs = perplexityAuthBlocks.computeIfAbsent(authenticationBlockKey()) { AtomicLong(0) }
+
+    private fun authenticationBlockKey(): String {
+        val value = "${config.endpointUrl.trimEnd('/')}|${config.bearerToken.trim()}"
+        return MessageDigest.getInstance("SHA-256").digest(value.toByteArray()).take(12).joinToString("") { "%02x".format(it) }
+    }
 
     override val definition: AgentToolDefinition = AgentToolDefinition(
         name = modelToolName,
@@ -545,6 +552,7 @@ class WebSearchTool(
     }.getOrNull()
 
     private companion object {
+        val perplexityAuthBlocks = ConcurrentHashMap<String, AtomicLong>()
         const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
         const val AUTO_SEARCH_BACKOFF_MS = 5 * 60 * 1000L
         val AUTO_SEARCH_BACKOFF_STATUSES = setOf(202, 403, 429)
