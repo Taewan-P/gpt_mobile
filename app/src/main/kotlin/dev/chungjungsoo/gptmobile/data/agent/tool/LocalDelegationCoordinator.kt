@@ -29,7 +29,10 @@ internal class LocalDelegationCoordinator(
     private companion object {
         // Delegation must remain bounded even when the app-wide context budget is unlimited.
         private const val MAX_DELEGATION_INPUT_CHARACTERS = 12_000
-        private const val WORKER_TIMEOUT_GRACE_SECONDS = 15
+        // The outer delegation tool adds a 1-second wrapper margin. Keep the worker
+        // deadline at the configured timeout so it resolves first instead of being
+        // misclassified as an outer cancellation.
+        private const val WORKER_TIMEOUT_GRACE_SECONDS = 0
     }
 
     private val localCalls = AtomicInteger()
