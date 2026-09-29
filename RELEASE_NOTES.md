@@ -1,17 +1,17 @@
-# GPT Mobile AI 0.9.21.4
+# GPT Mobile AI 0.9.21.5
 
-## Delegation context efficiency
-- Bound primary tool-exchange replay so later model rounds no longer resend the complete accumulated raw tool history.
-- Deduplicate older identical tool results while preserving tool-call/result pairing.
-- Preserve untouched structured tool-result types, including JSON results such as device location payloads.
-- Restore delegation eligibility through remote-balanced ownership modes instead of disabling it prematurely.
-- Keep large completed tool results eligible for local compaction before remote synthesis.
+## Delegation reliability
+- Stop delegated-worker cascades after two consecutive empty responses instead of repeatedly spending tokens on unusable results.
+- Quarantine delegated workers for the rest of the turn after HTTP 401/403 authorization failures.
+- Detect reasoning-only delegated completions that consume output tokens without producing a usable final answer.
+- Preserve observed provider input usage when accounting for failed delegated calls.
 
-## Token and context controls
-- Add configurable primary replay budgets for total replay and per-result retention.
-- Base context-limit accounting on the compacted replay view instead of unbounded accumulated raw tool payloads.
-- Add `PRIMARY_REPLAY_COMPACTED` diagnostics with raw, replayed, and saved token estimates.
+## Token efficiency
+- Learn actual provider/system/tool request overhead from delegation usage telemetry.
+- Reserve observed request overhead when sizing subsequent delegated prompts.
+- Limit delegated tool definitions by available input budget while preserving higher-priority research tools first.
+- Improve diagnostics for effective input size, observed overhead, circuit state, auth failures, and empty/reasoning-only results.
 
 ## Validation
-- Added regression coverage for replay compaction, duplicate-result elimination, tool pairing, and JSON result preservation.
-- PR validation, Kotlin lint, CodeQL, Android APK build, and debug build passed before merge.
+- Added regression coverage for thrown empty-response failures, worker circuit breaking, and authorization quarantine.
+- Android APK build, debug build, and Kotlin lint passed on the fix PR before merge.
