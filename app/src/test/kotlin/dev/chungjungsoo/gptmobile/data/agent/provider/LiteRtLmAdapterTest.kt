@@ -1334,13 +1334,18 @@ class LiteRtLmAdapterTest {
 
     @Test
     fun `explicit output limit does not shrink context and request limit wins`() = runBlocking {
-        val runtime = FakeLocalRuntime().apply {
-            scriptedEvents = listOf(listOf(LocalRuntimeEvent.TextDelta("ok"), LocalRuntimeEvent.Done))
+        for (cap in listOf(128, 256, 512)) {
+            val runtime = FakeLocalRuntime().apply {
+                scriptedEvents = listOf(listOf(LocalRuntimeEvent.TextDelta("ok"), LocalRuntimeEvent.Done))
+            }
+            val events = adapter(runtime)
+                .openSession(turns("hello"), localPlatform().copy(maxTokens = 4096), constraints = RequestConstraints(maxOutputTokens = cap))
+                .streamRound(emptyList(), emptyList())
+                .toList()
+            assertEquals(4096, runtime.loadEngineCalls.single().maxTokens)
+            assertEquals(cap, runtime.createConversationCalls.single().maxOutputTokens)
+            assertEquals(cap, events.filterIsInstance<ProviderEvent.RequestConfigured>().single().effectiveOutputTokens)
         }
-        adapter(runtime).openSession(turns("hello"), localPlatform().copy(maxTokens = 100), constraints = RequestConstraints(maxOutputTokens = 50))
-            .streamRound(emptyList(), emptyList()).toList()
-        assertEquals(4096, runtime.loadEngineCalls.single().maxTokens)
-        assertEquals(50, runtime.createConversationCalls.single().maxOutputTokens)
     }
 
     @Test

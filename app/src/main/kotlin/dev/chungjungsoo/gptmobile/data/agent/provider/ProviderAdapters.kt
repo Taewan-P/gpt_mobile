@@ -90,9 +90,19 @@ class OpenAIResponsesAdapter @Inject constructor(
                 exchanges: List<AgentToolExchange>
             ): Flow<ProviderEvent> = flow {
                 require(constraints.allowTools || tools.isEmpty()) { "Tools are disabled for this request." }
+                val effectiveOutputTokens = constraints.outputLimit(platform.maxTokens)
+                if (constraints.maxOutputTokens != null) {
+                    emit(
+                        ProviderEvent.RequestConfigured(
+                            configuredProfileOutputTokens = platform.maxTokens,
+                            requestedOutputTokens = constraints.maxOutputTokens,
+                            effectiveOutputTokens = effectiveOutputTokens
+                        )
+                    )
+                }
                 val request = ResponsesRequest(
                     model = platform.model,
-                    maxOutputTokens = constraints.outputLimit(platform.maxTokens),
+                    maxOutputTokens = effectiveOutputTokens,
                     input = if (exchanges.isEmpty()) {
                         initialInput
                     } else {
@@ -302,7 +312,17 @@ class OpenAICompatibleAdapter @Inject constructor(
                     var canRotate = false
 
                     if (platform.compatibleType == ClientType.GROQ) {
-                        val request = createGroqChatCompletionRequest(baseMessages, platform.copy(reasoning = platform.reasoning && constraints.allowReasoning)).copy(tools = requestTools, maxCompletionTokens = constraints.outputLimit(platform.maxTokens))
+                        val effectiveOutputTokens = constraints.outputLimit(platform.maxTokens)
+                        if (constraints.maxOutputTokens != null) {
+                            emit(
+                                ProviderEvent.RequestConfigured(
+                                    configuredProfileOutputTokens = platform.maxTokens,
+                                    requestedOutputTokens = constraints.maxOutputTokens,
+                                    effectiveOutputTokens = effectiveOutputTokens
+                                )
+                            )
+                        }
+                        val request = createGroqChatCompletionRequest(baseMessages, platform.copy(reasoning = platform.reasoning && constraints.allowReasoning)).copy(tools = requestTools, maxCompletionTokens = effectiveOutputTokens)
                         val assembler = ChatCompletionsEventAssembler()
                         val reasoningParser = GroqReasoningParser()
 
@@ -420,6 +440,16 @@ class OpenAICompatibleAdapter @Inject constructor(
                         null
                     }
 
+                    val effectiveOutputTokens = constraints.outputLimit(effectiveMaxTokens)
+                    if (constraints.maxOutputTokens != null) {
+                        emit(
+                            ProviderEvent.RequestConfigured(
+                                configuredProfileOutputTokens = effectiveMaxTokens,
+                                requestedOutputTokens = constraints.maxOutputTokens,
+                                effectiveOutputTokens = effectiveOutputTokens
+                            )
+                        )
+                    }
                     var currentRequestMessages = baseMessages
 
                     while (true) {
@@ -430,7 +460,7 @@ class OpenAICompatibleAdapter @Inject constructor(
                             temperature = effectiveTemperature,
                             topP = effectiveTopP,
                             topK = effectiveTopK,
-                            maxTokens = constraints.outputLimit(effectiveMaxTokens),
+                            maxTokens = effectiveOutputTokens,
                             frequencyPenalty = effectiveFrequencyPenalty,
                             presencePenalty = effectivePresencePenalty,
                             repetitionPenalty = effectiveRepetitionPenalty,
@@ -733,18 +763,28 @@ class AnthropicMessagesAdapter @Inject constructor(
                 )
                 val isThinkingActive = thinkingPolicy.config?.type?.let { it != "disabled" } == true
                 val allowSampling = !isThinkingActive && anthropicSupportsSampling(platform.model)
+                val effectiveOutputTokens = constraints.outputLimit(platform.maxTokens) ?: if (isThinkingActive) 16000 else 4096
+                if (constraints.maxOutputTokens != null) {
+                    emit(
+                        ProviderEvent.RequestConfigured(
+                            configuredProfileOutputTokens = platform.maxTokens,
+                            requestedOutputTokens = constraints.maxOutputTokens,
+                            effectiveOutputTokens = effectiveOutputTokens
+                        )
+                    )
+                }
                 val request = MessageRequest(
                     model = platform.model,
                     messages = initialMessages + exchanges.flatMapIndexed { index, exchange ->
                         exchange.toAnthropicMessages(assistantContentByRound[index])
                     },
-                    maxTokens = constraints.outputLimit(platform.maxTokens) ?: if (isThinkingActive) 16000 else 4096,
+                    maxTokens = effectiveOutputTokens,
                     stream = platform.stream,
                     systemPrompt = platform.systemPrompt,
                     temperature = if (allowSampling) platform.temperature else null,
                     topP = if (allowSampling) platform.topP else null,
                     thinking = thinkingPolicy.config?.let { config ->
-                        if (config.budgetTokens != null) config.copy(budgetTokens = minOf(config.budgetTokens, (constraints.outputLimit(platform.maxTokens) ?: 16000) - 1)) else config
+                        if (config.budgetTokens != null) config.copy(budgetTokens = minOf(config.budgetTokens, effectiveOutputTokens - 1)) else config
                     },
                     tools = tools.takeIf { it.isNotEmpty() }?.map { definition ->
                         AnthropicTool(definition.name, definition.description, definition.inputSchema)
@@ -920,12 +960,22 @@ class GeminiAdapter @Inject constructor(
                 exchanges: List<AgentToolExchange>
             ): Flow<ProviderEvent> = flow {
                 require(constraints.allowTools || tools.isEmpty()) { "Tools are disabled for this request." }
+                val effectiveOutputTokens = constraints.outputLimit(platform.maxTokens)
+                if (constraints.maxOutputTokens != null) {
+                    emit(
+                        ProviderEvent.RequestConfigured(
+                            configuredProfileOutputTokens = platform.maxTokens,
+                            requestedOutputTokens = constraints.maxOutputTokens,
+                            effectiveOutputTokens = effectiveOutputTokens
+                        )
+                    )
+                }
                 val request = GenerateContentRequest(
                     contents = initialContents + exchanges.flatMapIndexed { index, exchange ->
                         exchange.toGeminiContents(modelPartsByRound[index])
                     },
                     generationConfig = GenerationConfig(
-                        maxOutputTokens = constraints.outputLimit(platform.maxTokens),
+                        maxOutputTokens = effectiveOutputTokens,
                         temperature = platform.temperature,
                         topP = platform.topP,
                         thinkingConfig = if (platform.reasoning && constraints.allowReasoning) GoogleThinkingConfig(includeThoughts = true) else null

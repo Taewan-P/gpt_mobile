@@ -16,8 +16,27 @@ data class ModelDelegationSettings(
     /** Maximum worker-to-worker delegation depth; 1 prevents delegation loops by default. */
     val maxDelegationDepth: Int = 1,
     val maxInputCharacters: Int = 3500,
+    /** Hard token estimate cap for one delegated inference request. Oversized work is chunked before dispatch. */
+    val maxInputTokensPerDelegate: Int = 6000,
+    /** Preferred chunk size for oversized delegated work. */
+    val chunkSizeTokens: Int = 5000,
+    /** Smaller chunk size used when retrying an oversized/failed chunk. */
+    val retryChunkSizeTokens: Int = 2500,
     val maxOutputTokens: Int = 512,
+    /** Legacy upper timeout; adaptive worker deadlines are additionally bounded by maxDelegateRuntimeSeconds. */
     val timeoutSeconds: Int = 75,
+    /** Cancel a worker that produces no model/tool progress within this window. */
+    val timeToFirstTokenTimeoutSeconds: Int = 30,
+    /** Cancel a worker when output/tool progress stalls for this long after starting. */
+    val idleTokenTimeoutSeconds: Int = 20,
+    /** Absolute per-delegate runtime ceiling, regardless of profile timeout. */
+    val maxDelegateRuntimeSeconds: Int = 120,
+    /** Maximum simultaneous delegated inference calls. Local devices default to one. */
+    val maxConcurrentDelegates: Int = 1,
+    /** Stop spending local compute after this many estimated tokens have been discarded in a turn. */
+    val maxWastedLocalTokensPerTurn: Int = 8000,
+    /** Evidence coverage percentage at which additional research can stop early. */
+    val evidenceSufficiencyPercent: Int = 75,
     val maxCallsPerTurn: Int = 5,
     val researchEnabled: Boolean = true,
     val automaticResearch: Boolean = true,
@@ -45,8 +64,17 @@ data class ModelDelegationSettings(
         return copy(
             strategy = level,
             maxInputCharacters = scale(2000, 32000),
+            maxInputTokensPerDelegate = scale(3000, 8000),
+            chunkSizeTokens = scale(2500, 7000),
+            retryChunkSizeTokens = scale(1500, 4000),
             maxOutputTokens = scale(256, 2048),
-            timeoutSeconds = scale(30, 360),
+            timeoutSeconds = scale(30, 180),
+            timeToFirstTokenTimeoutSeconds = scale(20, 45),
+            idleTokenTimeoutSeconds = scale(12, 30),
+            maxDelegateRuntimeSeconds = scale(60, 120),
+            maxConcurrentDelegates = if (level >= 90) 2 else 1,
+            maxWastedLocalTokensPerTurn = scale(4000, 16000),
+            evidenceSufficiencyPercent = scale(65, 90),
             maxCallsPerTurn = scale(1, 16),
             maxLocalModelCalls = scale(4, 32),
             maxSearchQueries = scale(1, 12),
@@ -66,27 +94,41 @@ data class ModelDelegationSettings(
         processingOwnership = value.coerceIn(0, 100)
     )
 
-    fun normalized() = copy(
-        strategy = strategy.coerceIn(0, 100),
-        processingOwnership = processingOwnership.coerceIn(0, 100),
-        maxDelegationDepth = maxDelegationDepth.coerceIn(1, 2),
-        maxInputCharacters = maxInputCharacters.coerceIn(1000, 64000),
-        maxOutputTokens = maxOutputTokens.coerceIn(64, 4096),
-        timeoutSeconds = timeoutSeconds.coerceIn(5, 300),
-        maxCallsPerTurn = maxCallsPerTurn.coerceIn(1, 16),
-        maxLocalModelCalls = maxLocalModelCalls.coerceIn(1, 48),
-        maxSearchQueries = maxSearchQueries.coerceIn(1, 20),
-        searchResultsPerEngine = searchResultsPerEngine.coerceIn(1, 28),
-        maxPages = maxPages.coerceIn(0, 32),
-        crawlDepth = crawlDepth.coerceIn(0, 8),
-        pageFetchConcurrency = pageFetchConcurrency.coerceIn(1, 16),
-        maxPageCharacters = maxPageCharacters.coerceIn(1000, 96000),
-        handoffTokens = handoffTokens.coerceIn(128, 8192),
-        compactionThresholdCharacters = compactionThresholdCharacters.coerceIn(256, 48000),
-        localRetryLimit = localRetryLimit.coerceIn(0, 1),
-        lowBatteryThresholdPercent = lowBatteryThresholdPercent.coerceIn(0, 50),
-        remoteSynthesisOutputTokens = remoteSynthesisOutputTokens.coerceIn(256, 4096)
-    )
+    fun normalized(): ModelDelegationSettings {
+        val normalizedInputCap = maxInputTokensPerDelegate.coerceIn(1000, 12000)
+        val normalizedChunk = chunkSizeTokens.coerceIn(1000, normalizedInputCap)
+        val normalizedRetryChunk = retryChunkSizeTokens.coerceIn(500, normalizedChunk)
+        return copy(
+            strategy = strategy.coerceIn(0, 100),
+            processingOwnership = processingOwnership.coerceIn(0, 100),
+            maxDelegationDepth = maxDelegationDepth.coerceIn(1, 2),
+            maxInputCharacters = maxInputCharacters.coerceIn(1000, 64000),
+            maxInputTokensPerDelegate = normalizedInputCap,
+            chunkSizeTokens = normalizedChunk,
+            retryChunkSizeTokens = normalizedRetryChunk,
+            maxOutputTokens = maxOutputTokens.coerceIn(64, 4096),
+            timeoutSeconds = timeoutSeconds.coerceIn(5, 300),
+            timeToFirstTokenTimeoutSeconds = timeToFirstTokenTimeoutSeconds.coerceIn(5, 90),
+            idleTokenTimeoutSeconds = idleTokenTimeoutSeconds.coerceIn(5, 90),
+            maxDelegateRuntimeSeconds = maxDelegateRuntimeSeconds.coerceIn(30, 120),
+            maxConcurrentDelegates = maxConcurrentDelegates.coerceIn(1, 4),
+            maxWastedLocalTokensPerTurn = maxWastedLocalTokensPerTurn.coerceIn(1000, 64000),
+            evidenceSufficiencyPercent = evidenceSufficiencyPercent.coerceIn(50, 100),
+            maxCallsPerTurn = maxCallsPerTurn.coerceIn(1, 16),
+            maxLocalModelCalls = maxLocalModelCalls.coerceIn(1, 48),
+            maxSearchQueries = maxSearchQueries.coerceIn(1, 20),
+            searchResultsPerEngine = searchResultsPerEngine.coerceIn(1, 28),
+            maxPages = maxPages.coerceIn(0, 32),
+            crawlDepth = crawlDepth.coerceIn(0, 8),
+            pageFetchConcurrency = pageFetchConcurrency.coerceIn(1, 16),
+            maxPageCharacters = maxPageCharacters.coerceIn(1000, 96000),
+            handoffTokens = handoffTokens.coerceIn(128, 8192),
+            compactionThresholdCharacters = compactionThresholdCharacters.coerceIn(256, 48000),
+            localRetryLimit = localRetryLimit.coerceIn(0, 1),
+            lowBatteryThresholdPercent = lowBatteryThresholdPercent.coerceIn(0, 50),
+            remoteSynthesisOutputTokens = remoteSynthesisOutputTokens.coerceIn(256, 4096)
+        )
+    }
 }
 
 fun ClientType.isLocalPlatform(): Boolean = this in setOf(ClientType.LITERT_LM, ClientType.LLAMA, ClientType.OLLAMA)

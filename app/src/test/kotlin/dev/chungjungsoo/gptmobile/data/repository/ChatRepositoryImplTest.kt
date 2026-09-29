@@ -91,6 +91,32 @@ import org.junit.Test
 class ChatRepositoryImplTest {
 
     @Test
+    fun `primary tool ordering preserves catalogs larger than eight tools`() {
+        val tools = (1..12).map { index ->
+            val agentTool = object : AgentTool {
+                override val definition = AgentToolDefinition("tool_$index", "Tool $index", JsonObject(emptyMap()))
+                override suspend fun execute(callId: String, arguments: JsonObject) = AgentToolResult(
+                    callId,
+                    ToolResultContent.Text("unused"),
+                    isError = false
+                )
+            }
+            ResolvedAgentTool(
+                tool = agentTool,
+                connectionUid = null,
+                connectionName = null,
+                realToolName = "tool_$index",
+                modelToolName = agentTool.definition.name
+            )
+        }
+
+        val ordered = orderPrimaryTools(tools)
+
+        assertEquals(12, ordered.size)
+        assertEquals(tools.map { it.modelToolName }.toSet(), ordered.map { it.modelToolName }.toSet())
+    }
+
+    @Test
     fun `memory initialization failure and later class failures do not prevent chat replies`() = runBlocking {
         val facts = mockk<FactVaultRepository>(relaxed = true)
         every { facts.state } returns MutableStateFlow(FactVaultSnapshot(enabled = true))

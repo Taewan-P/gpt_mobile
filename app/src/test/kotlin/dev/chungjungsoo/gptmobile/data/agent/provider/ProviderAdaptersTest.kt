@@ -1131,31 +1131,58 @@ class ProviderAdaptersTest {
     }
 
     @Test
-    fun `delegation constraints serialize bounded output and omit tools for every remote provider`() = runBlocking {
-        val constraints = RequestConstraints(maxOutputTokens = 128, allowTools = false, allowReasoning = false)
-        val openai = FakeOpenAIAPI(responseRounds = ArrayDeque(listOf(kotlinx.coroutines.flow.emptyFlow())))
-        OpenAIResponsesAdapter(openai, attachmentEncoder()).openSession(turns(), platform(ClientType.OPENAI).copy(disableAllTools = true, maxTokens = 8192), constraints).streamRound(emptyList(), emptyList()).toList()
-        assertEquals("128", requestJson(openai.responseRequests.single())["max_output_tokens"]?.jsonPrimitive?.content)
-        assertTrue(openai.responseRequests.single().tools.isNullOrEmpty())
-        for (type in listOf(ClientType.OLLAMA, ClientType.LLAMA, ClientType.CUSTOM, ClientType.OPENROUTER)) {
-            val api = FakeOpenAIAPI(chatRounds = ArrayDeque(listOf(kotlinx.coroutines.flow.emptyFlow())))
-            OpenAICompatibleAdapter(api, FakeGroqAPI(), attachmentEncoder()).openSession(turns(), platform(type).copy(disableAllTools = true, maxTokens = 8192), constraints).streamRound(emptyList(), emptyList()).toList()
-            val request = requestJson(api.chatRequests.single())
-            assertEquals("128", request["max_tokens"]?.jsonPrimitive?.content)
-            assertEquals("none", request["tool_choice"]?.jsonPrimitive?.content)
-            assertTrue(api.chatRequests.single().tools.isNullOrEmpty())
+    fun `delegation constraints serialize bounded output and report the effective cap for every remote provider`() = runBlocking {
+        for (cap in listOf(128, 256, 512)) {
+            val constraints = RequestConstraints(maxOutputTokens = cap, allowTools = false, allowReasoning = false)
+
+            val openai = FakeOpenAIAPI(responseRounds = ArrayDeque(listOf(kotlinx.coroutines.flow.emptyFlow())))
+            val openaiEvents = OpenAIResponsesAdapter(openai, attachmentEncoder())
+                .openSession(turns(), platform(ClientType.OPENAI).copy(disableAllTools = true, maxTokens = 8192), constraints)
+                .streamRound(emptyList(), emptyList())
+                .toList()
+            assertEquals(cap.toString(), requestJson(openai.responseRequests.single())["max_output_tokens"]?.jsonPrimitive?.content)
+            assertEquals(cap, openaiEvents.filterIsInstance<ProviderEvent.RequestConfigured>().single().effectiveOutputTokens)
+            assertTrue(openai.responseRequests.single().tools.isNullOrEmpty())
+
+            for (type in listOf(ClientType.NVIDIA, ClientType.OLLAMA, ClientType.LLAMA, ClientType.CUSTOM, ClientType.OPENROUTER)) {
+                val api = FakeOpenAIAPI(chatRounds = ArrayDeque(listOf(kotlinx.coroutines.flow.emptyFlow())))
+                val events = OpenAICompatibleAdapter(api, FakeGroqAPI(), attachmentEncoder())
+                    .openSession(turns(), platform(type).copy(disableAllTools = true, maxTokens = 8192), constraints)
+                    .streamRound(emptyList(), emptyList())
+                    .toList()
+                val request = requestJson(api.chatRequests.single())
+                assertEquals(cap.toString(), request["max_tokens"]?.jsonPrimitive?.content)
+                assertEquals(cap, events.filterIsInstance<ProviderEvent.RequestConfigured>().single().effectiveOutputTokens)
+                assertEquals("none", request["tool_choice"]?.jsonPrimitive?.content)
+                assertTrue(api.chatRequests.single().tools.isNullOrEmpty())
+            }
+
+            val groq = FakeGroqAPI(ArrayDeque(listOf(kotlinx.coroutines.flow.emptyFlow())))
+            val groqEvents = OpenAICompatibleAdapter(FakeOpenAIAPI(), groq, attachmentEncoder())
+                .openSession(turns(), platform(ClientType.GROQ).copy(disableAllTools = true, maxTokens = 8192), constraints)
+                .streamRound(emptyList(), emptyList())
+                .toList()
+            assertEquals(cap.toString(), requestJson(groq.requests.single())["max_completion_tokens"]?.jsonPrimitive?.content)
+            assertEquals(cap, groqEvents.filterIsInstance<ProviderEvent.RequestConfigured>().single().effectiveOutputTokens)
+
+            val anthropic = FakeAnthropicAPI(ArrayDeque(listOf(kotlinx.coroutines.flow.emptyFlow())))
+            val anthropicEvents = AnthropicMessagesAdapter(anthropic, attachmentEncoder())
+                .openSession(turns(), platform(ClientType.ANTHROPIC).copy(disableAllTools = true, reasoning = true, maxTokens = 8192), constraints)
+                .streamRound(emptyList(), emptyList())
+                .toList()
+            assertEquals(cap.toString(), requestJson(anthropic.requests.single())["max_tokens"]?.jsonPrimitive?.content)
+            assertEquals(cap, anthropicEvents.filterIsInstance<ProviderEvent.RequestConfigured>().single().effectiveOutputTokens)
+            assertTrue(anthropic.requests.single().tools.isNullOrEmpty())
+
+            val google = FakeGoogleAPI(ArrayDeque(listOf(kotlinx.coroutines.flow.emptyFlow())))
+            val googleEvents = GeminiAdapter(google, attachmentEncoder())
+                .openSession(turns(), platform(ClientType.GOOGLE).copy(disableAllTools = true, reasoning = true, maxTokens = 8192), constraints)
+                .streamRound(emptyList(), emptyList())
+                .toList()
+            assertEquals(cap.toString(), requestJson(google.requests.single())["generationConfig"]?.jsonObject?.get("maxOutputTokens")?.jsonPrimitive?.content)
+            assertEquals(cap, googleEvents.filterIsInstance<ProviderEvent.RequestConfigured>().single().effectiveOutputTokens)
+            assertTrue(google.requests.single().tools.isNullOrEmpty())
         }
-        val groq = FakeGroqAPI(ArrayDeque(listOf(kotlinx.coroutines.flow.emptyFlow())))
-        OpenAICompatibleAdapter(FakeOpenAIAPI(), groq, attachmentEncoder()).openSession(turns(), platform(ClientType.GROQ).copy(disableAllTools = true, maxTokens = 8192), constraints).streamRound(emptyList(), emptyList()).toList()
-        assertEquals("128", requestJson(groq.requests.single())["max_completion_tokens"]?.jsonPrimitive?.content)
-        val anthropic = FakeAnthropicAPI(ArrayDeque(listOf(kotlinx.coroutines.flow.emptyFlow())))
-        AnthropicMessagesAdapter(anthropic, attachmentEncoder()).openSession(turns(), platform(ClientType.ANTHROPIC).copy(disableAllTools = true, reasoning = true, maxTokens = 8192), constraints).streamRound(emptyList(), emptyList()).toList()
-        assertEquals("128", requestJson(anthropic.requests.single())["max_tokens"]?.jsonPrimitive?.content)
-        assertTrue(anthropic.requests.single().tools.isNullOrEmpty())
-        val google = FakeGoogleAPI(ArrayDeque(listOf(kotlinx.coroutines.flow.emptyFlow())))
-        GeminiAdapter(google, attachmentEncoder()).openSession(turns(), platform(ClientType.GOOGLE).copy(disableAllTools = true, reasoning = true, maxTokens = 8192), constraints).streamRound(emptyList(), emptyList()).toList()
-        assertEquals("128", requestJson(google.requests.single())["generationConfig"]?.jsonObject?.get("maxOutputTokens")?.jsonPrimitive?.content)
-        assertTrue(google.requests.single().tools.isNullOrEmpty())
     }
 
     private fun turns() = listOf(

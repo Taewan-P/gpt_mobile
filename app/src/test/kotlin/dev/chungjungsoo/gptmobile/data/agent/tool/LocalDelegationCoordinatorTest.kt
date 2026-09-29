@@ -103,7 +103,36 @@ class LocalDelegationCoordinatorTest {
 
         coordinator.delegate(target, "x".repeat(30_000), 512, emptyList(), "bounded")
 
-        assertTrue(dispatchedPrompt.length <= 12_000)
+        assertTrue(dispatchedPrompt.length <= 24_000)
+    }
+
+    @Test fun `oversized direct delegation is chunked and never dispatches the original giant payload`() = runTest {
+        val prompts = mutableListOf<String>()
+        val safe = config.copy(
+            researchEnabled = false,
+            maxLocalModelCalls = 8,
+            maxInputCharacters = 64_000,
+            maxInputTokensPerDelegate = 2_000,
+            chunkSizeTokens = 1_500,
+            retryChunkSizeTokens = 750
+        )
+        val coordinator = LocalDelegationCoordinator(
+            source,
+            { safe },
+            { listOf(target) },
+            { _, prompt, _ ->
+                prompts += prompt
+                "summary-${prompts.size}"
+            }
+        )
+
+        val original = "x".repeat(20_000)
+        val result = coordinator.delegate(target, original, 512, emptyList(), "oversized")
+
+        assertTrue(prompts.size >= 2)
+        assertTrue(prompts.none { it == original })
+        assertTrue(prompts.all { (it.length + 3) / 4 <= safe.maxInputTokensPerDelegate })
+        assertTrue(result.contains("summary"))
     }
 
     @Test fun `exhausted worker budget does not drift or invite another delegation`() = runTest {

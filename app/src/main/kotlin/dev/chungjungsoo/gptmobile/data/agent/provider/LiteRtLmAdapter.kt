@@ -150,6 +150,15 @@ class LiteRtLmAdapter(
                 )
 
                 val outputLimit = constraints.outputLimit(platform.maxTokens)
+                if (constraints.maxOutputTokens != null) {
+                    send(
+                        ProviderEvent.RequestConfigured(
+                            configuredProfileOutputTokens = platform.maxTokens,
+                            requestedOutputTokens = constraints.maxOutputTokens,
+                            effectiveOutputTokens = outputLimit
+                        )
+                    )
+                }
                 val thinkingEnabled = platform.reasoning && constraints.allowReasoning
                 val throttlingPolicy = localRuntime.getAdaptiveThrottlingPolicy()
                 val effectiveContextTokens = if (throttlingPolicy.maxTokensClamp != null) {

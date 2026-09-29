@@ -8,6 +8,15 @@ class ModelDelegationSettingsTest {
     fun normalizedClampsExtendedDelegationControls() {
         val normalized = ModelDelegationSettings(
             timeoutSeconds = 999,
+            maxInputTokensPerDelegate = 999999,
+            chunkSizeTokens = 999999,
+            retryChunkSizeTokens = 999999,
+            timeToFirstTokenTimeoutSeconds = 999,
+            idleTokenTimeoutSeconds = 999,
+            maxDelegateRuntimeSeconds = 999,
+            maxConcurrentDelegates = 99,
+            maxWastedLocalTokensPerTurn = 999999,
+            evidenceSufficiencyPercent = 999,
             maxCallsPerTurn = 99,
             maxLocalModelCalls = 99,
             maxSearchQueries = 99,
@@ -22,6 +31,15 @@ class ModelDelegationSettingsTest {
         ).normalized()
 
         assertEquals(300, normalized.timeoutSeconds)
+        assertEquals(12000, normalized.maxInputTokensPerDelegate)
+        assertEquals(12000, normalized.chunkSizeTokens)
+        assertEquals(12000, normalized.retryChunkSizeTokens)
+        assertEquals(90, normalized.timeToFirstTokenTimeoutSeconds)
+        assertEquals(90, normalized.idleTokenTimeoutSeconds)
+        assertEquals(120, normalized.maxDelegateRuntimeSeconds)
+        assertEquals(4, normalized.maxConcurrentDelegates)
+        assertEquals(64000, normalized.maxWastedLocalTokensPerTurn)
+        assertEquals(100, normalized.evidenceSufficiencyPercent)
         assertEquals(16, normalized.maxCallsPerTurn)
         assertEquals(48, normalized.maxLocalModelCalls)
         assertEquals(20, normalized.maxSearchQueries)
@@ -58,6 +76,15 @@ class ModelDelegationSettingsTest {
         assertEquals(4, defaults.pageFetchConcurrency)
         assertEquals(36000, defaults.maxPageCharacters)
         assertEquals(256, defaults.handoffTokens)
+        assertEquals(6000, defaults.maxInputTokensPerDelegate)
+        assertEquals(5000, defaults.chunkSizeTokens)
+        assertEquals(2500, defaults.retryChunkSizeTokens)
+        assertEquals(30, defaults.timeToFirstTokenTimeoutSeconds)
+        assertEquals(20, defaults.idleTokenTimeoutSeconds)
+        assertEquals(120, defaults.maxDelegateRuntimeSeconds)
+        assertEquals(1, defaults.maxConcurrentDelegates)
+        assertEquals(8000, defaults.maxWastedLocalTokensPerTurn)
+        assertEquals(75, defaults.evidenceSufficiencyPercent)
         assertEquals(false, defaults.allowRemoteWorkers)
         assertEquals(1, defaults.maxDelegationDepth)
         assertEquals(500, defaults.compactionThresholdCharacters)

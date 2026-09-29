@@ -22,6 +22,13 @@ sealed interface ProviderEvent {
         val cumulative: Boolean = true
     ) : ProviderEvent
 
+    /** Effective provider request settings after profile preferences and hard request constraints are resolved. */
+    data class RequestConfigured(
+        val configuredProfileOutputTokens: Int? = null,
+        val requestedOutputTokens: Int? = null,
+        val effectiveOutputTokens: Int? = null
+    ) : ProviderEvent
+
     // GatewayProgressUpdate is observational only. AgentRunner must never
     // execute it as a client-owned tool call.
     data class GatewayProgressUpdate(val progress: GatewayProgress) : ProviderEvent
