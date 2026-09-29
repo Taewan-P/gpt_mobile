@@ -31,6 +31,7 @@ internal class LocalDelegationCoordinator(
         private const val MAX_DELEGATION_INPUT_CHARACTERS = 12_000
         private const val WORKER_TIMEOUT_GRACE_SECONDS = 15
     }
+
     private val localCalls = AtomicInteger()
     private val requests = AtomicInteger()
     private val worker = Semaphore(1)
@@ -97,44 +98,47 @@ internal class LocalDelegationCoordinator(
         val config = settings().normalized()
         if (!config.enabled) return null
         return worker.withPermit {
-                // Re-read immediately before dispatch, including when another result was queued.
-                val latest = settings().normalized()
-                val profile = profiles().firstOrNull { it.uid == target.uid && it.uid == latest.targetProfileUid && it.enabled }
-                AppLogRecorder.record("Delegation", "Worker gate · target=${target.uid} · profileFound=${profile != null} · private=${profile?.isPrivateDestination()} · calls=${localCalls.get()}/${latest.maxLocalModelCalls}")
-                if (!latest.enabled ||
-                    profile == null ||
-                    profile.excludesMemory() ||
-                    profile.uid == source.uid ||
-                    (latest.localPlatformsOnly && !profile.isPrivateDestination() && !latest.allowRemoteWorkers) ||
-                    (requirePrivate && !profile.isPrivateDestination() && !latest.allowRemoteWorkers) ||
-                    (source.compatibleType == ClientType.LITERT_LM && profile.compatibleType == ClientType.LITERT_LM) ||
-                    localCalls.getAndIncrement() >= latest.maxLocalModelCalls
-                ) {
-                    AppLogRecorder.record("Delegation", "Worker rejected by gate · target=${target.uid}", "W")
+            // Re-read immediately before dispatch, including when another result was queued.
+            val latest = settings().normalized()
+            val profile = profiles().firstOrNull { it.uid == target.uid && it.uid == latest.targetProfileUid && it.enabled }
+            AppLogRecorder.record("Delegation", "Worker gate · target=${target.uid} · profileFound=${profile != null} · private=${profile?.isPrivateDestination()} · calls=${localCalls.get()}/${latest.maxLocalModelCalls}")
+            if (!latest.enabled ||
+                profile == null ||
+                profile.excludesMemory() ||
+                profile.uid == source.uid ||
+                (latest.localPlatformsOnly && !profile.isPrivateDestination() && !latest.allowRemoteWorkers) ||
+                (requirePrivate && !profile.isPrivateDestination() && !latest.allowRemoteWorkers) ||
+                (source.compatibleType == ClientType.LITERT_LM && profile.compatibleType == ClientType.LITERT_LM) ||
+                localCalls.getAndIncrement() >= latest.maxLocalModelCalls
+            ) {
+                AppLogRecorder.record("Delegation", "Worker rejected by gate · target=${target.uid}", "W")
+                return@withPermit null
+            }
+            try {
+                val budget = inputBudget(profile, tokens).coerceAtLeast(0)
+                if (budget < 600) {
+                    AppLogRecorder.record("Delegation", "Worker rejected · input budget too small · target=${profile.uid} · inputBudget=$budget", "W")
                     return@withPermit null
                 }
-                try {
-                    val boundedPrompt = capPrompt(prompt, latest.maxInputCharacters)
-                    if (boundedPrompt.toByteArray().size > inputBudget(profile, tokens)) return@withPermit null
-                    AppLogRecorder.record("Delegation", "Worker dispatch · target=${profile.uid} · inputChars=${boundedPrompt.length} · outputCap=${minOf(tokens, latest.maxOutputTokens)}")
-                    val response = withTimeoutOrNull((latest.timeoutSeconds + WORKER_TIMEOUT_GRACE_SECONDS) * 1000L) {
-                        generate(profile, boundedPrompt, minOf(tokens, latest.maxOutputTokens))
-                    }
-                    if (response == null) {
-                        AppLogRecorder.record("Delegation", "Worker generation timed out · target=${profile.uid} · timeoutSec=${latest.timeoutSeconds} · graceSec=$WORKER_TIMEOUT_GRACE_SECONDS", "E")
-                        return@withPermit null
-                    }
-                    response.takeIf { it.isNotBlank() }?.also {
-                        AppLogRecorder.record("Delegation", "Worker completed · target=${profile.uid} · outputChars=${it.length}")
-                    }
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (failure: Exception) {
-                    AppLogRecorder.record("Delegation", "Worker failed · target=${profile.uid} · ${failure.javaClass.simpleName}: ${failure.message.orEmpty()}", "E")
-                    null
+                val boundedPrompt = capPrompt(prompt, minOf(latest.maxInputCharacters, MAX_DELEGATION_INPUT_CHARACTERS, budget))
+                AppLogRecorder.record("Delegation", "Worker dispatch · target=${profile.uid} · inputChars=${boundedPrompt.length} · inputBudget=$budget · outputCap=${minOf(tokens, latest.maxOutputTokens)}")
+                val response = withTimeoutOrNull((latest.timeoutSeconds + WORKER_TIMEOUT_GRACE_SECONDS) * 1000L) {
+                    generate(profile, boundedPrompt, minOf(tokens, latest.maxOutputTokens))
                 }
+                if (response == null) {
+                    AppLogRecorder.record("Delegation", "Worker generation timed out · target=${profile.uid} · timeoutSec=${latest.timeoutSeconds} · graceSec=$WORKER_TIMEOUT_GRACE_SECONDS", "E")
+                    return@withPermit null
+                }
+                response.takeIf { it.isNotBlank() }?.also {
+                    AppLogRecorder.record("Delegation", "Worker completed · target=${profile.uid} · outputChars=${it.length}")
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                AppLogRecorder.record("Delegation", "Worker failed · target=${target.uid} · ${failure.javaClass.simpleName}: ${failure.message.orEmpty()}", "E")
+                null
             }
-    }
+        }
 
     suspend fun prepare(task: String, tools: List<ResolvedAgentTool>, callId: String, automatic: Boolean = false): LocalResearchResult {
         val config = settings().normalized()
