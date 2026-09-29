@@ -16,7 +16,7 @@ import org.junit.Test
 class ModelDelegationToolTest {
     private val source = PlatformV2(uid = "source", name = "Main", compatibleType = ClientType.OPENAI)
     private val target = PlatformV2(uid = "target", name = "Local", compatibleType = ClientType.LLAMA, apiUrl = "http://192.168.1.20:8080/v1")
-    private val enabled = ModelDelegationSettings(enabled = true, targetProfileUid = target.uid, maxCallsPerTurn = 1)
+    private val enabled = ModelDelegationSettings(enabled = true, targetProfileUid = target.uid, localPlatformsOnly = false)
     private val task = buildJsonObject { put("task", "Summarize this text") }
 
     @Test
@@ -74,6 +74,22 @@ class ModelDelegationToolTest {
         }
         val tool = ModelDelegationTool(source, { enabled }, { listOf(target) }) { _, _, _ -> error("Must not run") }
         assertTrue(tool.execute("1", buildJsonObject { put("task", "x".repeat(8001)) }).isError)
+    }
+
+    @Test
+    fun remoteWorkerOptInAllowsRemoteToRemoteDelegation() = runTest {
+        val remote = target.copy(compatibleType = ClientType.OPENROUTER, apiUrl = "https://openrouter.ai/api/v1")
+        var called = false
+        val tool = ModelDelegationTool(
+            source.copy(compatibleType = ClientType.OPENAI),
+            { enabled.copy(allowRemoteWorkers = true, localPlatformsOnly = true) },
+            { listOf(remote) }
+        ) { profile, _, _ ->
+            called = profile.uid == remote.uid
+            "Remote result"
+        }
+        assertFalse(tool.execute("remote-remote", task).isError)
+        assertTrue(called)
     }
 
     @Test

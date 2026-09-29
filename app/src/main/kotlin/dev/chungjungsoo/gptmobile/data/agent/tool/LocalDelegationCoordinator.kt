@@ -5,6 +5,7 @@ import dev.chungjungsoo.gptmobile.data.agent.AgentToolResult
 import dev.chungjungsoo.gptmobile.data.agent.ToolPayloadMetrics
 import dev.chungjungsoo.gptmobile.data.agent.ToolResultContent
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
+import dev.chungjungsoo.gptmobile.data.diagnostics.AppLogRecorder
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.model.ModelDelegationSettings
 import dev.chungjungsoo.gptmobile.data.model.excludesMemory
@@ -32,12 +33,19 @@ internal class LocalDelegationCoordinator(
     suspend fun researchAvailable(): Boolean {
         return try {
             val config = settings().normalized()
-            val target = localTarget(config) ?: return false
+            val target = localTarget(config) ?: run {
+                AppLogRecorder.record("Delegation", "Research unavailable · no eligible target · source=${source.uid}", "W")
+                return false
+            }
             if (!config.researchEnabled || config.processingOwnership >= 85) return false
-            inputBudget(target, config.maxOutputTokens) >= 600
+            val available = inputBudget(target, config.maxOutputTokens)
+            val result = available >= 600
+            AppLogRecorder.record("Delegation", "Research availability=$result · target=${target.uid} · inputBudget=$available · ownership=${config.processingOwnership}")
+            result
         } catch (cancelled: CancellationException) {
             throw cancelled
-        } catch (_: Exception) {
+        } catch (failure: Exception) {
+            AppLogRecorder.record("Delegation", "Research availability check failed · ${failure.javaClass.simpleName}: ${failure.message.orEmpty()}", "E")
             false
         }
     }
@@ -83,36 +91,51 @@ internal class LocalDelegationCoordinator(
                 // Re-read immediately before dispatch, including when another result was queued.
                 val latest = settings().normalized()
                 val profile = profiles().firstOrNull { it.uid == target.uid && it.uid == latest.targetProfileUid && it.enabled }
+                AppLogRecorder.record("Delegation", "Worker gate · target=${target.uid} · profileFound=${profile != null} · private=${profile?.isPrivateDestination()} · calls=${localCalls.get()}/${latest.maxLocalModelCalls}")
                 if (!latest.enabled ||
                     profile == null ||
                     profile.excludesMemory() ||
                     profile.uid == source.uid ||
-                    (latest.localPlatformsOnly && !profile.isPrivateDestination()) ||
-                    (requirePrivate && !profile.isPrivateDestination()) ||
+                    (latest.localPlatformsOnly && !profile.isPrivateDestination() && !latest.allowRemoteWorkers) ||
+                    (requirePrivate && !profile.isPrivateDestination() && !latest.allowRemoteWorkers) ||
                     (source.compatibleType == ClientType.LITERT_LM && profile.compatibleType == ClientType.LITERT_LM) ||
                     localCalls.getAndIncrement() >= latest.maxLocalModelCalls
                 ) {
+                    AppLogRecorder.record("Delegation", "Worker rejected by gate · target=${target.uid}", "W")
                     return@withPermit null
                 }
                 try {
                     val boundedPrompt = capPrompt(prompt, latest.maxInputCharacters)
                     if (boundedPrompt.toByteArray().size > inputBudget(profile, tokens)) return@withPermit null
-                    generate(profile, boundedPrompt, minOf(tokens, latest.maxOutputTokens)).takeIf { it.isNotBlank() }
+                    AppLogRecorder.record("Delegation", "Worker dispatch · target=${profile.uid} · inputChars=${boundedPrompt.length} · outputCap=${minOf(tokens, latest.maxOutputTokens)}")
+                    generate(profile, boundedPrompt, minOf(tokens, latest.maxOutputTokens)).takeIf { it.isNotBlank() }?.also {
+                        AppLogRecorder.record("Delegation", "Worker completed · target=${profile.uid} · outputChars=${it.length}")
+                    }
                 } catch (cancelled: CancellationException) {
                     throw cancelled
-                } catch (_: Exception) {
+                } catch (failure: Exception) {
+                    AppLogRecorder.record("Delegation", "Worker failed · target=${profile.uid} · ${failure.javaClass.simpleName}: ${failure.message.orEmpty()}", "E")
                     null
                 }
             }
+        } ?: run {
+            AppLogRecorder.record("Delegation", "Worker timed out · target=${target.uid} · timeoutSec=${config.timeoutSeconds}", "E")
+            null
         }
     }
 
     suspend fun prepare(task: String, tools: List<ResolvedAgentTool>, callId: String, automatic: Boolean = false): LocalResearchResult {
         val config = settings().normalized()
         val target = localTarget(config)
-        if (!config.researchEnabled || target == null || (automatic && !config.automaticResearch)) return LocalResearchResult("", 0, 0, 0)
+        if (!config.researchEnabled || target == null || (automatic && !config.automaticResearch)) {
+            AppLogRecorder.record("Delegation", "Research skipped · automatic=$automatic · enabled=${config.researchEnabled} · target=${target?.uid}")
+            return LocalResearchResult("", 0, 0, 0)
+        }
         val requestIndex = requests.getAndIncrement()
-        if (requestIndex >= config.maxCallsPerTurn) return LocalResearchResult("", 0, 0, 0)
+        if (requestIndex >= config.maxCallsPerTurn) {
+            AppLogRecorder.record("Delegation", "Research skipped · request budget exhausted · request=$requestIndex max=${config.maxCallsPerTurn}", "W")
+            return LocalResearchResult("", 0, 0, 0)
+        }
         val result = try {
             LocalResearchWorkflow(
                 boundedConfig(target, config),
@@ -126,8 +149,10 @@ internal class LocalDelegationCoordinator(
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
+            AppLogRecorder.record("Delegation", "Research workflow failed · call=$callId", "E")
             LocalResearchResult(delegationHandoff("", emptyList(), listOf("Local preparation was unavailable. No completed research is claimed."), config.handoffTokens), 0, 0, 0)
         }
+        AppLogRecorder.record("Delegation", "Research finished · call=$callId · automatic=$automatic · searches=${result.searches} · pages=${result.pagesRead} · rawBytes=${result.rawBytes} · handoffChars=${result.handoff.length}")
         if (automatic && result.handoff.isEmpty()) requests.decrementAndGet()
         return result
     }

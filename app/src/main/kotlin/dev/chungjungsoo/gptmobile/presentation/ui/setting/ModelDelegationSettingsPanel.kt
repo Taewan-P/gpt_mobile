@@ -4,16 +4,33 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -33,14 +50,50 @@ fun ModelDelegationSettingsPanel(viewModel: LocalToolsViewModel = hiltViewModel(
     val profiles by viewModel.profiles.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
+    var showAdvanced by remember { mutableStateOf(false) }
     val eligible = profiles.filter { it.enabled && !it.excludesMemory() && (!config.localPlatformsOnly || it.isPrivateDestination() || config.allowRemoteWorkers) }
-    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Card(
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+        ) {
+            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary) {
+                        Icon(Icons.Default.AutoAwesome, "", Modifier.padding(12.dp))
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text("Model delegation", style = MaterialTheme.typography.headlineSmall)
+                        Text(if (config.enabled) "Ready to share bounded work" else "Turn on to give tasks to a helper", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    LocalToolToggle("Enable delegation", config.enabled, !busy) { value -> viewModel.update { it.copy(enabled = value) } }
+                }
+                Text("A helper can research, read pages, and compress tool results so the main model receives a focused answer with evidence.", style = MaterialTheme.typography.bodyMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StatusPill(Icons.Default.Memory, "${config.maxLocalModelCalls} local calls")
+                    StatusPill(Icons.Default.Bolt, "${config.handoffTokens} brief tokens")
+                    if (config.allowRemoteWorkers) StatusPill(Icons.Default.Cloud, "Remote workers on")
+                }
+            }
+        }
         Card {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                LocalToolToggle("Model delegation", config.enabled, !busy) { value -> viewModel.update { it.copy(enabled = value) } }
-                Text("Let a local model plan searches, read pages and process tool results. Your remote model receives a compact brief with sources and any missing evidence.", style = MaterialTheme.typography.bodyMedium)
+                SectionHeading("Delegation style", "Choose the balance that fits this device and task.")
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(20 to "Efficient", 50 to "Balanced", 80 to "Thorough").forEach { (value, label) ->
+                        FilterChip(
+                            selected = config.strategy in (value - 15)..(value + 15),
+                            onClick = { viewModel.update { it.withStrategy(value) } },
+                            label = { Text(label) },
+                            leadingIcon = if (value == 20) ({ Icon(Icons.Default.Bolt, null) }) else null,
+                            modifier = Modifier.weight(1f),
+                            enabled = !busy,
+                            colors = FilterChipDefaults.filterChipColors()
+                        )
+                    }
+                }
                 DelegationSlider(
-                    "Token efficiency strategy: ${strategyLabel(config.strategy)}",
+                    "Efficiency: ${strategyLabel(config.strategy)}",
                     config.strategy,
                     0..100,
                     10,
@@ -48,14 +101,16 @@ fun ModelDelegationSettingsPanel(viewModel: LocalToolsViewModel = hiltViewModel(
                     "Extremely efficient uses fewer searches, smaller briefs and fewer local calls. Higher accuracy spends more tokens and gathers broader evidence."
                 ) { value -> viewModel.update { it.withStrategy(value) } }
                 DelegationSlider(
-                    "Processing ownership: ${ownershipLabel(config.processingOwnership)}",
+                    "Work split: ${ownershipLabel(config.processingOwnership)}",
                     config.processingOwnership,
                     0..100,
                     10,
                     !busy,
                     "Controls who performs the work. Shared keeps remote reasoning and local research active together when possible."
                 ) { value -> viewModel.update { it.withProcessingOwnership(value) } }
-                Text("Local-first prioritizes on-device research. Shared runs both sides when possible. Remote-first lets the remote model lead tool work.", style = MaterialTheme.typography.bodySmall)
+                Text("Local-first saves remote tokens. Shared balances both models. Remote-first lets the main model lead.", style = MaterialTheme.typography.bodySmall)
+                HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                SectionHeading("Worker access", "Control where delegated information is allowed to go.")
                 LocalToolToggle("Only private destinations", config.localPlatformsOnly, !busy) { value -> viewModel.update { it.copy(localPlatformsOnly = value) } }
                 Text("Local research and result processing require an on-device model or private server. Remote workers can handle analysis and verification when explicitly enabled.", style = MaterialTheme.typography.bodySmall)
                 LocalToolToggle("Allow remote AI profiles as workers", config.allowRemoteWorkers, !busy) { value -> viewModel.update { it.copy(allowRemoteWorkers = value) } }
@@ -63,19 +118,25 @@ fun ModelDelegationSettingsPanel(viewModel: LocalToolsViewModel = hiltViewModel(
                     Text("Remote-to-remote delegation is opt-in, budgeted by this router, and limited to a shallow worker chain to prevent loops.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     DelegationSlider("Maximum worker delegation depth", config.maxDelegationDepth, 1..2, 1, !busy, "Depth 1 keeps one router-to-worker hop. Depth 2 permits a controlled worker handoff.") { value -> viewModel.update { it.copy(maxDelegationDepth = value) } }
                 }
-                Text("Helper profile", style = MaterialTheme.typography.titleSmall)
+                Text("Choose helper", style = MaterialTheme.typography.titleMedium)
                 if (eligible.none { it.uid == config.targetProfileUid }) Text("Select an enabled helper profile. Download a model and create its profile from the Library tab, or add your local server in AI profiles.", color = MaterialTheme.colorScheme.primary)
                 eligible.forEach { profile ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(
-                            selected = config.targetProfileUid == profile.uid,
-                            enabled = !busy,
-                            onClick = { viewModel.update { it.copy(targetProfileUid = profile.uid) } },
-                            modifier = Modifier.semantics { contentDescription = "Delegate to ${profile.name}" }
-                        )
-                        Column {
-                            Text(profile.name)
-                            Text(profile.model, style = MaterialTheme.typography.bodySmall)
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = if (config.targetProfileUid == profile.uid) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(
+                                selected = config.targetProfileUid == profile.uid,
+                                enabled = !busy,
+                                onClick = { viewModel.update { it.copy(targetProfileUid = profile.uid) } },
+                                modifier = Modifier.semantics { contentDescription = "Delegate to ${profile.name}" }
+                            )
+                            Column {
+                                Text(profile.name)
+                                Text(profile.model, style = MaterialTheme.typography.bodySmall)
+                            }
                         }
                     }
                 }
@@ -84,10 +145,7 @@ fun ModelDelegationSettingsPanel(viewModel: LocalToolsViewModel = hiltViewModel(
         }
         Card {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Local research", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                    Button(enabled = !busy, onClick = viewModel::resetDelegationDefaults) { Text("Reset defaults") }
-                }
+                SectionHeading("Research assistant", "Let the helper gather evidence before the main model answers.")
                 LocalToolToggle("Search and read pages locally", config.researchEnabled, !busy) { value -> viewModel.update { it.copy(researchEnabled = value) } }
                 LocalToolToggle("Prepare research before the remote model", config.automaticResearch, !busy) { value -> viewModel.update { it.copy(automaticResearch = value) } }
                 LocalToolToggle("Process large tool results locally", config.compactToolResults, !busy) { value -> viewModel.update { it.copy(compactToolResults = value) } }
@@ -102,17 +160,47 @@ fun ModelDelegationSettingsPanel(viewModel: LocalToolsViewModel = hiltViewModel(
         }
         Card {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Handoff and local workload", style = MaterialTheme.typography.titleMedium)
-                DelegationSlider("Remote brief token budget", config.handoffTokens, 128..8192, 128, !busy, "A byte-based estimate. Lower values reduce remote context; sources and limitations remain attached.") { value -> viewModel.update { it.copy(handoffTokens = value) } }
-                DelegationSlider("Local input characters per step", config.maxInputCharacters, 1000..16000, 500, !busy) { value -> viewModel.update { it.copy(maxInputCharacters = value) } }
-                DelegationSlider("Local output tokens per step", config.maxOutputTokens, 64..2048, 64, !busy) { value -> viewModel.update { it.copy(maxOutputTokens = value) } }
-                DelegationSlider("Local model calls per turn", config.maxLocalModelCalls, 1..24, 1, !busy, "Shared by planning, page summaries and tool-result processing.") { value -> viewModel.update { it.copy(maxLocalModelCalls = value) } }
-                DelegationSlider("Research timeout in seconds", config.timeoutSeconds, 5..300, 5, !busy) { value -> viewModel.update { it.copy(timeoutSeconds = value) } }
-                DelegationSlider("Delegations per turn", config.maxCallsPerTurn, 1..16, 1, !busy) { value -> viewModel.update { it.copy(maxCallsPerTurn = value) } }
-                DelegationSlider("Process tool results above characters", config.compactionThresholdCharacters, 256..48000, 256, !busy, "Small results pass through to avoid unnecessary local inference.") { value -> viewModel.update { it.copy(compactionThresholdCharacters = value) } }
-                Text("These controls apply to delegation. The main model's output limit is unchanged. When the local budget runs out, the brief identifies omitted evidence.", style = MaterialTheme.typography.bodySmall)
-                Text("Safety policy: local retries stop after one failed attempt, live-tool failures are reported explicitly, one tool slot is reserved for final synthesis, and aggressive local research pauses below 20% battery.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) { SectionHeading("Advanced controls", "Fine-tune budgets, timeouts, and research breadth.") }
+                    IconButton(onClick = { showAdvanced = !showAdvanced }) { Icon(if (showAdvanced) Icons.Default.ExpandLess else Icons.Default.ExpandMore, "Toggle advanced controls") }
+                }
+                if (!showAdvanced) {
+                    Text("Using the recommended bounded defaults. Expand for detailed controls.", style = MaterialTheme.typography.bodySmall)
+                }
+                if (showAdvanced) {
+                    Text("Handoff and local workload", style = MaterialTheme.typography.titleMedium)
+                    DelegationSlider("Remote brief token budget", config.handoffTokens, 128..8192, 128, !busy, "A byte-based estimate. Lower values reduce remote context; sources and limitations remain attached.") { value -> viewModel.update { it.copy(handoffTokens = value) } }
+                    DelegationSlider("Local input characters per step", config.maxInputCharacters, 1000..16000, 500, !busy) { value -> viewModel.update { it.copy(maxInputCharacters = value) } }
+                    DelegationSlider("Local output tokens per step", config.maxOutputTokens, 64..2048, 64, !busy) { value -> viewModel.update { it.copy(maxOutputTokens = value) } }
+                    DelegationSlider("Local model calls per turn", config.maxLocalModelCalls, 1..24, 1, !busy, "Shared by planning, page summaries and tool-result processing.") { value -> viewModel.update { it.copy(maxLocalModelCalls = value) } }
+                    DelegationSlider("Research timeout in seconds", config.timeoutSeconds, 5..300, 5, !busy) { value -> viewModel.update { it.copy(timeoutSeconds = value) } }
+                    DelegationSlider("Delegations per turn", config.maxCallsPerTurn, 1..16, 1, !busy) { value -> viewModel.update { it.copy(maxCallsPerTurn = value) } }
+                    DelegationSlider("Process tool results above characters", config.compactionThresholdCharacters, 256..48000, 256, !busy, "Small results pass through to avoid unnecessary local inference.") { value -> viewModel.update { it.copy(compactionThresholdCharacters = value) } }
+                    Text("These controls apply to delegation. The main model's output limit is unchanged. When the local budget runs out, the brief identifies omitted evidence.", style = MaterialTheme.typography.bodySmall)
+                    Text("Safety policy: local retries stop after one failed attempt, live-tool failures are reported explicitly, one tool slot is reserved for final synthesis, and aggressive local research pauses below 20% battery.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        FilterChip(selected = false, onClick = { viewModel.resetDelegationDefaults() }, label = { Text("Reset recommended defaults") }, leadingIcon = { Icon(Icons.Default.RestartAlt, null) }, enabled = !busy)
+                    }
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun SectionHeading(title: String, subtitle: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(title, style = MaterialTheme.typography.titleLarge)
+        Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun StatusPill(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String) {
+    Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f)) {
+        Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            Icon(icon, null, Modifier.height(16.dp))
+            Text(label, style = MaterialTheme.typography.labelMedium)
         }
     }
 }

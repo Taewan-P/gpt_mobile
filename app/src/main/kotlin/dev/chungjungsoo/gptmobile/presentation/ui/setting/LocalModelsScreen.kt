@@ -87,7 +87,7 @@ fun LocalModelsScreen(
     val context = LocalContext.current
     var marketplace by rememberSaveable { mutableStateOf(startInMarketplace) }
     var architecture by rememberSaveable { mutableStateOf("") }
-    var selectedTab by rememberSaveable { mutableStateOf(if (startInDelegation) 2 else 0) }
+    var selectedTab by rememberSaveable { mutableStateOf(if (startInDelegation) 1 else 0) }
     val runtimeStatus by runtimeViewModel.status.collectAsStateWithLifecycle()
     val profiles by runtimeViewModel.profiles.collectAsStateWithLifecycle()
     val qnnAvailable by runtimeViewModel.qnnAvailable.collectAsStateWithLifecycle()
@@ -134,13 +134,10 @@ fun LocalModelsScreen(
                             androidx.compose.material3.PrimaryTabRow(selectedTabIndex = selectedTab) {
                                 androidx.compose.material3.Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Library") })
                                 androidx.compose.material3.Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Settings") })
-                                androidx.compose.material3.Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 }, text = { Text("Delegation") })
                             }
                         }
                     }
-                    if (!marketplace && selectedTab == 2) {
-                        item(key = "delegation") { ModelDelegationSettingsPanel() }
-                    } else if (!marketplace && selectedTab == 1) {
+                    if (!marketplace && selectedTab == 1) {
                         item(key = "runtime") { LocalRuntimeSettingsCard(runtimeViewModel) }
                     } else if (!marketplace) {
                         item(key = "overview") { LocalModelsOverviewCard(uiState) }

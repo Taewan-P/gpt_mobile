@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Tune
@@ -141,7 +142,7 @@ fun SettingScreen(
                         onClick = onNavigateToAiPlatforms
                     )
                     SettingsDestination(
-                        icon = Icons.Default.Psychology,
+                        icon = Icons.Default.AccountTree,
                         title = "Memory",
                         onClick = onNavigateToFactVault
                     )
