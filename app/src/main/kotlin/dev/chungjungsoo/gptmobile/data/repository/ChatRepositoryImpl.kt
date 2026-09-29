@@ -369,6 +369,16 @@ class ChatRepositoryImpl(
             profileUid = target.uid
         ) ?: session
         val childRunner = agentRunnerForPlatform(bounded, runOverride = maxOf(1, target.maxToolCalls))
+        val startedAtMs = System.currentTimeMillis()
+        var providerFailure: String? = null
+        var usageInputTokens = 0L
+        var usageOutputTokens = 0L
+        var usageTotalTokens = 0L
+        var sawUsage = false
+        AppLogRecorder.record(
+            "Delegation",
+            "Child started · parentRun=$parentRunId · target=${target.uid} · type=${target.compatibleType} · model=${target.model} · inputChars=${task.length} · requestedOutputCap=$maxTokens · childTools=${childTools.size}"
+        )
         childRunner.run(accounted, childTools).collect { event ->
             when (event) {
                 is AgentRunEvent.Provider -> when (val provider = event.event) {
@@ -378,7 +388,23 @@ class ChatRepositoryImpl(
                         }
                         text.append(provider.text)
                     }
-                    is ProviderEvent.Failed -> error("The delegated provider failed.")
+                    is ProviderEvent.Failed -> {
+                        // Do not throw from inside Flow.collect. Upstream provider cleanup can
+                        // still emit usage/error telemetry after the failure event; throwing here
+                        // violates Flow exception transparency and masks the original failure.
+                        providerFailure = provider.message.ifBlank { "The delegated provider failed." }
+                        AppLogRecorder.record(
+                            "Delegation",
+                            "Child provider failure observed · parentRun=$parentRunId · target=${target.uid} · elapsedMs=${System.currentTimeMillis() - startedAtMs} · outputChars=${text.length} · message=${providerFailure.orEmpty()}",
+                            "E"
+                        )
+                    }
+                    is ProviderEvent.Usage -> {
+                        provider.inputTokens?.let { usageInputTokens = if (provider.cumulative) maxOf(usageInputTokens, it.toLong()) else usageInputTokens + it }
+                        provider.outputTokens?.let { usageOutputTokens = if (provider.cumulative) maxOf(usageOutputTokens, it.toLong()) else usageOutputTokens + it }
+                        provider.totalTokens?.let { usageTotalTokens = if (provider.cumulative) maxOf(usageTotalTokens, it.toLong()) else usageTotalTokens + it }
+                        sawUsage = true
+                    }
                     else -> Unit
                 }
                 is AgentRunEvent.ToolStarted -> Unit
@@ -386,6 +412,12 @@ class ChatRepositoryImpl(
                 is AgentRunEvent.Notice -> Unit
             }
         }
+        val elapsedMs = System.currentTimeMillis() - startedAtMs
+        AppLogRecorder.record(
+            "Delegation",
+            "Child finished · parentRun=$parentRunId · target=${target.uid} · elapsedMs=$elapsedMs · outputChars=${text.length} · requestedOutputCap=$maxTokens · usageInput=${if (sawUsage) usageInputTokens else -1} · usageOutput=${if (sawUsage) usageOutputTokens else -1} · usageTotal=${if (sawUsage) usageTotalTokens else -1} · failed=${providerFailure != null}"
+        )
+        providerFailure?.let { error("The delegated provider failed: $it") }
         return text.toString()
     }
 
