@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.agent
 
+import dev.chungjungsoo.gptmobile.data.diagnostics.AppLogRecorder
 import dev.chungjungsoo.gptmobile.data.network.error.ErrorClassification
 import java.nio.charset.StandardCharsets
 import kotlinx.coroutines.CancellationException
@@ -140,11 +141,19 @@ class AgentRunner(
             }
 
             try {
+                val rawReplayTokens = ToolExchangeCompactor.estimateTokens(exchanges)
                 val replayExchanges = ToolExchangeCompactor.compact(
                     exchanges = exchanges,
                     maxReplayTokens = limits.maxReplayTokens,
                     maxResultTokens = limits.maxReplayResultTokens
                 )
+                val compactedReplayTokens = ToolExchangeCompactor.estimateTokens(replayExchanges)
+                if (rawReplayTokens > compactedReplayTokens) {
+                    AppLogRecorder.record(
+                        "Agent",
+                        "PRIMARY_REPLAY_COMPACTED · rawTokens=$rawReplayTokens · replayTokens=$compactedReplayTokens · savedTokens=${rawReplayTokens - compactedReplayTokens} · exchanges=${exchanges.size} · budget=${limits.maxReplayTokens}"
+                    )
+                }
                 session.streamRound(exposedDefinitions, replayExchanges)
                     .collect { event ->
                         if (failed) return@collect
