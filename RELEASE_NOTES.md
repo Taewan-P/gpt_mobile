@@ -1,12 +1,17 @@
-# GPT Mobile AI 0.9.21.3
+# GPT Mobile AI 0.9.21.4
 
-## Delegation and Tool Calling Improvements
-- Enforce provider output caps and report configured/requested/effective limits.
-- Delegate safety: cap delegated input tokens by default, preflight worker requests including tool schemas, and chunk oversized delegations.
-- Stall and watchdog controls: adaptive worker runtime deadlines, time-to-first-progress and idle watchdogs.
-- Expanded tool exposure: remove hardcoded tool caps from primary and delegated child runs, allowing context-driven tool scheduling.
+## Delegation context efficiency
+- Bound primary tool-exchange replay so later model rounds no longer resend the complete accumulated raw tool history.
+- Deduplicate older identical tool results while preserving tool-call/result pairing.
+- Preserve untouched structured tool-result types, including JSON results such as device location payloads.
+- Restore delegation eligibility through remote-balanced ownership modes instead of disabling it prematurely.
+- Keep large completed tool results eligible for local compaction before remote synthesis.
 
-## MCP Reliability & Agent Round Budget
-- Added MCP endpoint health tracking, exponential backoff, and circuit breakers.
-- Concurrently resolve independent MCP endpoints with dedicated initialization vs transport timeouts.
-- Raised agent round budgets for complex workflows and finalized gracefully at step caps.
+## Token and context controls
+- Add configurable primary replay budgets for total replay and per-result retention.
+- Base context-limit accounting on the compacted replay view instead of unbounded accumulated raw tool payloads.
+- Add `PRIMARY_REPLAY_COMPACTED` diagnostics with raw, replayed, and saved token estimates.
+
+## Validation
+- Added regression coverage for replay compaction, duplicate-result elimination, tool pairing, and JSON result preservation.
+- PR validation, Kotlin lint, CodeQL, Android APK build, and debug build passed before merge.
