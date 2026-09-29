@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.agent
 
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
@@ -39,6 +40,30 @@ class ToolExchangeCompactorTest {
             assertEquals(before.calls.map { it.callId }, after.calls.map { it.callId })
             assertEquals(before.results.map { it.callId }, after.results.map { it.callId })
         }
+    }
+
+    @Test
+    fun compact_preserves_unmodified_json_result_type() {
+        val call = ProviderEvent.ToolCall(
+            "location",
+            "device_location",
+            buildJsonObject { }
+        )
+        val json = buildJsonObject { put("accuracy_meters", JsonPrimitive(8.0)) }
+        val exchange = AgentToolExchange(
+            calls = listOf(call),
+            results = listOf(AgentToolResult(call.callId, ToolResultContent.Json(json), false))
+        )
+
+        val compacted = ToolExchangeCompactor.compact(
+            exchanges = listOf(exchange),
+            maxReplayTokens = 4_000,
+            maxResultTokens = 800
+        )
+
+        val content = compacted.single().results.single().content
+        assertTrue(content is ToolResultContent.Json)
+        assertEquals(json, (content as ToolResultContent.Json).value)
     }
 
     @Test
