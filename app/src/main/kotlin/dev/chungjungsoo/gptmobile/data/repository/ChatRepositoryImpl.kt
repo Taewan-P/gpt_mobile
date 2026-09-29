@@ -466,20 +466,16 @@ class ChatRepositoryImpl(
             val diagnosticsEnabled = runCatching {
                 settingRepository.getFeatureSettings().diagnosticsCollection
             }.getOrDefault(false)
-            // A remote provider can otherwise keep replaying the growing conversation indefinitely.
-            // Tie the round ceiling to the delegation strategy, with a deliberately small hard cap.
-            // This protects token spend even when the accuracy slider is at its maximum.
-            val delegationStrategy = settingRepository.getFeatureSettings().delegation.normalized().strategy
-            val maxRemoteRounds = when {
-                delegationStrategy < 25 -> 3
-                delegationStrategy < 50 -> 4
-                delegationStrategy < 75 -> 5
-                else -> 6
-            }
+            // Use the profile/chat Max tools allowance as the source of truth for both
+            // tool-call capacity and model/tool work rounds. This keeps the profile option
+            // intuitive: raising Max tools also allows the agent enough rounds to use them.
+            // AgentRunner still reserves one additional no-tools synthesis round after the
+            // configured work-round allowance is reached.
+            val effectiveMaxTools = (chatToolConfig?.maxToolCalls ?: platform.maxToolCalls).coerceAtLeast(1)
             val customRunner = agentRunnerForPlatform(
                 platform = platform,
-                runOverride = chatToolConfig?.maxToolCalls,
-                maxRoundsOverride = maxRemoteRounds
+                runOverride = effectiveMaxTools,
+                maxRoundsOverride = effectiveMaxTools
             )
             val budgetSettings = settingRepository.getFeatureSettings().tokenBudget.normalized()
             val profileBudget = budgetSettings.copy(contextTokens = minOf(budgetSettings.contextTokens, budgetSettings.profileContextCeilings[platform.uid] ?: Int.MAX_VALUE))

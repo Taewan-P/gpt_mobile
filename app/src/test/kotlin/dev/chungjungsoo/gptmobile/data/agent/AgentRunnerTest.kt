@@ -299,13 +299,19 @@ class AgentRunnerTest {
     }
 
     @Test
-    fun `round ceiling stops repeated tool loops`() = runBlocking {
+    fun `round ceiling requests one final no-tools synthesis round`() = runBlocking {
         val providerCalls = AtomicInteger()
         val executions = AtomicInteger()
-        val session = session { _, _ ->
+        val exposedToolCounts = mutableListOf<Int>()
+        val session = session { tools, _ ->
             val round = providerCalls.getAndIncrement()
+            exposedToolCounts += tools.size
             flow {
-                emit(toolCall("call_$round"))
+                if (round < 2) {
+                    emit(toolCall("call_$round"))
+                } else {
+                    emit(ProviderEvent.TextDelta("Final answer from available results."))
+                }
                 emit(ProviderEvent.Completed)
             }
         }
@@ -318,9 +324,12 @@ class AgentRunnerTest {
             limits = AgentRunLimits(maxRounds = 2)
         ).run(session, listOf(tool)).toList()
 
-        assertEquals(2, providerCalls.get())
-        assertEquals(1, executions.get())
-        assertTrue((events.last() as AgentRunEvent.Provider).event is ProviderEvent.Failed)
+        assertEquals(3, providerCalls.get())
+        assertEquals(2, executions.get())
+        assertEquals(listOf(1, 1, 0), exposedToolCounts)
+        assertTrue(events.any { it is AgentRunEvent.Notice })
+        assertFalse(events.any { it is AgentRunEvent.Provider && it.event is ProviderEvent.Failed })
+        assertEquals(AgentRunEvent.Provider(ProviderEvent.Completed), events.last())
     }
 
     @Test

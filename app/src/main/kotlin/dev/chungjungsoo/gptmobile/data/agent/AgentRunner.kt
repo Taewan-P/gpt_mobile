@@ -79,6 +79,7 @@ class AgentRunner(
         var toolMayHaveExecuted = initialToolMayHaveExecuted
         var retriedWithoutTools = initialRetriedWithoutTools
         var finalResponseRequested = false
+        var roundLimitFinalizationAttempted = false
         var wrapUpNoticeEmitted = false
         var replayTokens = 0L
         val executionToolCallLimit = ToolBudgetPolicy.executionLimit(limits)
@@ -97,8 +98,16 @@ class AgentRunner(
                 emit(AgentRunEvent.Notice("Approaching tool limit ($remainingAllowance remaining). Wrapping up.", persistent = false))
             }
             if (limits.maxRounds < Int.MAX_VALUE && rounds >= limits.maxRounds) {
-                emit(failed("Agent stopped after ${limits.maxRounds} model/tool rounds."))
-                return
+                if (!roundLimitFinalizationAttempted) {
+                    roundLimitFinalizationAttempted = true
+                    finalResponseRequested = true
+                    exposedDefinitions = emptyList()
+                    executableToolByName = emptyMap()
+                    emit(AgentRunEvent.Notice(ROUND_LIMIT_FINAL_RESPONSE_NOTICE, persistent = false))
+                } else {
+                    emit(failed("Agent could not finalize after ${limits.maxRounds} model/tool rounds."))
+                    return
+                }
             }
             rounds += 1
 
@@ -205,10 +214,7 @@ class AgentRunner(
                 if (completed) emit(AgentRunEvent.Provider(ProviderEvent.Completed))
                 return
             }
-            if (limits.maxRounds < Int.MAX_VALUE && rounds >= limits.maxRounds) {
-                emit(failed("Agent stopped after ${limits.maxRounds} model/tool rounds."))
-                return
-            }
+            val roundLimitReached = limits.maxRounds < Int.MAX_VALUE && rounds >= limits.maxRounds
 
             val remainingCalls = if (executionToolCallLimit == Int.MAX_VALUE) {
                 calls.size
@@ -245,8 +251,16 @@ class AgentRunner(
                 allResults.sumOf { dev.chungjungsoo.gptmobile.data.context.ContextBudgetService.estimate(it.content.toString()).toLong() + 32 }
             val contextNearLimit = limits.contextTokens != Int.MAX_VALUE &&
                 limits.initialContextTokens.toLong() + replayTokens + limits.finalResponseReserveTokens + 256 >= limits.contextTokens
-            val mustFinalize = contextNearLimit || outputBudgetExhausted || (executionToolCallLimit < Int.MAX_VALUE && toolCallCount >= executionToolCallLimit)
-            if (outputBudgetExhausted || contextNearLimit) {
+            val mustFinalize = roundLimitReached ||
+                contextNearLimit ||
+                outputBudgetExhausted ||
+                (executionToolCallLimit < Int.MAX_VALUE && toolCallCount >= executionToolCallLimit)
+            if (roundLimitReached) {
+                exposedDefinitions = emptyList()
+                executableToolByName = emptyMap()
+                finalResponseRequested = true
+                emit(AgentRunEvent.Notice(ROUND_LIMIT_FINAL_RESPONSE_NOTICE, persistent = false))
+            } else if (outputBudgetExhausted || contextNearLimit) {
                 exposedDefinitions = emptyList()
                 executableToolByName = emptyMap()
                 finalResponseRequested = true
@@ -256,7 +270,11 @@ class AgentRunner(
             val shouldInjectWrapUp = ToolBudgetPolicy.shouldInjectWrapUpPrompt(executionToolCallLimit, limits, toolCallCount)
 
             if (mustFinalize && allResults.isNotEmpty()) {
-                allResults[allResults.lastIndex] = if (contextNearLimit) appendInstruction(allResults.last(), "The context limit is approaching. Use the available findings to give a final response now and ask whether the user wants to continue. Do not call more tools.") else appendFinalResponseInstruction(allResults.last())
+                allResults[allResults.lastIndex] = when {
+                    roundLimitReached -> appendInstruction(allResults.last(), ROUND_LIMIT_FINAL_RESPONSE_INSTRUCTION)
+                    contextNearLimit -> appendInstruction(allResults.last(), "The context limit is approaching. Use the available findings to give a final response now and ask whether the user wants to continue. Do not call more tools.")
+                    else -> appendFinalResponseInstruction(allResults.last())
+                }
             } else if (shouldInjectWrapUp && allResults.isNotEmpty()) {
                 val wrapUpPrompt = ToolBudgetPolicy.buildWrapUpPrompt(remainingAllowance)
                 allResults[allResults.lastIndex] = appendInstruction(allResults.last(), wrapUpPrompt)
@@ -357,6 +375,12 @@ class AgentRunner(
     companion object {
         const val TOOLS_UNAVAILABLE_MESSAGE = "Tools unavailable for this model."
         const val FINAL_RESPONSE_NOTICE = "Tool-call limit is approaching; generating a final response."
+        const val ROUND_LIMIT_FINAL_RESPONSE_NOTICE =
+            "Agent work-round limit reached; generating a final response with the results already available."
+        const val ROUND_LIMIT_FINAL_RESPONSE_INSTRUCTION =
+            "The model/tool work-round allowance is exhausted. Do not request more tools. " +
+                "Use the available findings to answer now. If additional tool work is required, " +
+                "briefly state what remains and ask the user to reply exactly \"continue\"."
         const val FINAL_RESPONSE_INSTRUCTION =
             "Tool-call allowance is exhausted. Do not request more tools in this response. " +
                 "Finish with a concise summary of what was completed and what remains. " +
