@@ -139,12 +139,16 @@ internal class LocalDelegationCoordinator(
                 null
             }
         }
+    }
 
     suspend fun prepare(task: String, tools: List<ResolvedAgentTool>, callId: String, automatic: Boolean = false): LocalResearchResult {
         val config = settings().normalized()
-        val target = localTarget(config)
-        if (!config.researchEnabled || target == null || (automatic && !config.automaticResearch)) {
-            AppLogRecorder.record("Delegation", "Research skipped · automatic=$automatic · enabled=${config.researchEnabled} · target=${target?.uid}")
+        if (!config.researchEnabled || (automatic && !config.automaticResearch)) {
+            AppLogRecorder.record("Delegation", "Research skipped · automatic=$automatic · enabled=${config.researchEnabled} · target=null")
+            return LocalResearchResult("", 0, 0, 0)
+        }
+        val target = localTarget(config) ?: run {
+            AppLogRecorder.record("Delegation", "Research skipped · automatic=$automatic · enabled=${config.researchEnabled} · target=null")
             return LocalResearchResult("", 0, 0, 0)
         }
         val requestIndex = requests.getAndIncrement()
