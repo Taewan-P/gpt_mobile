@@ -8,6 +8,7 @@ import io.ktor.client.request.header
 import io.ktor.http.HttpHeaders
 import io.modelcontextprotocol.kotlin.sdk.client.Client
 import io.modelcontextprotocol.kotlin.sdk.client.StreamableHttpClientTransport
+import io.modelcontextprotocol.kotlin.sdk.client.StreamableHttpError
 import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
 import io.modelcontextprotocol.kotlin.sdk.types.Implementation
 import io.modelcontextprotocol.kotlin.sdk.types.ListToolsRequest
@@ -20,6 +21,9 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -33,11 +37,35 @@ class McpConnectionConfig(
     val authorizationHeader: String? = null
 )
 
+enum class McpConnectionHealthState {
+    CONNECTED,
+    DEGRADED,
+    UNREACHABLE,
+    RECOVERING
+}
+
+data class McpConnectionHealth(
+    val state: McpConnectionHealthState = McpConnectionHealthState.RECOVERING,
+    val lastSuccessAtMs: Long? = null,
+    val lastFailureAtMs: Long? = null,
+    val latencyMs: Long? = null,
+    val consecutiveFailures: Int = 0,
+    val nextRetryAtMs: Long? = null,
+    val lastError: String? = null,
+    val availableToolCount: Int? = null
+)
+
+class McpBackoffException(
+    val connectionUid: String,
+    val retryAtMs: Long
+) : IllegalStateException("MCP connection is backing off until $retryAtMs.")
+
 @Singleton
 class McpClientManager internal constructor(
     private val httpClient: HttpClient,
     private val mediaStore: McpMediaStore? = null,
     private val interactions: McpInteractions? = null,
+    private val transportConnectTimeoutMs: Long = 5_000,
     private val sessionConnectTimeoutMs: Long = 15_000,
     private val nowMs: () -> Long = System::currentTimeMillis
 ) {
@@ -49,28 +77,34 @@ class McpClientManager internal constructor(
     // ponytail: one global lock serializes session setup only; use per-connection locks if startup contention becomes measurable.
     private val sessions = mutableMapOf<String, Session>()
     private val inFlight = mutableMapOf<String, InFlight>()
+    private val _health = MutableStateFlow<Map<String, McpConnectionHealth>>(emptyMap())
+    val health = _health.asStateFlow()
 
-    suspend fun listTools(config: McpConnectionConfig, forceRefresh: Boolean = false): List<Tool> = withSession(config) { session ->
-        session.toolCatalogMutex.withLock {
-            val now = nowMs()
-            session.toolCatalog?.takeIf { !forceRefresh && now - it.loadedAtMs < TOOL_CATALOG_TTL_MS }?.tools ?: run {
-                val tools = mutableListOf<Tool>()
-                val seenCursors = mutableSetOf<String>()
-                var pageCount = 0
-                var cursor: String? = null
-                do {
-                    check(++pageCount <= MAX_TOOL_PAGES) { "MCP server returned too many tool pages." }
-                    val page = session.client.listTools(
-                        request = if (cursor == null) ListToolsRequest() else ListToolsRequest(PaginatedRequestParams(cursor))
-                    )
-                    tools += page.tools
-                    check(tools.size <= MAX_DISCOVERED_TOOLS) { "MCP server returned too many tools." }
-                    cursor = page.nextCursor
-                    check(cursor == null || seenCursors.add(cursor)) { "MCP server returned a repeated tools cursor." }
-                } while (cursor != null)
-                tools.toList().also { session.toolCatalog = ToolCatalog(it, nowMs()) }
+    suspend fun listTools(config: McpConnectionConfig, forceRefresh: Boolean = false): List<Tool> {
+        val result = withSession(config, bypassBackoff = forceRefresh) { session ->
+            session.toolCatalogMutex.withLock {
+                val now = nowMs()
+                session.toolCatalog?.takeIf { !forceRefresh && now - it.loadedAtMs < TOOL_CATALOG_TTL_MS }?.tools ?: run {
+                    val tools = mutableListOf<Tool>()
+                    val seenCursors = mutableSetOf<String>()
+                    var pageCount = 0
+                    var cursor: String? = null
+                    do {
+                        check(++pageCount <= MAX_TOOL_PAGES) { "MCP server returned too many tool pages." }
+                        val page = session.client.listTools(
+                            request = if (cursor == null) ListToolsRequest() else ListToolsRequest(PaginatedRequestParams(cursor))
+                        )
+                        tools += page.tools
+                        check(tools.size <= MAX_DISCOVERED_TOOLS) { "MCP server returned too many tools." }
+                        cursor = page.nextCursor
+                        check(cursor == null || seenCursors.add(cursor)) { "MCP server returned a repeated tools cursor." }
+                    } while (cursor != null)
+                    tools.toList().also { session.toolCatalog = ToolCatalog(it, nowMs()) }
+                }
             }
         }
+        recordSuccess(config.connectionUid, availableToolCount = result.size)
+        return result
     }
 
     suspend fun callTool(
@@ -120,6 +154,90 @@ class McpClientManager internal constructor(
         }.take(64000)
     }
 
+    fun healthSnapshot(connectionUid: String): McpConnectionHealth =
+        _health.value[connectionUid] ?: McpConnectionHealth()
+
+    fun resetHealth(connectionUid: String) {
+        _health.update { current -> current - connectionUid }
+    }
+
+    suspend fun probe(config: McpConnectionConfig): Boolean = try {
+        listTools(config, forceRefresh = true)
+        true
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        false
+    }
+
+    private fun recordSuccess(
+        connectionUid: String,
+        latencyMs: Long? = null,
+        availableToolCount: Int? = null
+    ) {
+        val now = nowMs()
+        var previousState = McpConnectionHealthState.RECOVERING
+        _health.update { current ->
+            val previous = current[connectionUid] ?: McpConnectionHealth()
+            previousState = previous.state
+            current + Pair(
+                connectionUid,
+                previous.copy(
+                    state = McpConnectionHealthState.CONNECTED,
+                    lastSuccessAtMs = now,
+                    latencyMs = latencyMs ?: previous.latencyMs,
+                    consecutiveFailures = 0,
+                    nextRetryAtMs = null,
+                    lastError = null,
+                    availableToolCount = availableToolCount ?: previous.availableToolCount
+                )
+            )
+        }
+        if (previousState != McpConnectionHealthState.CONNECTED || availableToolCount != null) {
+            AppLogRecorder.record(
+                "MCP",
+                "Health · connection=$connectionUid · state=CONNECTED · latencyMs=${latencyMs ?: -1} · tools=${availableToolCount ?: -1}"
+            )
+        }
+    }
+
+    private fun recordFailure(connectionUid: String, error: Throwable) {
+        val now = nowMs()
+        var updated = McpConnectionHealth()
+        _health.update { current ->
+            val previous = current[connectionUid] ?: McpConnectionHealth()
+            val failures = previous.consecutiveFailures + 1
+            val delay = retryDelayMs(failures)
+            updated = previous.copy(
+                state = if (failures >= CIRCUIT_BREAKER_FAILURES) McpConnectionHealthState.UNREACHABLE else McpConnectionHealthState.DEGRADED,
+                lastFailureAtMs = now,
+                consecutiveFailures = failures,
+                nextRetryAtMs = now + delay,
+                lastError = error.message ?: error.javaClass.simpleName
+            )
+            current + (connectionUid to updated)
+        }
+        AppLogRecorder.record(
+            "MCP",
+            "Health · connection=$connectionUid · state=${updated.state} · failures=${updated.consecutiveFailures} · retryAtMs=${updated.nextRetryAtMs} · error=${updated.lastError.orEmpty()}",
+            "W"
+        )
+    }
+
+    private fun markRecovering(connectionUid: String) {
+        _health.update { current ->
+            val previous = current[connectionUid] ?: McpConnectionHealth()
+            current + (connectionUid to previous.copy(state = McpConnectionHealthState.RECOVERING))
+        }
+    }
+
+    private fun retryDelayMs(failures: Int): Long = when (failures) {
+        1 -> 5_000L
+        2 -> 15_000L
+        3 -> 30_000L
+        else -> 60_000L
+    }
+
     suspend fun close(connectionUid: String) {
         val session = takeSession(connectionUid) ?: return
         runCatching { session.client.close() }
@@ -135,20 +253,28 @@ class McpClientManager internal constructor(
         active.forEach { session -> runCatching { session.client.close() } }
     }
 
-    private suspend fun <T> withSession(config: McpConnectionConfig, block: suspend (Session) -> T): T {
-        val session = session(config)
+    private suspend fun <T> withSession(
+        config: McpConnectionConfig,
+        bypassBackoff: Boolean = false,
+        block: suspend (Session) -> T
+    ): T {
+        val session = session(config, bypassBackoff)
+        val startedAtMs = nowMs()
         return try {
-            block(session)
+            block(session).also {
+                recordSuccess(config.connectionUid, latencyMs = nowMs() - startedAtMs)
+            }
         } catch (error: CancellationException) {
             withContext(NonCancellable) { invalidate(config.connectionUid, session) }
             throw error
         } catch (error: Exception) {
+            if (!error.isMcpUnauthorized()) recordFailure(config.connectionUid, error)
             invalidate(config.connectionUid, session)
             throw error
         }
     }
 
-    private suspend fun session(config: McpConnectionConfig): Session {
+    private suspend fun session(config: McpConnectionConfig, bypassBackoff: Boolean = false): Session {
         val key = config.validatedKey()
         while (true) {
             val created = CompletableDeferred<Session>()
@@ -160,6 +286,17 @@ class McpClientManager internal constructor(
                 inFlight[config.connectionUid]?.let { existing ->
                     awaiting = existing.deferred
                 } ?: run {
+                    val health = _health.value[config.connectionUid]
+                    val retryAt = health?.nextRetryAtMs
+                    if (!bypassBackoff && retryAt != null && retryAt > nowMs()) {
+                        AppLogRecorder.record(
+                            "MCP",
+                            "Circuit open · connection=${config.connectionUid} · state=${health.state} · failures=${health.consecutiveFailures} · retryAtMs=$retryAt",
+                            "W"
+                        )
+                        throw McpBackoffException(config.connectionUid, retryAt)
+                    }
+                    if ((health?.consecutiveFailures ?: 0) > 0) markRecovering(config.connectionUid)
                     stale = sessions.remove(config.connectionUid)
                     inFlight[config.connectionUid] = InFlight(key, created)
                 }
@@ -172,11 +309,11 @@ class McpClientManager internal constructor(
 
             val connectStartedAtMs = nowMs()
             val endpointHost = runCatching { URI(config.endpointUrl).host }.getOrNull().orEmpty()
-            AppLogRecorder.record("MCP", "Connect started · connection=${config.connectionUid} · host=$endpointHost · sessionTimeoutMs=$sessionConnectTimeoutMs")
+            AppLogRecorder.record("MCP", "Connect started · connection=${config.connectionUid} · host=$endpointHost · transportTimeoutMs=$transportConnectTimeoutMs · initializationTimeoutMs=$sessionConnectTimeoutMs")
             val result = runCatching {
                 val transport = StreamableHttpClientTransport(httpClient, config.endpointUrl) {
                     timeout {
-                        connectTimeoutMillis = sessionConnectTimeoutMs
+                        connectTimeoutMillis = transportConnectTimeoutMs
                         requestTimeoutMillis = sessionConnectTimeoutMs + 2_000
                         socketTimeoutMillis = sessionConnectTimeoutMs + 2_000
                     }
@@ -200,7 +337,7 @@ class McpClientManager internal constructor(
                     AppLogRecorder.record("MCP", "Connect completed · connection=${config.connectionUid} · host=$endpointHost · elapsedMs=${nowMs() - connectStartedAtMs}")
                     Session(key, client)
                 } catch (error: Exception) {
-                    AppLogRecorder.record("MCP", "Connect failed · connection=${config.connectionUid} · host=$endpointHost · elapsedMs=${nowMs() - connectStartedAtMs} · timeoutMs=$sessionConnectTimeoutMs · ${error.javaClass.simpleName}: ${error.message.orEmpty()}", "E")
+                    AppLogRecorder.record("MCP", "Connect failed · connection=${config.connectionUid} · host=$endpointHost · elapsedMs=${nowMs() - connectStartedAtMs} · transportTimeoutMs=$transportConnectTimeoutMs · initializationTimeoutMs=$sessionConnectTimeoutMs · ${error.javaClass.simpleName}: ${error.message.orEmpty()}", "E")
                     withContext(NonCancellable) { runCatching { withTimeoutOrNull(2_000) { client.close() } } }
                     throw error
                 }
@@ -217,6 +354,10 @@ class McpClientManager internal constructor(
                 }
                 result.fold(created::complete, created::completeExceptionally)
             }
+            result.fold(
+                onSuccess = { recordSuccess(config.connectionUid, latencyMs = nowMs() - connectStartedAtMs) },
+                onFailure = { error -> if (!error.isMcpUnauthorized()) recordFailure(config.connectionUid, error) }
+            )
             return result.getOrThrow()
         }
     }
@@ -280,8 +421,12 @@ class McpClientManager internal constructor(
         const val MAX_ENDPOINT_LENGTH = 32 * 1024
         const val MAX_AUTHORIZATION_HEADER_LENGTH = 128 * 1024
         const val TOOL_CATALOG_TTL_MS = 5 * 60 * 1000L
+        const val CIRCUIT_BREAKER_FAILURES = 3
     }
 }
+
+private fun Throwable.isMcpUnauthorized(): Boolean = generateSequence(this) { it.cause }
+    .any { error -> error is StreamableHttpError && error.code == 401 }
 
 private fun String.sha256(): String = MessageDigest.getInstance("SHA-256")
     .digest(toByteArray(Charsets.UTF_8))

@@ -25,6 +25,9 @@ import io.modelcontextprotocol.kotlin.sdk.types.Tool
 import java.nio.charset.StandardCharsets
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
@@ -160,19 +163,29 @@ class AgentToolResolver @Inject constructor(
             }
 
         if (allowRemoteMcp) {
-            bindings.filter { it.connection?.type == ToolConnectionType.MCP }
+            val mcpGroups = bindings.filter { it.connection?.type == ToolConnectionType.MCP }
                 .groupBy { requireNotNull(it.connection).connectionUid }
                 .toSortedMap()
                 .values
-                .forEach { mcpBindings ->
-                    try {
-                        resolved += resolveMcpTools(requireNotNull(mcpBindings.first().connection), mcpBindings)
-                    } catch (error: CancellationException) {
-                        throw error
-                    } catch (_: Exception) {
-                        onConnectionError("${mcpBindings.first().connection?.name ?: "MCP"}: tools unavailable. Check authentication and connection diagnostics.")
+                .toList()
+            val mcpResults = coroutineScope {
+                mcpGroups.map { mcpBindings ->
+                    async {
+                        val connection = requireNotNull(mcpBindings.first().connection)
+                        try {
+                            resolveMcpTools(connection, mcpBindings) to null
+                        } catch (error: CancellationException) {
+                            throw error
+                        } catch (_: Exception) {
+                            emptyList<ResolvedAgentTool>() to "${connection.name}: tools unavailable. Check authentication and connection diagnostics."
+                        }
                     }
-                }
+                }.awaitAll()
+            }
+            mcpResults.forEach { (tools, error) ->
+                resolved += tools
+                error?.let(onConnectionError)
+            }
         }
 
         return resolved.distinctBy { it.modelToolName }
