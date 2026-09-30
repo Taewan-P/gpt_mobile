@@ -302,7 +302,9 @@ fun AddPlatformScreen(
                     FreeProviderPicker(
                         apiUrl = apiUrl,
                         onProviderSelected = { provider ->
-                            platformName = "Free Models"
+                            if (platformName.isBlank() || platformName == "Free Models" || platformName == FreeAiProvider.fromApiUrl(apiUrl)?.displayName) {
+                                platformName = provider.displayName
+                            }
                             apiUrl = provider.apiUrl
                             model = provider.model
                             val saved = savedConnections.firstOrNull { it.compatibleType == ClientType.FREE && it.apiUrl == provider.apiUrl }

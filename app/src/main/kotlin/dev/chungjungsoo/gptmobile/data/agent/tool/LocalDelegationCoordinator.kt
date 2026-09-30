@@ -28,7 +28,8 @@ internal data class DelegateProgress(
     val kind: DelegateProgressKind,
     val inputTokens: Long? = null,
     val outputTokens: Long? = null,
-    val totalTokens: Long? = null
+    val totalTokens: Long? = null,
+    val textDelta: String? = null
 )
 
 private fun estimatedDelegateTokens(text: String): Int = ((text.length + 3) / 4).coerceAtLeast(1)

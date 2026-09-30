@@ -8,20 +8,24 @@ import dev.chungjungsoo.gptmobile.data.database.entity.BuiltInAgentTool
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.request.request
 import io.ktor.client.request.setBody
-import io.ktor.client.request.header
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
+import io.ktor.utils.io.readAvailable
+import java.io.ByteArrayOutputStream
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.Base64
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.yield
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -78,7 +82,7 @@ class GitHubTool(
                             put("type", "string")
                             put(
                                 "description",
-                                "Action to perform: search_repositories, search_issues, search_code, get_file_contents, get_issue, get_pull_request, list_pull_requests, list_workflow_runs, create_branch, update_file, or create_pull_request."
+                                "Action to perform: search_repositories, search_issues, search_code, get_file_contents, get_issue, get_pull_request, list_pull_requests, list_workflow_runs, create_branch, update_file, create_pull_request, list_workflows, get_workflow_run, list_workflow_jobs, list_workflow_artifacts, get_job_logs, dispatch_workflow, rerun_workflow, rerun_failed_jobs, cancel_workflow."
                             )
                             put(
                                 "enum",
@@ -91,11 +95,44 @@ class GitHubTool(
                                     add(JsonPrimitive("get_pull_request"))
                                     add(JsonPrimitive("list_pull_requests"))
                                     add(JsonPrimitive("list_workflow_runs"))
+                                    add(JsonPrimitive("list_workflows"))
+                                    add(JsonPrimitive("get_workflow_run"))
+                                    add(JsonPrimitive("list_workflow_jobs"))
+                                    add(JsonPrimitive("list_workflow_artifacts"))
+                                    add(JsonPrimitive("get_job_logs"))
+                                    add(JsonPrimitive("dispatch_workflow"))
+                                    add(JsonPrimitive("rerun_workflow"))
+                                    add(JsonPrimitive("rerun_failed_jobs"))
+                                    add(JsonPrimitive("cancel_workflow"))
+
                                     add(JsonPrimitive("create_branch"))
                                     add(JsonPrimitive("update_file"))
                                     add(JsonPrimitive("create_pull_request"))
                                 }
                             )
+                        }
+                    )
+                    listOf("run_id", "job_id", "page").forEach { name ->
+                        put(
+                            name,
+                            buildJsonObject {
+                                put("type", "integer")
+                                put("minimum", 1)
+                            }
+                        )
+                    }
+                    put(
+                        "workflow_id",
+                        buildJsonObject {
+                            put("type", "string")
+                            put("description", "Workflow ID or filename, such as build.yml, for dispatch_workflow.")
+                        }
+                    )
+                    put(
+                        "inputs",
+                        buildJsonObject {
+                            put("type", "object")
+                            put("description", "Input values declared by workflow_dispatch in the workflow file.")
                         }
                     )
                     put(
@@ -165,14 +202,14 @@ class GitHubTool(
                         "base",
                         buildJsonObject {
                             put("type", "string")
-                            put("description", "Base branch for create_branch or create_pull_request.")
+                            put("description", "Base branch for create_branch create_pull_request, list_workflows, get_workflow_run, list_workflow_jobs, list_workflow_artifacts, get_job_logs, dispatch_workflow, rerun_workflow, rerun_failed_jobs, cancel_workflow.")
                         }
                     )
                     put(
                         "head",
                         buildJsonObject {
                             put("type", "string")
-                            put("description", "Head branch for create_pull_request.")
+                            put("description", "Head branch fcreate_pull_request, list_workflows, get_workflow_run, list_workflow_jobs, list_workflow_artifacts, get_job_logs, dispatch_workflow, rerun_workflow, rerun_failed_jobs, cancel_workflow.")
                         }
                     )
                     put(
@@ -228,6 +265,7 @@ class GitHubTool(
                 "get_pull_request" -> handleGetPullRequest(callId, arguments)
                 "list_pull_requests" -> handleListPullRequests(callId, arguments)
                 "list_workflow_runs" -> handleListWorkflowRuns(callId, arguments)
+                "list_workflows", "get_workflow_run", "list_workflow_jobs", "list_workflow_artifacts", "get_job_logs", "dispatch_workflow", "rerun_workflow", "rerun_failed_jobs", "cancel_workflow" -> handleWorkflowAction(callId, action, arguments)
                 "create_branch" -> handleCreateBranch(callId, arguments)
                 "update_file" -> handleUpdateFile(callId, arguments)
                 "create_pull_request" -> handleCreatePullRequest(callId, arguments)
@@ -477,6 +515,90 @@ class GitHubTool(
         return successResult(callId, truncate(text, MAX_OUTPUT_CHARS))
     }
 
+    private suspend fun handleWorkflowAction(callId: String, action: String, arguments: JsonObject): AgentToolResult {
+        val owner = arguments["owner"]?.jsonPrimitive?.content.orEmpty()
+        val repo = arguments["repo"]?.jsonPrimitive?.content.orEmpty()
+        require(Regex("[A-Za-z0-9_.-]+").matches(owner) && Regex("[A-Za-z0-9_.-]+").matches(repo)) { "Valid owner and repo are required." }
+        fun positiveId(name: String): Long = requireNotNull(arguments[name]?.jsonPrimitive?.content?.toLongOrNull()?.takeIf { it > 0 }) { "A positive $name is required." }
+        val base = "$BASE_URL/repos/$owner/$repo/actions"
+        val page = arguments["page"]?.jsonPrimitive?.intOrNull ?: 1
+        require(page in 1..1000) { "Page must be between 1 and 1000." }
+        val pagination = "?per_page=30&page=$page"
+        val write = action in setOf("dispatch_workflow", "rerun_workflow", "rerun_failed_jobs", "cancel_workflow")
+        val path = when (action) {
+            "list_workflows" -> "/workflows$pagination"
+            "get_workflow_run" -> "/runs/${positiveId("run_id")}"
+            "list_workflow_jobs" -> "/runs/${positiveId("run_id")}/jobs$pagination"
+            "list_workflow_artifacts" -> "/runs/${positiveId("run_id")}/artifacts$pagination"
+            "get_job_logs" -> "/jobs/${positiveId("job_id")}/logs"
+            "dispatch_workflow" -> {
+                val workflow = arguments["workflow_id"]?.jsonPrimitive?.content.orEmpty()
+                require(Regex("[A-Za-z0-9_.-]+").matches(workflow)) { "A workflow ID or filename is required." }
+                "/workflows/$workflow/dispatches"
+            }
+            "rerun_workflow" -> "/runs/${positiveId("run_id")}/rerun"
+            "rerun_failed_jobs" -> "/runs/${positiveId("run_id")}/rerun-failed-jobs"
+            "cancel_workflow" -> "/runs/${positiveId("run_id")}/cancel"
+            else -> error("Unsupported workflow action.")
+        }
+        val response = if (write) {
+            requireToken()
+            val body = if (action == "dispatch_workflow") {
+                buildJsonObject {
+                    val ref = arguments["ref"]?.jsonPrimitive?.content.orEmpty()
+                    require(ref.isNotBlank()) { "A branch or tag ref is required for dispatch_workflow." }
+                    put("ref", ref)
+                    arguments["inputs"]?.let {
+                        require(it is JsonObject) { "Inputs must be an object." }
+                        put("inputs", it)
+                    }
+                }
+            } else {
+                buildJsonObject {}
+            }
+            writeGitHubApi(base + path, HttpMethod.Post, body)
+        } else {
+            getGitHubApi(base + path)
+        }
+        val text = if (action == "get_job_logs") readLogPreview(response) else response.bodyAsText()
+        return if (response.status.isSuccess()) {
+            successResult(
+                callId,
+                if (text.isBlank()) {
+                    "GitHub accepted $action. Inspect the workflow run to confirm its result."
+                } else if (action == "get_job_logs") {
+                    text
+                } else {
+                    truncate(text, MAX_OUTPUT_CHARS)
+                }
+            )
+        } else {
+            errorResult(callId, "GitHub API returned HTTP ${response.status.value}: ${truncate(text, 500)}")
+        }
+    }
+
+    private suspend fun readLogPreview(response: HttpResponse): String {
+        val channel = response.bodyAsChannel()
+        val output = ByteArrayOutputStream()
+        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        try {
+            while (output.size() <= MAX_OUTPUT_CHARS) {
+                val count = channel.readAvailable(buffer, 0, minOf(buffer.size, MAX_OUTPUT_CHARS + 1 - output.size()))
+                if (count < 0) break
+                if (count == 0) {
+                    yield()
+                    continue
+                }
+                output.write(buffer, 0, count)
+            }
+            val bytes = output.toByteArray()
+            return bytes.copyOf(minOf(bytes.size, MAX_OUTPUT_CHARS)).decodeToString() +
+                if (bytes.size > MAX_OUTPUT_CHARS) "\n[Log preview limited to 32 KB. Open the workflow job on GitHub for the full log.]" else ""
+        } finally {
+            channel.cancel(null)
+        }
+    }
+
     private suspend fun handleCreateBranch(callId: String, arguments: JsonObject): AgentToolResult {
         requireToken()
         val owner = arguments["owner"]?.jsonPrimitive?.content?.trim().orEmpty()
@@ -582,19 +704,15 @@ class GitHubTool(
             setBody(body.toString())
         }
 
-    private suspend fun getGitHubApi(url: String): HttpResponse {
-        return httpClient.get(url) {
-            header(HttpHeaders.Accept, "application/vnd.github.v3+json")
-            header(HttpHeaders.UserAgent, "GPT-Mobile-App")
-            if (apiToken.isNotBlank()) {
-                header(HttpHeaders.Authorization, "Bearer $apiToken")
-            }
+    private suspend fun getGitHubApi(url: String): HttpResponse = httpClient.get(url) {
+        header(HttpHeaders.Accept, "application/vnd.github.v3+json")
+        header(HttpHeaders.UserAgent, "GPT-Mobile-App")
+        if (apiToken.isNotBlank()) {
+            header(HttpHeaders.Authorization, "Bearer $apiToken")
         }
     }
 
-    private fun truncate(text: String, maxLength: Int): String {
-        return if (text.length <= maxLength) text else text.take(maxLength) + "\n...[truncated]"
-    }
+    private fun truncate(text: String, maxLength: Int): String = if (text.length <= maxLength) text else text.take(maxLength) + "\n...[truncated]"
 
     private fun successResult(callId: String, text: String): AgentToolResult =
         AgentToolResult(

@@ -184,9 +184,7 @@ fun LocalModelsScreen(
                                     when (selectedArchitecture) {
                                         "QNN" -> qnn
                                         "LiteRT" -> litert
-                                        "MTP" -> item.entry.supportedAccelerators.any { accelerator ->
-                                            accelerator.equals("mtp", true) || accelerator.contains("mediatek", true)
-                                        }
+                                        "MTP" -> item.entry.hasMtp()
                                         else ->
                                             qnn ||
                                                 litert ||
@@ -269,7 +267,7 @@ fun LocalModelsScreen(
                                     when (selectedArchitecture) {
                                         "QNN" -> qnnAvailable && dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators.isNpuEligible(item.entry.supportedAccelerators, item.entry.socToModelFiles, runtimeViewModel.soc)
                                         "LiteRT" -> item.entry.supportedAccelerators.any { it.equals("cpu", true) || it.equals("gpu", true) }
-                                        "MTP" -> item.entry.supportedAccelerators.any { it.equals("mtp", true) || it.contains("mediatek", true) }
+                                        "MTP" -> item.entry.hasMtp()
                                         else ->
                                             item.entry.supportedAccelerators.any {
                                                 it.equals("cpu", true) ||

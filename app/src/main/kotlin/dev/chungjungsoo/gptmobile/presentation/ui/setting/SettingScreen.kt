@@ -20,13 +20,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Psychology
-import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Tune
@@ -45,10 +45,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -101,6 +101,25 @@ fun SettingScreen(
         contract = ActivityResultContracts.OpenDocument(),
         onResult = settingViewModel::restoreSourceSelected
     )
+
+    val recoveryKeyBackupLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/octet-stream"),
+        settingViewModel::backupRecoveryKeySelected
+    )
+    val recoveryKeyRestoreLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+        settingViewModel::restoreRecoveryKeySelected
+    )
+    LaunchedEffect(backupUi.backupUri) {
+        if (backupUi.backupUri != null) {
+            try {
+                recoveryKeyBackupLauncher.launch("gpt_mobile_${System.currentTimeMillis()}.gptkey")
+            } catch (_: android.content.ActivityNotFoundException) {
+                settingViewModel.cancelBackupPicker()
+                Toast.makeText(context, R.string.backup_picker_unavailable, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
 
     LaunchedEffect(settingViewModel) {
         settingViewModel.uiEvent.collect { event ->
@@ -264,8 +283,15 @@ fun SettingScreen(
         AlertDialog(
             title = { Text(stringResource(R.string.complete_restore_title)) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(stringResource(R.string.complete_restore_confirmation))
+                    BackupSelectionContent(backupUi, settingViewModel::updateBackupSection)
+                    if (backupUi.requiresRecoveryKey) {
+                        Text("Select the separate recovery key saved with this backup. No password is required.")
+                        Button(onClick = { recoveryKeyRestoreLauncher.launch(arrayOf("*/*")) }) {
+                            Text(if (backupUi.recoveryKeyUri == null) "Choose recovery key" else "Recovery key selected")
+                        }
+                    }
                     if (backupUi.requiresLegacyPassword) {
                         Text(
                             text = stringResource(R.string.complete_backup_legacy_password_required),
@@ -286,7 +312,9 @@ fun SettingScreen(
             onDismissRequest = settingViewModel::cancelBackupPicker,
             confirmButton = {
                 Button(
-                    enabled = !backupUi.requiresLegacyPassword || backupUi.legacyPassword.isNotBlank(),
+                    enabled = backupUi.selection.sections.isNotEmpty() &&
+                        (!backupUi.requiresLegacyPassword || backupUi.legacyPassword.isNotBlank()) &&
+                        (!backupUi.requiresRecoveryKey || backupUi.recoveryKeyUri != null),
                     onClick = settingViewModel::confirmRestore
                 ) {
                     Text(stringResource(R.string.confirm))

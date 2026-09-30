@@ -12,7 +12,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material3.AlertDialog
@@ -33,8 +32,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.permissions.ToolApproval
 
 @Composable
@@ -54,7 +55,7 @@ internal fun ToolApprovalDialog(
                 color = MaterialTheme.colorScheme.primaryContainer
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.Hub,
+                    painter = painterResource(R.drawable.mcp_brand_protocol),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onPrimaryContainer,
                     modifier = Modifier.padding(12.dp).size(28.dp)
@@ -153,6 +154,11 @@ internal fun FreeToolConsentDialog(
                 Text(
                     "${request.profileName} is a free AI profile. Using ${request.toolName} can send the tool request and returned data to that free model provider.",
                     style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    "Data tracking is on at the free provider: requests and tool results may be logged under its data policy. You can disable this tool in Options at any time.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall
                 )
                 Surface(
                     modifier = Modifier.fillMaxWidth(),

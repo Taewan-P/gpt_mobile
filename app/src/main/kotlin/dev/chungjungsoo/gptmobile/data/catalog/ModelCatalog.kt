@@ -22,7 +22,8 @@ data class CatalogEntry(
     val defaultConfig: CatalogDefaultConfig = CatalogDefaultConfig(),
     val minAppVersion: String = "0.0.0",
     val maxContextTokens: Int = 0,
-    val socToModelFiles: Map<String, SocVariant> = emptyMap()
+    val socToModelFiles: Map<String, SocVariant> = emptyMap(),
+    val supportsMtp: Boolean = false
 )
 
 @Serializable
@@ -50,3 +51,8 @@ data class SocVariant(
     val contextSize: Int = 0,
     val quantization: String = ""
 )
+
+/** MTP is multi-token prediction, not the MediaTek accelerator. */
+fun CatalogEntry.hasMtp(): Boolean = supportsMtp ||
+    supportedAccelerators.any { it.equals("mtp", true) } ||
+    Regex("(?i)(?:^|[-_/ .])mtp(?:$|[-_/ .])").containsMatchIn("$id $displayName $downloadUrl")

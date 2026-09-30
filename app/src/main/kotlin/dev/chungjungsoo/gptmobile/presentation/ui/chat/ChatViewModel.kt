@@ -577,6 +577,8 @@ class ChatViewModel @Inject constructor(
     fun openChatToolSheet() = _isChatToolSheetOpen.update { true }
     fun closeChatToolSheet() = _isChatToolSheetOpen.update { false }
 
+    private var unlockingAllTools = false
+
     fun toggleChatTool(toolId: String) {
         val config = _chatToolConfig.value
         if (config.isToolEnabled(toolId)) {
@@ -615,8 +617,13 @@ class ChatViewModel @Inject constructor(
         val request = _pendingFreeToolConsent.value ?: return
         runCatching { freeModelToolConsentStore.grant(request.profileUid, request.toolId) }
             .onSuccess {
-                _chatToolConfig.update { it.withToolEnabled(request.toolId) }
                 _pendingFreeToolConsent.value = null
+                if (unlockingAllTools) {
+                    enableAllChatTools()
+                } else {
+                    // Every active free profile needs its own acknowledgement.
+                    toggleChatTool(request.toolId)
+                }
             }
             .onFailure {
                 _attachmentNotice.value = "Could not save this tool permission."
@@ -624,6 +631,7 @@ class ChatViewModel @Inject constructor(
     }
 
     fun dismissFreeToolConsent() {
+        unlockingAllTools = false
         _pendingFreeToolConsent.value = null
     }
 
@@ -652,12 +660,22 @@ class ChatViewModel @Inject constructor(
     }
 
     fun enableAllChatTools() {
-        _chatToolConfig.update { config ->
-            config.copy(
-                disabledToolIds = emptySet(),
-                enabledToolIds = _availableChatTools.value.map { it.id }.toSet(),
-                allToolsDisabled = false
-            )
+        viewModelScope.launch {
+            val profiles = settingRepository.fetchPlatformV2s().filter {
+                it.uid in _activePlatformUids.value && it.compatibleType == dev.chungjungsoo.gptmobile.data.model.ClientType.FREE && !it.disableAllTools && !it.disableRemoteTools
+            }
+            for (tool in _availableChatTools.value.filter { it.source == "MCP" }) {
+                val profile = profiles.firstOrNull { !freeModelToolConsentStore.isGranted(it.uid, tool.id) }
+                if (profile != null) {
+                    unlockingAllTools = true
+                    _pendingFreeToolConsent.value = FreeToolConsentRequest(profile.uid, profile.name, tool.id, tool.name)
+                    return@launch
+                }
+            }
+            unlockingAllTools = false
+            _chatToolConfig.update { config ->
+                config.copy(disabledToolIds = emptySet(), enabledToolIds = _availableChatTools.value.map { it.id }.toSet(), allToolsDisabled = false)
+            }
         }
     }
 
@@ -686,13 +704,23 @@ class ChatViewModel @Inject constructor(
                 }
             val available = ChatToolUtils.buildAvailableChatTools(
                 connections.filter {
-                    it.connectionUid in boundConnectionIds && (it.type != ToolConnectionType.MCP || features.remoteMcpConnections)
+                    it.connectionUid in boundConnectionIds && it.type != ToolConnectionType.MCP
                 }
-            ) + listOf(
+            ) + if (features.remoteMcpConnections) {
+                bindings.filter { it.profileUid in remoteProfiles }
+                    .mapNotNull { binding ->
+                        val connection = connections.firstOrNull { it.connectionUid == binding.connectionUid && it.type == ToolConnectionType.MCP }
+                            ?: return@mapNotNull null
+                        AvailableChatTool("${connection.connectionUid}:${binding.toolName}", "${connection.name} · ${binding.toolName}", connection.alias, "MCP")
+                    }.distinctBy { it.id }
+            } else {
+                emptyList()
+            }
+            val builtIn = listOf(
                 AvailableChatTool("web_search", "Web search", "All enabled web search engines", "Multi-engine", remoteProfiles.isNotEmpty()),
                 AvailableChatTool("device_location", "Device location", "Phone GPS location", "Built-in", locationEnabled)
             )
-            _availableChatTools.value = available
+            _availableChatTools.value = available + builtIn
 
             // Free profiles may use every tool, but a new profile must explicitly
             // acknowledge external MCP data sharing once per tool before it is active.

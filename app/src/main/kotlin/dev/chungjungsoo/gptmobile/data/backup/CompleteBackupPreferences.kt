@@ -39,7 +39,7 @@ internal class CompleteBackupPreferences(private val context: Context, private v
                 }
             }
         }
-        (sharedNames() + shared.keys).forEach { name ->
+        (sharedNames() + shared.keys).filterNot { it == "complete_backup_ui_v1" }.forEach { name ->
             val editor = context.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear()
             shared[name].orEmpty().forEach { (key, value) ->
                 when (val decoded = decode(value)) {

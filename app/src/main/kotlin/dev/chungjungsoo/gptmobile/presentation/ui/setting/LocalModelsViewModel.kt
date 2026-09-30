@@ -352,11 +352,14 @@ class LocalModelsViewModel @Inject constructor(
 
     private fun localBenchmarkScores(history: List<dev.chungjungsoo.gptmobile.data.benchmark.BenchmarkRun>): Map<String, Int> =
         history
-            .filter { it.local && it.finished && !it.canceled && it.stoppedReason == null }
+            .filter { it.local && it.mode != dev.chungjungsoo.gptmobile.data.benchmark.BenchmarkMode.DELEGATION && it.suiteVersion == 1 && it.finished && !it.canceled && it.stoppedReason == null }
             .groupBy { it.model }
             .mapNotNull { (model, runs) ->
                 dev.chungjungsoo.gptmobile.data.benchmark.benchmarkRating(
-                    runs.sortedByDescending { it.startedAt }.take(5),
+                    runs.sortedByDescending { it.startedAt }.let { sorted ->
+                        val latest = sorted.first()
+                        sorted.filter { it.configKey == latest.configKey && it.backend == latest.backend && it.accelerator == latest.accelerator }.take(5)
+                    },
                     local = true
                 ).score?.let { model to it }
             }

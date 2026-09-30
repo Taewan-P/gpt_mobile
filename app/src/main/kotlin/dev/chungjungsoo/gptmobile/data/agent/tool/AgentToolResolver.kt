@@ -50,7 +50,8 @@ class AgentToolResolver @Inject constructor(
     private val mcpOAuthCoordinator: McpOAuthCoordinator,
     private val deviceLocationTool: DeviceLocationTool,
     private val factVault: FactVaultRepository? = null,
-    private val memoryDocuments: dev.chungjungsoo.gptmobile.data.knowledge.MemoryDocumentRepository? = null
+    private val memoryDocuments: dev.chungjungsoo.gptmobile.data.knowledge.MemoryDocumentRepository? = null,
+    private val freeModelToolConsentStore: dev.chungjungsoo.gptmobile.data.permissions.FreeModelToolConsentStore? = null
 ) {
     suspend fun discoverMcpTools(connection: ToolConnection, forceRefresh: Boolean = false): List<Tool> {
         val config = mcpConfig(connection)
@@ -89,7 +90,7 @@ class AgentToolResolver @Inject constructor(
         val disableRemote = platform?.disableRemoteTools == true
         val disableLocal = platform?.disableLocalTools == true
         val featureSettings = settingRepository.getFeatureSettings()
-        val allowRemoteMcp = !disableRemote && !memoryExcluded && featureSettings.remoteMcpConnections
+        val allowRemoteMcp = !disableRemote && featureSettings.remoteMcpConnections
         val allowDeviceLocation = !disableLocal && featureSettings.deviceLocationTool
 
         // Baseline zero-config tools available out of the box to all models
@@ -188,6 +189,15 @@ class AgentToolResolver @Inject constructor(
         }
 
         return resolved.distinctBy { it.modelToolName }
+            .filter { tool ->
+                // Discovery stays visible, but runtime consent cannot be bypassed by
+                // Select all, imported chat options or a restored pending prompt.
+                !freeProfile ||
+                    chatToolConfig == null ||
+                    tool.connectionUid == null ||
+                    bindings.none { it.connection?.type == ToolConnectionType.MCP && it.connection?.connectionUid == tool.connectionUid } ||
+                    freeModelToolConsentStore?.isGranted(profileUid, "${tool.connectionUid}:${tool.realToolName}") == true
+            }
             .filter { tool ->
                 if (chatToolConfig == null) {
                     true

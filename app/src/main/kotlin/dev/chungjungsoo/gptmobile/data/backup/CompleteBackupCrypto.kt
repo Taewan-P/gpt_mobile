@@ -5,6 +5,7 @@ import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.ByteBuffer
+import java.security.MessageDigest
 import java.security.SecureRandom
 import javax.crypto.Cipher
 import javax.crypto.SecretKeyFactory
@@ -27,12 +28,68 @@ import javax.crypto.spec.SecretKeySpec
 internal object CompleteBackupCrypto {
     private val legacyMagic = "GPTFULL1".toByteArray()
     private val passwordlessMagic = "GPTFULL2".toByteArray()
+    private val portableMagic = "GPTFULL3".toByteArray()
+    private val keyMagic = "GPTKEY01".toByteArray()
+    private const val PORTABLE_HEADER = 40
     private const val CHUNK = 1024 * 1024
     private const val LEGACY_HEADER = 40
     private const val PASSWORDLESS_HEADER = 24
     private const val MAX_BYTES = 1024L * 1024 * 1024 * 1024
     private const val GCM_TAG_BYTES = 16
     private const val RAW_KEY_BYTES = 32
+
+    fun generateRecoveryKey(): ByteArray = ByteArray(RAW_KEY_BYTES).also(SecureRandom()::nextBytes)
+
+    fun keyId(rawKey: ByteArray): ByteArray {
+        requireRawKey(rawKey)
+        return MessageDigest.getInstance("SHA-256").digest(rawKey).copyOf(16)
+    }
+
+    fun writeRecoveryKey(output: OutputStream, rawKey: ByteArray) {
+        requireRawKey(rawKey)
+        output.write(keyMagic)
+        output.write(rawKey)
+        output.flush()
+    }
+
+    fun readRecoveryKey(input: InputStream): ByteArray {
+        val data = DataInputStream(input)
+        require(ByteArray(8).also(data::readFully).contentEquals(keyMagic)) { "Select the recovery key file saved with this backup." }
+        val key = ByteArray(RAW_KEY_BYTES).also(data::readFully)
+        if (data.read() != -1) {
+            key.fill(0)
+            error("Invalid recovery key file.")
+        }
+        return key
+    }
+
+    fun readPortableKeyId(input: InputStream): ByteArray {
+        val data = DataInputStream(input)
+        require(ByteArray(8).also(data::readFully).contentEquals(portableMagic)) { "Select a portable encrypted backup." }
+        return ByteArray(16).also(data::readFully)
+    }
+
+    fun encryptPortable(source: File, output: OutputStream, rawKey: ByteArray) {
+        requireRawKey(rawKey)
+        require(source.length() in 1..MAX_BYTES)
+        val prefix = ByteArray(8).also(SecureRandom()::nextBytes)
+        val header = ByteBuffer.allocate(PORTABLE_HEADER)
+            .put(portableMagic).put(keyId(rawKey)).put(prefix).putLong(source.length()).array()
+        encryptChunks(source, output, rawKey, prefix, header)
+    }
+
+    fun decryptPortable(input: InputStream, target: File, rawKey: ByteArray, maxBytes: Long = MAX_BYTES) {
+        requireRawKey(rawKey)
+        val data = DataInputStream(input)
+        val header = ByteArray(PORTABLE_HEADER).also(data::readFully)
+        val buffer = ByteBuffer.wrap(header)
+        require(ByteArray(8).also(buffer::get).contentEquals(portableMagic)) { "Select a portable encrypted backup." }
+        require(MessageDigest.isEqual(ByteArray(16).also(buffer::get), keyId(rawKey))) { "This recovery key belongs to another backup." }
+        val prefix = ByteArray(8).also(buffer::get)
+        val size = buffer.long
+        require(size in 1..minOf(maxBytes, MAX_BYTES)) { "Invalid backup size or insufficient free space." }
+        decryptChunks(data, target, rawKey, prefix, header, size)
+    }
 
     fun encrypt(source: File, output: OutputStream, password: String) {
         require(password.length >= 8) { "Use a backup password with at least 8 characters." }

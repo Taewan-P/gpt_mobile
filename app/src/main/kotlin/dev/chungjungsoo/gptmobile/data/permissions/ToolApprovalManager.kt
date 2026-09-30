@@ -94,9 +94,15 @@ class ToolApprovalManager @Inject constructor(database: ChatDatabaseV2, private 
     suspend fun finish(runId: String, callId: String, success: Boolean) = dao.finish("$runId:$callId", if (success) "COMPLETED" else "OUTCOME_UNKNOWN")
     suspend fun authorize(connectionId: String, runId: String, callId: String, tool: String, arguments: JsonObject): Boolean {
         val connection = connections.getConnection(connectionId) ?: return false
-        if (connection.type != "MCP") return true
+        if (connection.type != "MCP" && tool != "github") return true
         val policy = runCatching { ToolPolicy.valueOf(connection.toolPolicy) }.getOrDefault(ToolPolicy.ASK_WRITES)
-        val readOnly = tool in connection.approvedReadTools.lines().map(String::trim)
+        val githubRead = tool != "github" ||
+            arguments["action"]?.let {
+                (it as? kotlinx.serialization.json.JsonPrimitive)?.content in setOf(
+                    "search_repositories", "search_issues", "search_code", "get_file_contents", "get_issue", "get_pull_request", "list_pull_requests", "list_workflow_runs", "list_workflows", "get_workflow_run", "list_workflow_jobs", "list_workflow_artifacts", "get_job_logs"
+                )
+            } == true
+        val readOnly = githubRead && tool in connection.approvedReadTools.lines().map(String::trim)
         if (policy == ToolPolicy.READ_ONLY && !readOnly) return false
         if (readOnly) return true
         val id = "$runId:$callId"

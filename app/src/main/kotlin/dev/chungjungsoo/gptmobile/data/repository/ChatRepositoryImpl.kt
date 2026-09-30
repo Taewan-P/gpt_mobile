@@ -72,6 +72,7 @@ import dev.chungjungsoo.gptmobile.data.rag.FactVaultRepository
 import dev.chungjungsoo.gptmobile.util.DocumentTextExtractor
 import dev.chungjungsoo.gptmobile.util.FileUtils
 import dev.chungjungsoo.gptmobile.util.stripAssistantErrorNote
+import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -80,9 +81,11 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 
@@ -556,7 +559,7 @@ class ChatRepositoryImpl(
                             "Delegated output exceeded the character limit."
                         }
                         text.append(provider.text)
-                        if (provider.text.isNotEmpty()) onProgress(DelegateProgress(DelegateProgressKind.OUTPUT))
+                        if (provider.text.isNotEmpty()) onProgress(DelegateProgress(DelegateProgressKind.OUTPUT, textDelta = provider.text))
                     }
                     is ProviderEvent.Failed -> {
                         // Do not throw from inside Flow.collect. Upstream provider cleanup can
@@ -635,7 +638,36 @@ class ChatRepositoryImpl(
         platform: PlatformV2,
         runId: String,
         chatToolConfig: ChatMcpToolConfig?
-    ): Flow<ApiState> = flow {
+    ): Flow<ApiState> = channelFlow {
+        suspend fun emit(state: ApiState) = send(state)
+        suspend fun emitAll(states: Flow<ApiState>) = states.collect { send(it) }
+        suspend fun generateDelegate(
+            target: PlatformV2,
+            task: String,
+            cap: Int,
+            inputCap: Int = Int.MAX_VALUE,
+            progress: (DelegateProgress) -> Unit = {},
+            allowTools: Boolean = true
+        ): String {
+            val invocation = UUID.randomUUID().toString()
+            send(ApiState.DelegationText(invocation, target.name, "", !target.isPrivateDestination()))
+            val delegateText = StringBuilder()
+            try {
+                return delegateToProfile(target, task, cap, runId, userMessages.lastOrNull()?.let { "${it.chatId}:${it.id}" } ?: runId, inputCap, { event ->
+                    progress(event)
+                    event.textDelta?.let {
+                        delegateText.append(it)
+                        trySend(ApiState.DelegationText(invocation, target.name, delegateText.toString(), !target.isPrivateDestination()))
+                    }
+                }, allowTools)
+            } finally {
+                // A final suspending snapshot recovers any intermediate UI update
+                // skipped while the channel was busy. It is never the primary answer.
+                if (kotlinx.coroutines.currentCoroutineContext().isActive) {
+                    send(ApiState.DelegationText(invocation, target.name, delegateText.toString(), !target.isPrivateDestination()))
+                }
+            }
+        }
         emit(ApiState.Loading)
         emit(ApiState.ProgressCheckpoint("Preparing the response and checking the available context."))
         try {
@@ -688,12 +720,12 @@ class ChatRepositoryImpl(
                 platform,
                 settings = { settingRepository.getFeatureSettings().delegation },
                 profiles = { settingRepository.fetchPlatformV2s() },
-                generate = { target, task, cap -> delegateToProfile(target, task, cap, runId, turnKey) },
+                generate = { target, task, cap -> generateDelegate(target, task, cap) },
                 generateWithProgress = { target, task, cap, inputCap, progress ->
-                    delegateToProfile(target, task, cap, runId, turnKey, inputCap, progress)
+                    generateDelegate(target, task, cap, inputCap, progress)
                 },
                 generateTextWithProgress = { target, task, cap, inputCap, progress ->
-                    delegateToProfile(target, task, cap, runId, turnKey, inputCap, progress, allowTools = false)
+                    generateDelegate(target, task, cap, inputCap, progress, allowTools = false)
                 },
                 inputBudget = ::delegationInputBudget,
                 batteryPercent = {

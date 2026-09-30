@@ -21,6 +21,92 @@ import org.junit.Test
 class GitHubToolTest {
 
     @Test
+    fun `workflow dispatch carries user ref and typed inputs and accepts no-content response`() = runTest {
+        val client = HttpClient(
+            MockEngine { request ->
+                assertEquals("/repos/owner/repo/actions/workflows/build.yml/dispatches", request.url.encodedPath)
+                assertEquals(io.ktor.http.HttpMethod.Post, request.method)
+                assertEquals("Bearer user-token", request.headers[HttpHeaders.Authorization])
+                val body = Json.parseToJsonElement((request.body as io.ktor.http.content.TextContent).text).jsonObject
+                assertEquals("main", body["ref"]?.toString()?.trim('"'))
+                assertEquals("true", body["inputs"]?.jsonObject?.get("debug")?.toString())
+                respond("", HttpStatusCode.NoContent)
+            }
+        )
+        try {
+            val result = GitHubTool("user-token", client).execute(
+                "dispatch",
+                buildJsonObject {
+                    put("action", "dispatch_workflow")
+                    put("owner", "owner")
+                    put("repo", "repo")
+                    put("workflow_id", "build.yml")
+                    put("ref", "main")
+                    put("inputs", buildJsonObject { put("debug", true) })
+                }
+            )
+            assertFalse(result.isError)
+            assertTrue((result.content as ToolResultContent.Text).text.contains("accepted"))
+        } finally {
+            client.close()
+        }
+    }
+
+    @Test
+    fun `workflow writes cannot run without credentials and run IDs must be positive`() = runTest {
+        val client = HttpClient(MockEngine { error("Invalid requests must not reach GitHub") })
+        try {
+            val tool = GitHubTool(httpClient = client)
+            listOf("cancel_workflow", "rerun_workflow", "rerun_failed_jobs").forEach { action ->
+                val result = tool.execute(
+                    "write",
+                    buildJsonObject {
+                        put("action", action)
+                        put("owner", "owner")
+                        put("repo", "repo")
+                        put("run_id", 10)
+                    }
+                )
+                assertTrue(result.isError)
+            }
+            val result = tool.execute(
+                "read",
+                buildJsonObject {
+                    put("action", "get_workflow_run")
+                    put("owner", "owner")
+                    put("repo", "repo")
+                    put("run_id", -1)
+                }
+            )
+            assertTrue(result.isError)
+        } finally {
+            client.close()
+        }
+    }
+
+    @Test
+    fun `job log previews stop at the output budget`() = runTest {
+        val client = HttpClient(MockEngine { respond("L".repeat(100_000), HttpStatusCode.OK) })
+        try {
+            val result = GitHubTool(httpClient = client).execute(
+                "logs",
+                buildJsonObject {
+                    put("action", "get_job_logs")
+                    put("owner", "owner")
+                    put("repo", "repo")
+                    put("job_id", 20)
+                }
+            )
+            assertFalse(result.isError)
+            val text = (result.content as ToolResultContent.Text).text
+            assertTrue(text.length < 33_000)
+            assertTrue(text.contains("preview limited"))
+        } finally {
+            client.close()
+        }
+    }
+
+    @Test
     fun `definition exposes correct name and required action property`() {
         val tool = GitHubTool()
         assertEquals(BuiltInAgentTool.GITHUB, tool.definition.name)

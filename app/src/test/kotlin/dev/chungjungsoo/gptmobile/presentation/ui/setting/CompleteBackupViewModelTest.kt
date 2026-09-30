@@ -63,14 +63,18 @@ class CompleteBackupViewModelTest {
     @Test
     fun backupAndPasswordlessRestoreUseSameManager() = runTest(dispatcher) {
         val uri = mockk<Uri>()
-        coEvery { manager.backup(uri) } returns BackupRestoreResult(true, "Saved")
+        val keyUri = mockk<Uri>()
+        coEvery { manager.backup(uri, dev.chungjungsoo.gptmobile.data.backup.CompleteBackupSelection.ALL, recoveryKeyUri = keyUri) } returns BackupRestoreResult(true, "Saved")
         coEvery { manager.requiresPassword(uri) } returns false
         coEvery { manager.restore(uri, null) } returns BackupRestoreResult(true, "Restored")
 
         assertTrue(viewModel.prepareBackupPicker(restoring = false))
         viewModel.backupDestinationSelected(uri)
+        assertEquals(uri, viewModel.backupUi.value.backupUri)
+        coVerify(exactly = 0) { manager.backup(any(), any(), any(), any()) }
+        viewModel.backupRecoveryKeySelected(keyUri)
         advanceUntilIdle()
-        coVerify(exactly = 1) { manager.backup(uri) }
+        coVerify(exactly = 1) { manager.backup(uri, dev.chungjungsoo.gptmobile.data.backup.CompleteBackupSelection.ALL, recoveryKeyUri = keyUri) }
         assertEquals("Saved", viewModel.backupUi.value.message)
 
         viewModel.selectAllBackupSections()

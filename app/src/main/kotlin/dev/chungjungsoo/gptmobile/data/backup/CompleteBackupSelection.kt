@@ -35,7 +35,12 @@ data class CompleteBackupSelection(
     }
 
     fun toggled(section: CompleteBackupSection, enabled: Boolean): CompleteBackupSelection {
-        val updated = if (enabled) sections + section else sections - section
+        val updated = if (enabled) {
+            sections + section
+        } else {
+            sections - section -
+                if (section == CompleteBackupSection.CONVERSATIONS) setOf(CompleteBackupSection.ATTACHMENTS, CompleteBackupSection.AGENT_HISTORY) else emptySet()
+        }
         return copy(sections = updated).normalized()
     }
 
