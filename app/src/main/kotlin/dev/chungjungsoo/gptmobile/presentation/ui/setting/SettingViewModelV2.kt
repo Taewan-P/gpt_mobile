@@ -243,6 +243,7 @@ class SettingViewModelV2 @Inject constructor(
     }
 
     fun openBackupRestoreDialog() {
+        if (_backupUi.value.isBusy) return
         refreshBackupStatus()
         _dialogState.update { it.copy(isBackupRestoreDialogOpen = true) }
         _backupUi.update { it.copy(isBusy = true) }
@@ -466,9 +467,11 @@ class SettingViewModelV2 @Inject constructor(
         _backupUi.update { it.copy(restoreUri = null, isBusy = true) }
         runBackupOperation {
             val password = state.legacyPassword.takeIf(String::isNotBlank)
-            val result = completeBackupManager.restore(uri, password, state.selection, state.recoveryKeyUri)
-            if (result.success) backupProtectionMutex.withLock { loadBackupProtection() }
-            result
+            backupProtectionMutex.withLock {
+                val result = completeBackupManager.restore(uri, password, state.selection, state.recoveryKeyUri)
+                if (result.success) loadBackupProtection()
+                result
+            }
         }
     }
 

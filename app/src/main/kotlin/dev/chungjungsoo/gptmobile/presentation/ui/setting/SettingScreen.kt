@@ -323,7 +323,7 @@ fun SettingScreen(
                         (!backupUi.requiresRecoveryKey || backupUi.recoveryKeyUri != null),
                     onClick = settingViewModel::confirmRestore
                 ) {
-                    Text(stringResource(R.string.confirm))
+                    Text("Restore")
                 }
             },
             dismissButton = {
