@@ -98,7 +98,7 @@ internal fun AssistantChronologicalContent(
                             if (isError) {
                                 Text(parsed.response, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(vertical = 8.dp))
                             } else {
-                                ChatMarkdown(content = parsed.response, contentIdentity = "$contentIdentity:$index", modifier = Modifier.padding(vertical = 8.dp))
+                                ChatMarkdown(content = parsed.response, contentIdentity = "$contentIdentity:$index", streaming = isLoading, modifier = Modifier.padding(vertical = 8.dp))
                             }
                         }
                     }
