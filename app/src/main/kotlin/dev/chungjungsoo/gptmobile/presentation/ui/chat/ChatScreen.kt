@@ -157,22 +157,20 @@ fun ChatScreen(
     inputRequests.firstOrNull()?.let { McpInputDialog(it, chatViewModel::respondMcpInput) }
     val approvals by chatViewModel.pendingToolApprovals.collectAsStateWithLifecycle(emptyList())
     approvals.firstOrNull()?.let { approval ->
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { chatViewModel.decideToolApproval(approval.id, false) },
-            title = { Text(stringResource(R.string.tool_approval_title)) },
-            text = {
-                Column(Modifier.verticalScroll(rememberScrollState())) {
-                    Text(stringResource(R.string.tool_approval_body, approval.tool, approval.connection))
-                    Text(approval.argumentPreview, style = MaterialTheme.typography.bodySmall)
-                }
-            },
-            confirmButton = {
-                Column(horizontalAlignment = Alignment.End) {
-                    TextButton(onClick = { chatViewModel.alwaysAllowTool(approval.id) }) { Text("Always allow this tool") }
-                    TextButton(onClick = { chatViewModel.decideToolApproval(approval.id, true) }) { Text("Allow once") }
-                }
-            },
-            dismissButton = { TextButton(onClick = { chatViewModel.decideToolApproval(approval.id, false) }) { Text(stringResource(R.string.tool_approval_deny)) } }
+        ToolApprovalDialog(
+            approval = approval,
+            onDeny = { chatViewModel.decideToolApproval(approval.id, false) },
+            onAllowOnce = { chatViewModel.decideToolApproval(approval.id, true) },
+            onAlwaysAllowTool = { chatViewModel.alwaysAllowTool(approval.id) },
+            onAlwaysAllowProvider = { chatViewModel.alwaysAllowToolProvider(approval.id) }
+        )
+    }
+    val freeToolConsent by chatViewModel.pendingFreeToolConsent.collectAsStateWithLifecycle()
+    freeToolConsent?.let { request ->
+        FreeToolConsentDialog(
+            request = request,
+            onAccept = chatViewModel::confirmFreeToolConsent,
+            onDismiss = chatViewModel::dismissFreeToolConsent
         )
     }
     val configuration = LocalConfiguration.current
