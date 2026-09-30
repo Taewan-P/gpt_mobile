@@ -31,6 +31,46 @@ class BenchmarkRunnerTest {
     private val toolTest = benchmarkSuite(BenchmarkMode.QUICK).first { it.id == "tool" }
 
     @Test
+    fun `connection abort retries once before any output and retains attempted usage`() = runTest {
+        var opened = 0
+        val runner = BenchmarkRunner({ _, _ ->
+            opened++
+            if (opened == 1) {
+                session(flowOf(ProviderEvent.Usage(inputTokens = 10, outputTokens = 0), ProviderEvent.Failed("Software caused connection abort")))
+            } else {
+                session(flowOf(ProviderEvent.TextDelta("BENCHMARK_READY"), ProviderEvent.Usage(inputTokens = 20, outputTokens = 3), ProviderEvent.Completed))
+            }
+        })
+        val result = runner.run(instruction, true)
+        assertEquals(BenchmarkOutcome.PASSED, result.outcome)
+        assertEquals(2, opened)
+        assertEquals(1, result.reconnectAttempts)
+        assertEquals(30, result.inputTokens)
+    }
+
+    @Test
+    fun `connection failure after text is never replayed`() = runTest {
+        var opened = 0
+        val runner = BenchmarkRunner({ _, _ ->
+            opened++
+            session(flowOf(ProviderEvent.TextDelta("partial"), ProviderEvent.Failed("connection reset")))
+        })
+        assertEquals(BenchmarkOutcome.ERROR, runner.run(instruction, true).outcome)
+        assertEquals(1, opened)
+    }
+
+    @Test
+    fun `persistent connection abort is bounded to two attempts`() = runTest {
+        var opened = 0
+        val runner = BenchmarkRunner({ _, _ ->
+            opened++
+            session(flowOf(ProviderEvent.Failed("connection reset")))
+        })
+        assertEquals(BenchmarkOutcome.ERROR, runner.run(instruction, true).outcome)
+        assertEquals(2, opened)
+    }
+
+    @Test
     fun `independent delegation cases continue after a failed stage`() = runTest {
         val saved = mutableListOf<BenchmarkSample>()
         val suite = delegationBenchmarkSuite()

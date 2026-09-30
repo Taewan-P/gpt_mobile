@@ -46,7 +46,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -69,6 +68,8 @@ import dev.chungjungsoo.gptmobile.data.benchmark.benchmarkConfigKey
 import dev.chungjungsoo.gptmobile.data.benchmark.benchmarkRating
 import dev.chungjungsoo.gptmobile.data.benchmark.benchmarkSuite
 import dev.chungjungsoo.gptmobile.data.benchmark.comparableRuns
+import dev.chungjungsoo.gptmobile.data.benchmark.delegateRankings
+import dev.chungjungsoo.gptmobile.data.benchmark.delegationBenchmarkRating
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import java.time.Instant
@@ -79,12 +80,13 @@ import kotlin.math.roundToInt
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileBenchmarkScreen(onBack: () -> Unit, onUsage: () -> Unit, viewModel: ProfileBenchmarkViewModel = hiltViewModel()) {
-    DisposableEffect(viewModel) { onDispose { viewModel.cancel() } }
     val profiles by viewModel.profiles.collectAsStateWithLifecycle()
     val profile by viewModel.selected.collectAsStateWithLifecycle()
     val history by viewModel.history.collectAsStateWithLifecycle()
     val localEnvironment by viewModel.localEnvironment.collectAsStateWithLifecycle()
     val delegationSettings by viewModel.delegationSettings.collectAsStateWithLifecycle()
+    val delegates by viewModel.delegates.collectAsStateWithLifecycle()
+    val delegate by viewModel.delegate.collectAsStateWithLifecycle()
     val progress by viewModel.progress.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val ready by viewModel.ready.collectAsStateWithLifecycle()
@@ -168,17 +170,48 @@ fun ProfileBenchmarkScreen(onBack: () -> Unit, onUsage: () -> Unit, viewModel: P
                     4 -> {
                         item {
                             BenchmarkPanel("Delegation pipeline") {
-                                val helper = profiles.firstOrNull { it.uid == delegationSettings.targetProfileUid }
-                                Text("Primary: ${selected.name} · Helper: ${helper?.name ?: "Automatic eligible helper"}")
+                                Text("Primary: ${selected.name}")
+                                Text("Delegate to test", style = MaterialTheme.typography.labelLarge)
+                                BenchmarkProfilePicker(delegates, delegate, progress == null, viewModel::selectDelegate)
+                                Text("The chosen delegate stays fixed for every case. No automatic fallback.", style = MaterialTheme.typography.bodySmall)
                                 Text("Ownership ${delegationSettings.processingOwnership}/100 · Worker output ${delegationSettings.maxOutputTokens} tokens · Brief ${delegationSettings.handoffTokens} tokens")
                                 Text("${delegationSettings.effectiveLocalModelCalls()} worker calls per turn · ${delegationSettings.maxDelegateRuntimeSeconds}s runtime · ${delegationSettings.timeToFirstTokenTimeoutSeconds}s first progress · ${delegationSettings.idleTokenTimeoutSeconds}s idle")
                                 Text("Tests evidence compaction, a worker tool call, and research through final synthesis using the current delegation settings. Search and page tools return temporary fixtures. Model requests use the selected profiles and may incur normal provider charges. Each test has a 180-second ceiling.", style = MaterialTheme.typography.bodySmall)
                                 Button(
                                     onClick = { viewModel.start(BenchmarkMode.DELEGATION) },
-                                    enabled = ready && progress == null && !activeRequests && delegationSettings.enabled,
+                                    enabled = ready && progress == null && !activeRequests && delegationSettings.enabled && delegate != null,
                                     modifier = Modifier.fillMaxWidth()
                                 ) { Text("Benchmark delegation settings") }
                                 if (!delegationSettings.enabled) Text("Enable delegation in Settings first.")
+                            }
+                        }
+                        val rankings = delegateRankings(profileHistory, benchmarkConfigKey(selected, localEnvironment), delegationSettings)
+                        item {
+                            BenchmarkPanel("Best delegates") {
+                                Text("Same primary and settings · latest five runs per helper configuration. Success 30%, tools 30%, evidence 10%, handoff 10%, latency 10%, generation 10%. Overall score cannot exceed task success.", style = MaterialTheme.typography.bodySmall)
+                                Text("Generation speed estimates text tokens from characters over the observed first-to-last text interval. One text chunk has no measured decode speed. Fixtures validate tool wiring, not live MCP availability.", style = MaterialTheme.typography.bodySmall)
+                                if (rankings.isEmpty()) Text("Benchmark delegates to build the ranking.")
+                            }
+                        }
+                        items(rankings) { row ->
+                            val worker = row.run.samples.mapNotNull { it.delegation }.first()
+                            val result = row.rating
+                            BenchmarkPanel("${rankings.indexOf(row) + 1}. ${worker.workerName} · ${result.score?.let { "$it / 100" } ?: "Not rated"}") {
+                                Text("${worker.workerProvider} · ${worker.workerModel}", style = MaterialTheme.typography.bodySmall)
+                                MetricLine("Successful tasks", "${result.passed} / ${result.attempts} · ${row.runs} runs")
+                                MetricLine("Tool task success", percent(result.toolTaskSuccessPercent))
+                                MetricLine("Valid fixture calls", "${result.successfulToolCalls} / ${result.toolCalls}")
+                                MetricLine("Median / p95 case latency", "${formatLatency(result.medianLatencyMs)} / ${formatLatency(result.p95LatencyMs)}")
+                                MetricLine("Worker first text", formatLatency(result.medianFirstTextMs))
+                                MetricLine("Estimated decode speed", result.medianDecodeSpeed?.let { "≈ %.1f tok/s".format(it) } ?: "Not observed")
+                                MetricLine("Worker input / output tokens", "${result.workerInputTokens} / ${result.workerOutputTokens}")
+                                MetricLine("Primary input / output tokens", "${result.primaryInputTokens} / ${result.primaryOutputTokens}")
+                                MetricLine("Output cap violations", result.outputCapViolations.toString())
+                                if (result.estimated) Text("Token totals include estimates.", style = MaterialTheme.typography.labelSmall)
+                                result.dimensions.forEach { dimension ->
+                                    MetricLine(dimension.label, dimension.score?.let { "${it.roundToInt()} / 100" } ?: "Not measured")
+                                }
+                                Text("Measured ${benchmarkDate(row.run.startedAt)} · ${row.run.delegationSettings?.maxOutputTokens} worker output cap", style = MaterialTheme.typography.labelSmall)
                             }
                         }
                         val latest = profileHistory.firstOrNull { it.mode == BenchmarkMode.DELEGATION }
@@ -194,7 +227,10 @@ fun ProfileBenchmarkScreen(onBack: () -> Unit, onUsage: () -> Unit, viewModel: P
                                         sample.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                                         sample.delegation?.let { metrics ->
                                             Text("${metrics.workerName} (${metrics.workerProvider}) · ${metrics.workerCalls} worker calls")
-                                            Text("Worker tokens: ${metrics.workerInputTokens} input / ${metrics.workerOutputTokens} output")
+                                            Text("Worker tokens: ${metrics.workerInputTokens} input / ${metrics.workerOutputTokens} output${if (metrics.workerEstimated) " (estimated)" else ""}")
+                                            MetricLine("Worker time / first text", "${formatLatency(metrics.workerDurationMs)} / ${formatLatency(metrics.workerFirstTextMs)}")
+                                            MetricLine("Estimated worker decode", metrics.workerDecodeTokensPerSecond?.let { "≈ %.1f tok/s".format(it) } ?: "Not observed")
+                                            MetricLine("Output cap violations", metrics.outputCapViolations.toString())
                                             Text("Primary tokens: ${metrics.primaryInputTokens} input / ${metrics.primaryOutputTokens} output${if (metrics.primaryEstimated) " (output estimated)" else ""}")
                                             Text("${metrics.searches} searches · ${metrics.pagesRead} pages · ${metrics.rawEvidenceBytes} evidence bytes → ${metrics.handoffCharacters} brief characters")
                                             if (metrics.fixtureCalls > 0) Text("Fixture calls: ${metrics.successfulFixtureCalls}/${metrics.fixtureCalls} successful")
@@ -223,7 +259,7 @@ fun ProfileBenchmarkScreen(onBack: () -> Unit, onUsage: () -> Unit, viewModel: P
                                     Text("Run ${mode.label.lowercase()} benchmark", Modifier.padding(start = 8.dp))
                                 }
                                 if (activeRequests && progress == null) Text("Waiting for active model requests to finish.", style = MaterialTheme.typography.labelSmall)
-                                Text("Leaving this page cancels an active run. Results save after each test.", style = MaterialTheme.typography.labelSmall)
+                                Text("Results save after each test. Stop cancels explicitly; rotating the screen keeps the run active.", style = MaterialTheme.typography.labelSmall)
                             }
                         }
                         item { BenchmarkScoreCard(rating, local, matching.size, mode) }
@@ -474,6 +510,7 @@ private fun EverydayPerformanceCard(row: ProfilePerformance, local: Boolean, onC
 private fun BenchmarkHistoryCard(run: BenchmarkRun, current: Boolean, canDelete: Boolean, onDelete: () -> Unit) {
     var expanded by rememberSaveable(run.id) { mutableStateOf(false) }
     val rating = remember(run) { benchmarkRating(listOf(run)) }
+    val score = if (run.mode == BenchmarkMode.DELEGATION) delegationBenchmarkRating(listOf(run)).score else rating.score
     Card(onClick = { expanded = !expanded }, shape = RoundedCornerShape(20.dp)) {
         Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -486,7 +523,7 @@ private fun BenchmarkHistoryCard(run: BenchmarkRun, current: Boolean, canDelete:
                     } else if (!run.finished) {
                         "Interrupted"
                     } else {
-                        rating.score?.let { "$it / 100" } ?: "Not rated"
+                        score?.let { "$it / 100" } ?: "Not rated"
                     },
                     color = benchmarkTint(run.local),
                     fontWeight = FontWeight.SemiBold
@@ -512,6 +549,7 @@ private fun BenchmarkHistoryCard(run: BenchmarkRun, current: Boolean, canDelete:
                     Text(sample.label, fontWeight = FontWeight.SemiBold)
                     Text(sample.outcome.name.lowercase().replace('_', ' '), color = if (sample.outcome in setOf(BenchmarkOutcome.ERROR, BenchmarkOutcome.FAILED, BenchmarkOutcome.TIMED_OUT)) MaterialTheme.colorScheme.error else benchmarkTint(run.local), style = MaterialTheme.typography.labelLarge)
                     MetricLine("Duration / first text", "${formatLatency(sample.durationMs)} / ${formatLatency(sample.firstTextMs)}")
+                    if (sample.reconnectAttempts > 0) MetricLine("Connection retries", sample.reconnectAttempts.toString())
                     MetricLine("Output tokens", "${if (sample.estimatedTokens) "≈ " else ""}${sample.outputTokens}")
                     MetricLine("Longest text pause", formatLatency(sample.longestGapMs))
                     sample.nativeMetrics?.takeIf { it.isValid }?.let { native ->

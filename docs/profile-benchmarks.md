@@ -59,3 +59,35 @@ run without tools; the app performs authorized research tool calls. Direct deleg
 tasks retain helper tool access. The final answer uses the primary profile/context
 output budget rather than the helper brief budget. Failed preparation restores the
 primary's authorized tools for recovery and is recorded as a failed tool event.
+
+### Delegate rankings (suite v2)
+
+The Delegation tab has an explicit helper picker. Each suite pins that helper and
+fails clearly if it becomes ineligible; it never substitutes another provider.
+Rankings use the same primary configuration and delegation settings, and the latest
+five finished, non-canceled runs per helper configuration. Legacy delegation runs
+remain visible but do not enter the new ranking.
+
+The delegate score weights task success (30%), tool-task success (30%), evidence
+accuracy (10%), research/handoff (10%), successful-case latency (10%), and generation
+speed (10%). Missing timing is excluded; the score cannot exceed overall task pass
+percentage. A rating requires attempts for all three cases. Failed/no-call tool tests
+count as failures even when the response is fast. Synthetic research tool executions
+also contribute to the displayed valid-call counts.
+
+Metrics include median/p95 successful-case latency, worker first text, estimated
+text decode speed, worker/primary input and output tokens, tool executions, evidence
+sizes and per-request output-cap violations. Text decode speed uses characters/4
+over the observed first-to-last text interval; single chunks have no measured speed.
+Unreported worker usage is estimated and labeled. Token totals cover failed attempts
+as well as successful ones; token counts alone are not a capability score.
+
+Regular benchmarks reconnect once for a connection abort/reset before text or tool
+activity, within the original case deadline. Authentication and model errors are not
+retried. Screen rotation no longer cancels a run through composable disposal; explicit
+Stop or destruction of the ViewModel cancels it. Delegated tool loops now have four
+rounds and four tool calls at most, independent of the primary's larger tool budget.
+Per-round cumulative usage is accumulated correctly across tool rounds; output-cap
+checks compare each round's usage to its per-request cap, rather than comparing the
+whole tool loop to a single-request cap. Google identity errors quarantine the failing
+worker immediately; benchmarks preflight missing keys on authenticated providers.

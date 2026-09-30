@@ -30,7 +30,14 @@ data class DelegationBenchmarkMetrics(
     val handoffCharacters: Int,
     val fixtureCalls: Int,
     val successfulFixtureCalls: Int,
-    val primaryEstimated: Boolean = false
+    val primaryEstimated: Boolean = false,
+    val workerModel: String = "",
+    val workerConfigKey: String = "",
+    val workerEstimated: Boolean = false,
+    val workerDurationMs: Long = 0,
+    val workerFirstTextMs: Long? = null,
+    val workerDecodeTokensPerSecond: Double? = null,
+    val outputCapViolations: Int = 0
 )
 
 @Serializable
@@ -53,7 +60,8 @@ data class BenchmarkSample(
     val lastTextMs: Long? = null,
     val nativeMetrics: dev.chungjungsoo.gptmobile.data.localruntime.NativeInferenceMetrics? = null,
     val inputTokens: Int = 0,
-    val delegation: DelegationBenchmarkMetrics? = null
+    val delegation: DelegationBenchmarkMetrics? = null,
+    val reconnectAttempts: Int = 0
 ) {
     val completed: Boolean get() = outcome == BenchmarkOutcome.PASSED || outcome == BenchmarkOutcome.FAILED
 
@@ -122,6 +130,7 @@ data class BenchmarkRating(
 fun benchmarkConfigKey(profile: PlatformV2, localEnvironment: String = ""): String {
     val values = listOf(
         profile.compatibleType.name, profile.model, profile.apiUrl, profile.accelerator.orEmpty(),
+        profile.temperature.toString(), profile.maxTokens.toString(), profile.timeout.toString(), profile.stream.toString(),
         profile.topP.toString(), profile.topK.toString(), profile.openRouterRouting.orEmpty(), profile.ollamaOptions.orEmpty(),
         profile.providerConnectionUid.orEmpty(), if (profile.compatibleType == ClientType.LITERT_LM) localEnvironment else ""
     )

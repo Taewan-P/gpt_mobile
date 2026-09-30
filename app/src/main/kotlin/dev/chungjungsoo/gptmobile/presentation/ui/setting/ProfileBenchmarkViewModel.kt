@@ -26,6 +26,8 @@ import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEventStatus
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
 import dev.chungjungsoo.gptmobile.data.model.ClientType
+import dev.chungjungsoo.gptmobile.data.model.excludesMemory
+import dev.chungjungsoo.gptmobile.data.model.isPrivateDestination
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import dev.chungjungsoo.gptmobile.data.security.DiagnosticRedactor
@@ -73,6 +75,17 @@ class ProfileBenchmarkViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.Eagerly, "")
     val delegationSettings = settings.observeFeatureSettings().map { it.delegation.normalized() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, dev.chungjungsoo.gptmobile.data.model.ModelDelegationSettings())
+    private val delegateUid = MutableStateFlow("")
+    val delegates = combine(profiles, selected, delegationSettings) { list, primary, config ->
+        list.filter {
+            it.enabled && it.uid != primary?.uid && !it.excludesMemory() &&
+                (config.allowRemoteWorkers || it.isPrivateDestination()) &&
+                !(primary?.compatibleType == ClientType.LITERT_LM && it.compatibleType == ClientType.LITERT_LM)
+        }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val delegate = combine(delegates, delegateUid, delegationSettings) { list, uid, config ->
+        list.firstOrNull { it.uid == uid.ifBlank { config.targetProfileUid } }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val legacyReport: String? = context.getSharedPreferences("connection_doctor", Context.MODE_PRIVATE)
         .getString("last_report", null)?.takeIf { it.startsWith("Benchmark v1") }
     private val mutableProgress = MutableStateFlow<BenchmarkProgress?>(null)
@@ -121,6 +134,10 @@ class ProfileBenchmarkViewModel @Inject constructor(
         if (job?.isActive != true) selectedUid.value = profile.uid
     }
 
+    fun selectDelegate(profile: PlatformV2) {
+        if (job?.isActive != true) delegateUid.value = profile.uid
+    }
+
     fun dismissError() {
         mutableError.value = null
     }
@@ -158,6 +175,12 @@ class ProfileBenchmarkViewModel @Inject constructor(
             mutableError.value = "Choose a model in this AI profile first."
             return
         }
+        val helper = delegate.value
+        if (mode == BenchmarkMode.DELEGATION && helper == null) {
+            mutableError.value = "Choose an enabled delegate. Benchmarks never fall back to another profile."
+            return
+        }
+        val config = delegationSettings.value.copy(targetProfileUid = helper?.uid.orEmpty(), fallbackToAnotherProfile = false)
         mutableError.value = null
         mutableProgress.value = BenchmarkProgress(profile.name, "Validating profile", 0, benchmarkSuite(mode).size)
         job = viewModelScope.launch {
@@ -169,12 +192,11 @@ class ProfileBenchmarkViewModel @Inject constructor(
                 mutableError.value = safeMessage(error)
                 return@launch
             }
-            val config = delegationSettings.value
             val suite = benchmarkSuite(mode)
             var run = BenchmarkRun(
                 UUID.randomUUID().toString(), profile.uid, profile.name, profile.compatibleType.name,
                 profile.model, benchmarkConfigKey(profile, localEnvironment.value), profile.compatibleType == ClientType.LITERT_LM,
-                mode, System.currentTimeMillis(), finished = false,
+                mode, System.currentTimeMillis(), finished = false, suiteVersion = if (mode == BenchmarkMode.DELEGATION) 2 else 1,
                 device = "${Build.MANUFACTURER} ${Build.MODEL}", thermalBefore = thermal(), batteryBefore = battery(),
                 engineWasLoaded = profile.compatibleType == ClientType.LITERT_LM && runtime.loadedEngineSpec() != null,
                 delegationSettings = config.takeIf { mode == BenchmarkMode.DELEGATION }

@@ -19,6 +19,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
 
 fun delegationBenchmarkSuite(): List<BenchmarkCase> = listOf(
@@ -35,6 +36,8 @@ internal class DelegationBenchmarkRunner(
     private val openPrimary: suspend (List<ConversationTurn>, List<AgentTool>) -> AgentProviderSession,
     private val workerTokens: () -> Pair<Long, Long>,
     private val workerCalls: () -> Int,
+    private val workerConfigKey: String = benchmarkConfigKey(target),
+    private val telemetry: () -> WorkerBenchmarkTelemetry = { WorkerBenchmarkTelemetry() },
     private val now: () -> Long = { System.nanoTime() / 1_000_000 }
 ) {
     suspend fun run(test: BenchmarkCase): BenchmarkSample {
@@ -77,13 +80,16 @@ internal class DelegationBenchmarkRunner(
         val callsBefore = workerCalls()
         fun sample(outcome: BenchmarkOutcome, error: String? = null): BenchmarkSample {
             val after = workerTokens()
+            val timing = telemetry()
             return BenchmarkSample(
                 test.id, test.label, test.category, outcome, durationMs = (now() - started).coerceAtLeast(0),
                 outputCharacters = answer.length, preview = answer.take(1000), error = error,
                 delegation = DelegationBenchmarkMetrics(
                     target.uid, target.name, target.compatibleType.name, workerCalls() - callsBefore,
                     after.first - before.first, after.second - before.second, primaryInput, primaryOutput,
-                    searches, pages, rawBytes, handoffChars, fixtureCalls, successfulCalls, primaryEstimated
+                    searches, pages, rawBytes, handoffChars, fixtureCalls, successfulCalls, primaryEstimated,
+                    target.model, workerConfigKey, timing.estimated, timing.durationMs,
+                    timing.firstTextMs, timing.decodeTokensPerSecond, timing.outputCapViolations
                 )
             )
         }
@@ -106,7 +112,18 @@ internal class DelegationBenchmarkRunner(
                         val fixtures = listOf(
                             fixture("web_search", "Search the temporary parcel fixture.", "{\"results\":[{\"title\":\"Parcel fixture\",\"url\":\"https://example.org/parcel\",\"snippet\":\"Read the page for the parcel code.\"}]}"),
                             fixture("read_url", "Read the temporary parcel fixture.", "Parcel code is $code. This is synthetic benchmark evidence.")
-                        ).map { tool -> ResolvedAgentTool(tool, null, "Benchmark fixture", tool.definition.name, tool.definition.name, true) }
+                        ).map { fixture ->
+                            val tool = object : AgentTool {
+                                override val definition = fixture.definition
+                                override suspend fun execute(callId: String, arguments: JsonObject): AgentToolResult {
+                                    fixtureCalls++
+                                    val result = fixture.execute(callId, arguments)
+                                    if (!result.isError) successfulCalls++
+                                    return result
+                                }
+                            }
+                            ResolvedAgentTool(tool, null, "Benchmark fixture", tool.definition.name, tool.definition.name, true)
+                        }
                         val result = coordinator.prepare("Research https://example.org/parcel using the supplied tools and report the parcel code with its source URL.", fixtures, "benchmark-research")
                         searches = result.searches
                         pages = result.pagesRead
@@ -130,6 +147,8 @@ internal class DelegationBenchmarkRunner(
             return if (finished == true) sample(BenchmarkOutcome.PASSED) else sample(BenchmarkOutcome.TIMED_OUT, "Delegation benchmark exceeded its 180-second case limit.")
         } catch (cancelled: CancellationException) {
             throw cancelled
+        } catch (failure: IllegalStateException) {
+            return sample(BenchmarkOutcome.FAILED, DiagnosticRedactor.redact(failure.message ?: "Fixture validation failed").take(500))
         } catch (failure: Exception) {
             return sample(BenchmarkOutcome.ERROR, DiagnosticRedactor.redact(failure.message ?: "Delegation benchmark failed").take(500))
         }
@@ -151,7 +170,11 @@ internal class DelegationBenchmarkRunner(
                 put("required", buildJsonArray { add(JsonPrimitive(key)) })
             }
         )
-        override suspend fun execute(callId: String, arguments: JsonObject) =
-            AgentToolResult(callId, ToolResultContent.Text(response), false)
+        override suspend fun execute(callId: String, arguments: JsonObject): AgentToolResult {
+            val key = if (name == "read_url") "url" else "query"
+            val value = (arguments[key] as? JsonPrimitive)?.contentOrNull
+            val valid = if (name == "read_url") value == "https://example.org/parcel" else !value.isNullOrBlank()
+            return AgentToolResult(callId, ToolResultContent.Text(if (valid) response else "Invalid fixture $key"), !valid)
+        }
     }
 }
