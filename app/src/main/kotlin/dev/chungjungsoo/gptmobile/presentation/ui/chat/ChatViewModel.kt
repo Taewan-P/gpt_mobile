@@ -679,7 +679,7 @@ class ChatViewModel @Inject constructor(
                 bindings.any {
                     it.profileUid in localProfiles && it.toolName == dev.chungjungsoo.gptmobile.data.database.entity.BuiltInAgentTool.DEVICE_LOCATION
                 }
-            _availableChatTools.value = ChatToolUtils.buildAvailableChatTools(
+            val available = ChatToolUtils.buildAvailableChatTools(
                 connections.filter {
                     it.connectionUid in boundConnectionIds && (it.type != ToolConnectionType.MCP || features.remoteMcpConnections)
                 }
@@ -687,6 +687,28 @@ class ChatViewModel @Inject constructor(
                 AvailableChatTool("web_search", "Web search", "All enabled web search engines", "Multi-engine", remoteProfiles.isNotEmpty()),
                 AvailableChatTool("device_location", "Device location", "Phone GPS location", "Built-in", locationEnabled)
             )
+            _availableChatTools.value = available
+
+            // Free profiles may use every tool, but a new profile must explicitly
+            // acknowledge external MCP data sharing once per tool before it is active.
+            val freeProfiles = profiles.filter { it.compatibleType == dev.chungjungsoo.gptmobile.data.model.ClientType.FREE }
+            if (freeProfiles.isNotEmpty()) {
+                val lockedMcpIds = available
+                    .filter { tool ->
+                        tool.source == "MCP" && freeProfiles.any { profile ->
+                            !freeModelToolConsentStore.isGranted(profile.uid, tool.id)
+                        }
+                    }
+                    .mapTo(mutableSetOf()) { it.id }
+                if (lockedMcpIds.isNotEmpty()) {
+                    _chatToolConfig.update { config ->
+                        config.copy(
+                            disabledToolIds = config.disabledToolIds + lockedMcpIds,
+                            enabledToolIds = config.enabledToolIds - lockedMcpIds
+                        )
+                    }
+                }
+            }
         }
     }
 
