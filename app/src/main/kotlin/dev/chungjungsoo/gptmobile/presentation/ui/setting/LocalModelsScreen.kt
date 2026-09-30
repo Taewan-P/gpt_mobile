@@ -187,11 +187,15 @@ fun LocalModelsScreen(
                                         "MTP" -> item.entry.supportedAccelerators.any { accelerator ->
                                             accelerator.equals("mtp", true) || accelerator.contains("mediatek", true)
                                         }
-                                        else -> qnn || litert || item.entry.supportedAccelerators.any { accelerator ->
-                                            accelerator.equals("mtp", true) || accelerator.contains("mediatek", true)
-                                        }
+                                        else ->
+                                            qnn ||
+                                                litert ||
+                                                item.entry.supportedAccelerators.any { accelerator ->
+                                                    accelerator.equals("mtp", true) ||
+                                                        accelerator.contains("mediatek", true)
+                                                }
                                     }
-                                    )
+                                )
                         }.sortedWith(
                             compareByDescending<LocalModelListItem> {
                                 backend == dev.chungjungsoo.gptmobile.data.model.LocalRuntimeBackend.QUALCOMM_QNN && dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators.isNpuEligible(it.entry.supportedAccelerators, it.entry.socToModelFiles, runtimeViewModel.soc)
@@ -260,15 +264,32 @@ fun LocalModelsScreen(
                                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp)
                                 )
                             }
-                            items(uiState.items.filter { item ->
-                                when (selectedArchitecture) {
+                            items(
+                                items = uiState.items.filter { item ->
+                                    when (selectedArchitecture) {
                                     "QNN" -> qnnAvailable && dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators.isNpuEligible(item.entry.supportedAccelerators, item.entry.socToModelFiles, runtimeViewModel.soc)
                                     "LiteRT" -> item.entry.supportedAccelerators.any { it.equals("cpu", true) || it.equals("gpu", true) }
                                     "MTP" -> item.entry.supportedAccelerators.any { it.equals("mtp", true) || it.contains("mediatek", true) }
-                                    else -> item.entry.supportedAccelerators.any { it.equals("cpu", true) || it.equals("gpu", true) || it.equals("mtp", true) || it.contains("mediatek", true) } ||
-                                        (qnnAvailable && dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators.isNpuEligible(item.entry.supportedAccelerators, item.entry.socToModelFiles, runtimeViewModel.soc))
-                                }
-                            }, key = { it.entry.id }, contentType = { "model" }) { item ->
+                                        else ->
+                                            item.entry.supportedAccelerators.any {
+                                                it.equals("cpu", true) ||
+                                                    it.equals("gpu", true) ||
+                                                    it.equals("mtp", true) ||
+                                                    it.contains("mediatek", true)
+                                            } ||
+                                                (
+                                                    qnnAvailable &&
+                                                        dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators.isNpuEligible(
+                                                            item.entry.supportedAccelerators,
+                                                            item.entry.socToModelFiles,
+                                                            runtimeViewModel.soc
+                                                        )
+                                                )
+                                    }
+                                },
+                                key = { it.entry.id },
+                                contentType = { "model" }
+                            ) { item ->
                                 LocalModelItem(
                                     item = item,
                                     source = uiState.source,
@@ -621,12 +642,12 @@ private fun LocalModelItem(
                 Column(Modifier.weight(1f).padding(start = 12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                        text = item.entry.displayName,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f)
-                    )
+                            text = item.entry.displayName,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f)
+                        )
                         item.benchmarkScore?.let { score ->
                             Surface(
                                 shape = MaterialTheme.shapes.small,
