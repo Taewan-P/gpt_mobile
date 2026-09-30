@@ -51,7 +51,7 @@ class GitHubToolTest {
         assertTrue(result.isError)
         assertEquals("call-1", result.callId)
         val text = (result.content as ToolResultContent.Text).text
-        assertTrue(text.contains("Unknown action"))
+        assertTrue(text.contains("Unknown GitHub action"))
     }
 
     @Test
