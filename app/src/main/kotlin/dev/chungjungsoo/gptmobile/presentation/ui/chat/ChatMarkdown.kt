@@ -52,6 +52,9 @@ import com.mikepenz.markdown.compose.components.markdownComponents
 import com.mikepenz.markdown.compose.elements.MarkdownCodeBlock
 import com.mikepenz.markdown.compose.elements.MarkdownCodeFence
 import com.mikepenz.markdown.compose.elements.MarkdownParagraph
+import com.mikepenz.markdown.compose.elements.MarkdownTable
+import com.mikepenz.markdown.compose.elements.MarkdownTableHeader
+import com.mikepenz.markdown.compose.elements.MarkdownTableRow
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownTypography
 import com.mikepenz.markdown.model.MarkdownAnnotator
@@ -189,6 +192,44 @@ fun ChatMarkdown(
     }
     val components = remember(highlightsBuilder, copyCodeToClipboard, displayMathByPlaceholder, annotator) {
         markdownComponents(
+            table = { model ->
+                val settings = annotatorSettings(
+                    LocalMarkdownTypography.current.textLink,
+                    LocalMarkdownTypography.current.inlineCode.toSpanStyle(),
+                    annotator,
+                    LocalReferenceLinkHandler.current,
+                    LocalUriHandler.current,
+                    null
+                )
+                MarkdownTable(
+                    content = model.content,
+                    node = model.node,
+                    style = model.typography.table,
+                    annotatorSettings = settings,
+                    headerBlock = { tableContent, header, tableWidth, style ->
+                        MarkdownTableHeader(
+                            tableContent,
+                            header,
+                            tableWidth,
+                            style,
+                            maxLines = Int.MAX_VALUE,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Clip,
+                            annotatorSettings = settings
+                        )
+                    },
+                    rowBlock = { tableContent, row, tableWidth, style ->
+                        MarkdownTableRow(
+                            tableContent,
+                            row,
+                            tableWidth,
+                            style,
+                            maxLines = Int.MAX_VALUE,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Clip,
+                            annotatorSettings = settings
+                        )
+                    }
+                )
+            },
             codeBlock = {
                 MarkdownCodeBlock(it.content, it.node, it.typography.code) { code, language, style ->
                     val cleanLang = language?.trim()?.lowercase()
