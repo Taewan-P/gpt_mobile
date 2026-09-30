@@ -119,6 +119,7 @@ class CompleteBackupCryptoTest {
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(rawKey, "AES"), GCMParameterSpec(128, nonce))
             cipher.updateAAD(header)
+            cipher.updateAAD(ByteBuffer.allocate(4).putInt(index - 1).array())
             output.write(cipher.doFinal(bytes, offset, count))
             offset += count
         }
