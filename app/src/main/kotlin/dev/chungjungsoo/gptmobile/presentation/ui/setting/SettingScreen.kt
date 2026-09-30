@@ -288,7 +288,13 @@ fun SettingScreen(
                     BackupSelectionContent(backupUi, settingViewModel::updateBackupSection)
                     if (backupUi.requiresRecoveryKey) {
                         Text("Select the separate recovery key saved with this backup. No password is required.")
-                        Button(onClick = { recoveryKeyRestoreLauncher.launch(arrayOf("*/*")) }) {
+                        Button(onClick = {
+                            try {
+                                recoveryKeyRestoreLauncher.launch(arrayOf("*/*"))
+                            } catch (_: android.content.ActivityNotFoundException) {
+                                Toast.makeText(context, R.string.backup_picker_unavailable, Toast.LENGTH_LONG).show()
+                            }
+                        }) {
                             Text(if (backupUi.recoveryKeyUri == null) "Choose recovery key" else "Recovery key selected")
                         }
                     }

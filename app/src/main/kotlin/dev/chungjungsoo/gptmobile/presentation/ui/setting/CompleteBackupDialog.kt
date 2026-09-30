@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Backup
@@ -19,7 +20,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -32,6 +35,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import dev.chungjungsoo.gptmobile.R
@@ -68,7 +73,7 @@ fun CompleteBackupDialog(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.Lock, null, tint = MaterialTheme.colorScheme.primary)
                     Text(
-                        "Backups use authenticated encryption. Save a separate recovery key to restore after reinstall or on another device. Keep that key private.",
+                        if (state.passwordProtectionEnabled) "Your password is saved securely in the app and included inside the encrypted backup. Use it to restore after reinstall or on another device." else "Encryption is off. The backup includes readable app data and your saved password. Enable encryption to protect it.",
                         modifier = Modifier.padding(start = 10.dp),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -88,11 +93,11 @@ fun CompleteBackupDialog(
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Button(
                             onClick = { pendingAction = BackupAction.BACKUP },
-                            enabled = !state.isBusy,
+                            enabled = state.canBackup,
                             modifier = Modifier.fillMaxWidth().testTag("backup_all")
                         ) {
                             Icon(Icons.Outlined.Backup, null)
-                            Text("Choose backup contents", Modifier.padding(start = 8.dp))
+                            Text("Backup", Modifier.padding(start = 8.dp))
                         }
                         OutlinedButton(
                             onClick = onRestore,
@@ -100,9 +105,33 @@ fun CompleteBackupDialog(
                             modifier = Modifier.fillMaxWidth().testTag("restore_all")
                         ) {
                             Icon(Icons.Outlined.Restore, null)
-                            Text("Choose backup file", Modifier.padding(start = 8.dp))
+                            Text("Restore", Modifier.padding(start = 8.dp))
                         }
                     }
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.Lock, null, tint = MaterialTheme.colorScheme.primary)
+                    Text("Encrypt backup", Modifier.weight(1f).padding(start = 10.dp))
+                    Switch(
+                        checked = state.passwordProtectionEnabled,
+                        onCheckedChange = onPasswordProtectionChange,
+                        enabled = !state.isBusy,
+                        modifier = Modifier.testTag("backup_encrypt")
+                    )
+                }
+                if (state.passwordProtectionEnabled) {
+                    OutlinedTextField(
+                        value = state.backupPassword,
+                        onValueChange = onPasswordChange,
+                        label = { Text("Password") },
+                        supportingText = { Text("Saved automatically. Use at least 8 characters.") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        singleLine = true,
+                        enabled = !state.isBusy,
+                        modifier = Modifier.fillMaxWidth().testTag("backup_password")
+                    )
                 }
 
                 if (state.isWorking) {
@@ -156,11 +185,13 @@ private fun BackupSelectionDialog(
         },
         title = { Text(if (action == BackupAction.BACKUP) "Backup contents" else "Restore contents") },
         text = {
-            BackupSelectionContent(state, onSectionChange)
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                BackupSelectionContent(state, onSectionChange)
+            }
         },
         confirmButton = {
             Button(onClick = onContinue, enabled = state.selection.sections.isNotEmpty()) {
-                Text(if (action == BackupAction.BACKUP) "Continue to backup" else "Choose backup file")
+                Text(if (action == BackupAction.BACKUP) "Backup" else "Restore")
             }
         },
         dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) } }
@@ -198,7 +229,6 @@ internal fun BackupSelectionContent(
 ) {
     val allSelected = state.selection.sections.containsAll(CompleteBackupSection.entries)
     Column(
-        modifier = Modifier.verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

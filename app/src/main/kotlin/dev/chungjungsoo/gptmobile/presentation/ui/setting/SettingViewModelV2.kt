@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.chungjungsoo.gptmobile.data.backup.BackupProtection
 import dev.chungjungsoo.gptmobile.data.backup.BackupRestoreResult
 import dev.chungjungsoo.gptmobile.data.backup.BackupStatus
 import dev.chungjungsoo.gptmobile.data.backup.CompleteBackupManager
@@ -31,6 +32,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 @HiltViewModel
 class SettingViewModelV2 @Inject constructor(
@@ -60,6 +63,7 @@ class SettingViewModelV2 @Inject constructor(
     private val _backupStatus = MutableStateFlow(completeBackupManager.getBackupStatus())
     val backupStatus: StateFlow<BackupStatus> = _backupStatus.asStateFlow()
 
+    private val backupProtectionMutex = Mutex()
     private val _backupUi = MutableStateFlow(BackupUiState(selection = completeBackupManager.savedSelection()))
     val backupUi: StateFlow<BackupUiState> = _backupUi.asStateFlow()
 
@@ -241,11 +245,47 @@ class SettingViewModelV2 @Inject constructor(
     fun openBackupRestoreDialog() {
         refreshBackupStatus()
         _dialogState.update { it.copy(isBackupRestoreDialogOpen = true) }
+        _backupUi.update { it.copy(isBusy = true) }
+        viewModelScope.launch {
+            try {
+                backupProtectionMutex.withLock { loadBackupProtection() }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                _backupUi.update { it.copy(message = "Could not load saved backup password. Enter it again.", isError = true) }
+            } finally {
+                _backupUi.update { it.copy(isBusy = false) }
+            }
+        }
+    }
+
+    private suspend fun loadBackupProtection() {
+        val protection = completeBackupManager.savedProtection()
+        _backupUi.update { it.copy(passwordProtectionEnabled = protection.enabled, backupPassword = protection.password) }
+    }
+
+    private suspend fun saveBackupProtection() {
+        val state = _backupUi.value
+        completeBackupManager.saveProtection(BackupProtection(state.passwordProtectionEnabled, state.backupPassword))
+    }
+
+    private fun persistBackupProtection() {
+        viewModelScope.launch {
+            try {
+                backupProtectionMutex.withLock { saveBackupProtection() }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                _backupUi.update { it.copy(message = "Could not save backup password. Please try again.", isError = true) }
+            }
+        }
     }
 
     fun closeBackupRestoreDialog() {
         if (_backupUi.value.isBusy) return
-        _backupUi.value = BackupUiState(selection = completeBackupManager.savedSelection())
+        _backupUi.update {
+            BackupUiState(selection = completeBackupManager.savedSelection(), passwordProtectionEnabled = it.passwordProtectionEnabled, backupPassword = it.backupPassword)
+        }
         _dialogState.update { it.copy(isBackupRestoreDialogOpen = false) }
     }
 
@@ -256,22 +296,16 @@ class SettingViewModelV2 @Inject constructor(
     }
 
     fun updateBackupPasswordProtection(enabled: Boolean) {
-        if (!_backupUi.value.isWorking) {
-            _backupUi.update {
-                it.copy(
-                    passwordProtectionEnabled = enabled,
-                    selection = it.selection,
-                    backupPassword = if (enabled) it.backupPassword else "",
-                    message = null,
-                    isError = false
-                )
-            }
+        if (!_backupUi.value.isBusy) {
+            _backupUi.update { it.copy(passwordProtectionEnabled = enabled, message = null, isError = false) }
+            persistBackupProtection()
         }
     }
 
     fun updateBackupPassword(value: String) {
-        if (!_backupUi.value.isWorking) {
+        if (!_backupUi.value.isBusy) {
             _backupUi.update { it.copy(backupPassword = value, message = null, isError = false) }
+            persistBackupProtection()
         }
     }
 
@@ -310,6 +344,10 @@ class SettingViewModelV2 @Inject constructor(
     fun prepareBackupPicker(restoring: Boolean): Boolean {
         val state = _backupUi.value
         if (state.isBusy || state.isWorking) return false
+        if (!restoring && !state.canBackup) {
+            _backupUi.update { it.copy(message = "Select backup contents and use a password with at least 8 characters when encryption is on.", isError = true) }
+            return false
+        }
         _backupUi.update {
             it.copy(
                 isBusy = true,
@@ -353,11 +391,15 @@ class SettingViewModelV2 @Inject constructor(
             _backupUi.update { it.copy(isBusy = false, message = "Use a backup password with at least 8 characters.", isError = true) }
             return
         }
-        if (!state.passwordProtectionEnabled) {
-            _backupUi.update { it.copy(backupUri = uri) }
-            return
+        runBackupOperation {
+            backupProtectionMutex.withLock { saveBackupProtection() }
+            completeBackupManager.backup(
+                uri,
+                state.selection,
+                state.backupPassword.takeIf { state.passwordProtectionEnabled },
+                encrypt = state.passwordProtectionEnabled
+            )
         }
-        runBackupOperation { completeBackupManager.backup(uri, state.selection, state.backupPassword) }
     }
 
     fun backupRecoveryKeySelected(uri: Uri?) {
@@ -392,6 +434,7 @@ class SettingViewModelV2 @Inject constructor(
                         isBusy = false,
                         restoreUri = uri,
                         requiresLegacyPassword = requiresPassword,
+                        legacyPassword = if (requiresPassword) it.backupPassword else "",
                         requiresRecoveryKey = requiresKey,
                         message = null,
                         isError = false
@@ -423,7 +466,9 @@ class SettingViewModelV2 @Inject constructor(
         _backupUi.update { it.copy(restoreUri = null, isBusy = true) }
         runBackupOperation {
             val password = state.legacyPassword.takeIf(String::isNotBlank)
-            completeBackupManager.restore(uri, password, state.selection, state.recoveryKeyUri)
+            val result = completeBackupManager.restore(uri, password, state.selection, state.recoveryKeyUri)
+            if (result.success) backupProtectionMutex.withLock { loadBackupProtection() }
+            result
         }
     }
 
