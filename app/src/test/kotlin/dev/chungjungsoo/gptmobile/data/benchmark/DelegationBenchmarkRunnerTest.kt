@@ -60,6 +60,8 @@ class DelegationBenchmarkRunnerTest {
         assertEquals(1, result.delegation!!.pagesRead)
         assertEquals(100L, result.delegation!!.primaryInputTokens)
         assertEquals(20L, result.delegation!!.primaryOutputTokens)
+        assertEquals(1, result.delegation!!.fixtureCalls)
+        assertEquals(1, result.delegation!!.successfulFixtureCalls)
     }
 
     @Test fun `tool test uses an isolated random fixture and detects invalid arguments`() = runTest {
@@ -79,7 +81,7 @@ class DelegationBenchmarkRunnerTest {
                 workerCalls = { 0 }
             )
             val result = runner.run(delegationBenchmarkSuite()[1])
-            assertEquals(if (valid) BenchmarkOutcome.PASSED else BenchmarkOutcome.ERROR, result.outcome)
+            assertEquals(if (valid) BenchmarkOutcome.PASSED else BenchmarkOutcome.FAILED, result.outcome)
             assertEquals(1, result.delegation!!.fixtureCalls)
             assertEquals(if (valid) 1 else 0, result.delegation!!.successfulFixtureCalls)
         }

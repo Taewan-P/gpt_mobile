@@ -15,6 +15,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -351,5 +352,27 @@ class LocalDelegationCoordinatorTest {
         assertEquals("usable fallback answer", coordinator.executeTask(target, "Read a page", 256))
         assertEquals(1, failedCalls)
         assertFalse(coordinator.researchAvailable())
+    }
+
+    @Test fun `Google missing identity quarantines worker immediately`() = runTest {
+        var calls = 0
+        val coordinator = LocalDelegationCoordinator(source, { config.copy(researchEnabled = false) }, { listOf(target) }, { _, _, _ ->
+            calls++
+            error("Method doesn't allow unregistered callers. Please use API Key.")
+        })
+        coordinator.executeTask(target, "first", 256)
+        coordinator.executeTask(target, "second", 256)
+        assertEquals(1, calls)
+    }
+
+    @Test fun `pinned unavailable worker never substitutes another provider`() = runTest {
+        var calls = 0
+        val fallback = target.copy(uid = "other")
+        val coordinator = LocalDelegationCoordinator(source, { config.copy(fallbackToAnotherProfile = false) }, { listOf(fallback) }, { _, _, _ ->
+            calls++
+            "wrong provider"
+        })
+        assertNull(coordinator.executeTask(target, "task", 256))
+        assertEquals(0, calls)
     }
 }

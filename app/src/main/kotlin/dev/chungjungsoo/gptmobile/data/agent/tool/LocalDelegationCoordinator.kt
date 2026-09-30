@@ -421,7 +421,9 @@ internal class LocalDelegationCoordinator(
                     message.contains("HTTP 403", ignoreCase = true) ||
                     message.contains("unauthorized", ignoreCase = true) ||
                     message.contains("forbidden", ignoreCase = true) ||
-                    message.contains("denied access", ignoreCase = true)
+                    message.contains("denied access", ignoreCase = true) ||
+                    message.contains("unregistered callers", ignoreCase = true) ||
+                    message.contains("API key not valid", ignoreCase = true)
                 val permanentlyUnavailable = message.contains("HTTP 404", ignoreCase = true) ||
                     message.contains("HTTP 410", ignoreCase = true) ||
                     message.contains("model not found", ignoreCase = true) ||

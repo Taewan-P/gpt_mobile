@@ -44,6 +44,26 @@ class BenchmarkRunner(
     private val timeoutMs: Long = 90_000
 ) {
     suspend fun run(test: BenchmarkCase, supportsTools: Boolean): BenchmarkSample {
+        val first = runOnce(test, supportsTools, timeoutMs)
+        val remaining = timeoutMs - first.durationMs
+        val transient = first.error.orEmpty().lowercase().let { message ->
+            listOf("connection abort", "connection reset", "broken pipe", "unexpected end of stream").any { it in message }
+        }
+        if (first.outcome != BenchmarkOutcome.ERROR || !transient || first.outputCharacters > 0 || first.outputTokens > 0 || first.toolCalls > 0 || remaining <= 0) return first
+        // One new session, within the original deadline, only before any text/tool activity.
+        val retry = runOnce(test, supportsTools, remaining)
+        return retry.copy(
+            durationMs = first.durationMs + retry.durationMs,
+            firstTextMs = retry.firstTextMs?.plus(first.durationMs),
+            lastTextMs = retry.lastTextMs?.plus(first.durationMs),
+            inputTokens = first.inputTokens + retry.inputTokens,
+            outputTokens = first.outputTokens + retry.outputTokens,
+            estimatedTokens = first.estimatedTokens || retry.estimatedTokens,
+            reconnectAttempts = 1
+        )
+    }
+
+    private suspend fun runOnce(test: BenchmarkCase, supportsTools: Boolean, limitMs: Long): BenchmarkSample {
         if (test.category == "tools" && !supportsTools) {
             return BenchmarkSample(test.id, test.label, test.category, BenchmarkOutcome.UNSUPPORTED, error = "This model does not advertise tool support; excluded from the rating.")
         }
@@ -73,7 +93,7 @@ class BenchmarkRunner(
             text.take(1000).toString(), error, lastChunk?.let { it - started }, nativeMetrics, inputTokens + if (roundAccounted) 0 else roundInputTokens
         )
         try {
-            val finished = withTimeoutOrNull(timeoutMs) {
+            val finished = withTimeoutOrNull(limitMs) {
                 val turns = buildList {
                     if (test.id == "context") add(ConversationTurn(message("Remember this parcel code: ORCHID-742."), message("I will remember ORCHID-742."), false))
                     add(ConversationTurn(message(test.prompt), null, true))
@@ -151,7 +171,7 @@ class BenchmarkRunner(
                 check(text.isNotBlank()) { "Provider returned no answer" }
                 true
             }
-            if (finished != true) return sample(BenchmarkOutcome.TIMED_OUT, "Exceeded ${timeoutMs / 1000}s per-test limit")
+            if (finished != true) return sample(BenchmarkOutcome.TIMED_OUT, "Exceeded ${limitMs / 1000}s remaining per-test limit")
             val answer = text.toString().trim()
             val passed = when (test.category) {
                 "speed" -> answer.length >= 100

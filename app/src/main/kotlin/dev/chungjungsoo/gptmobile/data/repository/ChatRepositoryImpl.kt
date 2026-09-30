@@ -230,6 +230,10 @@ class ChatRepositoryImpl(
     )
 
     override suspend fun validateBenchmarkProfile(platform: PlatformV2) {
+        check(platform.model.isNotBlank()) { "Choose a model in ${platform.name} first." }
+        if (platform.compatibleType in setOf(ClientType.OPENAI, ClientType.GOOGLE, ClientType.ANTHROPIC, ClientType.GROQ, ClientType.OPENROUTER, ClientType.NVIDIA)) {
+            check(!platform.token.isNullOrBlank()) { "${platform.name} needs an API key. Add one to its provider connection before benchmarking." }
+        }
         if (platform.compatibleType != ClientType.LITERT_LM) return
         val selected = localModelRepository.resolveLocalModelSelection(platform.model, platform.accelerator)
         val entry = modelCatalogRepository.getCachedVisibleEntries().firstOrNull { it.id == selected.modelId }
@@ -293,7 +297,7 @@ class ChatRepositoryImpl(
         runId: String,
         settings: dev.chungjungsoo.gptmobile.data.model.ModelDelegationSettings
     ): dev.chungjungsoo.gptmobile.data.benchmark.BenchmarkSample {
-        val config = settings.normalized()
+        val config = settings.normalized().copy(fallbackToAnotherProfile = false)
         check(config.enabled) { "Enable delegation before benchmarking its settings." }
         val profiles = settingRepository.fetchPlatformV2s()
         val eligible = profiles.filter {
@@ -303,39 +307,84 @@ class ChatRepositoryImpl(
                 (config.allowRemoteWorkers || it.isPrivateDestination()) &&
                 !(platform.compatibleType == ClientType.LITERT_LM && it.compatibleType == ClientType.LITERT_LM)
         }
-        val target = eligible.firstOrNull { it.uid == config.targetProfileUid } ?: eligible.firstOrNull()
-            ?: error("No eligible helper is configured for this primary profile.")
+        val target = eligible.firstOrNull { it.uid == config.targetProfileUid }
+            ?: error("The selected delegate is unavailable or ineligible. Choose an enabled helper; benchmarks never switch to another profile.")
         validateBenchmarkProfile(target)
         var calls = 0
         var input = 0L
         var output = 0L
+        var workerMs = 0L
+        var estimated = false
+        val firstText = mutableListOf<Long>()
+        val decodeSpeeds = mutableListOf<Double>()
+        var capViolations = 0
+        val features = settingRepository.getFeatureSettings()
+        val workerEnvironment = "${settingRepository.getLocalRuntimeBackend()}|${features.localCpuThreads}|${features.localModelCache}|${features.qnnAutomaticFallback}|" +
+            "${features.localSpeculativeDecoding}|${features.localNativeMetrics}|${dev.chungjungsoo.gptmobile.BuildConfig.LITERT_LM_VERSION}"
+        val pinnedProfiles = listOf(platform, target)
         val runner = dev.chungjungsoo.gptmobile.data.benchmark.DelegationBenchmarkRunner(
             createCoordinator = { fixtures ->
                 suspend fun generate(targetProfile: PlatformV2, task: String, cap: Int, inputCap: Int, progress: (DelegateProgress) -> Unit, allowTools: Boolean): String {
                     calls++
                     var roundInput = 0L
                     var roundOutput = 0L
+                    var roundChars = 0
+                    var roundStarted = System.nanoTime() / 1_000_000
+                    var first: Long? = null
+                    var last: Long? = null
+                    var chunks = 0
+                    var sawInput = false
+                    var sawOutput = false
+                    fun finishRound() {
+                        workerMs += (System.nanoTime() / 1_000_000 - roundStarted).coerceAtLeast(0)
+                        first?.let { firstText.add((it - roundStarted).coerceAtLeast(0)) }
+                        if (chunks > 1 && first != null && last != null && last!! > first!!) {
+                            decodeSpeeds.add((roundChars + 3) / 4 * 1000.0 / (last!! - first!!))
+                        }
+                        if (!sawInput || !sawOutput) estimated = true
+                        input += if (sawInput) roundInput else dev.chungjungsoo.gptmobile.data.context.ContextBudgetService.estimate(task).toLong()
+                        output += if (sawOutput) roundOutput else ((roundChars + 3) / 4).toLong()
+                        if (roundOutput > cap) capViolations++
+                    }
+                    var requestStarted = false
                     try {
                         return delegateToProfile(targetProfile, task, cap, runId, runId, inputCap, { event ->
                             if (event.kind == DelegateProgressKind.REQUEST_STARTED) {
-                                input += roundInput
-                                output += roundOutput
+                                if (requestStarted) {
+                                    finishRound()
+                                    roundStarted = System.nanoTime() / 1_000_000
+                                }
+                                requestStarted = true
                                 roundInput = 0
                                 roundOutput = 0
+                                roundChars = 0
+                                first = null
+                                last = null
+                                chunks = 0
+                                sawInput = false
+                                sawOutput = false
+                            }
+                            if (event.inputTokens != null) sawInput = true
+                            if (event.outputTokens != null) sawOutput = true
+                            event.textDelta?.takeIf { it.isNotEmpty() }?.let { delta ->
+                                val time = System.nanoTime() / 1_000_000
+                                if (first == null) first = time
+                                last = time
+                                chunks++
+                                roundChars += delta.length
                             }
                             event.inputTokens?.let { roundInput = maxOf(roundInput, it) }
                             event.outputTokens?.let { roundOutput = maxOf(roundOutput, it) }
                             progress(event)
                         }, allowTools = allowTools, fixtureTools = fixtures)
                     } finally {
-                        input += roundInput
-                        output += roundOutput
+                        finishRound()
                     }
                 }
                 LocalDelegationCoordinator(
                     platform,
                     settings = { config },
-                    profiles = { profiles },
+                    profiles = { pinnedProfiles },
                     generate = { helper, task, cap -> generate(helper, task, cap, config.effectiveLocalInputTokens(), {}, true) },
                     generateWithProgress = { helper, task, cap, inputCap, progress -> generate(helper, task, cap, inputCap, progress, true) },
                     generateTextWithProgress = { helper, task, cap, inputCap, progress -> generate(helper, task, cap, inputCap, progress, false) },
@@ -349,7 +398,17 @@ class ChatRepositoryImpl(
             config = config,
             openPrimary = { turns, tools -> openBenchmarkSession(platform, turns, tools, "$runId-primary") },
             workerTokens = { input to output },
-            workerCalls = { calls }
+            workerCalls = { calls },
+            workerConfigKey = dev.chungjungsoo.gptmobile.data.benchmark.benchmarkConfigKey(target, workerEnvironment),
+            telemetry = {
+                dev.chungjungsoo.gptmobile.data.benchmark.WorkerBenchmarkTelemetry(
+                    workerMs,
+                    firstText.sorted().let { it.getOrNull((it.size - 1).coerceAtLeast(0) / 2) },
+                    decodeSpeeds.sorted().let { it.getOrNull((it.size - 1).coerceAtLeast(0) / 2) },
+                    estimated,
+                    capViolations
+                )
+            }
         )
         return runner.run(test)
     }
@@ -532,7 +591,8 @@ class ChatRepositoryImpl(
             settingRepository.getFeatureSettings().tokenBudget.normalized().totalRunTokens,
             profileUid = target.uid
         ) ?: session
-        val childRunner = agentRunnerForPlatform(bounded, runOverride = maxOf(1, target.maxToolCalls))
+        val childLimits = agentRunnerForPlatform(bounded, runOverride = target.maxToolCalls.coerceIn(1, 4)).limits
+        val childRunner = dev.chungjungsoo.gptmobile.data.agent.AgentRunner(childLimits.copy(maxRounds = 3))
         val startedAtMs = System.currentTimeMillis()
         var providerFailure: String? = null
         var configuredProviderOutputCap: Int? = target.maxTokens
@@ -541,6 +601,10 @@ class ChatRepositoryImpl(
         var usageInputTokens = 0L
         var usageOutputTokens = 0L
         var usageTotalTokens = 0L
+        var roundUsageInput = 0L
+        var roundUsageOutput = 0L
+        var roundUsageTotal = 0L
+        var maxRoundOutput = 0L
         var reasoningChars = 0
         var sawUsage = false
         var extractionFailed = false
@@ -556,6 +620,9 @@ class ChatRepositoryImpl(
             when (event) {
                 is AgentRunEvent.Provider -> when (val provider = event.event) {
                     is ProviderEvent.RequestConfigured -> {
+                        roundUsageInput = 0
+                        roundUsageOutput = 0
+                        roundUsageTotal = 0
                         onProgress(DelegateProgress(DelegateProgressKind.REQUEST_STARTED))
                         configuredProviderOutputCap = provider.configuredProfileOutputTokens
                         providerRequestedOutputCap = provider.requestedOutputTokens
@@ -588,11 +655,24 @@ class ChatRepositoryImpl(
                         )
                     }
                     is ProviderEvent.Usage -> {
-                        provider.inputTokens?.let { usageInputTokens = if (provider.cumulative) maxOf(usageInputTokens, it.toLong()) else usageInputTokens + it }
-                        provider.outputTokens?.let { usageOutputTokens = if (provider.cumulative) maxOf(usageOutputTokens, it.toLong()) else usageOutputTokens + it }
-                        provider.totalTokens?.let { usageTotalTokens = if (provider.cumulative) maxOf(usageTotalTokens, it.toLong()) else usageTotalTokens + it }
+                        provider.inputTokens?.let {
+                            val next = if (provider.cumulative) maxOf(roundUsageInput, it.toLong()) else roundUsageInput + it
+                            usageInputTokens += next - roundUsageInput
+                            roundUsageInput = next
+                        }
+                        provider.outputTokens?.let {
+                            val next = if (provider.cumulative) maxOf(roundUsageOutput, it.toLong()) else roundUsageOutput + it
+                            usageOutputTokens += next - roundUsageOutput
+                            roundUsageOutput = next
+                            maxRoundOutput = maxOf(maxRoundOutput, next)
+                        }
+                        provider.totalTokens?.let {
+                            val next = if (provider.cumulative) maxOf(roundUsageTotal, it.toLong()) else roundUsageTotal + it
+                            usageTotalTokens += next - roundUsageTotal
+                            roundUsageTotal = next
+                        }
                         sawUsage = true
-                        onProgress(DelegateProgress(DelegateProgressKind.USAGE, provider.inputTokens?.toLong(), provider.outputTokens?.toLong(), provider.totalTokens?.toLong()))
+                        onProgress(DelegateProgress(DelegateProgressKind.USAGE, roundUsageInput.takeIf { provider.inputTokens != null }, roundUsageOutput.takeIf { provider.outputTokens != null }, roundUsageTotal.takeIf { provider.totalTokens != null }))
                     }
                     else -> Unit
                 }
@@ -617,12 +697,12 @@ class ChatRepositoryImpl(
         val directUsableChars = rawText.trim().takeIf { it.length >= MIN_DELEGATED_USEFUL_CHARS && '\u0000' !in it }?.length ?: 0
         val recoveredToolChars = if (directUsableChars == 0) usableText?.length ?: 0 else 0
         val effectiveCap = effectiveProviderOutputCap ?: constraints.outputLimit(target.maxTokens)
-        val outputCapMismatch = sawUsage && effectiveCap != null && usageOutputTokens > effectiveCap
+        val outputCapMismatch = sawUsage && effectiveCap != null && maxRoundOutput > effectiveCap
 
         if (outputCapMismatch) {
             AppLogRecorder.record(
                 "Delegation",
-                "DELEGATION_OUTPUT_CAP_NOT_ENFORCED · parentRun=$parentRunId · target=${target.uid} · configuredProfileCap=$configuredProviderOutputCap · calculatedDelegationCap=$providerRequestedOutputCap · effectiveProviderCap=$effectiveCap · generatedOutputTokens=$usageOutputTokens",
+                "DELEGATION_OUTPUT_CAP_NOT_ENFORCED · parentRun=$parentRunId · target=${target.uid} · configuredProfileCap=$configuredProviderOutputCap · calculatedDelegationCap=$providerRequestedOutputCap · effectiveProviderCap=$effectiveCap · generatedOutputTokens=$maxRoundOutput · aggregateOutputTokens=$usageOutputTokens",
                 "W"
             )
         }
