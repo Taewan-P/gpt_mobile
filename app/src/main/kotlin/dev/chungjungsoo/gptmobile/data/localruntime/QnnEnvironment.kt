@@ -11,8 +11,11 @@ import java.util.zip.ZipFile
 object QnnEnvironment {
     private const val TAG = "QnnEnvironment"
 
-    @Volatile private var lastProbeStatus: QnnProbeStatus? = null
-    @Volatile private var lastProbeKey: String? = null
+    @Volatile
+    private var lastProbeStatus: QnnProbeStatus? = null
+
+    @Volatile
+    private var lastProbeKey: String? = null
 
     data class QnnProbeStatus(
         val isQualcommDevice: Boolean,
