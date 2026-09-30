@@ -242,6 +242,7 @@ internal fun localModelsViewModel(
 ) = LocalModelsViewModel(
     modelCatalogRepository = catalog,
     localModelRepository = localModels,
+    benchmarkStore = io.mockk.mockk(relaxed = true),
     gatedDownloadCoordinator = gatedCoordinator,
     huggingFaceTokenStore = tokenStore,
     downloadGuards = guards,
