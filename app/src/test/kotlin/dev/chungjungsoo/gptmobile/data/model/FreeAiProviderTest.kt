@@ -27,7 +27,7 @@ class FreeAiProviderTest {
         val profile = PlatformV2(name = "My profile", model = "paid", token = "secret", secretRef = "vault", maxTokens = 9000, batchMode = true)
         val free = FreeAiProvider.KILO.applyTo(profile)
         assertEquals(profile.uid, free.uid)
-        assertEquals("Free Models", free.name)
+        assertEquals("My profile", free.name)
         assertEquals(FreeAiProvider.KILO.model, free.model)
         assertEquals(2048, free.maxTokens)
         assertNull(free.token)
