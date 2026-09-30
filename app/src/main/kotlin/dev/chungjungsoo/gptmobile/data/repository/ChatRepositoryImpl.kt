@@ -440,7 +440,9 @@ class ChatRepositoryImpl(
     internal suspend fun resolveDelegatedTools(target: PlatformV2, parentRunId: String, chatToolConfig: ChatMcpToolConfig): List<AgentTool> {
         if (target.disableAllTools || chatToolConfig.allToolsDisabled) return emptyList()
         val invocation = "delegate:${UUID.randomUUID()}"
-        val budget = ToolExecutionBudget(agentRunnerForPlatform(target, runOverride = maxOf(1, target.maxToolCalls)).limits)
+        val budget = ToolExecutionBudget(
+            agentRunnerForPlatform(target, runOverride = minOf(target.maxToolCalls, chatToolConfig.maxToolCalls ?: Int.MAX_VALUE).coerceAtLeast(0)).limits
+        )
         return agentToolResolver.resolve(target.uid, chatToolConfig, userMessage = null, delegate = null)
             .sortedWith(compareBy<ResolvedAgentTool> { delegatedToolPriority(it) }.thenBy { it.modelToolName })
             .map { resolved ->

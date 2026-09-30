@@ -92,7 +92,7 @@ class ChatRepositoryImplTest {
 
     @Test
     fun `helpers honor conversation options and approvals with distinct action identities`() = runBlocking {
-        val config = dev.chungjungsoo.gptmobile.data.model.ChatMcpToolConfig().withToolDisabled("other")
+        val config = dev.chungjungsoo.gptmobile.data.model.ChatMcpToolConfig(maxToolCalls = 1).withToolDisabled("other")
         val resolver = mockk<AgentToolResolver>()
         var executions = 0
         val tool = object : AgentTool {
@@ -115,9 +115,11 @@ class ChatRepositoryImplTest {
         assertEquals(0, executions)
         coEvery { approvals.authorize("work", "parent", capture(ids), "github", any()) } returns true
         repeat(2) {
-            val result = repository.resolveDelegatedTools(customPlatform(), "parent", config).single().execute("same-call", JsonObject(emptyMap()))
+            val bound = repository.resolveDelegatedTools(customPlatform(), "parent", config).single()
+            val result = bound.execute("same-call", JsonObject(emptyMap()))
             assertFalse(result.isError)
             assertEquals("same-call", result.callId)
+            assertTrue(bound.execute("over-budget", JsonObject(emptyMap())).isError)
         }
         assertEquals(2, executions)
         assertEquals(3, ids.distinct().size)
