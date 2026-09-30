@@ -4,7 +4,7 @@ This records the implementation of the requested release features. Host regressi
 
 | Request | Implementation / verification |
 | --- | --- |
-| 1 | Free MCP discovery and runtime eligibility in AgentToolResolver; exact profile/tool consent in FreeModelToolConsentStore and ChatViewModel; themed lock/slider dialog. Runtime regression tests cover grants and disabled tools. |
+| 1 | Free MCP discovery and runtime eligibility in AgentToolResolver; exact profile/tool consent in FreeModelToolConsentStore and ChatViewModel; themed lock/slider dialog. Runtime regression tests cover grants and disabled tools. Explicit memory tools honor memory/cloud-recall preferences; automatic private memory injection remains excluded for free destinations. |
 | 2 | ChatMarkdown table cells use unlimited lines and clipping rather than ellipsis; MarkdownTable provides horizontal scrolling and cell padding. |
 | 3, 24 | ToolPermissionDialogs uses themed cards, MCP icon and allow-all-provider checkbox, backed by ToolApprovalManager. |
 | 4 | FreeAiProvider preserves custom names and defaults to provider display names; profile settings permit renaming. Name regression tests. |

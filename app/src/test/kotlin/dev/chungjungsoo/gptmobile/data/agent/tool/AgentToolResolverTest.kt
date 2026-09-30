@@ -73,7 +73,7 @@ class AgentToolResolverTest {
     }
 
     @Test
-    fun `Free profiles retain tools while excluding automatic private memory`() = runBlocking {
+    fun `Free profiles retain explicit tools including enabled local memory`() = runBlocking {
         val profile = FreeAiProvider.KILO.applyTo(PlatformV2(uid = "profile-1", name = "Free", compatibleType = ClientType.FREE))
         val dao = ResolverFakeToolConnectionDao()
         dao.bind(null, binding(profile.uid, null, BuiltInAgentTool.DEVICE_LOCATION))
@@ -86,7 +86,8 @@ class AgentToolResolverTest {
             userMessage = dev.chungjungsoo.gptmobile.data.database.entity.MessageV2(content = "Remember that I prefer Kotlin", platformType = null),
             delegate = { _, _, _ -> error("Free profiles must not delegate") }
         )
-        assertEquals(listOf("calculate_expression", "current_date", "device_location", "github", "read_file_slice", "read_url", "web_search"), resolved.map { it.modelToolName })
+        assertTrue(resolved.map { it.modelToolName }.containsAll(listOf("calculate_expression", "current_date", "device_location", "github", "read_file_slice", "read_url", "web_search")))
+        assertTrue(resolved.any { it.modelToolName.startsWith("memory_") })
     }
 
     @Test

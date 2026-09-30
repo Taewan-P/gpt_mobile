@@ -13,7 +13,6 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ToolConnectionAuthType
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolConnectionType
 import dev.chungjungsoo.gptmobile.data.model.ChatMcpToolConfig
 import dev.chungjungsoo.gptmobile.data.model.ClientType
-import dev.chungjungsoo.gptmobile.data.model.excludesMemory
 import dev.chungjungsoo.gptmobile.data.model.isPrivateDestination
 import dev.chungjungsoo.gptmobile.data.network.NetworkClient
 import dev.chungjungsoo.gptmobile.data.rag.FactVaultRepository
@@ -86,7 +85,6 @@ class AgentToolResolver @Inject constructor(
         }
 
         val freeProfile = platform?.compatibleType == ClientType.FREE
-        val memoryExcluded = platform?.excludesMemory() == true
         val disableRemote = platform?.disableRemoteTools == true
         val disableLocal = platform?.disableLocalTools == true
         val featureSettings = settingRepository.getFeatureSettings()
@@ -112,7 +110,7 @@ class AgentToolResolver @Inject constructor(
                 val tool = ModelDelegationTool(platform, { settingRepository.getFeatureSettings().delegation }, { settingRepository.fetchPlatformV2s() }, delegate)
                 resolved += tool.resolved(null, "Model delegation", tool.definition.name)
             }
-            if (!memoryExcluded && factVault != null && userMessage != null && platform != null) {
+            if (factVault != null && userMessage != null && platform != null) {
                 val memoryAvailable = try {
                     factVault.load()
                     factVault.state.value.enabled
