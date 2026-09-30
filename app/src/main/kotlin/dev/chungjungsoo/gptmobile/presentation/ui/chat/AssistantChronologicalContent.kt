@@ -111,7 +111,7 @@ internal fun AssistantChronologicalContent(
                             Text("${item.delegationProfile.orEmpty()} · Delegation", style = MaterialTheme.typography.labelMedium, color = androidx.compose.ui.graphics.Color(0xFF4CAF50))
                             Text(item.content, Modifier.padding(vertical = 8.dp), style = MaterialTheme.typography.bodySmall, color = androidx.compose.ui.graphics.Color(0xFF4CAF50))
                         }
-                    } else if (expanded && !isContextDiagnostic(item.content)) {
+                    } else if (expanded && !item.statusSummary && !isContextDiagnostic(item.content)) {
                         if (item.recalledFacts.isNotEmpty()) {
                             InlineExecutionTrace(emptyList(), listOf(item), "$contentIdentity:$index", debugMode)
                         } else if (item.content.isNotBlank()) {
@@ -147,9 +147,10 @@ private fun GenerationStatusText(toolEvents: List<ToolEvent>, timeline: List<Ass
     }
     // Refresh from actual activity every five seconds, rather than inventing work phases.
     val activity = timeline.lastOrNull { it.type == AssistantTimelineItemType.TEXT || it.type == AssistantTimelineItemType.THINKING }
-    val checkpoint = timeline.lastOrNull { it.progressCheckpoint && it.modelAuthored }?.content
+    val checkpoint = timeline.lastOrNull { it.statusSummary }?.content
+        ?: timeline.lastOrNull { it.progressCheckpoint && it.modelAuthored }?.content
     val base = remember(phase, runningTool?.toolName, activity?.type, checkpoint) {
-        runningTool?.let { smartToolVerb(it.toolName) } ?: when (activity?.type) {
+        runningTool?.let { smartToolVerb(it.toolName) } ?: checkpoint ?: when (activity?.type) {
             AssistantTimelineItemType.TEXT -> "Writing"
             AssistantTimelineItemType.THINKING -> "Thinking"
             else -> checkpoint?.trim()?.takeIf { it.isNotEmpty() }?.split(Regex("\\s+"))?.take(12)?.joinToString(" ") ?: "Preparing response"

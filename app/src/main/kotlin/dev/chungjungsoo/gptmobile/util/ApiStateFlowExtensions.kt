@@ -93,6 +93,11 @@ internal suspend fun Flow<ApiState>.collectApiStateUpdates(
                     buffer.publishNow(onUpdate)
                 }
 
+                is ApiState.ActivitySummary -> {
+                    buffer.updateActivitySummary(chunk)
+                    buffer.publishNow(onUpdate)
+                }
+
                 is ApiState.DelegationText -> {
                     buffer.appendDelegation(chunk)
                     buffer.publishIfDue(onUpdate)
@@ -173,6 +178,18 @@ private class StreamingMessageBuffer(
     private var timelineVersion = 0
     private var publishedTimelineVersion = 0
 
+    fun updateActivitySummary(chunk: ApiState.ActivitySummary) {
+        val item = AssistantTimelineItem(
+            type = AssistantTimelineItemType.NOTICE,
+            content = chunk.text,
+            modelAuthored = chunk.modelAuthored,
+            statusSummary = true
+        )
+        val existing = timeline.indexOfFirst { it.statusSummary }
+        if (existing < 0) timeline.add(0, item) else timeline[existing] = item
+        timelineVersion++
+    }
+
     fun appendDelegation(chunk: ApiState.DelegationText) {
         val existing = timeline.indexOfFirst { it.delegationInvocationId == chunk.invocationId }
         if (existing < 0) {
@@ -221,7 +238,7 @@ private class StreamingMessageBuffer(
 
     fun appendProgress(text: String, modelAuthored: Boolean) {
         val last = timeline.lastOrNull()
-        if (modelAuthored && last?.progressCheckpoint == true) {
+        if (modelAuthored && last?.progressCheckpoint == true && !last.statusSummary) {
             timeline[timeline.lastIndex] = last.copy(content = (if (last.modelAuthored) last.content else "") + text, modelAuthored = true)
         } else {
             timeline += AssistantTimelineItem(

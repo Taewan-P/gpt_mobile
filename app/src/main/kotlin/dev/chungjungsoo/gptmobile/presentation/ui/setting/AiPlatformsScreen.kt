@@ -394,7 +394,6 @@ private fun ProviderConnectionGroupCard(
                     ) {
                         profiles.forEach { platform ->
                             PlatformItemCard(
-                                modifier = Modifier.animateItem(),
                                 platform = platform,
                                 onToggleFavorite = { onToggleFavorite(platform) },
                                 onEdit = { onEdit(platform) }

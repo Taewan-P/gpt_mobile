@@ -108,6 +108,7 @@ class ProfileBenchmarkViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 store.load()
+                mutableError.value = store.loadWarning
                 mutableReady.value = true
             } catch (error: Exception) {
                 if (error is CancellationException) throw error

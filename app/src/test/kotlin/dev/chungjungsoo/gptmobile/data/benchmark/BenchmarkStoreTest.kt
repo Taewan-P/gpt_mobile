@@ -14,6 +14,23 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35], application = android.app.Application::class)
 class BenchmarkStoreTest {
     @Test
+    fun `bad records do not disable benchmarks or discard recoverable history`() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefs = context.getSharedPreferences("profile_benchmarks_v1", Context.MODE_PRIVATE)
+        val valid = BenchmarkRun("valid", "profile", "Name", "OPENAI", "model", "key", false, BenchmarkMode.QUICK, 100)
+        val original = "[" + kotlinx.serialization.json.Json.encodeToString(BenchmarkRun.serializer(), valid) + ", {\"mode\":\"UNKNOWN_MODE\"}]"
+        prefs.edit().clear().putString("history", original).commit()
+        val store = BenchmarkStore(context)
+        store.load()
+        assertEquals(listOf(valid), store.history.value)
+        assertTrue(store.loadWarning != null)
+        assertEquals(original, prefs.getString("recovery_history", null))
+        store.save(valid.copy(id = "new"))
+        assertEquals(2, store.history.value.size)
+        assertEquals(original, prefs.getString("recovery_history", null))
+    }
+
+    @Test
     fun `checkpoints survive recreation replace same run and delete permanently`() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
         context.getSharedPreferences("profile_benchmarks_v1", Context.MODE_PRIVATE).edit().clear().commit()

@@ -18,6 +18,21 @@ import org.junit.Test
 
 class ApiStateFlowExtensionsTest {
     @Test
+    fun `loading summaries update one entry without splitting streamed Markdown`() = runBlocking {
+        var saved = emptyList<AssistantTimelineItem>()
+        flowOf(
+            ApiState.Success("| Column |\n| --- |\n"),
+            ApiState.ActivitySummary("Searching"),
+            ApiState.Success("| Complete cell |"),
+            ApiState.ActivitySummary("Reviewing sources", true),
+            ApiState.Done
+        ).collectApiStateUpdates(onUpdate = { _, _, timeline -> saved = timeline })
+        assertEquals(1, saved.count { it.statusSummary })
+        assertEquals("Reviewing sources", saved.single { it.statusSummary }.content)
+        assertEquals("| Column |\n| --- |\n| Complete cell |", saved.single { it.type == AssistantTimelineItemType.TEXT }.content)
+    }
+
+    @Test
     fun `empty and thinking-only completions produce a visible error`() = runBlocking {
         listOf("", "   ", "<think>Still thinking</think>").forEach { text ->
             val outcome = flowOf(ApiState.Success(text), ApiState.Done).collectApiStateUpdates(onUpdate = { _, _, _ -> })
