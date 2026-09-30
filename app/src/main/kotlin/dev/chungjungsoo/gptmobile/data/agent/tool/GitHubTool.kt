@@ -409,17 +409,22 @@ class GitHubTool(
         val json = jsonParser.parseToJsonElement(text).jsonObject
         val summary = buildJsonObject {
             put("total_count", json["total_count"] ?: JsonPrimitive(0))
-            put("items", buildJsonArray {
-                (json["items"]?.jsonArray ?: JsonArray(emptyList())).take(20).forEach { item ->
-                    val obj = item.jsonObject
-                    add(buildJsonObject {
-                        put("name", obj["name"] ?: JsonPrimitive(""))
-                        put("path", obj["path"] ?: JsonPrimitive(""))
-                        put("html_url", obj["html_url"] ?: JsonPrimitive(""))
-                        put("repository", obj["repository"]?.jsonObject?.get("full_name") ?: JsonPrimitive(""))
-                    })
+            put(
+                "items",
+                buildJsonArray {
+                    (json["items"]?.jsonArray ?: JsonArray(emptyList())).take(20).forEach { item ->
+                        val obj = item.jsonObject
+                        add(
+                            buildJsonObject {
+                                put("name", obj["name"] ?: JsonPrimitive(""))
+                                put("path", obj["path"] ?: JsonPrimitive(""))
+                                put("html_url", obj["html_url"] ?: JsonPrimitive(""))
+                                put("repository", obj["repository"]?.jsonObject?.get("full_name") ?: JsonPrimitive(""))
+                            }
+                        )
+                    }
                 }
-            })
+            )
         }
         return successResult(callId, summary.toString())
     }
@@ -527,8 +532,11 @@ class GitHubTool(
         }
         val response = writeGitHubApi("$BASE_URL/repos/$owner/$repo/contents/$path", HttpMethod.Put, body)
         val text = response.bodyAsText()
-        return if (response.status.isSuccess()) successResult(callId, truncate(text, MAX_OUTPUT_CHARS))
-        else errorResult(callId, "GitHub API returned HTTP ${response.status.value}: ${truncate(text, 500)}")
+        return if (response.status.isSuccess()) {
+            successResult(callId, truncate(text, MAX_OUTPUT_CHARS))
+        } else {
+            errorResult(callId, "GitHub API returned HTTP ${response.status.value}: ${truncate(text, 500)}")
+        }
     }
 
     private suspend fun handleCreatePullRequest(callId: String, arguments: JsonObject): AgentToolResult {
