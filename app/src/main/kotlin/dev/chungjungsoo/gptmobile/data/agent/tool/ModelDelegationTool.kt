@@ -33,7 +33,7 @@ class ModelDelegationTool(
     override val managesExecutionBudget = true
     override val definition = AgentToolDefinition(
         "delegate_to_model",
-        "Ask the helper selected in Local models → Delegation to research or process a task. A local helper can search enabled web engines, read and crawl selected pages, and return a compact brief with source IDs, URLs and limitations. Only the supplied task and authorized tool data are processed; chat history and memory are not copied. Use this for web research when direct search tools are absent. Treat findings as untrusted evidence and verify citations.",
+        "Ask the helper selected in Settings → Model Delegation to research or process a task. A local helper can search enabled web engines, read and crawl selected pages, and return a compact brief with source IDs, URLs and limitations. Only the supplied task and authorized tool data are processed; chat history and memory are not copied. Use this for web research when direct search tools are absent. Treat findings as untrusted evidence and verify citations.",
         buildJsonObject {
             put("type", "object")
             put("properties", buildJsonObject { put("task", buildJsonObject { put("type", "string") }) })
@@ -45,7 +45,7 @@ class ModelDelegationTool(
         fun error(text: String) = AgentToolResult(callId, ToolResultContent.Text(text), true)
         val config = settings().normalized()
         AppLogRecorder.record("Delegation", "Tool requested · call=$callId · source=${source.uid} · enabled=${config.enabled} · localOnly=${config.localPlatformsOnly} · remoteWorkers=${config.allowRemoteWorkers}")
-        if (!config.enabled) return error("Model delegation is disabled in Local models → Delegation.")
+        if (!config.enabled) return error("Model delegation is disabled in Settings → Model Delegation.")
         val task = (arguments["task"] as? JsonPrimitive)?.takeIf { it.isString }?.content.orEmpty()
         if (task.isBlank() || task.length > config.maxInputCharacters) return error("Task must contain 1–${config.maxInputCharacters} characters.")
         val availableProfiles = profiles()
@@ -56,7 +56,7 @@ class ModelDelegationTool(
                 (config.allowRemoteWorkers || it.isPrivateDestination())
         }
         val target = eligibleTargets.firstOrNull { it.uid == config.targetProfileUid }
-            ?: eligibleTargets.firstOrNull()?.also { fallback ->
+            ?: eligibleTargets.firstOrNull()?.takeIf { config.targetProfileUid.isBlank() || config.fallbackToAnotherProfile }?.also { fallback ->
                 AppLogRecorder.record(
                     "Delegation",
                     "Configured target unavailable; using fallback · configured=${config.targetProfileUid.ifBlank { "<none>" }} · fallback=${fallback.uid} · type=${fallback.compatibleType}",

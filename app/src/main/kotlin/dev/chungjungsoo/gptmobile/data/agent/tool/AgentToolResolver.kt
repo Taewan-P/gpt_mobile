@@ -106,8 +106,16 @@ class AgentToolResolver @Inject constructor(
 
         if (!disableLocal) {
             // Keep explicitly enabled delegation available in small on-device context windows.
-            if (featureSettings.delegation.enabled && delegate != null && platform != null) {
-                val tool = ModelDelegationTool(platform, { settingRepository.getFeatureSettings().delegation }, { settingRepository.fetchPlatformV2s() }, delegate)
+            if ((chatToolConfig?.effectiveDelegation(featureSettings.delegation) ?: featureSettings.delegation).enabled && delegate != null && platform != null) {
+                val tool = ModelDelegationTool(
+                    platform,
+                    {
+                        val defaults = settingRepository.getFeatureSettings().delegation
+                        chatToolConfig?.effectiveDelegation(defaults) ?: defaults
+                    },
+                    { settingRepository.fetchPlatformV2s() },
+                    delegate
+                )
                 resolved += tool.resolved(null, "Model delegation", tool.definition.name)
             }
             if (factVault != null && userMessage != null && platform != null) {
