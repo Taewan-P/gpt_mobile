@@ -140,15 +140,69 @@ class GitHubTool(
                             put("description", "Issue or pull request number. Required for get_issue.")
                         }
                     )
-                    put("content", buildJsonObject { put("type", "string"); put("description", "UTF-8 file content for update_file.") })
-                    put("message", buildJsonObject { put("type", "string"); put("description", "Commit message for update_file.") })
-                    put("branch", buildJsonObject { put("type", "string"); put("description", "Branch name for create_branch or update_file.") })
-                    put("base", buildJsonObject { put("type", "string"); put("description", "Base branch for create_branch or create_pull_request.") })
-                    put("head", buildJsonObject { put("type", "string"); put("description", "Head branch for create_pull_request.") })
-                    put("title", buildJsonObject { put("type", "string"); put("description", "Pull request title.") })
-                    put("body", buildJsonObject { put("type", "string"); put("description", "Pull request body.") })
-                    put("file_sha", buildJsonObject { put("type", "string"); put("description", "Existing blob SHA when replacing a file.") })
-                    put("pull_number", buildJsonObject { put("type", "integer"); put("description", "Pull request number.") })
+                    put(
+                        "content",
+                        buildJsonObject {
+                            put("type", "string")
+                            put("description", "UTF-8 file content for update_file.")
+                        }
+                    )
+                    put(
+                        "message",
+                        buildJsonObject {
+                            put("type", "string")
+                            put("description", "Commit message for update_file.")
+                        }
+                    )
+                    put(
+                        "branch",
+                        buildJsonObject {
+                            put("type", "string")
+                            put("description", "Branch name for create_branch or update_file.")
+                        }
+                    )
+                    put(
+                        "base",
+                        buildJsonObject {
+                            put("type", "string")
+                            put("description", "Base branch for create_branch or create_pull_request.")
+                        }
+                    )
+                    put(
+                        "head",
+                        buildJsonObject {
+                            put("type", "string")
+                            put("description", "Head branch for create_pull_request.")
+                        }
+                    )
+                    put(
+                        "title",
+                        buildJsonObject {
+                            put("type", "string")
+                            put("description", "Pull request title.")
+                        }
+                    )
+                    put(
+                        "body",
+                        buildJsonObject {
+                            put("type", "string")
+                            put("description", "Pull request body.")
+                        }
+                    )
+                    put(
+                        "file_sha",
+                        buildJsonObject {
+                            put("type", "string")
+                            put("description", "Existing blob SHA when replacing a file.")
+                        }
+                    )
+                    put(
+                        "pull_number",
+                        buildJsonObject {
+                            put("type", "integer")
+                            put("description", "Pull request number.")
+                        }
+                    )
                 }
             )
             put(
@@ -332,16 +386,26 @@ class GitHubTool(
         return successResult(callId, summary.toString())
     }
 
-
     private suspend fun handleSearchCode(callId: String, arguments: JsonObject): AgentToolResult {
         val query = arguments["query"]?.jsonPrimitive?.content?.trim().orEmpty()
-        if (query.isEmpty()) return errorResult(callId, "Parameter 'query' is required.")
+        if (query.isEmpty()) {
+            return errorResult(callId, "Parameter 'query' is required.")
+        }
         val owner = arguments["owner"]?.jsonPrimitive?.content?.trim()
         val repo = arguments["repo"]?.jsonPrimitive?.content?.trim()
-        val scoped = if (!owner.isNullOrBlank() && !repo.isNullOrBlank()) "$query repo:$owner/$repo" else query
-        val response = getGitHubApi("$BASE_URL/search/code?q=${URLEncoder.encode(scoped, StandardCharsets.UTF_8.name())}&per_page=20")
+        val scoped =
+            if (!owner.isNullOrBlank() && !repo.isNullOrBlank()) {
+                "$query repo:$owner/$repo"
+            } else {
+                query
+            }
+        val response = getGitHubApi(
+            "$BASE_URL/search/code?q=${URLEncoder.encode(scoped, StandardCharsets.UTF_8.name())}&per_page=20"
+        )
         val text = response.bodyAsText()
-        if (!response.status.isSuccess()) return errorResult(callId, "GitHub API returned HTTP ${response.status.value}: ${truncate(text, 500)}")
+        if (!response.status.isSuccess()) {
+            return errorResult(callId, "GitHub API returned HTTP ${response.status.value}: ${truncate(text, 500)}")
+        }
         val json = jsonParser.parseToJsonElement(text).jsonObject
         val summary = buildJsonObject {
             put("total_count", json["total_count"] ?: JsonPrimitive(0))
@@ -363,10 +427,14 @@ class GitHubTool(
     private suspend fun handleListPullRequests(callId: String, arguments: JsonObject): AgentToolResult {
         val owner = arguments["owner"]?.jsonPrimitive?.content?.trim().orEmpty()
         val repo = arguments["repo"]?.jsonPrimitive?.content?.trim().orEmpty()
-        if (owner.isEmpty() || repo.isEmpty()) return errorResult(callId, "Parameters 'owner' and 'repo' are required.")
+        if (owner.isEmpty() || repo.isEmpty()) {
+            return errorResult(callId, "Parameters 'owner' and 'repo' are required.")
+        }
         val response = getGitHubApi("$BASE_URL/repos/$owner/$repo/pulls?state=all&per_page=20")
         val text = response.bodyAsText()
-        if (!response.status.isSuccess()) return errorResult(callId, "GitHub API returned HTTP ${response.status.value}: ${truncate(text, 500)}")
+        if (!response.status.isSuccess()) {
+            return errorResult(callId, "GitHub API returned HTTP ${response.status.value}: ${truncate(text, 500)}")
+        }
         return successResult(callId, truncate(text, MAX_OUTPUT_CHARS))
     }
 
@@ -374,22 +442,33 @@ class GitHubTool(
         val owner = arguments["owner"]?.jsonPrimitive?.content?.trim().orEmpty()
         val repo = arguments["repo"]?.jsonPrimitive?.content?.trim().orEmpty()
         val number = arguments["pull_number"]?.jsonPrimitive?.intOrNull ?: arguments["issue_number"]?.jsonPrimitive?.intOrNull
-        if (owner.isEmpty() || repo.isEmpty() || number == null) return errorResult(callId, "Parameters 'owner', 'repo', and 'pull_number' are required.")
+        if (owner.isEmpty() || repo.isEmpty() || number == null) {
+            return errorResult(callId, "Parameters 'owner', 'repo', and 'pull_number' are required.")
+        }
         val response = getGitHubApi("$BASE_URL/repos/$owner/$repo/pulls/$number")
         val text = response.bodyAsText()
-        if (!response.status.isSuccess()) return errorResult(callId, "GitHub API returned HTTP ${response.status.value}: ${truncate(text, 500)}")
+        if (!response.status.isSuccess()) {
+            return errorResult(callId, "GitHub API returned HTTP ${response.status.value}: ${truncate(text, 500)}")
+        }
         return successResult(callId, truncate(text, MAX_OUTPUT_CHARS))
     }
 
     private suspend fun handleListWorkflowRuns(callId: String, arguments: JsonObject): AgentToolResult {
         val owner = arguments["owner"]?.jsonPrimitive?.content?.trim().orEmpty()
         val repo = arguments["repo"]?.jsonPrimitive?.content?.trim().orEmpty()
-        if (owner.isEmpty() || repo.isEmpty()) return errorResult(callId, "Parameters 'owner' and 'repo' are required.")
+        if (owner.isEmpty() || repo.isEmpty()) {
+            return errorResult(callId, "Parameters 'owner' and 'repo' are required.")
+        }
         val branch = arguments["branch"]?.jsonPrimitive?.content?.trim()
-        val query = branch?.takeIf(String::isNotBlank)?.let { "?branch=${URLEncoder.encode(it, StandardCharsets.UTF_8.name())}&per_page=20" } ?: "?per_page=20"
+        val query = branch
+            ?.takeIf(String::isNotBlank)
+            ?.let { "?branch=${URLEncoder.encode(it, StandardCharsets.UTF_8.name())}&per_page=20" }
+            ?: "?per_page=20"
         val response = getGitHubApi("$BASE_URL/repos/$owner/$repo/actions/runs$query")
         val text = response.bodyAsText()
-        if (!response.status.isSuccess()) return errorResult(callId, "GitHub API returned HTTP ${response.status.value}: ${truncate(text, 500)}")
+        if (!response.status.isSuccess()) {
+            return errorResult(callId, "GitHub API returned HTTP ${response.status.value}: ${truncate(text, 500)}")
+        }
         return successResult(callId, truncate(text, MAX_OUTPUT_CHARS))
     }
 
@@ -399,20 +478,32 @@ class GitHubTool(
         val repo = arguments["repo"]?.jsonPrimitive?.content?.trim().orEmpty()
         val branch = arguments["branch"]?.jsonPrimitive?.content?.trim().orEmpty()
         val base = arguments["base"]?.jsonPrimitive?.content?.trim().orEmpty().ifBlank { "main" }
-        if (owner.isEmpty() || repo.isEmpty() || branch.isEmpty()) return errorResult(callId, "Parameters 'owner', 'repo', and 'branch' are required.")
-        val baseResponse = getGitHubApi("$BASE_URL/repos/$owner/$repo/git/ref/heads/${URLEncoder.encode(base, StandardCharsets.UTF_8.name())}")
+        if (owner.isEmpty() || repo.isEmpty() || branch.isEmpty()) {
+            return errorResult(callId, "Parameters 'owner', 'repo', and 'branch' are required.")
+        }
+        val baseResponse = getGitHubApi(
+            "$BASE_URL/repos/$owner/$repo/git/ref/heads/${URLEncoder.encode(base, StandardCharsets.UTF_8.name())}"
+        )
         val baseText = baseResponse.bodyAsText()
-        if (!baseResponse.status.isSuccess()) return errorResult(callId, "Could not resolve base branch: ${truncate(baseText, 500)}")
+        if (!baseResponse.status.isSuccess()) {
+            return errorResult(callId, "Could not resolve base branch: ${truncate(baseText, 500)}")
+        }
         val sha = jsonParser.parseToJsonElement(baseText).jsonObject["object"]?.jsonObject?.get("sha")?.jsonPrimitive?.content
             ?: return errorResult(callId, "Base branch did not return a commit SHA.")
         val response = writeGitHubApi(
             "$BASE_URL/repos/$owner/$repo/git/refs",
             HttpMethod.Post,
-            buildJsonObject { put("ref", "refs/heads/$branch"); put("sha", sha) }
+            buildJsonObject {
+                put("ref", "refs/heads/$branch")
+                put("sha", sha)
+            }
         )
         val text = response.bodyAsText()
-        return if (response.status.isSuccess()) successResult(callId, truncate(text, MAX_OUTPUT_CHARS))
-        else errorResult(callId, "GitHub API returned HTTP ${response.status.value}: ${truncate(text, 500)}")
+        return if (response.status.isSuccess()) {
+            successResult(callId, truncate(text, MAX_OUTPUT_CHARS))
+        } else {
+            errorResult(callId, "GitHub API returned HTTP ${response.status.value}: ${truncate(text, 500)}")
+        }
     }
 
     private suspend fun handleUpdateFile(callId: String, arguments: JsonObject): AgentToolResult {
@@ -420,11 +511,14 @@ class GitHubTool(
         val owner = arguments["owner"]?.jsonPrimitive?.content?.trim().orEmpty()
         val repo = arguments["repo"]?.jsonPrimitive?.content?.trim().orEmpty()
         val path = arguments["path"]?.jsonPrimitive?.content?.trim().orEmpty().removePrefix("/")
-        val content = arguments["content"]?.jsonPrimitive?.content ?: return errorResult(callId, "Parameter 'content' is required.")
+        val content = arguments["content"]?.jsonPrimitive?.content
+            ?: return errorResult(callId, "Parameter 'content' is required.")
         val message = arguments["message"]?.jsonPrimitive?.content?.trim().orEmpty().ifBlank { "Update $path" }
         val branch = arguments["branch"]?.jsonPrimitive?.content?.trim()
         val fileSha = arguments["file_sha"]?.jsonPrimitive?.content?.trim()
-        if (owner.isEmpty() || repo.isEmpty() || path.isEmpty()) return errorResult(callId, "Parameters 'owner', 'repo', and 'path' are required.")
+        if (owner.isEmpty() || repo.isEmpty() || path.isEmpty()) {
+            return errorResult(callId, "Parameters 'owner', 'repo', and 'path' are required.")
+        }
         val body = buildJsonObject {
             put("message", message)
             put("content", Base64.getEncoder().encodeToString(content.toByteArray(StandardCharsets.UTF_8)))
@@ -445,11 +539,18 @@ class GitHubTool(
         val head = arguments["head"]?.jsonPrimitive?.content?.trim().orEmpty()
         val base = arguments["base"]?.jsonPrimitive?.content?.trim().orEmpty().ifBlank { "main" }
         val bodyText = arguments["body"]?.jsonPrimitive?.content.orEmpty()
-        if (owner.isEmpty() || repo.isEmpty() || title.isEmpty() || head.isEmpty()) return errorResult(callId, "Parameters 'owner', 'repo', 'title', and 'head' are required.")
+        if (owner.isEmpty() || repo.isEmpty() || title.isEmpty() || head.isEmpty()) {
+            return errorResult(callId, "Parameters 'owner', 'repo', 'title', and 'head' are required.")
+        }
         val response = writeGitHubApi(
             "$BASE_URL/repos/$owner/$repo/pulls",
             HttpMethod.Post,
-            buildJsonObject { put("title", title); put("head", head); put("base", base); put("body", bodyText) }
+            buildJsonObject {
+                put("title", title)
+                put("head", head)
+                put("base", base)
+                put("body", bodyText)
+            }
         )
         val text = response.bodyAsText()
         return if (response.status.isSuccess()) successResult(callId, truncate(text, MAX_OUTPUT_CHARS))
