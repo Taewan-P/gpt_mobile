@@ -45,6 +45,10 @@ internal class LocalDelegationCoordinator(
     private companion object {
         // Absolute emergency ceiling in addition to the user-configurable token budget.
         private const val MAX_DELEGATION_INPUT_TOKENS = 12_000
+        // Provider/system/tool overhead is volatile and can grow substantially after tool discovery.
+        // Never let the user/task prompt consume the whole configured input budget.
+        private const val MAX_DELEGATE_PROMPT_TOKENS = 4_000
+        private const val DELEGATE_INPUT_SAFETY_PERCENT = 60
         private const val APPROX_CHARS_PER_TOKEN = 4
         private const val WATCHDOG_POLL_MS = 250L
         private const val MAX_CONSECUTIVE_EMPTY_RESPONSES = 2
@@ -309,6 +313,8 @@ internal class LocalDelegationCoordinator(
                     return@withPermit null
                 }
                 // Reserve observed provider/system/tool overhead before sizing the user/task prompt.
+                // The additional safety ceiling prevents an 8k configured cap from turning into
+                // 11k+ real input when provider-side tool/system overhead expands between calls.
                 val charCap = minOf(promptTokenBudget * APPROX_CHARS_PER_TOKEN, budget).coerceAtLeast(600)
                 val boundedPrompt = capPrompt(prompt, charCap)
                 val estimatedInput = estimatedDelegateTokens(boundedPrompt)
@@ -319,7 +325,11 @@ internal class LocalDelegationCoordinator(
                     logComputeTotals()
                     return@withPermit null
                 }
-                val requestedOutputCap = minOf(tokens, latest.maxOutputTokens)
+                val requestedOutputCap = minOf(tokens, latest.maxOutputTokens).let { requested ->
+                    // Large prompts paired with tiny output caps are especially prone to
+                    // reasoning-only completions. Keep enough room for a short final answer.
+                    if (estimatedInput >= 3_000) maxOf(requested, minOf(768, latest.maxOutputTokens)) else requested
+                }
                 val runtimeSeconds = adaptiveRuntimeSeconds(estimatedInput, latest)
                 val firstProgressSeconds = minOf(latest.timeToFirstTokenTimeoutSeconds, runtimeSeconds)
                 val idleSeconds = minOf(latest.idleTokenTimeoutSeconds, runtimeSeconds)
@@ -411,6 +421,7 @@ internal class LocalDelegationCoordinator(
             }
         }
     }
+
     suspend fun prepare(task: String, tools: List<ResolvedAgentTool>, callId: String, automatic: Boolean = false): LocalResearchResult {
         val config = settings().normalized()
         if (!config.researchEnabled || (automatic && !config.automaticResearch)) {
