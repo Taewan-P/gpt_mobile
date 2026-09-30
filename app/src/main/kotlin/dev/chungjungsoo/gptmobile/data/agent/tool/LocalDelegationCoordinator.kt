@@ -133,7 +133,7 @@ internal class LocalDelegationCoordinator(
         return config.copy(
             maxInputCharacters = minOf(
                 config.maxInputCharacters,
-                available.coerceAtMost(config.maxInputTokensPerDelegate * APPROX_CHARS_PER_TOKEN)
+                available.coerceAtMost(config.effectiveLocalInputTokens() * APPROX_CHARS_PER_TOKEN)
             ).coerceAtLeast(600)
         )
     }
@@ -266,7 +266,7 @@ internal class LocalDelegationCoordinator(
                 } ?: localTarget(latest)
                 val effectiveCallLimit = latest.effectiveLocalModelCalls()
                 val effectiveWasteLimit = latest.effectiveWastedLocalTokens()
-                AppLogRecorder.record("Delegation", "Worker gate · requested=${target.uid} · resolved=${profile?.uid} · profileFound=${profile != null} · private=${profile?.isPrivateDestination()} · calls=${localCalls.get()}/$effectiveCallLimit · configuredCalls=$effectiveCallLimit · ownership=${latest.processingOwnership}")
+                AppLogRecorder.record("Delegation", "Worker gate · requested=${target.uid} · resolved=${profile?.uid} · profileFound=${profile != null} · private=${profile?.isPrivateDestination()} · calls=${localCalls.get()}/$effectiveCallLimit · configuredCalls=${latest.maxLocalModelCalls} · ownership=${latest.processingOwnership}")
                 if (!latest.enabled ||
                     profile == null ||
                     profile.excludesMemory() ||
@@ -293,7 +293,7 @@ internal class LocalDelegationCoordinator(
                 }
                 val callNumber = reserveWorkerCall(effectiveCallLimit)
                 if (callNumber == null) {
-                    AppLogRecorder.record("Delegation", "Worker rejected · call budget exhausted · target=${profile.uid} · calls=${localCalls.get()}/$effectiveCallLimit · configured=$effectiveCallLimit · ownership=${latest.processingOwnership}", "W")
+                    AppLogRecorder.record("Delegation", "Worker rejected · call budget exhausted · target=${profile.uid} · calls=${localCalls.get()}/$effectiveCallLimit · configured=${latest.maxLocalModelCalls} · ownership=${latest.processingOwnership}", "W")
                     return@withPermit null
                 }
                 val hardInputTokenCap = minOf(latest.effectiveLocalInputTokens(), MAX_DELEGATION_INPUT_TOKENS)
