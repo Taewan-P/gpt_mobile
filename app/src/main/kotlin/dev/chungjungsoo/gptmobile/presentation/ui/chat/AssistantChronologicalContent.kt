@@ -67,7 +67,7 @@ internal fun AssistantChronologicalContent(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     if (isLoading) {
-                        GenerationStatusText(toolEvents)
+                        GenerationStatusText(toolEvents, items)
                         LinearProgressIndicator(
                             Modifier.fillMaxWidth(),
                             color = MaterialTheme.colorScheme.primary,
@@ -103,10 +103,15 @@ internal fun AssistantChronologicalContent(
                     }
                     AssistantTimelineItemType.TOOL -> if (expanded) {
                         events[item.toolSequence]?.let { event ->
-                            InlineExecutionTrace(listOf(event), listOf(item), "$contentIdentity:$index", debugMode)
+                            InlineExecutionTrace(listOf(event), listOf(item), "$contentIdentity:$index", debugMode, remoteDelegation = items.take(index + 1).lastOrNull { it.delegationInvocationId != null }?.delegationRemote == true || items.drop(index + 1).firstOrNull { it.delegationInvocationId != null }?.delegationRemote == true)
                         }
                     }
-                    AssistantTimelineItemType.NOTICE -> if (expanded && !isContextDiagnostic(item.content)) {
+                    AssistantTimelineItemType.NOTICE -> if (item.delegationInvocationId != null) {
+                        if (debugMode) {
+                            Text("${item.delegationProfile.orEmpty()} · Delegation", style = MaterialTheme.typography.labelMedium, color = androidx.compose.ui.graphics.Color(0xFF4CAF50))
+                            Text(item.content, Modifier.padding(vertical = 8.dp), style = MaterialTheme.typography.bodySmall, color = androidx.compose.ui.graphics.Color(0xFF4CAF50))
+                        }
+                    } else if (expanded && !item.statusSummary && !isContextDiagnostic(item.content)) {
                         if (item.recalledFacts.isNotEmpty()) {
                             InlineExecutionTrace(emptyList(), listOf(item), "$contentIdentity:$index", debugMode)
                         } else if (item.content.isNotBlank()) {
@@ -123,7 +128,7 @@ internal fun AssistantChronologicalContent(
 internal fun isContextDiagnostic(value: String): Boolean = value.startsWith("Context estimate:", true) || value.startsWith("Context:", true) || value.startsWith("[telemetry]", true)
 
 @Composable
-private fun GenerationStatusText(toolEvents: List<ToolEvent>) {
+private fun GenerationStatusText(toolEvents: List<ToolEvent>, timeline: List<AssistantTimelineItem>) {
     var dots by remember { mutableIntStateOf(1) }
     var phase by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) {
@@ -140,10 +145,16 @@ private fun GenerationStatusText(toolEvents: List<ToolEvent>) {
         it.status == dev.chungjungsoo.gptmobile.data.database.entity.ToolEventStatus.RUNNING ||
             it.status == dev.chungjungsoo.gptmobile.data.database.entity.ToolEventStatus.PENDING
     }
-    val base = runningTool?.let { smartToolVerb(it.toolName) } ?: when (phase % 3) {
-        0 -> "Preparing response"
-        1 -> "Checking context"
-        else -> "Organizing the answer"
+    // Refresh from actual activity every five seconds, rather than inventing work phases.
+    val activity = timeline.lastOrNull { it.type == AssistantTimelineItemType.TEXT || it.type == AssistantTimelineItemType.THINKING }
+    val checkpoint = timeline.lastOrNull { it.statusSummary }?.content
+        ?: timeline.lastOrNull { it.progressCheckpoint && it.modelAuthored }?.content
+    val base = remember(phase, runningTool?.toolName, activity?.type, checkpoint) {
+        runningTool?.let { smartToolVerb(it.toolName) } ?: checkpoint ?: when (activity?.type) {
+            AssistantTimelineItemType.TEXT -> "Writing"
+            AssistantTimelineItemType.THINKING -> "Thinking"
+            else -> checkpoint?.trim()?.takeIf { it.isNotEmpty() }?.split(Regex("\\s+"))?.take(12)?.joinToString(" ") ?: "Preparing response"
+        }
     }
     val suffix = ".".repeat(dots)
 

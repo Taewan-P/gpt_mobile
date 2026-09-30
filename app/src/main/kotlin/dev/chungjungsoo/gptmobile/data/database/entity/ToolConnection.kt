@@ -64,6 +64,7 @@ object ToolConnectionType {
     const val PERPLEXITY = "PERPLEXITY"
     const val EXA = "EXA"
     const val BRAVE = "BRAVE"
+    const val GITHUB = "GITHUB"
     val WEB_SEARCH_TYPES = setOf(FIRECRAWL, PERPLEXITY, EXA, BRAVE)
 }
 

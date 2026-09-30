@@ -91,6 +91,42 @@ import org.junit.Test
 class ChatRepositoryImplTest {
 
     @Test
+    fun `helpers honor conversation options and approvals with distinct action identities`() = runBlocking {
+        val config = dev.chungjungsoo.gptmobile.data.model.ChatMcpToolConfig(maxToolCalls = 1).withToolDisabled("other")
+        val resolver = mockk<AgentToolResolver>()
+        var executions = 0
+        val tool = object : AgentTool {
+            override val definition = AgentToolDefinition("github__work", "GitHub", JsonObject(emptyMap()))
+            override suspend fun execute(callId: String, arguments: JsonObject): AgentToolResult {
+                executions++
+                return AgentToolResult(callId, ToolResultContent.Text("Dispatched"), false)
+            }
+        }
+        coEvery { resolver.resolve("custom-platform", config, null, null, any()) } returns listOf(
+            ResolvedAgentTool(tool, "work", "Work account", "github", "github__work", false)
+        )
+        val approvals = mockk<dev.chungjungsoo.gptmobile.data.permissions.ToolApprovalManager>(relaxed = true)
+        val ids = mutableListOf<String>()
+        coEvery { approvals.authorize("work", "parent", capture(ids), "github", any()) } returns false
+        val repository = createRepository(agentToolResolver = resolver, toolApprovals = approvals)
+        assertTrue(repository.resolveDelegatedTools(customPlatform(), "parent", config.copy(allToolsDisabled = true)).isEmpty())
+        val denied = repository.resolveDelegatedTools(customPlatform(), "parent", config).single().execute("same-call", JsonObject(emptyMap()))
+        assertTrue(denied.isError)
+        assertEquals(0, executions)
+        coEvery { approvals.authorize("work", "parent", capture(ids), "github", any()) } returns true
+        repeat(2) {
+            val bound = repository.resolveDelegatedTools(customPlatform(), "parent", config).single()
+            val result = bound.execute("same-call", JsonObject(emptyMap()))
+            assertFalse(result.isError)
+            assertEquals("same-call", result.callId)
+            assertTrue(bound.execute("over-budget", JsonObject(emptyMap())).isError)
+        }
+        assertEquals(2, executions)
+        assertEquals(3, ids.distinct().size)
+        ids.drop(1).forEach { id -> io.mockk.coVerify { approvals.finish("parent", id, true) } }
+    }
+
+    @Test
     fun `primary tool ordering preserves catalogs larger than eight tools`() {
         val tools = (1..12).map { index ->
             val agentTool = object : AgentTool {
@@ -903,7 +939,8 @@ class ChatRepositoryImplTest {
         localRuntime: LocalRuntime = FakeLocalRuntime(),
         localModelRepository: LocalModelRepository = FakeLocalModelRepository(),
         modelCatalogRepository: ModelCatalogRepository = FakeModelCatalogRepository(),
-        factVault: dev.chungjungsoo.gptmobile.data.rag.FactVaultRepository? = null
+        factVault: dev.chungjungsoo.gptmobile.data.rag.FactVaultRepository? = null,
+        toolApprovals: dev.chungjungsoo.gptmobile.data.permissions.ToolApprovalManager? = null
     ): ChatRepositoryImpl = ChatRepositoryImpl(
         context = ContextWrapper(null),
         chatRoomV2Dao = proxy(),
@@ -930,7 +967,8 @@ class ChatRepositoryImplTest {
         localModelRepository = localModelRepository,
         modelCatalogRepository = modelCatalogRepository,
         deviceSocModel = "",
-        factVault = factVault
+        factVault = factVault,
+        toolApprovals = toolApprovals
     )
 
     private fun emptyToolResolver(): AgentToolResolver {

@@ -185,7 +185,7 @@ fun UserChatBubble(
                 }
             }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
             AnimatedVisibility(visible = actionsExpanded) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     CopyTextIcon(onCopyClick)
@@ -805,6 +805,7 @@ fun GPTMobileIcon(loading: Boolean) {
         ) {
             Image(
                 painter = painterResource(R.drawable.ic_gpt_mobile_no_padding),
+                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onPrimaryContainer),
                 contentDescription = null,
                 modifier = Modifier.size(22.dp)
             )

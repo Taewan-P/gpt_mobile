@@ -13,7 +13,6 @@ import dev.chungjungsoo.gptmobile.data.database.entity.ToolConnectionAuthType
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolConnectionType
 import dev.chungjungsoo.gptmobile.data.model.ChatMcpToolConfig
 import dev.chungjungsoo.gptmobile.data.model.ClientType
-import dev.chungjungsoo.gptmobile.data.model.excludesMemory
 import dev.chungjungsoo.gptmobile.data.model.isPrivateDestination
 import dev.chungjungsoo.gptmobile.data.network.NetworkClient
 import dev.chungjungsoo.gptmobile.data.rag.FactVaultRepository
@@ -50,7 +49,8 @@ class AgentToolResolver @Inject constructor(
     private val mcpOAuthCoordinator: McpOAuthCoordinator,
     private val deviceLocationTool: DeviceLocationTool,
     private val factVault: FactVaultRepository? = null,
-    private val memoryDocuments: dev.chungjungsoo.gptmobile.data.knowledge.MemoryDocumentRepository? = null
+    private val memoryDocuments: dev.chungjungsoo.gptmobile.data.knowledge.MemoryDocumentRepository? = null,
+    private val freeModelToolConsentStore: dev.chungjungsoo.gptmobile.data.permissions.FreeModelToolConsentStore? = null
 ) {
     suspend fun discoverMcpTools(connection: ToolConnection, forceRefresh: Boolean = false): List<Tool> {
         val config = mcpConfig(connection)
@@ -85,11 +85,10 @@ class AgentToolResolver @Inject constructor(
         }
 
         val freeProfile = platform?.compatibleType == ClientType.FREE
-        val memoryExcluded = platform?.excludesMemory() == true
         val disableRemote = platform?.disableRemoteTools == true
         val disableLocal = platform?.disableLocalTools == true
         val featureSettings = settingRepository.getFeatureSettings()
-        val allowRemoteMcp = !disableRemote && !memoryExcluded && featureSettings.remoteMcpConnections
+        val allowRemoteMcp = !disableRemote && featureSettings.remoteMcpConnections
         val allowDeviceLocation = !disableLocal && featureSettings.deviceLocationTool
 
         // Baseline zero-config tools available out of the box to all models
@@ -111,7 +110,7 @@ class AgentToolResolver @Inject constructor(
                 val tool = ModelDelegationTool(platform, { settingRepository.getFeatureSettings().delegation }, { settingRepository.fetchPlatformV2s() }, delegate)
                 resolved += tool.resolved(null, "Model delegation", tool.definition.name)
             }
-            if (!memoryExcluded && factVault != null && userMessage != null && platform != null) {
+            if (factVault != null && userMessage != null && platform != null) {
                 val memoryAvailable = try {
                     factVault.load()
                     factVault.state.value.enabled
@@ -139,6 +138,9 @@ class AgentToolResolver @Inject constructor(
         if (!disableRemote) {
             resolved += ReadUrlTool().resolved(null, null, BuiltInAgentTool.READ_URL)
             resolved += GitHubTool().resolved(null, null, BuiltInAgentTool.GITHUB)
+            toolConnectionRepository.listConnections()
+                .filter { it.type == ToolConnectionType.GITHUB }
+                .forEach { connection -> resolved += resolveGitHub(connection) }
             resolved += defaultWebSearch.resolved(null, null, WEB_SEARCH_TOOL)
         }
 
@@ -188,6 +190,15 @@ class AgentToolResolver @Inject constructor(
         }
 
         return resolved.distinctBy { it.modelToolName }
+            .filter { tool ->
+                // Discovery stays visible, but runtime consent cannot be bypassed by
+                // Select all, imported chat options or a restored pending prompt.
+                !freeProfile ||
+                    chatToolConfig == null ||
+                    tool.connectionUid == null ||
+                    bindings.none { it.connection?.type == ToolConnectionType.MCP && it.connection?.connectionUid == tool.connectionUid } ||
+                    freeModelToolConsentStore?.isGranted(profileUid, "${tool.connectionUid}:${tool.realToolName}") == true
+            }
             .filter { tool ->
                 if (chatToolConfig == null) {
                     true
@@ -249,7 +260,11 @@ class AgentToolResolver @Inject constructor(
             }
         }.orEmpty()
 
-        val tool = GitHubTool(apiToken = token)
+        val tool = GitHubTool(
+            apiToken = token,
+            modelToolName = actualConnection?.let { "github__${it.alias}" } ?: BuiltInAgentTool.GITHUB,
+            accountName = actualConnection?.name
+        )
         return tool.resolved(actualConnection?.connectionUid, actualConnection?.name, BuiltInAgentTool.GITHUB)
     }
 
@@ -377,7 +392,6 @@ class AgentToolResolver @Inject constructor(
             BuiltInAgentTool.READ_FILE_SLICE,
             BuiltInAgentTool.READ_URL,
             BuiltInAgentTool.DEVICE_LOCATION,
-            BuiltInAgentTool.GITHUB,
             WEB_SEARCH_TOOL
         )
         val SEARCH_PROVIDERS = mapOf(

@@ -26,7 +26,7 @@ enum class FreeAiProvider(
         get() = if (this == POLLINATIONS) "$apiUrl/openai" else "$apiUrl/chat/completions"
 
     fun applyTo(platform: PlatformV2): PlatformV2 = platform.copy(
-        name = platform.name.takeUnless { it.isBlank() || it == "Free Models" } ?: displayName,
+        name = platform.name.takeUnless { it.isBlank() || it == "Free Models" || it == fromApiUrl(platform.apiUrl)?.displayName } ?: displayName,
         compatibleType = ClientType.FREE,
         apiUrl = apiUrl,
         token = null,

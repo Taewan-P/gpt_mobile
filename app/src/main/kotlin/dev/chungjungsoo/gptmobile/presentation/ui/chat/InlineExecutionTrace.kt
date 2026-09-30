@@ -47,7 +47,7 @@ import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun InlineExecutionTrace(events: List<ToolEvent>, timeline: List<AssistantTimelineItem>, contentIdentity: Any, debugMode: Boolean = false) {
+fun InlineExecutionTrace(events: List<ToolEvent>, timeline: List<AssistantTimelineItem>, contentIdentity: Any, debugMode: Boolean = false, remoteDelegation: Boolean = false) {
     val recalled = timeline.flatMap { it.recalledFacts }.distinctBy { it.id }
     if (events.isEmpty() && recalled.isEmpty()) return
     Column(
@@ -81,7 +81,7 @@ fun InlineExecutionTrace(events: List<ToolEvent>, timeline: List<AssistantTimeli
             val isDelegation =
                 event.toolName.contains("delegate_to_model", true) ||
                     event.modelToolName.contains("delegate_to_model", true)
-            val isRemoteDelegation = isDelegation && event.result.orEmpty().startsWith("<!-- delegation:remote -->")
+            val isRemoteDelegation = isDelegation && (remoteDelegation || event.result.orEmpty().startsWith("<!-- delegation:remote -->"))
             var dots by androidx.compose.runtime.remember(event.eventId) { mutableStateOf(1) }
             LaunchedEffect(running) {
                 while (running) {

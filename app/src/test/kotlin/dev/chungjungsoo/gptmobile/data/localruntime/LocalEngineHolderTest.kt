@@ -14,6 +14,32 @@ import org.junit.Test
 
 class LocalEngineHolderTest {
     @Test
+    fun `optional status inference skips a busy engine instead of queuing`() = runTest {
+        val holder = LocalEngineHolder(FakeLocalRuntime(), timeProvider = { 1000L })
+        val started = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val generation = launch {
+            holder.runExclusive {
+                started.complete(Unit)
+                release.await()
+            }
+        }
+        started.await()
+        var ran = false
+        assertEquals(
+            null,
+            holder.tryRunExclusive {
+                ran = true
+                "status"
+            }
+        )
+        assertFalse(ran)
+        release.complete(Unit)
+        generation.join()
+        assertEquals("status", holder.tryRunExclusive { "status" })
+    }
+
+    @Test
     fun `reuses engine for the same spec and reloads for a different spec`() = runTest {
         val fake = FakeLocalRuntime()
         val holder = LocalEngineHolder(fake, timeProvider = { 1_000L })

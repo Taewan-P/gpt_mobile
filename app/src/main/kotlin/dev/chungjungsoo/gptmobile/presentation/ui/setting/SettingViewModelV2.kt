@@ -316,6 +316,9 @@ class SettingViewModelV2 @Inject constructor(
                 message = null,
                 isError = false,
                 restoreUri = null,
+                backupUri = null,
+                recoveryKeyUri = null,
+                requiresRecoveryKey = false,
                 requiresLegacyPassword = false
             )
         }
@@ -328,6 +331,9 @@ class SettingViewModelV2 @Inject constructor(
                 isBusy = false,
                 isWorking = false,
                 restoreUri = null,
+                backupUri = null,
+                recoveryKeyUri = null,
+                requiresRecoveryKey = false,
                 requiresLegacyPassword = false
             )
         }
@@ -347,18 +353,29 @@ class SettingViewModelV2 @Inject constructor(
             _backupUi.update { it.copy(isBusy = false, message = "Use a backup password with at least 8 characters.", isError = true) }
             return
         }
-        runBackupOperation {
-            val password = state.backupPassword.takeIf { state.passwordProtectionEnabled }
-            if (state.selection == CompleteBackupSelection.ALL && password == null) {
-                completeBackupManager.backup(uri)
-            } else {
-                completeBackupManager.backup(
-                    uri = uri,
-                    selection = state.selection,
-                    password = password
-                )
-            }
+        if (!state.passwordProtectionEnabled) {
+            _backupUi.update { it.copy(backupUri = uri) }
+            return
         }
+        runBackupOperation { completeBackupManager.backup(uri, state.selection, state.backupPassword) }
+    }
+
+    fun backupRecoveryKeySelected(uri: Uri?) {
+        val state = _backupUi.value
+        val destination = state.backupUri ?: return
+        if (uri == null) {
+            cancelBackupPicker()
+            _backupUi.update { it.copy(message = "Backup canceled: save a recovery key to use passwordless encryption.") }
+            return
+        }
+        _backupUi.update { it.copy(backupUri = null) }
+        runBackupOperation {
+            completeBackupManager.backup(destination, state.selection, recoveryKeyUri = uri)
+        }
+    }
+
+    fun restoreRecoveryKeySelected(uri: Uri?) {
+        if (uri != null) _backupUi.update { it.copy(recoveryKeyUri = uri, message = null, isError = false) }
     }
 
     fun restoreSourceSelected(uri: Uri?) {
@@ -369,11 +386,13 @@ class SettingViewModelV2 @Inject constructor(
         viewModelScope.launch {
             try {
                 val requiresPassword = completeBackupManager.requiresPassword(uri)
+                val requiresKey = completeBackupManager.requiresRecoveryKey(uri)
                 _backupUi.update {
                     it.copy(
                         isBusy = false,
                         restoreUri = uri,
                         requiresLegacyPassword = requiresPassword,
+                        requiresRecoveryKey = requiresKey,
                         message = null,
                         isError = false
                     )
@@ -400,18 +419,11 @@ class SettingViewModelV2 @Inject constructor(
             }
             return
         }
+        if (state.selection.sections.isEmpty() || (state.requiresRecoveryKey && state.recoveryKeyUri == null)) return
         _backupUi.update { it.copy(restoreUri = null, isBusy = true) }
         runBackupOperation {
             val password = state.legacyPassword.takeIf(String::isNotBlank)
-            if (state.selection == CompleteBackupSelection.ALL) {
-                completeBackupManager.restore(uri, password)
-            } else {
-                completeBackupManager.restore(
-                    uri = uri,
-                    legacyPassword = password,
-                    selection = state.selection
-                )
-            }
+            completeBackupManager.restore(uri, password, state.selection, state.recoveryKeyUri)
         }
     }
 
@@ -451,6 +463,9 @@ class SettingViewModelV2 @Inject constructor(
         val isBusy: Boolean = false,
         val isWorking: Boolean = false,
         val restoreUri: Uri? = null,
+        val backupUri: Uri? = null,
+        val recoveryKeyUri: Uri? = null,
+        val requiresRecoveryKey: Boolean = false,
         val message: String? = null,
         val isError: Boolean = false
     ) {

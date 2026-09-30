@@ -43,6 +43,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.yield
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -78,6 +79,47 @@ class LiteRtLmAdapter(
     private val cpuFallbackByModelAccelerator = mutableSetOf<Pair<String, String>>()
     private var exclusiveToolsByName: Map<String, AgentTool> = emptyMap()
     private var exclusiveToolEventSink: (suspend (ProviderEvent) -> Unit)? = null
+
+    /** A tiny local-only status rewrite. Uses an already warm engine, never loads one. */
+    suspend fun summarizeActivity(activity: String): String? = localRuntime.tryRunExclusive {
+        if (loadedEngineSpec() == null) return@tryRunExclusive null
+        try {
+            withTimeoutOrNull(1500L) {
+                closeConversation()
+                // Invalidate the adapter cache because this is a separate native session.
+                openConversation = null
+                isConversationDirty = true
+                createConversation(
+                    LocalConversationConfig(
+                        sampler = LocalSamplerConfig(1, 1f, 0f),
+                        systemPrompt = "Rewrite the active operation in 2 to 5 short words for a loading indicator. Describe only the supplied action, never claim completion or invent results. Output only the phrase, without punctuation or reasoning.",
+                        initialMessages = emptyList(),
+                        maxOutputTokens = 16,
+                        thinkingEnabled = false
+                    )
+                )
+                val output = StringBuilder()
+                var failed = false
+                sendMessage(activity.take(96)).collect { event ->
+                    when (event) {
+                        is LocalRuntimeEvent.TextDelta -> if (output.length < 128) output.append(event.text.take(128 - output.length))
+                        is LocalRuntimeEvent.Error -> failed = true
+                        else -> Unit
+                    }
+                }
+                output.toString().trim().takeIf {
+                    !failed &&
+                        it.length in 2..64 &&
+                        it.split(Regex("\\s+")).size in 1..6 &&
+                        Regex("[\\p{L}\\p{N} ,'-]+").matches(it)
+                }
+            }
+        } finally {
+            withContext(NonCancellable) { closeConversation() }
+            openConversation = null
+            isConversationDirty = true
+        }
+    }
 
     suspend fun openSession(
         turns: List<ConversationTurn>,

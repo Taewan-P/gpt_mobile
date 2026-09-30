@@ -42,7 +42,38 @@ import org.junit.Test
 class AgentToolResolverTest {
 
     @Test
-    fun `Free profiles exclude memory private files location MCP and delegation`() = runBlocking {
+    fun `GitHub API connections are available without profile bindings and respect conversation options`() = runBlocking {
+        val dao = ResolverFakeToolConnectionDao()
+        dao.upsertConnection(connection("work", ToolConnectionType.GITHUB, endpointUrl = "https://api.github.com"))
+        val tools = resolver(dao = dao).resolve("profile")
+        val account = tools.single { it.connectionUid == "work" }
+        assertEquals("github__work", account.modelToolName)
+        assertEquals(BuiltInAgentTool.GITHUB, account.realToolName)
+        assertFalse(account.shareableReadOnly)
+        assertTrue(account.tool.definition.description.contains("Authenticated connection"))
+        assertFalse(resolver(dao = dao).resolve("profile", ChatMcpToolConfig(allowAllByDefault = true).withToolDisabled("work")).any { it.connectionUid == "work" })
+    }
+
+    @Test
+    fun `free MCP usage requires the grant for the exact profile and tool at runtime`() = runBlocking {
+        McpClientManagerTest.McpFixtureServer().use { server ->
+            val profile = FreeAiProvider.KILO.applyTo(PlatformV2(uid = "free-profile", name = "Free"))
+            val dao = ResolverFakeToolConnectionDao()
+            dao.bind(connection("mcp-1", ToolConnectionType.MCP, endpointUrl = server.url, authType = ToolConnectionAuthType.NONE, allowCleartext = true), binding(profile.uid, "mcp-1", "echo"))
+            val consent = mockk<dev.chungjungsoo.gptmobile.data.permissions.FreeModelToolConsentStore>()
+            io.mockk.every { consent.isGranted(any(), any()) } returns false
+            val resolver = resolver(dao = dao, settings = ResolverFakeSettingRepository(listOf(profile)), consent = consent)
+            assertTrue(resolver.resolve(profile.uid).any { it.realToolName == "echo" })
+            val all = ChatMcpToolConfig(allowAllByDefault = true)
+            assertFalse(resolver.resolve(profile.uid, all).any { it.realToolName == "echo" })
+            io.mockk.every { consent.isGranted(profile.uid, "mcp-1:echo") } returns true
+            assertTrue(resolver.resolve(profile.uid, all).any { it.realToolName == "echo" })
+            assertFalse(resolver.resolve(profile.uid, all.withToolDisabled("mcp-1:echo")).any { it.realToolName == "echo" })
+        }
+    }
+
+    @Test
+    fun `Free profiles retain explicit tools including enabled local memory`() = runBlocking {
         val profile = FreeAiProvider.KILO.applyTo(PlatformV2(uid = "profile-1", name = "Free", compatibleType = ClientType.FREE))
         val dao = ResolverFakeToolConnectionDao()
         dao.bind(null, binding(profile.uid, null, BuiltInAgentTool.DEVICE_LOCATION))
@@ -55,7 +86,8 @@ class AgentToolResolverTest {
             userMessage = dev.chungjungsoo.gptmobile.data.database.entity.MessageV2(content = "Remember that I prefer Kotlin", platformType = null),
             delegate = { _, _, _ -> error("Free profiles must not delegate") }
         )
-        assertEquals(listOf("calculate_expression", "current_date", "device_location", "github", "read_file_slice", "read_url", "web_search"), resolved.map { it.modelToolName })
+        assertTrue(resolved.map { it.modelToolName }.containsAll(listOf("calculate_expression", "current_date", "device_location", "github", "read_file_slice", "read_url", "web_search")))
+        assertTrue(resolved.any { it.modelToolName.startsWith("memory_") })
     }
 
     @Test
@@ -576,7 +608,8 @@ class AgentToolResolverTest {
         dao: ResolverFakeToolConnectionDao = ResolverFakeToolConnectionDao(),
         vault: ResolverFakeSecretVault = ResolverFakeSecretVault(),
         settings: SettingRepository = ResolverFakeSettingRepository(),
-        facts: dev.chungjungsoo.gptmobile.data.rag.FactVaultRepository? = null
+        facts: dev.chungjungsoo.gptmobile.data.rag.FactVaultRepository? = null,
+        consent: dev.chungjungsoo.gptmobile.data.permissions.FreeModelToolConsentStore? = null
     ): AgentToolResolver {
         val repository = ToolConnectionRepository(dao, vault)
         val networkClient = NetworkClient(CIO)
@@ -589,7 +622,8 @@ class AgentToolResolverTest {
             mcpClientManager = manager,
             mcpOAuthCoordinator = McpOAuthCoordinator(McpOAuthClient(networkClient()), repository, vault, manager),
             deviceLocationTool = DeviceLocationTool(mockk(relaxed = true), mockk(relaxed = true)),
-            factVault = facts
+            factVault = facts,
+            freeModelToolConsentStore = consent
         )
     }
 

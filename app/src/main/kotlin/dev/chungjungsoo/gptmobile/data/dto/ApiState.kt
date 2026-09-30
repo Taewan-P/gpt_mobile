@@ -9,6 +9,8 @@ sealed class ApiState {
     data class TokenUsage(val inputTokens: Int?, val outputTokens: Int?, val totalTokens: Int?) : ApiState()
     data object Loading : ApiState()
     data class ProgressCheckpoint(val text: String, val modelAuthored: Boolean = false) : ApiState()
+    data class ActivitySummary(val text: String, val modelAuthored: Boolean = false) : ApiState()
+    data class DelegationText(val invocationId: String, val profileName: String, val text: String, val remote: Boolean) : ApiState()
     data class Thinking(val thinkingChunk: String) : ApiState()
     data class Success(val textChunk: String) : ApiState()
     data class ToolCall(val toolSequence: Int, val metrics: ToolPayloadMetrics? = null) : ApiState()

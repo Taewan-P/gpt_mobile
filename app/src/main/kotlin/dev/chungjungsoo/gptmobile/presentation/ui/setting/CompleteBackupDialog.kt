@@ -61,14 +61,14 @@ fun CompleteBackupDialog(
             shape = MaterialTheme.shapes.extraLarge
         ) {
             Column(
-                Modifier.padding(22.dp),
+                Modifier.verticalScroll(rememberScrollState()).padding(22.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Text(stringResource(R.string.backup_and_restore), style = MaterialTheme.typography.headlineSmall)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.Lock, null, tint = MaterialTheme.colorScheme.primary)
                     Text(
-                        "Backups are always authenticated and encrypted. A password is not required.",
+                        "Backups use authenticated encryption. Save a separate recovery key to restore after reinstall or on another device. Keep that key private.",
                         modifier = Modifier.padding(start = 10.dp),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -95,12 +95,12 @@ fun CompleteBackupDialog(
                             Text("Choose backup contents", Modifier.padding(start = 8.dp))
                         }
                         OutlinedButton(
-                            onClick = { pendingAction = BackupAction.RESTORE },
+                            onClick = onRestore,
                             enabled = !state.isBusy,
                             modifier = Modifier.fillMaxWidth().testTag("restore_all")
                         ) {
                             Icon(Icons.Outlined.Restore, null)
-                            Text("Choose restore contents", Modifier.padding(start = 8.dp))
+                            Text("Choose backup file", Modifier.padding(start = 8.dp))
                         }
                     }
                 }
@@ -145,7 +145,6 @@ private fun BackupSelectionDialog(
     onCancel: () -> Unit,
     onContinue: () -> Unit
 ) {
-    val allSelected = state.selection.sections.containsAll(CompleteBackupSection.entries)
     AlertDialog(
         onDismissRequest = onCancel,
         icon = {
@@ -157,35 +156,7 @@ private fun BackupSelectionDialog(
         },
         title = { Text(if (action == BackupAction.BACKUP) "Backup contents" else "Restore contents") },
         text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
-                        checked = allSelected,
-                        onCheckedChange = { checked ->
-                            CompleteBackupSection.entries.forEach { onSectionChange(it, checked) }
-                        }
-                    )
-                    Text("Select all", fontWeight = FontWeight.SemiBold)
-                }
-                BackupOptionRow(state, CompleteBackupSection.SETTINGS, "Settings, themes & preferences", "Includes appearance and custom theme configuration.", onSectionChange)
-                BackupOptionRow(state, CompleteBackupSection.CONVERSATIONS, "Conversations & favorites", "Messages, titles, drafts and chat choices.", onSectionChange)
-                BackupOptionRow(state, CompleteBackupSection.PLATFORMS, "AI platforms & profiles", "Remote, local and free model profiles.", onSectionChange)
-                BackupOptionRow(state, CompleteBackupSection.TOOLS, "Tools & MCP connections", "Bindings, providers and tool configuration.", onSectionChange)
-                BackupOptionRow(state, CompleteBackupSection.CREDENTIALS, "Credentials & APIs", "Provider secrets, Brave Search and Hugging Face access token.", onSectionChange)
-                BackupOptionRow(state, CompleteBackupSection.MEMORY, "Memory", "Local memory vault and memory metadata.", onSectionChange)
-                BackupOptionRow(state, CompleteBackupSection.LOCAL_MODELS, "Local models", "Installed model records and model files.", onSectionChange)
-                BackupOptionRow(state, CompleteBackupSection.ATTACHMENTS, "Attachments", "Files and images attached to conversations.", onSectionChange)
-                BackupOptionRow(state, CompleteBackupSection.AGENT_HISTORY, "Agent & tool history", "Agent runs, tool events and diagnostics history.", onSectionChange)
-                Text(
-                    "These choices are saved and reused the next time you open Backup & Restore.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
+            BackupSelectionContent(state, onSectionChange)
         },
         confirmButton = {
             Button(onClick = onContinue, enabled = state.selection.sections.isNotEmpty()) {
@@ -217,5 +188,42 @@ private fun BackupOptionRow(
             Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+    }
+}
+
+@Composable
+internal fun BackupSelectionContent(
+    state: SettingViewModelV2.BackupUiState,
+    onSectionChange: (CompleteBackupSection, Boolean) -> Unit
+) {
+    val allSelected = state.selection.sections.containsAll(CompleteBackupSection.entries)
+    Column(
+        modifier = Modifier.verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(
+                checked = allSelected,
+                onCheckedChange = { checked ->
+                    CompleteBackupSection.entries.forEach { onSectionChange(it, checked) }
+                }
+            )
+            Text("Select all", fontWeight = FontWeight.SemiBold)
+        }
+        BackupOptionRow(state, CompleteBackupSection.SETTINGS, "Settings, themes & preferences", "Includes appearance and custom theme configuration.", onSectionChange)
+        BackupOptionRow(state, CompleteBackupSection.CONVERSATIONS, "Conversations & favorites", "Messages, titles, drafts and chat choices.", onSectionChange)
+        BackupOptionRow(state, CompleteBackupSection.PLATFORMS, "AI platforms & profiles", "Remote, local and free model profiles.", onSectionChange)
+        BackupOptionRow(state, CompleteBackupSection.TOOLS, "Tools & MCP connections", "Bindings, providers and tool configuration.", onSectionChange)
+        BackupOptionRow(state, CompleteBackupSection.CREDENTIALS, "Credentials & APIs", "Provider secrets, Brave Search and Hugging Face access token.", onSectionChange)
+        BackupOptionRow(state, CompleteBackupSection.MEMORY, "Memory", "Local memory vault and memory metadata.", onSectionChange)
+        BackupOptionRow(state, CompleteBackupSection.LOCAL_MODELS, "Local models", "Installed model records and model files.", onSectionChange)
+        BackupOptionRow(state, CompleteBackupSection.ATTACHMENTS, "Attachments", "Files and images attached to conversations.", onSectionChange)
+        BackupOptionRow(state, CompleteBackupSection.AGENT_HISTORY, "Agent & tool history", "Agent runs, tool events and diagnostics history.", onSectionChange)
+        Text(
+            "These choices are saved and reused the next time you open Backup & Restore.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 8.dp)
+        )
     }
 }

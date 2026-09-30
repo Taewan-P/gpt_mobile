@@ -68,7 +68,8 @@ class PlatformSettingViewModel @Inject constructor(
     @param:DeviceRamGb private val deviceRamGb: Long = 8L,
     private val openRouterCreditsRepository: OpenRouterCreditsRepository = OpenRouterCreditsRepository(),
     private val ollamaServerRepository: OllamaServerRepository = OllamaServerRepository(),
-    savedStateHandle: SavedStateHandle
+    savedStateHandle: SavedStateHandle,
+    private val freeToolConsent: dev.chungjungsoo.gptmobile.data.permissions.FreeModelToolConsentStore? = null
 ) : ViewModel() {
     private val toolConnectionRepository = ToolConnectionRepository(toolConnectionDao, secretVault)
 
@@ -356,6 +357,12 @@ class PlatformSettingViewModel @Inject constructor(
                 _userMessage.value = R.string.free_ai_switch_failed
             }
         }
+    }
+
+    fun resetFreeToolPermissions() {
+        runCatching { requireNotNull(freeToolConsent).revokeProfile(platformUid) }
+            .onSuccess { _userMessage.value = R.string.free_tool_permissions_reset }
+            .onFailure { _userMessage.value = R.string.free_tool_permissions_reset_failed }
     }
 
     fun updatePlatformName(name: String) {

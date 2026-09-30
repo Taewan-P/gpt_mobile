@@ -140,7 +140,7 @@ class CompleteBackupManagerTest {
     fun modernBackupWithDifferentColumnOrderAndOldRoomIdentityRestoresIntoFreshSchema() = runBlocking {
         seed(File(context.cacheDir, "modern-file").apply { writeText("original") })
         val archive = File(context.cacheDir, "modern.gptbackup")
-        assertTrue(manager.backup(Uri.fromFile(archive)).success)
+        assertTrue(backupFixture(archive).success)
         val stage = File(context.cacheDir, "rewrite-${UUID.randomUUID()}").apply { mkdirs() }
         val manifest = CompleteBackupArchive.read(archive, stage, Long.MAX_VALUE)
         android.database.sqlite.SQLiteDatabase.openDatabase(File(stage, "database.sqlite").absolutePath, null, 0).use { db ->
@@ -166,7 +166,7 @@ class CompleteBackupManagerTest {
     fun olderModernBackupMigratesNewTablesAndColumnsBeforeRestore() = runBlocking {
         seed(File(context.cacheDir, "older-file").apply { writeText("original") })
         val archive = File(context.cacheDir, "older.gptbackup")
-        assertTrue(manager.backup(Uri.fromFile(archive)).success)
+        assertTrue(backupFixture(archive).success)
         val stage = File(context.cacheDir, "older-${UUID.randomUUID()}").apply { mkdirs() }
         val manifest = CompleteBackupArchive.read(archive, stage, Long.MAX_VALUE)
         android.database.sqlite.SQLiteDatabase.openDatabase(File(stage, "database.sqlite").absolutePath, null, 0).use { db ->
@@ -219,7 +219,7 @@ class CompleteBackupManagerTest {
         seed(File(context.cacheDir, "v30-file").apply { writeText("original") })
         val archive = File(context.cacheDir, "v30.gptbackup")
         val selection = CompleteBackupSelection().toggled(CompleteBackupSection.AGENT_HISTORY, true)
-        assertTrue(manager.backup(Uri.fromFile(archive), selection).success)
+        assertTrue(backupFixture(archive, selection).success)
         val stage = File(context.cacheDir, "v30-${UUID.randomUUID()}").apply { mkdirs() }
         val manifest = CompleteBackupArchive.read(archive, stage, Long.MAX_VALUE)
         android.database.sqlite.SQLiteDatabase.openDatabase(File(stage, "database.sqlite").absolutePath, null, 0).use { db ->
@@ -275,14 +275,22 @@ class CompleteBackupManagerTest {
         seed(File(context.cacheDir, "portable-file").apply { writeText("portable") })
         val archive = File(context.cacheDir, "portable.gptbackup")
 
-        val saved = manager.backup(Uri.fromFile(archive))
+        val keyFile = File(context.cacheDir, "portable.gptkey")
+        val saved = manager.backup(Uri.fromFile(archive), recoveryKeyUri = Uri.fromFile(keyFile))
         assertTrue(saved.message, saved.success)
 
         val header = archive.inputStream().use { input -> ByteArray(8).also { input.read(it) } }
-        assertTrue("Passwordless backups must be normal ZIP archives.", header[0] == 0x50.toByte() && header[1] == 0x4B.toByte())
+        assertEquals("GPTFULL3", header.decodeToString())
+        assertTrue(keyFile.exists())
         assertFalse("Passwordless backups must never use GPTFULL2.", header.decodeToString().startsWith("GPTFULL2"))
         assertFalse("No installation-bound backup master key may be created.", "complete_backup_master_v2" in vault.references())
         assertFalse(manager.requiresPassword(Uri.fromFile(archive)))
+        assertFalse(manager.requiresRecoveryKey(Uri.fromFile(archive)))
+        vault.references().filter { it.startsWith("backup-recovery-") }.forEach { vault.delete(it) }
+        assertTrue(manager.requiresRecoveryKey(Uri.fromFile(archive)))
+        withContext(Dispatchers.IO) { database.openHelper.writableDatabase.execSQL("UPDATE agent_runs SET status = 'INTERRUPTED'") }
+        val recovered = manager.restore(Uri.fromFile(archive), recoveryKeyUri = Uri.fromFile(keyFile))
+        assertTrue(recovered.message, recovered.success)
 
         val protected = File(context.cacheDir, "portable-protected.gptbackup")
         val protectedSaved = manager.backup(Uri.fromFile(protected), password = "portable-password")
@@ -293,12 +301,12 @@ class CompleteBackupManagerTest {
     }
 
     @Test
-    fun defaultsNeverExportCredentialsOrMemoryAndSensitiveSelectionsRequirePassword() = runBlocking {
+    fun defaultsNeverExportCredentialsOrMemoryAndEncryptionRequiresRecoveryMaterial() = runBlocking {
         seed(File(context.cacheDir, "default-file").apply { writeText("file") })
         vault.put("provider", "sentinel-original-token".toByteArray())
         vault.put(dev.chungjungsoo.gptmobile.data.rag.FactVaultRepository.VAULT_REFERENCE, "sentinel-memory".toByteArray())
         val archive = File(context.cacheDir, "default.gptbackup")
-        assertTrue(manager.backup(Uri.fromFile(archive)).success)
+        assertTrue(backupFixture(archive).success)
         java.util.zip.ZipFile(archive).use { zip ->
             val manifest = zip.entries().asSequence().first { it.name.endsWith("manifest.json") }
             val contents = zip.getInputStream(manifest).bufferedReader().readText()
@@ -342,6 +350,25 @@ class CompleteBackupManagerTest {
         memory.load()
         assertEquals(40, memory.state.value.facts.size)
         assertEquals("first-token", vault.read("provider")!!.decodeToString())
+    }
+
+    /** Structural migration tests inspect a decrypted archive, never a plaintext export. */
+    private suspend fun backupFixture(archive: File, selection: CompleteBackupSelection = CompleteBackupSelection()): BackupRestoreResult {
+        val keyFile = File(context.cacheDir, "${UUID.randomUUID()}.gptkey")
+        val result = manager.backup(Uri.fromFile(archive), selection, recoveryKeyUri = Uri.fromFile(keyFile))
+        if (result.success) {
+            val key = keyFile.inputStream().use(CompleteBackupCrypto::readRecoveryKey)
+            try {
+                val decoded = File(context.cacheDir, "${UUID.randomUUID()}.zip")
+                archive.inputStream().use { CompleteBackupCrypto.decryptPortable(it, decoded, key) }
+                decoded.copyTo(archive, overwrite = true)
+                decoded.delete()
+            } finally {
+                key.fill(0)
+                keyFile.delete()
+            }
+        }
+        return result
     }
 
     private suspend fun seed(attachment: File) {

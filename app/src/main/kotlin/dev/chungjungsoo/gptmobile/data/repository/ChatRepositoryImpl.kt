@@ -72,17 +72,24 @@ import dev.chungjungsoo.gptmobile.data.rag.FactVaultRepository
 import dev.chungjungsoo.gptmobile.util.DocumentTextExtractor
 import dev.chungjungsoo.gptmobile.util.FileUtils
 import dev.chungjungsoo.gptmobile.util.stripAssistantErrorNote
+import java.util.UUID
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 
@@ -430,24 +437,35 @@ class ChatRepositoryImpl(
         return head + marker + tail
     }
 
-    private suspend fun delegateToProfile(target: PlatformV2, task: String, maxTokens: Int, parentRunId: String, turnKey: String, maxInputTokens: Int = Int.MAX_VALUE, onProgress: (DelegateProgress) -> Unit = {}, allowTools: Boolean = true, fixtureTools: List<AgentTool>? = null): String {
+    internal suspend fun resolveDelegatedTools(target: PlatformV2, parentRunId: String, chatToolConfig: ChatMcpToolConfig): List<AgentTool> {
+        if (target.disableAllTools || chatToolConfig.allToolsDisabled) return emptyList()
+        val invocation = "delegate:${UUID.randomUUID()}"
+        val budget = ToolExecutionBudget(
+            agentRunnerForPlatform(target, runOverride = minOf(target.maxToolCalls, chatToolConfig.maxToolCalls ?: Int.MAX_VALUE).coerceAtLeast(0)).limits
+        )
+        return agentToolResolver.resolve(target.uid, chatToolConfig, userMessage = null, delegate = null)
+            .sortedWith(compareBy<ResolvedAgentTool> { delegatedToolPriority(it) }.thenBy { it.modelToolName })
+            .map { resolved ->
+                budget.bind(resolved.tool, onFinished = { callId, success ->
+                    toolApprovals?.finish(parentRunId, "$invocation:$callId", success)
+                }) { callId, arguments ->
+                    resolved.connectionUid?.let { uid ->
+                        toolApprovals?.authorize(uid, parentRunId, "$invocation:$callId", resolved.realToolName, arguments) ?: true
+                    } ?: true
+                }
+            }
+    }
+
+    private suspend fun delegateToProfile(target: PlatformV2, task: String, maxTokens: Int, parentRunId: String, turnKey: String, maxInputTokens: Int = Int.MAX_VALUE, onProgress: (DelegateProgress) -> Unit = {}, allowTools: Boolean = true, fixtureTools: List<AgentTool>? = null, chatToolConfig: ChatMcpToolConfig = ChatMcpToolConfig()): String {
         // Delegated runs are real child agent runs: they receive the target profile's
         // authorized tools, but never receive delegate_to_model itself. This enables
         // local -> remote tool use and remote -> local tool use without recursion.
-        var childTools: MutableList<AgentTool> = if (!allowTools || target.disableAllTools) {
+        var childTools: MutableList<AgentTool> = if (!allowTools || target.disableAllTools || chatToolConfig.allToolsDisabled) {
             mutableListOf()
         } else if (fixtureTools != null) {
             fixtureTools.toMutableList()
         } else {
-            agentToolResolver.resolve(
-                profileUid = target.uid,
-                chatToolConfig = null,
-                userMessage = null,
-                delegate = null
-            )
-                .sortedWith(compareBy<ResolvedAgentTool> { delegatedToolPriority(it) }.thenBy { it.modelToolName })
-                .map { it.tool }
-                .toMutableList()
+            resolveDelegatedTools(target, parentRunId, chatToolConfig).toMutableList()
         }
         val discoveredChildToolCount = childTools.size
         val delegatedToolLimit = when {
@@ -556,7 +574,7 @@ class ChatRepositoryImpl(
                             "Delegated output exceeded the character limit."
                         }
                         text.append(provider.text)
-                        if (provider.text.isNotEmpty()) onProgress(DelegateProgress(DelegateProgressKind.OUTPUT))
+                        if (provider.text.isNotEmpty()) onProgress(DelegateProgress(DelegateProgressKind.OUTPUT, textDelta = provider.text))
                     }
                     is ProviderEvent.Failed -> {
                         // Do not throw from inside Flow.collect. Upstream provider cleanup can
@@ -635,7 +653,79 @@ class ChatRepositoryImpl(
         platform: PlatformV2,
         runId: String,
         chatToolConfig: ChatMcpToolConfig?
-    ): Flow<ApiState> = flow {
+    ): Flow<ApiState> = channelFlow {
+        suspend fun emit(state: ApiState) = send(state)
+        val activity = AtomicReference("Preparing response")
+        suspend fun emitAll(states: Flow<ApiState>) = states.collect { state ->
+            when (state) {
+                is ApiState.Success -> activity.set("Writing response")
+                is ApiState.Thinking -> activity.set("Thinking")
+                is ApiState.GatewayProgressChanged -> {
+                    val progress = state.progress
+                    if (progress.toolName != null && progress.event in setOf("tool_started", "tool_formulating")) {
+                        val name = progress.toolName.orEmpty().lowercase()
+                        activity.set(
+                            when {
+                                "search" in name -> "Searching"
+                                "delegate" in name -> "Working with helper"
+                                "read" in name || "fetch" in name -> "Reading sources"
+                                else -> "Using tools"
+                            }
+                        )
+                    } else if (progress.event in setOf("tool_completed", "tool_failed")) {
+                        activity.set("Reviewing results")
+                    }
+                }
+                else -> Unit
+            }
+            send(state)
+        }
+        val statusJob = launch {
+            var nextTick = (System.nanoTime() / 1_000_000L) + 5000L
+            while (isActive) {
+                delay((nextTick - (System.nanoTime() / 1_000_000L)).coerceAtLeast(1L))
+                nextTick += 5000L
+                val current = activity.get()
+                send(ApiState.ActivitySummary(current))
+                val summary = try {
+                    liteRtLmAdapter.summarizeActivity(current)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    null
+                }
+                if (summary != null && activity.get() == current) send(ApiState.ActivitySummary(summary, modelAuthored = true))
+            }
+        }
+        suspend fun generateDelegate(
+            target: PlatformV2,
+            task: String,
+            cap: Int,
+            inputCap: Int = Int.MAX_VALUE,
+            progress: (DelegateProgress) -> Unit = {},
+            allowTools: Boolean = true
+        ): String {
+            activity.set("Working with helper")
+            val invocation = UUID.randomUUID().toString()
+            send(ApiState.DelegationText(invocation, target.name, "", !target.isPrivateDestination()))
+            val delegateText = StringBuilder()
+            try {
+                return delegateToProfile(target, task, cap, runId, userMessages.lastOrNull()?.let { "${it.chatId}:${it.id}" } ?: runId, inputCap, { event ->
+                    progress(event)
+                    if (event.kind == DelegateProgressKind.TOOL_ACTIVITY) activity.set("Using helper tools")
+                    event.textDelta?.let {
+                        delegateText.append(it)
+                        trySend(ApiState.DelegationText(invocation, target.name, delegateText.toString(), !target.isPrivateDestination()))
+                    }
+                }, allowTools, chatToolConfig = chatToolConfig ?: ChatMcpToolConfig())
+            } finally {
+                // A final suspending snapshot recovers any intermediate UI update
+                // skipped while the channel was busy. It is never the primary answer.
+                if (kotlinx.coroutines.currentCoroutineContext().isActive) {
+                    send(ApiState.DelegationText(invocation, target.name, delegateText.toString(), !target.isPrivateDestination()))
+                }
+            }
+        }
         emit(ApiState.Loading)
         emit(ApiState.ProgressCheckpoint("Preparing the response and checking the available context."))
         try {
@@ -688,12 +778,12 @@ class ChatRepositoryImpl(
                 platform,
                 settings = { settingRepository.getFeatureSettings().delegation },
                 profiles = { settingRepository.fetchPlatformV2s() },
-                generate = { target, task, cap -> delegateToProfile(target, task, cap, runId, turnKey) },
+                generate = { target, task, cap -> generateDelegate(target, task, cap) },
                 generateWithProgress = { target, task, cap, inputCap, progress ->
-                    delegateToProfile(target, task, cap, runId, turnKey, inputCap, progress)
+                    generateDelegate(target, task, cap, inputCap, progress)
                 },
                 generateTextWithProgress = { target, task, cap, inputCap, progress ->
-                    delegateToProfile(target, task, cap, runId, turnKey, inputCap, progress, allowTools = false)
+                    generateDelegate(target, task, cap, inputCap, progress, allowTools = false)
                 },
                 inputBudget = ::delegationInputBudget,
                 batteryPercent = {
@@ -1013,6 +1103,7 @@ class ChatRepositoryImpl(
             emitAll(streamAgentEvents(agentEvents, platform, runId, resolvedTools.size, trace))
         } finally {
             withContext(NonCancellable) {
+                statusJob.cancelAndJoin()
                 toolEventRecorder.cancelRun(runId, currentEpochSeconds())
             }
         }

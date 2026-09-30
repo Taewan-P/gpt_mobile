@@ -93,6 +93,16 @@ internal suspend fun Flow<ApiState>.collectApiStateUpdates(
                     buffer.publishNow(onUpdate)
                 }
 
+                is ApiState.ActivitySummary -> {
+                    buffer.updateActivitySummary(chunk)
+                    buffer.publishNow(onUpdate)
+                }
+
+                is ApiState.DelegationText -> {
+                    buffer.appendDelegation(chunk)
+                    buffer.publishIfDue(onUpdate)
+                }
+
                 is ApiState.Thinking -> {
                     buffer.appendThought(chunk.thinkingChunk)
                     buffer.publishIfDue(onUpdate)
@@ -136,7 +146,7 @@ internal suspend fun Flow<ApiState>.collectApiStateUpdates(
                 }
 
                 is ApiState.Error -> {
-                    terminalError = chunk.message
+                    terminalError = chunk.message.ifBlank { "The provider could not complete this response." }
                 }
 
                 else -> {}
@@ -148,6 +158,7 @@ internal suspend fun Flow<ApiState>.collectApiStateUpdates(
 
     return when {
         terminalError != null -> ApiStateFlowOutcome.Failed(terminalError)
+        isCompletedSuccessfully && !buffer.hasResponse -> ApiStateFlowOutcome.Failed("The model finished without a visible answer. Please retry or choose another model.")
         isCompletedSuccessfully -> ApiStateFlowOutcome.Completed
         else -> ApiStateFlowOutcome.Incomplete
     }
@@ -160,11 +171,41 @@ private class StreamingMessageBuffer(
     private val thoughts = StringBuilder()
     private val content = StringBuilder()
     private val timeline = mutableListOf<AssistantTimelineItem>()
+    val hasResponse: Boolean get() = dev.chungjungsoo.gptmobile.presentation.ui.thinking.ThinkingParser.extractThinking(content.toString()).response.isNotBlank()
     private var lastPublishedAtNanos = 0L
     private var publishedThoughtLength = 0
     private var publishedContentLength = 0
     private var timelineVersion = 0
     private var publishedTimelineVersion = 0
+
+    fun updateActivitySummary(chunk: ApiState.ActivitySummary) {
+        val item = AssistantTimelineItem(
+            type = AssistantTimelineItemType.NOTICE,
+            content = chunk.text,
+            modelAuthored = chunk.modelAuthored,
+            statusSummary = true
+        )
+        val existing = timeline.indexOfFirst { it.statusSummary }
+        if (existing < 0) timeline.add(0, item) else timeline[existing] = item
+        timelineVersion++
+    }
+
+    fun appendDelegation(chunk: ApiState.DelegationText) {
+        val existing = timeline.indexOfFirst { it.delegationInvocationId == chunk.invocationId }
+        if (existing < 0) {
+            timeline += AssistantTimelineItem(
+                type = AssistantTimelineItemType.NOTICE,
+                content = chunk.text.take(64 * 1024),
+                delegationInvocationId = chunk.invocationId,
+                delegationProfile = chunk.profileName,
+                delegationRemote = chunk.remote
+            )
+        } else {
+            val old = timeline[existing]
+            timeline[existing] = old.copy(content = chunk.text.take(64 * 1024))
+        }
+        timelineVersion++
+    }
 
     fun appendThought(chunk: String) {
         if (chunk.isNotEmpty()) {
@@ -197,7 +238,7 @@ private class StreamingMessageBuffer(
 
     fun appendProgress(text: String, modelAuthored: Boolean) {
         val last = timeline.lastOrNull()
-        if (modelAuthored && last?.progressCheckpoint == true) {
+        if (modelAuthored && last?.progressCheckpoint == true && !last.statusSummary) {
             timeline[timeline.lastIndex] = last.copy(content = (if (last.modelAuthored) last.content else "") + text, modelAuthored = true)
         } else {
             timeline += AssistantTimelineItem(

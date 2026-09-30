@@ -1,6 +1,7 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.setting
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -21,8 +22,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Cloud
-import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Settings
@@ -176,6 +177,7 @@ fun AiPlatformsScreen(
                     if (freeExpanded) {
                         items(freeConnections, key = { "connection:${it.uid}" }) { connection ->
                             ProviderConnectionGroupCard(
+                                modifier = Modifier.animateItem(),
                                 connection = connection,
                                 onDelete = { deletingProvider = connection },
                                 profiles = platforms.filter { it.providerConnectionUid == connection.uid },
@@ -186,6 +188,7 @@ fun AiPlatformsScreen(
                         }
                         items(freeStandalone, key = { "profile:${it.id}" }) { platform ->
                             PlatformItemCard(
+                                modifier = Modifier.animateItem(),
                                 platform = platform,
                                 onToggleFavorite = { settingViewModel.togglePlatformFavorite(platform.id) },
                                 onEdit = { onNavigateToPlatformSetting(platform.uid) }
@@ -212,6 +215,7 @@ fun AiPlatformsScreen(
                     if (remoteExpanded) {
                         items(remoteConnections, key = { "remote-connection:${it.uid}" }) { connection ->
                             ProviderConnectionGroupCard(
+                                modifier = Modifier.animateItem(),
                                 connection = connection,
                                 onDelete = { deletingProvider = connection },
                                 profiles = platforms.filter { it.providerConnectionUid == connection.uid },
@@ -222,7 +226,7 @@ fun AiPlatformsScreen(
                             )
                         }
                         items(remoteStandalone, key = { "remote-profile:${it.id}" }) { platform ->
-                            PlatformItemCard(platform, { settingViewModel.togglePlatformFavorite(platform.id) }, { onNavigateToPlatformSetting(platform.uid) })
+                            PlatformItemCard(platform, { settingViewModel.togglePlatformFavorite(platform.id) }, { onNavigateToPlatformSetting(platform.uid) }, modifier = Modifier.animateItem())
                         }
                     }
                 }
@@ -240,6 +244,7 @@ fun AiPlatformsScreen(
                     if (localExpanded) {
                         items(localConnections, key = { "local-connection:${it.uid}" }) { connection ->
                             ProviderConnectionGroupCard(
+                                modifier = Modifier.animateItem(),
                                 connection = connection,
                                 onDelete = { deletingProvider = connection },
                                 profiles = platforms.filter { it.providerConnectionUid == connection.uid },
@@ -249,7 +254,7 @@ fun AiPlatformsScreen(
                             )
                         }
                         items(localStandalone, key = { "local-profile:${it.id}" }) { platform ->
-                            PlatformItemCard(platform, { settingViewModel.togglePlatformFavorite(platform.id) }, { onNavigateToPlatformSetting(platform.uid) })
+                            PlatformItemCard(platform, { settingViewModel.togglePlatformFavorite(platform.id) }, { onNavigateToPlatformSetting(platform.uid) }, modifier = Modifier.animateItem())
                         }
                     }
                 }
@@ -299,7 +304,7 @@ private fun ProviderConnectionGroupCard(
 ) {
     var expanded by rememberSaveable(connection.uid) { mutableStateOf(false) }
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().animateContentSize(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         )
@@ -346,21 +351,19 @@ private fun ProviderConnectionGroupCard(
                         )
                     }
                     if (onProviderSettings != null) {
-                        TextButton(onClick = onProviderSettings) {
+                        IconButton(onClick = onProviderSettings) {
                             Icon(
                                 imageVector = Icons.Default.Settings,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
+                                contentDescription = "Provider settings",
+                                modifier = Modifier.size(22.dp)
                             )
-                            Text(" Provider settings")
                         }
                     }
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { expanded = !expanded }) {
-                    Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null)
-                    Text(if (expanded) "Hide profiles" else "Show profiles")
+                IconButton(onClick = { expanded = !expanded }) {
+                    Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, if (expanded) "Hide profiles" else "Show profiles")
                 }
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick = onDelete) {

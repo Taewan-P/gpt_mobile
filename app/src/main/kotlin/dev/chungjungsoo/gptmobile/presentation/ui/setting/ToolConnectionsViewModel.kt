@@ -309,6 +309,7 @@ class ToolConnectionsViewModel @Inject constructor(
             ToolConnectionProvider("Perplexity", ToolConnectionType.PERPLEXITY, "https://api.perplexity.ai/search", ToolConnectionAuthType.BEARER),
             ToolConnectionProvider("Exa", ToolConnectionType.EXA, "https://api.exa.ai/search", ToolConnectionAuthType.API_KEY),
             ToolConnectionProvider("Brave Search", ToolConnectionType.BRAVE, "https://api.search.brave.com/res/v1/web/search", ToolConnectionAuthType.API_KEY),
+            ToolConnectionProvider("GitHub API", ToolConnectionType.GITHUB, "https://api.github.com", ToolConnectionAuthType.BEARER),
             ToolConnectionProvider("MCP server", ToolConnectionType.MCP, "", ToolConnectionAuthType.NONE)
         )
 

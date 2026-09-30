@@ -98,7 +98,6 @@ import dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.model.FreeAiProvider
 import dev.chungjungsoo.gptmobile.data.model.SamplingCreativity
-import dev.chungjungsoo.gptmobile.data.model.excludesMemory
 import dev.chungjungsoo.gptmobile.data.model.parseProfileLabels
 import dev.chungjungsoo.gptmobile.presentation.common.BeveledProfileLabel
 import dev.chungjungsoo.gptmobile.presentation.common.FreeProviderPicker
@@ -244,7 +243,7 @@ fun PlatformSettingScreen(
                     title = stringResource(R.string.ai_profile_name),
                     description = platformData.name,
                     enabled = platformData.enabled,
-                    onItemClick = { if (platformData.compatibleType != ClientType.FREE) settingViewModel.openPlatformNameDialog() },
+                    onItemClick = settingViewModel::openPlatformNameDialog,
                     showTrailingIcon = false,
                     showLeadingIcon = true,
                     leadingIcon = {
@@ -660,8 +659,8 @@ fun PlatformSettingScreen(
                     title = "Device location",
                     description = "Allow this AI profile to request the phone's current GPS location when needed.",
                     icon = Icons.Default.LocationOn,
-                    enabled = !isFreePlatform && supportsTools && platformData.enabled && !platformData.disableAllTools && !platformData.disableLocalTools,
-                    isChecked = !isFreePlatform && toolBindingState.deviceLocationEnabled,
+                    enabled = supportsTools && platformData.enabled && !platformData.disableAllTools && !platformData.disableLocalTools,
+                    isChecked = toolBindingState.deviceLocationEnabled,
                     onCheckedChange = { enabled ->
                         if (!enabled) {
                             settingViewModel.toggleDeviceLocation(false)
@@ -690,8 +689,8 @@ fun PlatformSettingScreen(
                 SettingItem(
                     modifier = Modifier.height(64.dp),
                     title = stringResource(R.string.mcp_tools),
-                    description = if (platformData.excludesMemory()) stringResource(R.string.free_ai_memory_off) else "${toolBindingState.selectedMcpTools.size} assigned",
-                    enabled = !platformData.excludesMemory() && supportsTools && platformData.enabled && !platformData.disableAllTools && !platformData.disableRemoteTools,
+                    description = "${toolBindingState.selectedMcpTools.size} assigned",
+                    enabled = supportsTools && platformData.enabled && !platformData.disableAllTools && !platformData.disableRemoteTools,
                     onItemClick = {
                         val needsPermission = toolBindingState.mcpConnections.any { connection ->
                             connection.endpointUrl?.let(::requiresLocalNetworkAccess) == true
@@ -709,6 +708,17 @@ fun PlatformSettingScreen(
                     showTrailingIcon = true,
                     showLeadingIcon = false
                 )
+
+                if (isFreePlatform) {
+                    SettingItem(
+                        title = "Reset MCP data-sharing permissions",
+                        description = "Require the slider acknowledgement again for this free profile.",
+                        enabled = true,
+                        onItemClick = settingViewModel::resetFreeToolPermissions,
+                        showTrailingIcon = true,
+                        showLeadingIcon = false
+                    )
+                }
 
                 // Advanced Settings: Maximum Tool Calls
                 if (supportsTools) PlatformMaxToolCallsSettingHost(settingViewModel)

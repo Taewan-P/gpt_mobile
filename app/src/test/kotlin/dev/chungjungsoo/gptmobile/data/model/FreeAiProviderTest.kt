@@ -9,6 +9,14 @@ import org.junit.Test
 
 class FreeAiProviderTest {
     @Test
+    fun `free defaults follow the provider while custom names survive a switch`() {
+        val original = FreeAiProvider.KILO.applyTo(PlatformV2(name = "Free Models"))
+        assertEquals("Kilo", original.name)
+        assertEquals("Pollinations", FreeAiProvider.POLLINATIONS.applyTo(original).name)
+        assertEquals("Research helper", FreeAiProvider.POLLINATIONS.applyTo(original.copy(name = "Research helper")).name)
+    }
+
+    @Test
     fun `imported free routes exclude memory without excluding ordinary paid or local models`() {
         val profile = PlatformV2(name = "Test", compatibleType = ClientType.CUSTOM)
         listOf("kilo-auto/free", "openrouter/free", "some-model:free").forEach {

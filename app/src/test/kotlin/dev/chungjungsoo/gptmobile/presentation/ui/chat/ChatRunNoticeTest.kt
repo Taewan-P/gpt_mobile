@@ -67,6 +67,9 @@ class ChatRunNoticeTest {
             timelineNoticeMessages(
                 listOf(
                     AssistantTimelineItem(AssistantTimelineItemType.NOTICE, content = "ignored"),
+                    AssistantTimelineItem(AssistantTimelineItemType.NOTICE, content = "private helper output", delegationInvocationId = "child"),
+                    AssistantTimelineItem(AssistantTimelineItemType.NOTICE, content = "Searching", statusSummary = true),
+                    AssistantTimelineItem(AssistantTimelineItemType.NOTICE, content = "Preparing response", progressCheckpoint = true),
                     AssistantTimelineItem(AssistantTimelineItemType.TEXT, content = "hello"),
                     AssistantTimelineItem(AssistantTimelineItemType.NOTICE, content = "cpu")
                 )

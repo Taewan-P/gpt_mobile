@@ -67,14 +67,15 @@ class CompleteBackupManager @Inject constructor(
     suspend fun backup(
         uri: Uri,
         selection: CompleteBackupSelection = CompleteBackupSelection(),
-        password: String? = null
+        password: String? = null,
+        recoveryKeyUri: Uri? = null
     ): BackupRestoreResult = operation { work ->
         val selected = selection.normalized()
         require(selected.sections.isNotEmpty()) { "Select at least one backup section." }
 
-        require(!selected.requiresEncryption || (password?.length ?: 0) >= 8) {
-            "Choose a password of at least 8 characters to export credentials or memory."
-        }
+        require(password.isNullOrBlank() || password.length >= 8) { "Use a backup password with at least 8 characters." }
+        require(!password.isNullOrBlank() || recoveryKeyUri != null) { "Save a separate recovery key file to create a passwordless encrypted backup." }
+        require(recoveryKeyUri != uri) { "The backup and recovery key must be separate files." }
 
         val storage = files()
         val sources = linkedMapOf<String, File>()
@@ -132,20 +133,31 @@ class CompleteBackupManager @Inject constructor(
         val archive = File(work, "archive.zip")
         CompleteBackupArchive.write(archive, manifest, sources)
 
-        context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
-            val protectionPassword = password?.takeIf(String::isNotBlank)
-            if (protectionPassword != null) {
-                CompleteBackupCrypto.encrypt(archive, output, protectionPassword)
-            } else {
-                archive.inputStream().buffered().use { input -> input.copyTo(output) }
+        val protectionPassword = password?.takeIf(String::isNotBlank)
+        val recoveryKey = if (protectionPassword == null) CompleteBackupCrypto.generateRecoveryKey() else null
+        try {
+            if (recoveryKey != null) {
+                context.contentResolver.openOutputStream(requireNotNull(recoveryKeyUri), "wt")?.use {
+                    CompleteBackupCrypto.writeRecoveryKey(it, recoveryKey)
+                } ?: error("Could not save the recovery key. No backup was created.")
             }
-        } ?: error("Could not open the backup destination.")
+            context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
+                if (protectionPassword != null) {
+                    CompleteBackupCrypto.encrypt(archive, output, protectionPassword)
+                } else {
+                    CompleteBackupCrypto.encryptPortable(archive, output, requireNotNull(recoveryKey))
+                }
+            } ?: error("Could not open the backup destination.")
+            if (recoveryKey != null) secretVault.put(recoveryKeyReference(CompleteBackupCrypto.keyId(recoveryKey)), recoveryKey)
+        } finally {
+            recoveryKey?.fill(0)
+        }
 
         legacy.recordBackupMetadata()
         BackupRestoreResult(
             true,
             if (password.isNullOrBlank()) {
-                "Backup saved."
+                "Encrypted backup and recovery key saved. Keep the key private and separate; it is required after reinstall or on another device."
             } else {
                 "Password-encrypted backup saved."
             }
@@ -155,7 +167,8 @@ class CompleteBackupManager @Inject constructor(
     suspend fun restore(
         uri: Uri,
         legacyPassword: String? = null,
-        selection: CompleteBackupSelection = CompleteBackupSelection.ALL
+        selection: CompleteBackupSelection = CompleteBackupSelection.ALL,
+        recoveryKeyUri: Uri? = null
     ): BackupRestoreResult = operation { work ->
         val requested = selection.normalized()
         require(requested.sections.isNotEmpty()) { "Select at least one restore section." }
@@ -190,6 +203,22 @@ class CompleteBackupManager @Inject constructor(
                 header[3] == 0x04.toByte()
 
             when {
+                headerBytes >= 8 && header.copyOfRange(0, 8).decodeToString() == "GPTFULL3" -> {
+                    input.mark(64)
+                    val keyId = CompleteBackupCrypto.readPortableKeyId(input)
+                    input.reset()
+                    val key = if (recoveryKeyUri != null) {
+                        context.contentResolver.openInputStream(recoveryKeyUri)?.use(CompleteBackupCrypto::readRecoveryKey)
+                            ?: error("Could not open the recovery key.")
+                    } else {
+                        secretVault.read(recoveryKeyReference(keyId)) ?: error("Select the recovery key saved with this backup. No password is required.")
+                    }
+                    try {
+                        CompleteBackupCrypto.decryptPortable(input, archive, key, work.usableSpace - RESERVE)
+                    } finally {
+                        key.fill(0)
+                    }
+                }
                 isPasswordlessComplete -> {
                     val backupKey = requireExistingBackupKey()
                     try {
@@ -336,6 +365,22 @@ class CompleteBackupManager @Inject constructor(
         } ?: false
     }
 
+    suspend fun requiresRecoveryKey(uri: Uri): Boolean = withContext(Dispatchers.IO) {
+        context.contentResolver.openInputStream(uri)?.buffered()?.use { input ->
+            input.mark(64)
+            val magic = ByteArray(8)
+            val count = input.read(magic)
+            input.reset()
+            if (count != 8 || magic.decodeToString() != "GPTFULL3") return@use false
+            val key = secretVault.read(recoveryKeyReference(CompleteBackupCrypto.readPortableKeyId(input)))
+            val missing = key == null
+            key?.fill(0)
+            missing
+        } ?: error("Could not inspect the backup.")
+    }
+
+    private fun recoveryKeyReference(id: ByteArray): String = "backup-recovery-" + id.joinToString("") { "%02x".format(it) }
+
     private fun copyArchiveWithLimit(input: java.io.InputStream, target: File, maxBytes: Long) {
         require(maxBytes > 0) { "Insufficient free space to restore the backup." }
         target.outputStream().buffered().use { output ->
@@ -466,7 +511,7 @@ class CompleteBackupManager @Inject constructor(
     }
 
     private fun secretBelongsTo(reference: String, selection: CompleteBackupSelection): Boolean = when {
-        reference == BACKUP_KEY_REF -> false
+        reference == BACKUP_KEY_REF || reference.startsWith("backup-recovery-") -> false
         reference == FactVaultRepository.VAULT_REFERENCE || reference.startsWith("memory-part-") -> selection.includes(CompleteBackupSection.MEMORY)
         else -> selection.includes(CompleteBackupSection.CREDENTIALS)
     }

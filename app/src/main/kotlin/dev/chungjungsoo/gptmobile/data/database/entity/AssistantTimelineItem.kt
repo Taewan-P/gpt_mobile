@@ -21,7 +21,11 @@ data class AssistantTimelineItem(
     val toolMetrics: ToolPayloadMetrics? = null,
     val recalledFacts: List<RecalledFactRef> = emptyList(),
     val progressCheckpoint: Boolean = false,
-    val modelAuthored: Boolean = false
+    val modelAuthored: Boolean = false,
+    val delegationInvocationId: String? = null,
+    val delegationProfile: String? = null,
+    val delegationRemote: Boolean = false,
+    val statusSummary: Boolean = false
 )
 
 // Fallback for callers without a resource context; keep in sync with R.string.legacy_assistant_order_unavailable.

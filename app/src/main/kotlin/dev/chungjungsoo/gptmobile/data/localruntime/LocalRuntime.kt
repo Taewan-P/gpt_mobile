@@ -161,6 +161,9 @@ interface LocalRuntime {
 
     fun hasOpenConversation(): Boolean = false
 
+    /** Optional background work must never queue behind or interrupt a generation. */
+    suspend fun <T> tryRunExclusive(block: suspend LocalRuntime.() -> T): T? = null
+
     suspend fun <T> runExclusive(block: suspend LocalRuntime.() -> T): T = block(this)
 
     fun <T> runExclusiveFlow(block: suspend LocalRuntime.() -> Flow<T>): Flow<T> = runExclusiveFlow(onContended = {}, block = block)

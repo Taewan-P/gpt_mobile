@@ -19,6 +19,23 @@ class CompleteBackupCryptoTest {
     private val rawKey = ByteArray(32) { (it * 7 + 3).toByte() }
 
     @Test
+    fun portableKeyRoundTripsAndAuthenticatesAcrossChunks() {
+        val bytes = ByteArray(2 * 1024 * 1024 + 91) { (it % 251).toByte() }
+        val source = File(temp.root, "portable-source").apply { writeBytes(bytes) }
+        val keyBytes = ByteArrayOutputStream().also { CompleteBackupCrypto.writeRecoveryKey(it, rawKey) }.toByteArray()
+        val exported = CompleteBackupCrypto.readRecoveryKey(keyBytes.inputStream())
+        val encrypted = ByteArrayOutputStream().also { CompleteBackupCrypto.encryptPortable(source, it, exported) }.toByteArray()
+        val output = File(temp.root, "portable-decoded")
+        CompleteBackupCrypto.decryptPortable(encrypted.inputStream(), output, exported)
+        assertArrayEquals(bytes, output.readBytes())
+        val broken = encrypted.copyOf().also { it[it.lastIndex] = (it.last().toInt() xor 1).toByte() }
+        assertThrows(Exception::class.java) { CompleteBackupCrypto.decryptPortable(broken.inputStream(), output, exported) }
+        assertFalse(output.exists())
+        assertThrows(Exception::class.java) { CompleteBackupCrypto.decryptPortable(encrypted.inputStream(), output, ByteArray(32)) }
+        assertThrows(Exception::class.java) { CompleteBackupCrypto.readRecoveryKey((keyBytes + byteArrayOf(0)).inputStream()) }
+    }
+
+    @Test
     fun legacyPasswordFormatStillRoundTrips() {
         val bytes = ByteArray(2 * 1024 * 1024 + 37) { (it % 239).toByte() }
         val encrypted = encryptLegacy(bytes)

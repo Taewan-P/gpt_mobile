@@ -18,6 +18,52 @@ import org.junit.Test
 
 class ApiStateFlowExtensionsTest {
     @Test
+    fun `loading summaries update one entry without splitting streamed Markdown`() = runBlocking {
+        var saved = emptyList<AssistantTimelineItem>()
+        flowOf(
+            ApiState.Success("| Column |\n| --- |\n"),
+            ApiState.ActivitySummary("Searching"),
+            ApiState.Success("| Complete cell |"),
+            ApiState.ActivitySummary("Reviewing sources", true),
+            ApiState.Done
+        ).collectApiStateUpdates(onUpdate = { _, _, timeline -> saved = timeline })
+        assertEquals(1, saved.count { it.statusSummary })
+        assertEquals("Reviewing sources", saved.single { it.statusSummary }.content)
+        assertEquals("| Column |\n| --- |\n| Complete cell |", saved.single { it.type == AssistantTimelineItemType.TEXT }.content)
+    }
+
+    @Test
+    fun `empty and thinking-only completions produce a visible error`() = runBlocking {
+        listOf("", "   ", "<think>Still thinking</think>").forEach { text ->
+            val outcome = flowOf(ApiState.Success(text), ApiState.Done).collectApiStateUpdates(onUpdate = { _, _, _ -> })
+            assertTrue(outcome is ApiStateFlowOutcome.Failed)
+            assertTrue((outcome as ApiStateFlowOutcome.Failed).message.contains("visible answer"))
+        }
+    }
+
+    @Test
+    fun `delegation snapshots are retained separately from the primary answer`() = runBlocking {
+        var saved = emptyList<AssistantTimelineItem>()
+        var answer = ""
+        val outcome = flowOf(
+            ApiState.DelegationText("child", "Helper", "", true),
+            ApiState.DelegationText("child", "Helper", "Some", true),
+            ApiState.DelegationText("child", "Helper", "Some evidence", true),
+            ApiState.Success("The final answer"),
+            ApiState.Done
+        ).collectApiStateUpdates(onUpdate = { content, _, timeline ->
+            answer = content
+            saved = timeline
+        })
+        assertEquals(ApiStateFlowOutcome.Completed, outcome)
+        assertEquals("The final answer", answer)
+        val child = saved.single { it.delegationInvocationId == "child" }
+        assertEquals("Some evidence", child.content)
+        assertEquals("Helper", child.delegationProfile)
+        assertTrue(child.delegationRemote)
+    }
+
+    @Test
     fun `progress bubble stays after tenth tool and before followup answer`() = runBlocking {
         var timeline = emptyList<AssistantTimelineItem>()
         flow {
@@ -226,9 +272,9 @@ class ApiStateFlowExtensionsTest {
             onNotice = notices::add
         )
 
-        assertEquals(ApiStateFlowOutcome.Completed, outcome)
+        assertTrue(outcome is ApiStateFlowOutcome.Failed)
         assertEquals(listOf("Tools unavailable for this model."), notices)
-        assertEquals("", messageFlow.value.assistantMessages.single().single().content)
+        assertTrue(messageFlow.value.assistantMessages.single().single().content.contains("without a visible answer"))
     }
 
     @Test
@@ -396,7 +442,7 @@ class ApiStateFlowExtensionsTest {
             )
         )
 
-        val outcome = flowOf(ApiState.Done).handleStates(
+        val outcome = flowOf(ApiState.Success("Stamp me"), ApiState.Done).handleStates(
             messageFlow = messageFlow,
             turnIndex = 0,
             platformIdx = 1,

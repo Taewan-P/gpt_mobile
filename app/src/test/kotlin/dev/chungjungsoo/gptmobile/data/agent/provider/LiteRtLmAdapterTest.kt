@@ -47,6 +47,25 @@ import org.junit.Test
 
 class LiteRtLmAdapterTest {
     @Test
+    fun `status summarizer never loads a cold engine and uses no tools or thinking`() = runBlocking {
+        val fake = FakeLocalRuntime().apply {
+            scriptedEvents = listOf(listOf(LocalRuntimeEvent.TextDelta("Searching sources"), LocalRuntimeEvent.Done))
+        }
+        val holder = LocalEngineHolder(fake, timeProvider = { 1000L })
+        val adapter = adapter(holder)
+        assertEquals(null, adapter.summarizeActivity("Searching"))
+        assertTrue(fake.loadEngineCalls.isEmpty())
+        holder.loadEngine(dev.chungjungsoo.gptmobile.data.localruntime.LocalEngineSpec("/models/gemma.litertlm", LocalAccelerators.CPU, 1024))
+        assertEquals("Searching sources", adapter.summarizeActivity("Searching"))
+        assertEquals(1, fake.loadEngineCalls.size)
+        val config = fake.createConversationCalls.single()
+        assertTrue(config.tools.isEmpty())
+        assertEquals(false, config.thinkingEnabled)
+        assertEquals(16, config.maxOutputTokens)
+        assertTrue(fake.closeConversationCalls > 0)
+    }
+
+    @Test
     fun `template mismatch rebuilds warm conversation once without reloading weights`() = runBlocking {
         val runtime = FakeLocalRuntime().apply {
             scriptedEvents = listOf(
