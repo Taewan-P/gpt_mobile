@@ -324,7 +324,7 @@ class ChatRepositoryImplTest {
             assistantMessages = emptyList(),
             platform = groqPlatform(reasoning = true, model = "qwen/qwen3-32b"),
             runId = "test-run"
-        ).toList().filterNot { it is ApiState.GatewayProgressChanged || it is ApiState.ProgressCheckpoint || (it is ApiState.Notice && (it.message.startsWith("Context estimate:") || it.message.startsWith("Context: no app-imposed limit."))) }
+        ).toList().filterNot { it is ApiState.GatewayProgressChanged || it is ApiState.ProgressCheckpoint || (it is ApiState.Notice && (it.message.startsWith("Context estimate:") || it.message.startsWith("Context: no app-imposed limit.") || it.message.startsWith("Local context:"))) }
 
         assertEquals(
             listOf(
