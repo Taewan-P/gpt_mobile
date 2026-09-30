@@ -20,6 +20,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -76,6 +78,8 @@ fun AiPlatformsScreen(
     val platforms by settingViewModel.platformState.collectAsStateWithLifecycle()
     val providerConnections by settingViewModel.providerConnections.collectAsStateWithLifecycle()
     var freeExpanded by rememberSaveable { mutableStateOf(false) }
+    var remoteExpanded by rememberSaveable { mutableStateOf(true) }
+    var localExpanded by rememberSaveable { mutableStateOf(true) }
     var deletingProvider by remember { mutableStateOf<ProviderConnection?>(null) }
     deletingProvider?.let { connection ->
         val linked = platforms.filter { it.providerConnectionUid == connection.uid }
@@ -189,43 +193,95 @@ fun AiPlatformsScreen(
                         }
                     }
                 }
-                val otherConnections = providerConnections.filter { it.compatibleType != ClientType.FREE }
-                if (otherConnections.isNotEmpty()) {
+                val localTypes = setOf(ClientType.LITERT_LM, ClientType.LLAMA, ClientType.OLLAMA)
+                val localConnections = providerConnections.filter { it.compatibleType in localTypes }
+                val remoteConnections = providerConnections.filter { it.compatibleType != ClientType.FREE && it.compatibleType !in localTypes }
+                val localStandalone = platforms.filter { it.providerConnectionUid == null && it.compatibleType in localTypes }
+                val remoteStandalone = platforms.filter { it.providerConnectionUid == null && it.compatibleType != ClientType.FREE && it.compatibleType !in localTypes }
+
+                if (remoteConnections.isNotEmpty() || remoteStandalone.isNotEmpty()) {
                     item {
-                        Text(stringResource(R.string.provider_connection), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        ProviderCategoryHeader(
+                            title = "Remote",
+                            count = remoteConnections.size + remoteStandalone.size,
+                            expanded = remoteExpanded,
+                            icon = Icons.Default.Cloud,
+                            onClick = { remoteExpanded = !remoteExpanded }
+                        )
                     }
-                }
-                items(otherConnections, key = { "connection:${it.uid}" }) { connection ->
-                    ProviderConnectionGroupCard(
-                        connection = connection,
-                        onDelete = { deletingProvider = connection },
-                        profiles = platforms.filter { it.providerConnectionUid == connection.uid },
-                        onToggleFavorite = { settingViewModel.togglePlatformFavorite(it.id) },
-                        onEdit = { onNavigateToPlatformSetting(it.uid) },
-                        onProviderSettings = { onNavigateToProviderSettings(connection.uid) },
-                        onSpecialSettings = if (connection.compatibleType == ClientType.OPENROUTER) onNavigateToOpenRouterSettings else null
-                    )
+                    if (remoteExpanded) {
+                        items(remoteConnections, key = { "remote-connection:${it.uid}" }) { connection ->
+                            ProviderConnectionGroupCard(
+                                connection = connection,
+                                onDelete = { deletingProvider = connection },
+                                profiles = platforms.filter { it.providerConnectionUid == connection.uid },
+                                onToggleFavorite = { settingViewModel.togglePlatformFavorite(it.id) },
+                                onEdit = { onNavigateToPlatformSetting(it.uid) },
+                                onProviderSettings = { onNavigateToProviderSettings(connection.uid) },
+                                onSpecialSettings = if (connection.compatibleType == ClientType.OPENROUTER) onNavigateToOpenRouterSettings else null
+                            )
+                        }
+                        items(remoteStandalone, key = { "remote-profile:${it.id}" }) { platform ->
+                            PlatformItemCard(platform, { settingViewModel.togglePlatformFavorite(platform.id) }, { onNavigateToPlatformSetting(platform.uid) })
+                        }
+                    }
                 }
 
-                val standaloneProfiles = platforms.filter { it.providerConnectionUid == null && it.compatibleType != ClientType.FREE }
-                if (standaloneProfiles.isNotEmpty()) {
+                if (localConnections.isNotEmpty() || localStandalone.isNotEmpty()) {
                     item {
-                        Text(
-                            text = "Independent profiles",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 4.dp)
+                        ProviderCategoryHeader(
+                            title = "Local",
+                            count = localConnections.size + localStandalone.size,
+                            expanded = localExpanded,
+                            icon = Icons.Default.Dns,
+                            onClick = { localExpanded = !localExpanded }
                         )
                     }
-                    items(standaloneProfiles, key = { "profile:${it.id}" }) { platform ->
-                        PlatformItemCard(
-                            platform = platform,
-                            onToggleFavorite = { settingViewModel.togglePlatformFavorite(platform.id) },
-                            onEdit = { onNavigateToPlatformSetting(platform.uid) }
-                        )
+                    if (localExpanded) {
+                        items(localConnections, key = { "local-connection:${it.uid}" }) { connection ->
+                            ProviderConnectionGroupCard(
+                                connection = connection,
+                                onDelete = { deletingProvider = connection },
+                                profiles = platforms.filter { it.providerConnectionUid == connection.uid },
+                                onToggleFavorite = { settingViewModel.togglePlatformFavorite(it.id) },
+                                onEdit = { onNavigateToPlatformSetting(it.uid) },
+                                onProviderSettings = { onNavigateToProviderSettings(connection.uid) }
+                            )
+                        }
+                        items(localStandalone, key = { "local-profile:${it.id}" }) { platform ->
+                            PlatformItemCard(platform, { settingViewModel.togglePlatformFavorite(platform.id) }, { onNavigateToPlatformSetting(platform.uid) })
+                        }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ProviderCategoryHeader(
+    title: String,
+    count: Int,
+    expanded: Boolean,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+            Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("$count configured", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, if (expanded) "Collapse $title providers" else "Expand $title providers")
         }
     }
 }
