@@ -36,3 +36,26 @@ Everyday tool rates join tool events to their originating run and then match pro
 ## Verification
 
 Unit coverage includes deterministic percentiles/weights, missing metrics, configuration boundaries, provider override isolation, streamed timing/usage, both local and remote tool execution, strict JSON, abrupt/empty completions, cancellation/timeout, and durable checkpoints/deletion. Android resource and Room schema checks are unchanged. Physical device testing remains useful for native runtime initialization, thermal behavior and screen layout at large font sizes.
+
+## Delegation pipeline benchmark
+
+The **Delegation** tab tests the selected primary profile and its configured helper
+through the same worker gate, watchdog, input/output limits and research coordinator
+used in conversations. It runs evidence compaction, a helper tool round trip, and
+fixture research through the final primary answer. It records the settings snapshot,
+worker/primary input and output tokens, worker calls, elapsed time, page/search counts,
+and evidence/brief sizes. Worker token counters reflect provider-reported usage;
+providers without usage reports can leave these counters at zero.
+
+Search/page results and the parcel lookup are temporary fixtures. Connected MCP tools,
+location, memory and chat history are excluded. Model requests still use configured
+providers and incur normal charges. A case stops at 180 seconds; individual workers
+also retain the configured first-progress, idle and runtime watchdogs. Low-battery,
+disabled-tool and helper eligibility policies still apply. This tests wiring and settings,
+not live search-provider availability or performance.
+
+Text transforms (planning, page selection, evidence summaries and memory extraction)
+run without tools; the app performs authorized research tool calls. Direct delegated
+tasks retain helper tool access. The final answer uses the primary profile/context
+output budget rather than the helper brief budget. Failed preparation restores the
+primary's authorized tools for recovery and is recorded as a failed tool event.

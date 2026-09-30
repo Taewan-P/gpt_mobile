@@ -22,15 +22,19 @@ import kotlinx.serialization.json.put
 
 data class BenchmarkCase(val id: String, val label: String, val category: String, val prompt: String)
 
-fun benchmarkSuite(mode: BenchmarkMode): List<BenchmarkCase> = buildList {
-    repeat(if (mode == BenchmarkMode.FULL) 3 else 1) { index ->
-        add(BenchmarkCase("speed-$index", "Generation ${index + 1}", "speed", "Write about 120 words explaining how rain forms, in plain English. No heading."))
+fun benchmarkSuite(mode: BenchmarkMode): List<BenchmarkCase> = if (mode == BenchmarkMode.DELEGATION) {
+    delegationBenchmarkSuite()
+} else {
+    buildList {
+        repeat(if (mode == BenchmarkMode.FULL) 3 else 1) { index ->
+            add(BenchmarkCase("speed-$index", "Generation ${index + 1}", "speed", "Write about 120 words explaining how rain forms, in plain English. No heading."))
+        }
+        add(BenchmarkCase("instruction", "Exact instruction", "task", "Reply with exactly BENCHMARK_READY and nothing else."))
+        add(BenchmarkCase("json", "Structured JSON", "json", "Return only this JSON object, without markdown or explanation: {\"status\":\"ready\",\"count\":3,\"items\":[\"red\",\"green\",\"blue\"]}"))
+        add(BenchmarkCase("arithmetic", "Arithmetic", "task", "What is 17 * 23 + 9? Reply with only the integer."))
+        if (mode == BenchmarkMode.FULL) add(BenchmarkCase("context", "Conversation recall", "task", "What was the parcel code I gave you? Reply with only the code."))
+        add(BenchmarkCase("tool", "Tool round trip", "tools", "Call benchmark_lookup with key=\"parcel\". Reply with only the code returned by that tool. Do not guess."))
     }
-    add(BenchmarkCase("instruction", "Exact instruction", "task", "Reply with exactly BENCHMARK_READY and nothing else."))
-    add(BenchmarkCase("json", "Structured JSON", "json", "Return only this JSON object, without markdown or explanation: {\"status\":\"ready\",\"count\":3,\"items\":[\"red\",\"green\",\"blue\"]}"))
-    add(BenchmarkCase("arithmetic", "Arithmetic", "task", "What is 17 * 23 + 9? Reply with only the integer."))
-    if (mode == BenchmarkMode.FULL) add(BenchmarkCase("context", "Conversation recall", "task", "What was the parcel code I gave you? Reply with only the code."))
-    add(BenchmarkCase("tool", "Tool round trip", "tools", "Call benchmark_lookup with key=\"parcel\". Reply with only the code returned by that tool. Do not guess."))
 }
 
 /** Runs only synthetic prompts and an in-memory fixture. No chat history, MCP or device tools. */
@@ -49,11 +53,14 @@ class BenchmarkRunner(
         var lastChunk: Long? = null
         var longestGap: Long? = null
         var chunks = 0
+        var inputTokens = 0
+        var roundInputTokens = 0
         var tokens = 0
         var estimated = false
         var roundTokens: Int? = null
         var roundStart = 0
         var roundAccounted = true
+        var providerFailure: String? = null
         var nativeMetrics: dev.chungjungsoo.gptmobile.data.localruntime.NativeInferenceMetrics? = null
         val calls = linkedMapOf<String, ProviderEvent.ToolCall>()
         val successful = mutableSetOf<String>()
@@ -63,7 +70,7 @@ class BenchmarkRunner(
             test.id, test.label, test.category, outcome, (now() - started).coerceAtLeast(0), first,
             tokens + if (roundAccounted) 0 else roundTokens ?: ((text.length - roundStart + 3) / 4),
             estimated || (!roundAccounted && roundTokens == null), text.length, chunks, longestGap, calls.size, successful.size,
-            text.take(1000).toString(), error, lastChunk?.let { it - started }, nativeMetrics
+            text.take(1000).toString(), error, lastChunk?.let { it - started }, nativeMetrics, inputTokens + if (roundAccounted) 0 else roundInputTokens
         )
         try {
             val finished = withTimeoutOrNull(timeoutMs) {
@@ -80,6 +87,7 @@ class BenchmarkRunner(
                     val roundCalls = linkedMapOf<String, ProviderEvent.ToolCall>()
                     roundStart = text.length
                     roundTokens = null
+                    roundInputTokens = 0
                     roundAccounted = false
                     var completed = false
                     session.streamRound(tools.map { it.definition }, exchanges.toList()).collect { event ->
@@ -102,18 +110,25 @@ class BenchmarkRunner(
                             is ProviderEvent.ToolResult -> if (!event.result.isError && event.call.name == fixture.definition.name && validArguments(event.call.arguments)) {
                                 successful.add(event.call.callId)
                             }
-                            is ProviderEvent.Usage -> event.outputTokens?.takeIf { it >= 0 }?.let { count ->
-                                roundTokens = if (event.cumulative) count else (roundTokens ?: 0) + count
+                            is ProviderEvent.Usage -> {
+                                event.inputTokens?.takeIf { it >= 0 }?.let { count ->
+                                    roundInputTokens = if (event.cumulative) maxOf(roundInputTokens, count) else roundInputTokens + count
+                                }
+                                event.outputTokens?.takeIf { it >= 0 }?.let { count ->
+                                    roundTokens = if (event.cumulative) maxOf(roundTokens ?: 0, count) else (roundTokens ?: 0) + count
+                                }
                             }
                             is ProviderEvent.LocalMetrics -> nativeMetrics = event.metrics.native?.takeIf { it.isValid }
-                            is ProviderEvent.Failed -> error(event.message)
+                            is ProviderEvent.Failed -> providerFailure = event.message
                             ProviderEvent.Completed -> completed = true
                             else -> Unit
                         }
                     }
+                    providerFailure?.let { error(it) }
                     check(completed) { "Provider ended without a completion event" }
                     if (roundTokens == null) estimated = true
                     tokens += roundTokens ?: ((text.length - roundStart + 3) / 4)
+                    inputTokens += roundInputTokens
                     roundAccounted = true
                     if (roundCalls.isEmpty() || session.handlesToolsInternally) {
                         done = true
@@ -194,12 +209,13 @@ private fun fixtureTool(code: String): AgentTool = object : AgentTool {
 suspend fun runBenchmarkSuite(
     suite: List<BenchmarkCase>,
     runCase: suspend (Int, BenchmarkCase) -> BenchmarkSample,
-    onSample: suspend (BenchmarkSample) -> Unit
+    onSample: suspend (BenchmarkSample) -> Unit,
+    stopOnError: Boolean = true
 ): String? {
     for ((index, test) in suite.withIndex()) {
         val sample = runCase(index, test)
         onSample(sample)
-        if (sample.outcome == BenchmarkOutcome.ERROR || sample.outcome == BenchmarkOutcome.TIMED_OUT) {
+        if (stopOnError && (sample.outcome == BenchmarkOutcome.ERROR || sample.outcome == BenchmarkOutcome.TIMED_OUT)) {
             return sample.error ?: "The provider could not complete the benchmark request."
         }
     }

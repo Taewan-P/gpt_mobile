@@ -84,6 +84,7 @@ fun ProfileBenchmarkScreen(onBack: () -> Unit, onUsage: () -> Unit, viewModel: P
     val profile by viewModel.selected.collectAsStateWithLifecycle()
     val history by viewModel.history.collectAsStateWithLifecycle()
     val localEnvironment by viewModel.localEnvironment.collectAsStateWithLifecycle()
+    val delegationSettings by viewModel.delegationSettings.collectAsStateWithLifecycle()
     val progress by viewModel.progress.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val ready by viewModel.ready.collectAsStateWithLifecycle()
@@ -134,7 +135,7 @@ fun ProfileBenchmarkScreen(onBack: () -> Unit, onUsage: () -> Unit, viewModel: P
             } else {
                 item {
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("Overview", "Everyday", "Compare", "History").forEachIndexed { index, label ->
+                        listOf("Overview", "Everyday", "Compare", "History", "Delegation").forEachIndexed { index, label ->
                             FilterChip(tab == index, { tab = index }, label = { Text(label) })
                         }
                     }
@@ -164,11 +165,51 @@ fun ProfileBenchmarkScreen(onBack: () -> Unit, onUsage: () -> Unit, viewModel: P
                     }
                 }
                 when (tab) {
+                    4 -> {
+                        item {
+                            BenchmarkPanel("Delegation pipeline") {
+                                val helper = profiles.firstOrNull { it.uid == delegationSettings.targetProfileUid }
+                                Text("Primary: ${selected.name} · Helper: ${helper?.name ?: "Automatic eligible helper"}")
+                                Text("Ownership ${delegationSettings.processingOwnership}/100 · Worker output ${delegationSettings.maxOutputTokens} tokens · Brief ${delegationSettings.handoffTokens} tokens")
+                                Text("${delegationSettings.effectiveLocalModelCalls()} worker calls per turn · ${delegationSettings.maxDelegateRuntimeSeconds}s runtime · ${delegationSettings.timeToFirstTokenTimeoutSeconds}s first progress · ${delegationSettings.idleTokenTimeoutSeconds}s idle")
+                                Text("Tests evidence compaction, a worker tool call, and research through final synthesis using the current delegation settings. Search and page tools return temporary fixtures. Model requests use the selected profiles and may incur normal provider charges. Each test has a 180-second ceiling.", style = MaterialTheme.typography.bodySmall)
+                                Button(
+                                    onClick = { viewModel.start(BenchmarkMode.DELEGATION) },
+                                    enabled = ready && progress == null && !activeRequests && delegationSettings.enabled,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) { Text("Benchmark delegation settings") }
+                                if (!delegationSettings.enabled) Text("Enable delegation in Settings first.")
+                            }
+                        }
+                        val latest = profileHistory.firstOrNull { it.mode == BenchmarkMode.DELEGATION }
+                        if (latest != null) {
+                            item {
+                                BenchmarkPanel("Latest delegation run · ${benchmarkDate(latest.startedAt)}") {
+                                    latest.delegationSettings?.let { saved ->
+                                        Text("Tested settings: ownership ${saved.processingOwnership}, worker cap ${saved.maxOutputTokens}, brief ${saved.handoffTokens}, calls ${saved.effectiveLocalModelCalls()}", style = MaterialTheme.typography.bodySmall)
+                                    }
+                                    latest.samples.forEach { sample ->
+                                        HorizontalDivider()
+                                        Text("${sample.label} · ${sample.outcome} · ${sample.durationMs} ms", fontWeight = FontWeight.SemiBold)
+                                        sample.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                                        sample.delegation?.let { metrics ->
+                                            Text("${metrics.workerName} (${metrics.workerProvider}) · ${metrics.workerCalls} worker calls")
+                                            Text("Worker tokens: ${metrics.workerInputTokens} input / ${metrics.workerOutputTokens} output")
+                                            Text("Primary tokens: ${metrics.primaryInputTokens} input / ${metrics.primaryOutputTokens} output${if (metrics.primaryEstimated) " (output estimated)" else ""}")
+                                            Text("${metrics.searches} searches · ${metrics.pagesRead} pages · ${metrics.rawEvidenceBytes} evidence bytes → ${metrics.handoffCharacters} brief characters")
+                                            if (metrics.fixtureCalls > 0) Text("Fixture calls: ${metrics.successfulFixtureCalls}/${metrics.fixtureCalls} successful")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     0 -> {
                         item {
                             BenchmarkPanel("Run a benchmark") {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    BenchmarkMode.entries.forEach { option -> FilterChip(mode == option, { mode = option }, enabled = progress == null, label = { Text(option.label) }) }
+                                    BenchmarkMode.entries.filter { it != BenchmarkMode.DELEGATION }.forEach { option -> FilterChip(mode == option, { mode = option }, enabled = progress == null, label = { Text(option.label) }) }
                                 }
                                 Text(if (mode == BenchmarkMode.QUICK) "5 tests · speed, instructions, JSON, arithmetic and tools" else "8 tests · adds repeated speed trials and conversation recall", style = MaterialTheme.typography.bodyMedium)
                                 Text("Up to 512 output tokens per request and 90 seconds per test. Tools use a harmless in-memory fixture. ${if (local) "Keep this device cool and idle for comparable results." else "Requests use this profile’s provider and may incur its normal charges."}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -251,7 +292,7 @@ fun ProfileBenchmarkScreen(onBack: () -> Unit, onUsage: () -> Unit, viewModel: P
                         item {
                             BenchmarkPanel("Compare AI profiles") {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    BenchmarkMode.entries.forEach { option -> FilterChip(mode == option, { mode = option }, enabled = progress == null, label = { Text(option.label) }) }
+                                    BenchmarkMode.entries.filter { it != BenchmarkMode.DELEGATION }.forEach { option -> FilterChip(mode == option, { mode = option }, enabled = progress == null, label = { Text(option.label) }) }
                                 }
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     listOf("All", "Local", "Remote").forEachIndexed { index, label -> FilterChip(typeFilter == index, { typeFilter = index }, label = { Text(label) }) }

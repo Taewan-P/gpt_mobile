@@ -35,6 +35,17 @@ class LocalResearchWorkflowTest {
         else -> "Measured latency is 42 ms [S1]."
     }
 
+    @Test fun `non web tasks return to tool capable delegation without an ungrounded text answer`() = runTest {
+        var generated = 0
+        val result = LocalResearchWorkflow(config, emptyList(), { _, _ ->
+            generated++
+            """{"queries":[],"urls":[]}"""
+        }).run("Inspect my repository and fix the failing test", "repository")
+        assertEquals(LocalResearchOutcome.NO_RESEARCH_NEEDED, result.outcome)
+        assertEquals("", result.handoff)
+        assertEquals(1, generated)
+    }
+
     @Test fun `local worker searches reads and crawls within host and page limits before handing off`() = runTest {
         val calls = mutableListOf<String>()
         val search = tool("web_search") { id, args ->

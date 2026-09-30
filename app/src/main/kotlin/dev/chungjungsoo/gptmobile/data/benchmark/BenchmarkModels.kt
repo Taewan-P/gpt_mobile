@@ -9,10 +9,29 @@ import kotlin.math.sqrt
 import kotlinx.serialization.Serializable
 
 @Serializable
-enum class BenchmarkMode(val label: String) { QUICK("Quick"), FULL("Full") }
+enum class BenchmarkMode(val label: String) { QUICK("Quick"), FULL("Full"), DELEGATION("Delegation") }
 
 @Serializable
 enum class BenchmarkOutcome { PASSED, FAILED, ERROR, TIMED_OUT, CANCELED, UNSUPPORTED }
+
+@Serializable
+data class DelegationBenchmarkMetrics(
+    val workerUid: String,
+    val workerName: String,
+    val workerProvider: String,
+    val workerCalls: Int,
+    val workerInputTokens: Long,
+    val workerOutputTokens: Long,
+    val primaryInputTokens: Long,
+    val primaryOutputTokens: Long,
+    val searches: Int,
+    val pagesRead: Int,
+    val rawEvidenceBytes: Int,
+    val handoffCharacters: Int,
+    val fixtureCalls: Int,
+    val successfulFixtureCalls: Int,
+    val primaryEstimated: Boolean = false
+)
 
 @Serializable
 data class BenchmarkSample(
@@ -32,7 +51,9 @@ data class BenchmarkSample(
     val preview: String = "",
     val error: String? = null,
     val lastTextMs: Long? = null,
-    val nativeMetrics: dev.chungjungsoo.gptmobile.data.localruntime.NativeInferenceMetrics? = null
+    val nativeMetrics: dev.chungjungsoo.gptmobile.data.localruntime.NativeInferenceMetrics? = null,
+    val inputTokens: Int = 0,
+    val delegation: DelegationBenchmarkMetrics? = null
 ) {
     val completed: Boolean get() = outcome == BenchmarkOutcome.PASSED || outcome == BenchmarkOutcome.FAILED
 
@@ -69,7 +90,8 @@ data class BenchmarkRun(
     val batteryBefore: Int? = null,
     val batteryAfter: Int? = null,
     val engineWasLoaded: Boolean = false,
-    val stoppedReason: String? = null
+    val stoppedReason: String? = null,
+    val delegationSettings: dev.chungjungsoo.gptmobile.data.model.ModelDelegationSettings? = null
 )
 
 data class BenchmarkDimension(val label: String, val score: Double?, val weight: Int, val detail: String)

@@ -481,7 +481,11 @@ class OpenAICompatibleAdapter @Inject constructor(
                             tools = requestTools,
                             toolChoice = if (platform.disableAllTools) "none" else null,
                             provider = parsedRouting,
-                            reasoning = if (isOpenRouter && platform.reasoning && constraints.allowReasoning) OpenRouterReasoning(effort = "medium") else null,
+                            reasoning = if (isOpenRouter) {
+                                if (platform.reasoning && constraints.allowReasoning) OpenRouterReasoning(effort = "medium") else OpenRouterReasoning(enabled = false)
+                            } else {
+                                null
+                            },
                             sessionId = openRouterSessionId,
                             options = parsedOllamaOptions
                         )

@@ -23,6 +23,13 @@ interface ChatRepository {
         runId: String
     ): dev.chungjungsoo.gptmobile.data.agent.AgentProviderSession = error("Benchmark sessions are unavailable")
 
+    suspend fun runDelegationBenchmark(
+        platform: PlatformV2,
+        test: dev.chungjungsoo.gptmobile.data.benchmark.BenchmarkCase,
+        runId: String,
+        settings: dev.chungjungsoo.gptmobile.data.model.ModelDelegationSettings
+    ): dev.chungjungsoo.gptmobile.data.benchmark.BenchmarkSample = error("Delegation benchmarks are unavailable")
+
     suspend fun supportsBenchmarkTools(platform: PlatformV2): Boolean = false
 
     /** Validate setup before recording or sending any benchmark requests. */

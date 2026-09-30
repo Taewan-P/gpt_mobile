@@ -41,11 +41,13 @@ internal class LocalDelegationCoordinator(
     private val generate: suspend (PlatformV2, String, Int) -> String,
     private val generateWithProgress: (suspend (PlatformV2, String, Int, Int, (DelegateProgress) -> Unit) -> String)? = null,
     private val inputBudget: suspend (PlatformV2, Int) -> Int = { _, _ -> Int.MAX_VALUE },
-    private val batteryPercent: suspend () -> Int? = { null }
+    private val batteryPercent: suspend () -> Int? = { null },
+    private val generateTextWithProgress: (suspend (PlatformV2, String, Int, Int, (DelegateProgress) -> Unit) -> String)? = null
 ) {
     private companion object {
         // Absolute emergency ceiling in addition to the user-configurable token budget.
         private const val MAX_DELEGATION_INPUT_TOKENS = 12_000
+
         // Provider/system/tool overhead is volatile and can grow substantially after tool discovery.
         // Never let the user/task prompt consume the whole configured input budget.
         private const val MAX_DELEGATE_PROMPT_TOKENS = 4_000
@@ -62,6 +64,7 @@ internal class LocalDelegationCoordinator(
     private val failedLocalTokens = AtomicLong()
     private val canceledLocalTokens = AtomicLong()
     private val wastedLocalMs = AtomicLong()
+    private val failuresByWorker = ConcurrentHashMap<String, AtomicInteger>()
     private val emptyResponsesByWorker = ConcurrentHashMap<String, AtomicInteger>()
     private val quarantinedWorkerUids = ConcurrentHashMap.newKeySet<String>()
     private val observedRequestOverheadTokens = AtomicLong()
@@ -199,9 +202,10 @@ internal class LocalDelegationCoordinator(
         runtimeSeconds: Int,
         firstProgressSeconds: Int,
         idleSeconds: Int,
+        allowTools: Boolean,
         onObservedUsage: (Long) -> Unit
     ): String? {
-        val progressive = generateWithProgress ?: return withTimeoutOrNull(runtimeSeconds * 1000L) {
+        val progressive = (if (allowTools) generateWithProgress else generateTextWithProgress ?: generateWithProgress) ?: return withTimeoutOrNull(runtimeSeconds * 1000L) {
             generate(profile, prompt, outputTokens)
         }
         return coroutineScope {
@@ -250,7 +254,7 @@ internal class LocalDelegationCoordinator(
         }
     }
 
-    private suspend fun workerText(target: PlatformV2, prompt: String, tokens: Int, requirePrivate: Boolean = true): String? {
+    private suspend fun workerText(target: PlatformV2, prompt: String, tokens: Int, requirePrivate: Boolean = true, allowTools: Boolean = false): String? {
         val config = settings().normalized()
         if (!config.enabled) return null
         var observedForFailure = 0L
@@ -355,7 +359,8 @@ internal class LocalDelegationCoordinator(
                         hardInputTokenCap,
                         runtimeSeconds,
                         firstProgressSeconds,
-                        idleSeconds
+                        idleSeconds,
+                        allowTools
                     ) { usage ->
                         observedInputTokens = maxOf(observedInputTokens, usage)
                         observedForFailure = maxOf(observedForFailure, usage)
@@ -427,17 +432,20 @@ internal class LocalDelegationCoordinator(
                     message.contains("eol", ignoreCase = true)
                 val emptyResponse = message.contains("EMPTY_RESPONSE", ignoreCase = true)
                 val reasoningOnly = message.contains("REASONING_ONLY_RESPONSE", ignoreCase = true)
-                val softEmpty = emptyResponse || reasoningOnly
+                val malformedTool = message.contains("Tool arguments were not valid JSON", ignoreCase = true) ||
+                    message.contains("incomplete function call", ignoreCase = true)
+                val softEmpty = emptyResponse || reasoningOnly || malformedTool
                 val counter = emptyResponsesByWorker.getOrPut(failedUid, ::AtomicInteger)
                 val emptyCount = if (softEmpty) counter.incrementAndGet() else counter.get()
-                val shouldQuarantine = authBlocked || permanentlyUnavailable || (softEmpty && emptyCount >= MAX_CONSECUTIVE_EMPTY_RESPONSES)
+                val failures = failuresByWorker.getOrPut(failedUid, ::AtomicInteger).incrementAndGet()
+                val shouldQuarantine = authBlocked || permanentlyUnavailable || failures >= 3 || (softEmpty && emptyCount >= MAX_CONSECUTIVE_EMPTY_RESPONSES)
                 if (shouldQuarantine) {
                     quarantinedWorkerUids += failedUid
                     failoverTarget = localTarget(latest)
                 }
                 AppLogRecorder.record(
                     "Delegation",
-                    "Worker failed · target=$failedUid · calls=${localCalls.get()} · ${failure.javaClass.simpleName}: $message · observedInputTokens=$observedForFailure · emptyResponse=$emptyResponse · consecutiveEmpty=$emptyCount/$MAX_CONSECUTIVE_EMPTY_RESPONSES · reasoningOnly=$reasoningOnly · authBlocked=$authBlocked · permanentlyUnavailable=$permanentlyUnavailable · quarantined=$shouldQuarantine · fallback=${failoverTarget?.uid}",
+                    "Worker failed · target=$failedUid · calls=${localCalls.get()} · ${failure.javaClass.simpleName}: $message · observedInputTokens=$observedForFailure · emptyResponse=$emptyResponse · consecutiveEmpty=$emptyCount/$MAX_CONSECUTIVE_EMPTY_RESPONSES · failedCalls=$failures · reasoningOnly=$reasoningOnly · authBlocked=$authBlocked · permanentlyUnavailable=$permanentlyUnavailable · quarantined=$shouldQuarantine · fallback=${failoverTarget?.uid}",
                     "E"
                 )
                 logComputeTotals()
@@ -454,7 +462,7 @@ internal class LocalDelegationCoordinator(
                 "Worker failover · failed=${resolvedProfileUid ?: target.uid} · fallback=${fallback.uid} · type=${fallback.compatibleType}",
                 "W"
             )
-            return workerText(fallback, prompt, tokens, requirePrivate)
+            return workerText(fallback, prompt, tokens, requirePrivate, allowTools)
         }
         return null
     }
@@ -502,6 +510,15 @@ internal class LocalDelegationCoordinator(
         return result
     }
 
+    /** Text transforms cannot trigger tool loops; the app owns research execution. */
+    suspend fun processText(task: String, maxTokens: Int): String? {
+        val target = localTarget(settings().normalized()) ?: return null
+        return workerText(target, task, maxTokens)
+    }
+
+    suspend fun executeTask(target: PlatformV2, task: String, maxTokens: Int): String? =
+        workerText(target, task, maxTokens, requirePrivate = false, allowTools = true)
+
     suspend fun delegate(target: PlatformV2, task: String, maxTokens: Int, tools: List<ResolvedAgentTool>, callId: String): String {
         val config = settings().normalized()
         val effectiveCallLimit = config.effectiveLocalModelCalls()
@@ -525,7 +542,7 @@ internal class LocalDelegationCoordinator(
         val hardCap = minOf(config.effectiveLocalInputTokens(), MAX_DELEGATION_INPUT_TOKENS)
         val estimated = estimatedDelegateTokens(task)
         if (estimated <= hardCap) {
-            return workerText(target, task, maxTokens, requirePrivate = false)
+            return workerText(target, task, maxTokens, requirePrivate = false, allowTools = true)
                 ?: error("CANCELED_NO_RESULT: delegated model was unavailable, stalled, or its compute budget was reached. Retry only the missing subtask with a smaller payload.")
         }
 
