@@ -271,6 +271,28 @@ class CompleteBackupManagerTest {
     }
 
     @Test
+    fun passwordlessBackupsAreAlwaysPortableAndNeverCreateInstallationBoundKeys() = runBlocking {
+        seed(File(context.cacheDir, "portable-file").apply { writeText("portable") })
+        val archive = File(context.cacheDir, "portable.gptbackup")
+
+        val saved = manager.backup(Uri.fromFile(archive))
+        assertTrue(saved.message, saved.success)
+
+        val header = archive.inputStream().use { input -> ByteArray(8).also { input.read(it) } }
+        assertTrue("Passwordless backups must be normal ZIP archives.", header[0] == 0x50.toByte() && header[1] == 0x4B.toByte())
+        assertFalse("Passwordless backups must never use GPTFULL2.", header.decodeToString().startsWith("GPTFULL2"))
+        assertFalse("No installation-bound backup master key may be created.", "complete_backup_master_v2" in vault.references())
+        assertFalse(manager.requiresPassword(Uri.fromFile(archive)))
+
+        val protected = File(context.cacheDir, "portable-protected.gptbackup")
+        val protectedSaved = manager.backup(Uri.fromFile(protected), password = "portable-password")
+        assertTrue(protectedSaved.message, protectedSaved.success)
+        assertEquals("GPTFULL1", protected.inputStream().use { input -> ByteArray(8).also { input.read(it) } }.decodeToString())
+        assertTrue(manager.requiresPassword(Uri.fromFile(protected)))
+        assertFalse("Password encryption must also be independent of an installation key.", "complete_backup_master_v2" in vault.references())
+    }
+
+    @Test
     fun defaultsNeverExportCredentialsOrMemoryAndSensitiveSelectionsRequirePassword() = runBlocking {
         seed(File(context.cacheDir, "default-file").apply { writeText("file") })
         vault.put("provider", "sentinel-original-token".toByteArray())

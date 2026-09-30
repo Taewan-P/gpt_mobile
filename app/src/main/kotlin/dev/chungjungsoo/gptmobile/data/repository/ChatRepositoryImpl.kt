@@ -702,9 +702,18 @@ class ChatRepositoryImpl(
                 processingOwnership < 100 &&
                 localDelegation.researchAvailable()
             var exposedTools = orderPrimaryTools(dev.chungjungsoo.gptmobile.data.agent.tool.aggregateWebSearch(resolvedTools))
-                // Local-first hides duplicate remote search tools. Shared and remote-balanced
-                // keep them available so remote reasoning can proceed while local research runs.
-                .filterNot { processingOwnership < 35 && localResearch && (it.isWebSearchEngine() || it.isResearchPageReader()) }
+                .let { tools ->
+                    if (localResearch && processingOwnership < 35) {
+                        // Local-first means the primary remote model is a synthesizer, not a tool router.
+                        // Exposing dozens of MCP schemas here defeats delegation by spending remote input
+                        // tokens before any useful work happens. Funnel tool work through the delegate.
+                        tools.filter { it.realToolName == "delegate_to_model" }
+                    } else {
+                        // In shared/remote-balanced modes only hide duplicate research tools; the primary
+                        // may still use other tools directly.
+                        tools.filterNot { localResearch && (it.isWebSearchEngine() || it.isResearchPageReader()) }
+                    }
+                }
                 .sortedBy { it.realToolName != "delegate_to_model" }
             fun baseSystemPrompt(): String {
                 val progressInstruction = if (resolvedTools.isNotEmpty()) {
@@ -854,9 +863,20 @@ class ChatRepositoryImpl(
             val delegationSettings = settingRepository.getFeatureSettings().delegation.normalized()
             val requestedOutputTokens = contextPlan.outputTokens
             val synthesisCap = if (localResearch) delegationSettings.remoteSynthesisOutputTokens else Int.MAX_VALUE
+            val effectiveOutputCap = if (localResearch) {
+                minOf(requestedOutputTokens ?: synthesisCap, synthesisCap)
+            } else {
+                requestedOutputTokens
+            }
             val requestConstraints = RequestConstraints(
-                maxOutputTokens = requestedOutputTokens?.let { minOf(it, synthesisCap) }
+                maxOutputTokens = effectiveOutputCap
             )
+            if (localResearch) {
+                AppLogRecorder.record(
+                    "Delegation",
+                    "Remote synthesis budget · ownership=$processingOwnership · requested=${requestedOutputTokens ?: -1} · synthesisCap=$synthesisCap · effective=${effectiveOutputCap ?: -1} · exposedTools=${exposedTools.size} · selectedTools=${contextPlan.tools.size}"
+                )
+            }
             val session = when (platform.compatibleType) {
                 ClientType.OPENAI -> openAIResponsesAdapter.openSession(contextPlan.turns, requestPlatform, requestConstraints)
 
