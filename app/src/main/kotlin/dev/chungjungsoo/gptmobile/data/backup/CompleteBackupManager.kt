@@ -65,7 +65,6 @@ class CompleteBackupManager @Inject constructor(
         ) { "Could not save backup selection." }
     }
 
-
     suspend fun backup(
         uri: Uri,
         selection: CompleteBackupSelection = CompleteBackupSelection(),
