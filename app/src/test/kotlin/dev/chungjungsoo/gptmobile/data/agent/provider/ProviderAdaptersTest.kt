@@ -1153,6 +1153,9 @@ class ProviderAdaptersTest {
                 val request = requestJson(api.chatRequests.single())
                 assertEquals(cap.toString(), request["max_tokens"]?.jsonPrimitive?.content)
                 assertEquals(cap, events.filterIsInstance<ProviderEvent.RequestConfigured>().single().effectiveOutputTokens)
+                if (type == ClientType.LLAMA) {
+                    assertEquals(cap.toString(), api.configs.single().extraHeaders["X-Gateway-Intermediate-Max-Tokens"])
+                }
                 assertEquals("none", request["tool_choice"]?.jsonPrimitive?.content)
                 assertTrue(api.chatRequests.single().tools.isNullOrEmpty())
             }

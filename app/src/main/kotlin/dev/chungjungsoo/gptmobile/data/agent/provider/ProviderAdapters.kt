@@ -450,6 +450,18 @@ class OpenAICompatibleAdapter @Inject constructor(
                             )
                         )
                     }
+                    // The desktop gateway has its own intermediate-generation ceiling.
+                    // Keep it aligned with the delegated provider cap so a 128/256-token
+                    // worker cannot silently expand to the gateway default (for example 1024).
+                    val requestConfig = if (isLlama && effectiveOutputTokens != null) {
+                        config.copy(
+                            extraHeaders = config.extraHeaders + mapOf(
+                                "X-Gateway-Intermediate-Max-Tokens" to effectiveOutputTokens.toString()
+                            )
+                        )
+                    } else {
+                        config
+                    }
                     var currentRequestMessages = baseMessages
 
                     while (true) {
@@ -606,7 +618,7 @@ class OpenAICompatibleAdapter @Inject constructor(
 
                         val llamaReasoningParser = if (isLlama) GroqReasoningParser() else null
 
-                        openAIAPI.streamChatCompletion(request, platform.timeout, config)
+                        openAIAPI.streamChatCompletion(request, platform.timeout, requestConfig)
                             .catch { error ->
                                 if (error is CancellationException || error is ToolDefinitionsRejectedException) throw error
                                 roundFailed = true

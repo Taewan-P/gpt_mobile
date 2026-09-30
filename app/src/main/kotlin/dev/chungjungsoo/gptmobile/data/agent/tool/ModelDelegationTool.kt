@@ -83,21 +83,39 @@ class ModelDelegationTool(
         if (source.compatibleType == ClientType.LITERT_LM && target.compatibleType == ClientType.LITERT_LM) {
             return error("The on-device engine is busy with this response. Select a llama/Ollama server or another provider as the delegate.").also { AppLogRecorder.record("Delegation", "Rejected dual LiteRT dispatch · target=${target.uid}", "W") }
         }
-        if (calls.incrementAndGet() > config.maxCallsPerTurn) return error("The delegation call limit for this turn has been reached.").also { AppLogRecorder.record("Delegation", "Rejected call budget · target=${target.uid} · max=${config.maxCallsPerTurn}", "W") }
-        // The coordinator resolves at the configured deadline. This wrapper keeps a
-        // one-second margin so the inner timeout can be reported as a worker timeout
-        // instead of surfacing as an ambiguous parent cancellation.
-        val timeoutMs = config.timeoutSeconds * 1000L + 1000L
+        val effectiveCallLimit = config.effectiveResearchCalls()
+        if (calls.incrementAndGet() > effectiveCallLimit) {
+            calls.decrementAndGet()
+            return error("The delegation call limit for this turn has been reached.").also {
+                AppLogRecorder.record(
+                    "Delegation",
+                    "Rejected call budget · target=${target.uid} · max=$effectiveCallLimit · configured=${config.maxCallsPerTurn} · ownership=${config.processingOwnership}",
+                    "W"
+                )
+            }
+        }
+        // delegate_to_model may orchestrate several serialized worker generations.
+        // Give the outer tool enough room for that workflow; individual workers remain
+        // protected by their adaptive runtime/watchdog limits in the coordinator.
+        val orchestrationTimeoutSeconds =
+            config.timeoutSeconds.toLong() * config.effectiveLocalModelCalls().coerceIn(1, 8) + 30L
+        val timeoutMs = (orchestrationTimeoutSeconds + OUTER_TIMEOUT_GRACE_SECONDS) * 1000L
         val startedAtMs = System.currentTimeMillis()
-        AppLogRecorder.record("Delegation", "Dispatching · call=$callId · source=${source.compatibleType} · sourceUid=${source.uid} · target=${target.compatibleType} · targetUid=${target.uid} · model=${target.model.take(96)} · timeoutMs=$timeoutMs · requestedOutputCap=${config.maxOutputTokens} · taskChars=${task.length} · callIndex=${calls.get()}/${config.maxCallsPerTurn}")
+        AppLogRecorder.record("Delegation", "Dispatching · call=$callId · source=${source.compatibleType} · sourceUid=${source.uid} · target=${target.compatibleType} · targetUid=${target.uid} · model=${target.model.take(96)} · timeoutMs=$timeoutMs · requestedOutputCap=${config.maxOutputTokens} · taskChars=${task.length} · callIndex=${calls.get()}/$effectiveCallLimit · configuredCalls=${config.maxCallsPerTurn} · ownership=${config.processingOwnership}")
         return try {
             val response = withTimeoutOrNull(timeoutMs) { generate(target, task, config.maxOutputTokens) }
             val elapsedMs = System.currentTimeMillis() - startedAtMs
             if (response == null) {
                 AppLogRecorder.record("Delegation", "Timed out · call=$callId · target=${target.uid} · elapsedMs=$elapsedMs · timeoutMs=$timeoutMs · requestedOutputCap=${config.maxOutputTokens} · taskChars=${task.length}", "E")
-                return error("The delegated task timed out after ${config.timeoutSeconds} seconds.")
+                calls.decrementAndGet()
+                return error("The delegated task timed out before the orchestration deadline.")
             }
-            if (response.isBlank()) return error("The target model returned no text.").also { AppLogRecorder.record("Delegation", "Empty response · call=$callId · target=${target.uid} · elapsedMs=$elapsedMs", "W") }
+            if (response.isBlank()) {
+                calls.decrementAndGet()
+                return error("The target model returned no text.").also {
+                    AppLogRecorder.record("Delegation", "Empty response · call=$callId · target=${target.uid} · elapsedMs=$elapsedMs · callBudgetRestored=true", "W")
+                }
+            }
             AppLogRecorder.record("Delegation", "Completed · call=$callId · target=${target.uid} · elapsedMs=$elapsedMs · outputChars=${response.length} · approxOutputTokens=${(response.length + 3) / 4} · requestedOutputCap=${config.maxOutputTokens}")
             val transportMarker =
                 if (target.isPrivateDestination()) {
@@ -110,7 +128,8 @@ class ModelDelegationTool(
             AppLogRecorder.record("Delegation", "Cancelled · call=$callId · target=${target.uid} · elapsedMs=${System.currentTimeMillis() - startedAtMs} · timeoutMs=$timeoutMs · cancellation=${cancellation.javaClass.simpleName} · reason=${cancellation.message.orEmpty()}", "W")
             throw cancellation
         } catch (failure: Exception) {
-            AppLogRecorder.record("Delegation", "Failed · call=$callId · target=${target.uid} · elapsedMs=${System.currentTimeMillis() - startedAtMs} · requestedOutputCap=${config.maxOutputTokens} · ${failure.javaClass.simpleName}: ${failure.message.orEmpty()}", "E")
+            calls.decrementAndGet()
+            AppLogRecorder.record("Delegation", "Failed · call=$callId · target=${target.uid} · elapsedMs=${System.currentTimeMillis() - startedAtMs} · requestedOutputCap=${config.maxOutputTokens} · callBudgetRestored=true · ${failure.javaClass.simpleName}: ${failure.message.orEmpty()}", "E")
             error("Delegation failed. Check the target profile, credentials and model availability.")
         }
     }

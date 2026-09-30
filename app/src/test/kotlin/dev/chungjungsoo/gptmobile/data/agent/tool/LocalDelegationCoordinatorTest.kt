@@ -236,6 +236,32 @@ class LocalDelegationCoordinatorTest {
         assertEquals(1, calls)
     }
 
+    @Test fun `llama prompt evaluation is not canceled by the generic first token watchdog`() = runTest {
+        val coordinator = LocalDelegationCoordinator(
+            source,
+            {
+                config.copy(
+                    researchEnabled = false,
+                    maxLocalModelCalls = 2,
+                    timeoutSeconds = 30,
+                    maxDelegateRuntimeSeconds = 30,
+                    timeToFirstTokenTimeoutSeconds = 5,
+                    idleTokenTimeoutSeconds = 5
+                )
+            },
+            { listOf(target) },
+            { _, _, _ -> error("progressive path expected") },
+            generateWithProgress = { _, _, _, _, progress ->
+                progress(DelegateProgress(DelegateProgressKind.REQUEST_STARTED))
+                delay(6_000)
+                progress(DelegateProgress(DelegateProgressKind.OUTPUT))
+                "done"
+            }
+        )
+
+        assertEquals("done", coordinator.delegate(target, "slow prompt evaluation", 128, emptyList(), "llama-warmup"))
+    }
+
     @Test fun `settings failure after completed action returns original success without reexecution`() = runTest {
         var actions = 0
         val coordinator = LocalDelegationCoordinator(source, { error("Settings unavailable") }, { listOf(target) }, { _, _, _ -> error("Unused") })

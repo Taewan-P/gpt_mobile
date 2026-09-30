@@ -331,7 +331,15 @@ internal class LocalDelegationCoordinator(
                     if (estimatedInput >= 3_000) maxOf(requested, minOf(768, latest.maxOutputTokens)) else requested
                 }
                 val runtimeSeconds = adaptiveRuntimeSeconds(estimatedInput, latest)
-                val firstProgressSeconds = minOf(latest.timeToFirstTokenTimeoutSeconds, runtimeSeconds)
+                // llama.cpp/gateway workers can spend a substantial period evaluating the
+                // prompt before the first token is emitted. Treat the adaptive runtime as the
+                // first-token ceiling for LLAMA workers; once output starts, the normal idle
+                // watchdog still detects a genuinely stalled generation.
+                val firstProgressSeconds = if (profile.compatibleType == ClientType.LLAMA) {
+                    runtimeSeconds
+                } else {
+                    minOf(latest.timeToFirstTokenTimeoutSeconds, runtimeSeconds)
+                }
                 val idleSeconds = minOf(latest.idleTokenTimeoutSeconds, runtimeSeconds)
                 val startedAtMs = System.currentTimeMillis()
                 var observedInputTokens = 0L
