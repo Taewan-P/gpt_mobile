@@ -39,10 +39,18 @@ class LocalDelegationCoordinatorTest {
         var textCalls = 0
         var toolCalls = 0
         val coordinator = LocalDelegationCoordinator(
-            source, { config.copy(researchEnabled = false) }, { listOf(target) },
+            source,
+            { config.copy(researchEnabled = false) },
+            { listOf(target) },
             { _, _, _ -> error("Must use explicit worker path") },
-            generateWithProgress = { _, _, _, _, _ -> toolCalls++; "tool answer" },
-            generateTextWithProgress = { _, _, _, _, _ -> textCalls++; "text answer" }
+            generateWithProgress = { _, _, _, _, _ ->
+                toolCalls++
+                "tool answer"
+            },
+            generateTextWithProgress = { _, _, _, _, _ ->
+                textCalls++
+                "text answer"
+            }
         )
         assertEquals("text answer", coordinator.processText("Extract a code", 256))
         assertEquals("tool answer", coordinator.executeTask(target, "Inspect a repository", 256))
@@ -53,7 +61,9 @@ class LocalDelegationCoordinatorTest {
     @Test fun `intermittent malformed calls still quarantine the worker`() = runTest {
         var calls = 0
         val coordinator = LocalDelegationCoordinator(
-            source, { config.copy(researchEnabled = false, maxLocalModelCalls = 10) }, { listOf(target) },
+            source,
+            { config.copy(researchEnabled = false, maxLocalModelCalls = 10) },
+            { listOf(target) },
             { _, _, _ ->
                 calls++
                 if (calls % 2 == 1) error("DELEGATION_FAILED: Tool arguments were not valid JSON.")

@@ -22,15 +22,19 @@ import kotlinx.serialization.json.put
 
 data class BenchmarkCase(val id: String, val label: String, val category: String, val prompt: String)
 
-fun benchmarkSuite(mode: BenchmarkMode): List<BenchmarkCase> = if (mode == BenchmarkMode.DELEGATION) delegationBenchmarkSuite() else buildList {
-    repeat(if (mode == BenchmarkMode.FULL) 3 else 1) { index ->
-        add(BenchmarkCase("speed-$index", "Generation ${index + 1}", "speed", "Write about 120 words explaining how rain forms, in plain English. No heading."))
+fun benchmarkSuite(mode: BenchmarkMode): List<BenchmarkCase> = if (mode == BenchmarkMode.DELEGATION) {
+    delegationBenchmarkSuite()
+} else {
+    buildList {
+        repeat(if (mode == BenchmarkMode.FULL) 3 else 1) { index ->
+            add(BenchmarkCase("speed-$index", "Generation ${index + 1}", "speed", "Write about 120 words explaining how rain forms, in plain English. No heading."))
+        }
+        add(BenchmarkCase("instruction", "Exact instruction", "task", "Reply with exactly BENCHMARK_READY and nothing else."))
+        add(BenchmarkCase("json", "Structured JSON", "json", "Return only this JSON object, without markdown or explanation: {\"status\":\"ready\",\"count\":3,\"items\":[\"red\",\"green\",\"blue\"]}"))
+        add(BenchmarkCase("arithmetic", "Arithmetic", "task", "What is 17 * 23 + 9? Reply with only the integer."))
+        if (mode == BenchmarkMode.FULL) add(BenchmarkCase("context", "Conversation recall", "task", "What was the parcel code I gave you? Reply with only the code."))
+        add(BenchmarkCase("tool", "Tool round trip", "tools", "Call benchmark_lookup with key=\"parcel\". Reply with only the code returned by that tool. Do not guess."))
     }
-    add(BenchmarkCase("instruction", "Exact instruction", "task", "Reply with exactly BENCHMARK_READY and nothing else."))
-    add(BenchmarkCase("json", "Structured JSON", "json", "Return only this JSON object, without markdown or explanation: {\"status\":\"ready\",\"count\":3,\"items\":[\"red\",\"green\",\"blue\"]}"))
-    add(BenchmarkCase("arithmetic", "Arithmetic", "task", "What is 17 * 23 + 9? Reply with only the integer."))
-    if (mode == BenchmarkMode.FULL) add(BenchmarkCase("context", "Conversation recall", "task", "What was the parcel code I gave you? Reply with only the code."))
-    add(BenchmarkCase("tool", "Tool round trip", "tools", "Call benchmark_lookup with key=\"parcel\". Reply with only the code returned by that tool. Do not guess."))
 }
 
 /** Runs only synthetic prompts and an in-memory fixture. No chat history, MCP or device tools. */

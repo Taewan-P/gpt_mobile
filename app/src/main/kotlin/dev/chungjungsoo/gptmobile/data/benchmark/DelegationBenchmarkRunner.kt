@@ -51,13 +51,20 @@ internal class DelegationBenchmarkRunner(
         var fixtureCalls = 0
         var successfulCalls = 0
         val lookup = object : AgentTool {
-            override val definition = AgentToolDefinition("benchmark_lookup", "Return the parcel code. Call with key=parcel.", buildJsonObject {
-                put("type", JsonPrimitive("object"))
-                put("properties", buildJsonObject {
-                    put("key", buildJsonObject { put("type", "string") })
-                })
-                put("required", buildJsonArray { add(JsonPrimitive("key")) })
-            })
+            override val definition = AgentToolDefinition(
+                "benchmark_lookup",
+                "Return the parcel code. Call with key=parcel.",
+                buildJsonObject {
+                    put("type", JsonPrimitive("object"))
+                    put(
+                        "properties",
+                        buildJsonObject {
+                            put("key", buildJsonObject { put("type", "string") })
+                        }
+                    )
+                    put("required", buildJsonArray { add(JsonPrimitive("key")) })
+                }
+            )
             override suspend fun execute(callId: String, arguments: JsonObject): AgentToolResult {
                 fixtureCalls++
                 val valid = arguments == buildJsonObject { put("key", JsonPrimitive("parcel")) }
@@ -129,14 +136,21 @@ internal class DelegationBenchmarkRunner(
     }
 
     private fun fixture(name: String, description: String, response: String): AgentTool = object : AgentTool {
-        override val definition = AgentToolDefinition(name, description, buildJsonObject {
-            put("type", JsonPrimitive("object"))
-            val key = if (name == "read_url") "url" else "query"
-            put("properties", buildJsonObject {
-                put(key, buildJsonObject { put("type", "string") })
-            })
-            put("required", buildJsonArray { add(JsonPrimitive(key)) })
-        })
+        override val definition = AgentToolDefinition(
+            name,
+            description,
+            buildJsonObject {
+                put("type", JsonPrimitive("object"))
+                val key = if (name == "read_url") "url" else "query"
+                put(
+                    "properties",
+                    buildJsonObject {
+                        put(key, buildJsonObject { put("type", "string") })
+                    }
+                )
+                put("required", buildJsonArray { add(JsonPrimitive(key)) })
+            }
+        )
         override suspend fun execute(callId: String, arguments: JsonObject) =
             AgentToolResult(callId, ToolResultContent.Text(response), false)
     }

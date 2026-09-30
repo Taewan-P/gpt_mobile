@@ -52,9 +52,9 @@ import dev.chungjungsoo.gptmobile.data.database.entity.PersistAgentTurnResult
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
+import dev.chungjungsoo.gptmobile.data.diagnostics.AppLogRecorder
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.GatewayProgress
-import dev.chungjungsoo.gptmobile.data.diagnostics.AppLogRecorder
 import dev.chungjungsoo.gptmobile.data.localmodel.resolveLocalModelSelection
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
 import dev.chungjungsoo.gptmobile.data.model.ChatMcpToolConfig
@@ -290,7 +290,9 @@ class ChatRepositoryImpl(
         check(config.enabled) { "Enable delegation before benchmarking its settings." }
         val profiles = settingRepository.fetchPlatformV2s()
         val eligible = profiles.filter {
-            it.enabled && it.uid != platform.uid && !it.excludesMemory() &&
+            it.enabled &&
+                it.uid != platform.uid &&
+                !it.excludesMemory() &&
                 (config.allowRemoteWorkers || it.isPrivateDestination()) &&
                 !(platform.compatibleType == ClientType.LITERT_LM && it.compatibleType == ClientType.LITERT_LM)
         }
@@ -324,7 +326,9 @@ class ChatRepositoryImpl(
                     }
                 }
                 LocalDelegationCoordinator(
-                    platform, settings = { config }, profiles = { profiles },
+                    platform,
+                    settings = { config },
+                    profiles = { profiles },
                     generate = { helper, task, cap -> generate(helper, task, cap, config.effectiveLocalInputTokens(), {}, true) },
                     generateWithProgress = { helper, task, cap, inputCap, progress -> generate(helper, task, cap, inputCap, progress, true) },
                     generateTextWithProgress = { helper, task, cap, inputCap, progress -> generate(helper, task, cap, inputCap, progress, false) },
@@ -334,9 +338,11 @@ class ChatRepositoryImpl(
                     }
                 )
             },
-            target = target, config = config,
+            target = target,
+            config = config,
             openPrimary = { turns, tools -> openBenchmarkSession(platform, turns, tools, "$runId-primary") },
-            workerTokens = { input to output }, workerCalls = { calls }
+            workerTokens = { input to output },
+            workerCalls = { calls }
         )
         return runner.run(test)
     }

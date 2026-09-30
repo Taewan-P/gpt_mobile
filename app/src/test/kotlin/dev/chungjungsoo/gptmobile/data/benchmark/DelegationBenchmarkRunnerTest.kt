@@ -35,7 +35,9 @@ class DelegationBenchmarkRunnerTest {
                         else -> Regex("PKG-[a-f0-9]{8}").find(prompt)?.value?.let { "$it https://example.org/parcel" } ?: "No evidence"
                     }
                 })
-            }, target = helper, config = config,
+            },
+            target = helper,
+            config = config,
             openPrimary = { turns, tools ->
                 primaryCalls++
                 assertTrue(tools.isEmpty())
@@ -44,10 +46,13 @@ class DelegationBenchmarkRunnerTest {
                 object : AgentProviderSession {
                     override fun streamRound(tools: List<AgentToolDefinition>, exchanges: List<AgentToolExchange>) = flowOf(
                         ProviderEvent.TextDelta("Parcel code $code, source https://example.org/parcel."),
-                        ProviderEvent.Usage(inputTokens = 100, outputTokens = 20), ProviderEvent.Completed
+                        ProviderEvent.Usage(inputTokens = 100, outputTokens = 20),
+                        ProviderEvent.Completed
                     )
                 }
-            }, workerTokens = { calls * 100L to calls * 20L }, workerCalls = { calls }
+            },
+            workerTokens = { calls * 100L to calls * 20L },
+            workerCalls = { calls }
         )
         val result = runner.run(delegationBenchmarkSuite().last())
         assertEquals(BenchmarkOutcome.PASSED, result.outcome)
@@ -66,9 +71,12 @@ class DelegationBenchmarkRunnerTest {
                         val result = tools.single().execute("fixture", buildJsonObject { put("key", if (valid) "parcel" else "wrong") })
                         (result.content as ToolResultContent.Text).text
                     })
-                }, target = helper, config = config,
+                },
+                target = helper,
+                config = config,
                 openPrimary = { _, _ -> error("Tool test must not call primary") },
-                workerTokens = { 0L to 0L }, workerCalls = { 0 }
+                workerTokens = { 0L to 0L },
+                workerCalls = { 0 }
             )
             val result = runner.run(delegationBenchmarkSuite()[1])
             assertEquals(if (valid) BenchmarkOutcome.PASSED else BenchmarkOutcome.ERROR, result.outcome)

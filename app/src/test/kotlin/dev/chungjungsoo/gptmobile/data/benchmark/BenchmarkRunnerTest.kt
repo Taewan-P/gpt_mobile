@@ -45,12 +45,14 @@ class BenchmarkRunnerTest {
     fun `provider failure preserves cleanup usage without flow transparency errors`() = runTest {
         var cleanupFinished = false
         val runner = BenchmarkRunner({ _, _ ->
-            session(flow {
-                emit(ProviderEvent.Failed("Model unavailable"))
-                emit(ProviderEvent.Usage(inputTokens = 77, outputTokens = 9))
-                cleanupFinished = true
-                emit(ProviderEvent.Completed)
-            })
+            session(
+                flow {
+                    emit(ProviderEvent.Failed("Model unavailable"))
+                    emit(ProviderEvent.Usage(inputTokens = 77, outputTokens = 9))
+                    cleanupFinished = true
+                    emit(ProviderEvent.Completed)
+                }
+            )
         })
         val result = runner.run(instruction, true)
         assertEquals(BenchmarkOutcome.ERROR, result.outcome)

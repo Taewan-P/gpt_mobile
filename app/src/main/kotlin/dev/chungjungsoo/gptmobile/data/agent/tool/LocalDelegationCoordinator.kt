@@ -47,6 +47,7 @@ internal class LocalDelegationCoordinator(
     private companion object {
         // Absolute emergency ceiling in addition to the user-configurable token budget.
         private const val MAX_DELEGATION_INPUT_TOKENS = 12_000
+
         // Provider/system/tool overhead is volatile and can grow substantially after tool discovery.
         // Never let the user/task prompt consume the whole configured input budget.
         private const val MAX_DELEGATE_PROMPT_TOKENS = 4_000

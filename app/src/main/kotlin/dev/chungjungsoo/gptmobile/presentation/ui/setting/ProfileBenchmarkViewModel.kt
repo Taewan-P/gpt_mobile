@@ -196,9 +196,11 @@ class ProfileBenchmarkViewModel @Inject constructor(
                             } catch (failure: Exception) {
                                 BenchmarkSample(test.id, test.label, test.category, BenchmarkOutcome.ERROR, error = safeMessage(failure))
                             }
-                        } else BenchmarkRunner(openSession = { turns, tools ->
-                            chats.openBenchmarkSession(profile, turns, tools, "benchmark-${run.id}-${test.id}")
-                        }).run(test, supportsTools)
+                        } else {
+                            BenchmarkRunner(openSession = { turns, tools ->
+                                chats.openBenchmarkSession(profile, turns, tools, "benchmark-${run.id}-${test.id}")
+                            }).run(test, supportsTools)
+                        }
                     },
                     onSample = { sample ->
                         val pss = withContext(Dispatchers.IO) { Debug.getPss() }
