@@ -371,7 +371,15 @@ class ChatPromptQueueTest {
         return ChatViewModel(
             SavedStateHandle(mapOf("chatRoomId" to 7, "enabledPlatforms" to members.joinToString(",") { it.uid })),
             ApplicationProvider.getApplicationContext(), repository, settings, mockk(relaxed = true), coordinator,
-            tools, localModels, catalog
+            tools,
+            localModels,
+            catalog,
+            dev.chungjungsoo.gptmobile.data.permissions.FreeModelToolConsentStore(
+                ApplicationProvider.getApplicationContext()
+            ),
+            dev.chungjungsoo.gptmobile.data.chat.ConversationReadStateStore(
+                ApplicationProvider.getApplicationContext()
+            )
         ).also { store.put("chat", it) }
     }
 }
