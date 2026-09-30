@@ -125,13 +125,47 @@ class ModelDelegationToolTest {
 
     @Test
     fun timesOutAndPropagatesParentCancellation() = runTest {
-        val slow = ModelDelegationTool(source, { enabled.copy(timeoutSeconds = 5) }, { listOf(target) }) { _, _, _ ->
-            delay(7000)
+        val slow = ModelDelegationTool(
+            source,
+            { enabled.copy(timeoutSeconds = 5, maxLocalModelCalls = 1) },
+            { listOf(target) }
+        ) { _, _, _ ->
+            delay(60_000)
             "late"
         }
         assertTrue(slow.execute("1", task).isError)
         val canceled = ModelDelegationTool(source, { enabled }, { listOf(target) }) { _, _, _ -> throw CancellationException("Stopped") }
         assertTrue(runCatching { canceled.execute("1", task) }.exceptionOrNull() is CancellationException)
+    }
+
+    @Test
+    fun failedDelegationRestoresExplicitCallBudgetForRetry() = runTest {
+        var attempts = 0
+        val tool = ModelDelegationTool(source, { enabled }, { listOf(target) }) { _, _, _ ->
+            attempts++
+            if (attempts == 1) error("temporary delegate failure")
+            "Recovered"
+        }
+
+        assertTrue(tool.execute("first", task).isError)
+        assertFalse(tool.execute("retry", task).isError)
+        assertEquals(2, attempts)
+    }
+
+    @Test
+    fun localFirstOwnershipRaisesExplicitDelegationAllowance() = runTest {
+        var attempts = 0
+        val localFirst = enabled.copy(processingOwnership = 0, maxCallsPerTurn = 1)
+        val tool = ModelDelegationTool(source, { localFirst }, { listOf(target) }) { _, _, _ ->
+            attempts++
+            "OK"
+        }
+
+        repeat(4) { index ->
+            assertFalse(tool.execute("call-$index", task).isError)
+        }
+        assertTrue(tool.execute("call-5", task).isError)
+        assertEquals(4, attempts)
     }
 
     @Test
