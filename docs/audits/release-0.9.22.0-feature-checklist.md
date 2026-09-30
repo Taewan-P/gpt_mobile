@@ -26,7 +26,7 @@ This records the implementation of the requested release features. Host regressi
 | 21 | GPTMobileIcon and generation progress ring use theme colors. |
 | 22 | ConversationReadStateStore and HomeScreen display filled themed icons and bold titles for completed unseen responses. |
 | 23 | Delegation traces use yellow tint and server/local or remote network icons; live metadata determines remote status. |
-| Delegation / benchmark request | Merged PR #564 rewires coordinator fallback and worker circuit breaking; ProfileBenchmarkScreen includes Delegation settings/metrics. BenchmarkStore recovers valid records without discarding damaged originals and reloads restored history. |
+| Delegation / benchmark request | Merged PR #564 rewires coordinator fallback and worker circuit breaking; helper discovery now honors conversation options and per-profile consent, and executes through namespaced approval checks with denial/identity regression coverage; ProfileBenchmarkScreen includes Delegation settings/metrics. BenchmarkStore recovers valid records without discarding damaged originals and reloads restored history. |
 
 ## Release checks
 

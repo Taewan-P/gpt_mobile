@@ -437,24 +437,33 @@ class ChatRepositoryImpl(
         return head + marker + tail
     }
 
-    private suspend fun delegateToProfile(target: PlatformV2, task: String, maxTokens: Int, parentRunId: String, turnKey: String, maxInputTokens: Int = Int.MAX_VALUE, onProgress: (DelegateProgress) -> Unit = {}, allowTools: Boolean = true, fixtureTools: List<AgentTool>? = null): String {
+    internal suspend fun resolveDelegatedTools(target: PlatformV2, parentRunId: String, chatToolConfig: ChatMcpToolConfig): List<AgentTool> {
+        if (target.disableAllTools || chatToolConfig.allToolsDisabled) return emptyList()
+        val invocation = "delegate:${UUID.randomUUID()}"
+        val budget = ToolExecutionBudget(agentRunnerForPlatform(target, runOverride = maxOf(1, target.maxToolCalls)).limits)
+        return agentToolResolver.resolve(target.uid, chatToolConfig, userMessage = null, delegate = null)
+            .sortedWith(compareBy<ResolvedAgentTool> { delegatedToolPriority(it) }.thenBy { it.modelToolName })
+            .map { resolved ->
+                budget.bind(resolved.tool, onFinished = { callId, success ->
+                    toolApprovals?.finish(parentRunId, "$invocation:$callId", success)
+                }) { callId, arguments ->
+                    resolved.connectionUid?.let { uid ->
+                        toolApprovals?.authorize(uid, parentRunId, "$invocation:$callId", resolved.realToolName, arguments) ?: true
+                    } ?: true
+                }
+            }
+    }
+
+    private suspend fun delegateToProfile(target: PlatformV2, task: String, maxTokens: Int, parentRunId: String, turnKey: String, maxInputTokens: Int = Int.MAX_VALUE, onProgress: (DelegateProgress) -> Unit = {}, allowTools: Boolean = true, fixtureTools: List<AgentTool>? = null, chatToolConfig: ChatMcpToolConfig = ChatMcpToolConfig()): String {
         // Delegated runs are real child agent runs: they receive the target profile's
         // authorized tools, but never receive delegate_to_model itself. This enables
         // local -> remote tool use and remote -> local tool use without recursion.
-        var childTools: MutableList<AgentTool> = if (!allowTools || target.disableAllTools) {
+        var childTools: MutableList<AgentTool> = if (!allowTools || target.disableAllTools || chatToolConfig.allToolsDisabled) {
             mutableListOf()
         } else if (fixtureTools != null) {
             fixtureTools.toMutableList()
         } else {
-            agentToolResolver.resolve(
-                profileUid = target.uid,
-                chatToolConfig = null,
-                userMessage = null,
-                delegate = null
-            )
-                .sortedWith(compareBy<ResolvedAgentTool> { delegatedToolPriority(it) }.thenBy { it.modelToolName })
-                .map { it.tool }
-                .toMutableList()
+            resolveDelegatedTools(target, parentRunId, chatToolConfig).toMutableList()
         }
         val discoveredChildToolCount = childTools.size
         val delegatedToolLimit = when {
@@ -706,7 +715,7 @@ class ChatRepositoryImpl(
                         delegateText.append(it)
                         trySend(ApiState.DelegationText(invocation, target.name, delegateText.toString(), !target.isPrivateDestination()))
                     }
-                }, allowTools)
+                }, allowTools, chatToolConfig = chatToolConfig ?: ChatMcpToolConfig())
             } finally {
                 // A final suspending snapshot recovers any intermediate UI update
                 // skipped while the channel was busy. It is never the primary answer.
