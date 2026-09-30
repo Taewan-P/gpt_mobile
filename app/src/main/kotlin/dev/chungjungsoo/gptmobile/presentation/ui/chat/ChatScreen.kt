@@ -215,6 +215,12 @@ fun ChatScreen(
     val toolEventsByRun by chatViewModel.toolEventsByRun.collectAsStateWithLifecycle()
     val indexStates by chatViewModel.indexStates.collectAsStateWithLifecycle()
     val loadingStates by chatViewModel.loadingStates.collectAsStateWithLifecycle()
+
+    LaunchedEffect(chatRoom.id, groupedMessages, activeAgentRuns) {
+        if (chatRoom.id > 0) {
+            chatViewModel.markCurrentChatViewed()
+        }
+    }
     val disabledPlatformUids by chatViewModel.disabledPlatformUids.collectAsStateWithLifecycle()
     val activePlatformUids by chatViewModel.activePlatformUids.collectAsStateWithLifecycle()
     val isChatTitleDialogOpen by chatViewModel.isChatTitleDialogOpen.collectAsStateWithLifecycle()
