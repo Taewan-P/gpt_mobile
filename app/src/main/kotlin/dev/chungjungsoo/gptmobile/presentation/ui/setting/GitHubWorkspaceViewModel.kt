@@ -48,6 +48,8 @@ data class GitHubWorkspaceState(
     val headSha: String = "",
     val directory: String = "",
     val entries: List<JsonObject> = emptyList(),
+    val directoryPage: Int = 1,
+    val moreEntries: Boolean = false,
     val file: JsonObject? = null,
     val staged: List<GitHubStagedFile> = emptyList(),
     val pullRequests: List<JsonObject> = emptyList(),
@@ -154,15 +156,17 @@ class GitHubWorkspaceViewModel @Inject constructor(
     }
 
     fun browse(path: String) = work { browseInternal(path) }
-    private suspend fun browseInternal(path: String) {
+    fun moreFiles() = work { browseInternal(_state.value.directory, _state.value.directoryPage + 1) }
+    private suspend fun browseInternal(path: String, page: Int = 1) {
         val result = api(
             "browse_files",
             buildJsonObject {
                 put("path", path)
+                put("page", page)
                 put("ref", _state.value.headSha)
             }
         ).jsonObject
-        _state.update { it.copy(directory = path, entries = result["entries"]?.jsonArray.orEmpty().map { entry -> entry.jsonObject }.sortedWith(compareBy<JsonObject> { entry -> entry.text("type") != "dir" }.thenBy { entry -> entry.text("name") }), file = null, notice = if (result.flag("directory_limit_reached")) "GitHub limited this directory to 1,000 entries." else it.notice) }
+        _state.update { it.copy(directory = path, directoryPage = page, moreEntries = result.flag("has_more"), entries = ((if (page == 1) emptyList() else it.entries) + result["entries"]?.jsonArray.orEmpty().map { entry -> entry.jsonObject }).distinctBy { entry -> entry.text("path") }.sortedWith(compareBy<JsonObject> { entry -> entry.text("type") != "dir" }.thenBy { entry -> entry.text("name") }), file = null, notice = if (result.flag("directory_limit_reached")) "GitHub limited this directory to 1,000 entries." else it.notice) }
     }
 
     fun readFile(path: String) = work {

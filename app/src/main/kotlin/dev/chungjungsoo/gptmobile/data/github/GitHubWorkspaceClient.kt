@@ -91,10 +91,12 @@ class GitHubWorkspaceClient(private val token: String, private val client: HttpC
                     put(
                         "entries",
                         buildJsonArray {
-                            result.forEach { item -> add(project(item.jsonObject, "name", "path", "type", "sha", "size", "html_url")) }
+                            result.drop((page - 1) * 30).take(30).forEach { item -> add(project(item.jsonObject, "name", "path", "type", "sha", "size", "html_url")) }
                         }
                     )
                     put("directory_limit_reached", result.size >= 1000)
+                    put("page", page)
+                    put("has_more", page * 30 < result.size)
                 }
             }
             "read_code" -> {
@@ -210,7 +212,13 @@ class GitHubWorkspaceClient(private val token: String, private val client: HttpC
         }
     }
 
-    private fun project(value: JsonObject, vararg keys: String): JsonObject = buildJsonObject { keys.forEach { key -> value[key]?.let { put(key, it) } } }
+    private fun project(value: JsonObject, vararg keys: String): JsonObject = buildJsonObject {
+        keys.forEach { key ->
+            value[key]?.let { item ->
+                put(key, if (key == "owner") buildJsonObject { item.jsonObject["login"]?.let { put("login", it) } } else item)
+            }
+        }
+    }
 
     private fun pageResult(value: JsonElement, page: Int, vararg fields: String): JsonObject = buildJsonObject {
         val items = value.jsonArray

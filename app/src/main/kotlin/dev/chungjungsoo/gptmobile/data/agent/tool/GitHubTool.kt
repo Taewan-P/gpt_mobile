@@ -563,7 +563,8 @@ class GitHubTool(
             items.forEach { item ->
                 add(
                     buildJsonObject {
-                        listOf("number", "title", "state", "draft", "html_url", "head", "base").forEach { key -> item.jsonObject[key]?.let { put(key, it) } }
+                        listOf("number", "title", "state", "draft", "html_url").forEach { key -> item.jsonObject[key]?.let { put(key, it) } }
+                        listOf("head", "base").forEach { key -> item.jsonObject[key]?.let { put(key, compactGitRef(it.jsonObject)) } }
                     }
                 )
             }
@@ -585,7 +586,8 @@ class GitHubTool(
         }
         val result = jsonParser.parseToJsonElement(text).jsonObject
         val summary = buildJsonObject {
-            listOf("number", "title", "state", "draft", "html_url", "head", "base", "mergeable", "mergeable_state", "merged", "changed_files").forEach { key -> result[key]?.let { put(key, it) } }
+            listOf("number", "title", "state", "draft", "html_url", "mergeable", "mergeable_state", "merged", "changed_files").forEach { key -> result[key]?.let { put(key, it) } }
+            listOf("head", "base").forEach { key -> result[key]?.let { put(key, compactGitRef(it.jsonObject)) } }
             put("body", truncate(result["body"]?.jsonPrimitive?.content.orEmpty(), 8000))
         }
         return successResult(callId, summary.toString())
@@ -784,6 +786,10 @@ class GitHubTool(
         } else {
             errorResult(callId, "GitHub API returned HTTP ${response.status.value}: ${truncate(text, 500)}")
         }
+    }
+
+    private fun compactGitRef(value: JsonObject): JsonObject = buildJsonObject {
+        listOf("ref", "sha", "label").forEach { key -> value[key]?.let { put(key, it) } }
     }
 
     private fun requireToken() {

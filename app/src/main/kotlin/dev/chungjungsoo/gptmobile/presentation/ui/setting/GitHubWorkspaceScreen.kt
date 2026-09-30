@@ -33,6 +33,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -46,6 +47,7 @@ import kotlinx.serialization.json.jsonObject
 @Composable
 fun GitHubWorkspaceScreen(connection: ToolConnection, onDismiss: () -> Unit, viewModel: GitHubWorkspaceViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val uriHandler = LocalUriHandler.current
     var tab by remember { mutableStateOf(0) }
     var repositoryMenu by remember { mutableStateOf(false) }
     var branchMenu by remember { mutableStateOf(false) }
@@ -129,13 +131,14 @@ fun GitHubWorkspaceScreen(connection: ToolConnection, onDismiss: () -> Unit, vie
                         when (tab) {
                             0 -> {
                                 Text("${state.directory.ifBlank { "/" }} · Snapshot ${state.headSha.take(8)}", style = MaterialTheme.typography.labelMedium)
-                                if (state.directory.isNotBlank()) TextButton(onClick = { viewModel.browse(state.directory.substringBeforeLast('/', "")) }, enabled = !state.busy) { Text("↑ Parent directory") }
+                                if (state.directory.isNotBlank()) TextButton(onClick = { viewModel.browse(state.directory.substringBeforeLast('/', "")) }, enabled = !state.busy && !editorDirty) { Text("↑ Parent directory") }
                                 if (state.file == null) {
                                     state.entries.forEach { entry ->
                                         TextButton(onClick = {
                                             if (entry.text("type") == "dir") viewModel.browse(entry.text("path")) else viewModel.readFile(entry.text("path"))
                                         }, enabled = !state.busy) { Text((if (entry.text("type") == "dir") "▸ " else "") + entry.text("name")) }
                                     }
+                                    if (state.moreEntries) TextButton(onClick = viewModel::moreFiles, enabled = !state.busy) { Text("Load more files") }
                                 } else {
                                     TextButton(onClick = { viewModel.browse(state.directory) }, enabled = !state.busy && !editorDirty) { Text("Back to files") }
                                     val file = requireNotNull(state.file)
@@ -143,6 +146,8 @@ fun GitHubWorkspaceScreen(connection: ToolConnection, onDismiss: () -> Unit, vie
                                     val path = file.text("path")
                                     var edited by remember(path, state.headSha) { mutableStateOf(state.staged.firstOrNull { it.path == path }?.content ?: original) }
                                     Text(path, style = MaterialTheme.typography.titleMedium)
+                                    val fileUrl = file.text("html_url")
+                                    if (fileUrl.startsWith("https://github.com/")) TextButton(onClick = { uriHandler.openUri(fileUrl) }) { Text("Open file on GitHub") }
                                     if (file.flag("has_more")) {
                                         Text("Preview: first 2,000 lines. Open the complete file on GitHub to edit safely.")
                                         WorkspaceCode(original)
@@ -166,7 +171,7 @@ fun GitHubWorkspaceScreen(connection: ToolConnection, onDismiss: () -> Unit, vie
                                 Text("Review and commit", style = MaterialTheme.typography.titleLarge)
                                 Text("Changes stay in this workspace until you commit. Closing discards uncommitted edits.", style = MaterialTheme.typography.bodySmall)
                                 OutlinedTextField(value = branchName, onValueChange = { branchName = it }, label = { Text("New working branch") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                                Button(onClick = { viewModel.createBranch(branchName) }, enabled = state.canWrite && !state.busy && branchName.isNotBlank() && state.staged.isEmpty()) { Text("Create branch") }
+                                Button(onClick = { viewModel.createBranch(branchName) }, enabled = state.canWrite && !state.busy && !editorDirty && branchName.isNotBlank() && state.staged.isEmpty()) { Text("Create branch") }
                                 state.staged.forEach { file ->
                                     Card(Modifier.fillMaxWidth()) {
                                         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -189,6 +194,8 @@ fun GitHubWorkspaceScreen(connection: ToolConnection, onDismiss: () -> Unit, vie
                                 Text("Target: ${state.defaultBranch}", style = MaterialTheme.typography.bodySmall)
                                 TextButton(onClick = viewModel::loadPullRequests, enabled = !state.busy) { Text("Refresh pull requests") }
                                 state.pullRequests.forEach { pr ->
+                                    val url = pr.text("html_url")
+                                    if (url.startsWith("https://github.com/")) TextButton(onClick = { uriHandler.openUri(url) }) { Text("Open #${pr.text("number")} on GitHub") }
                                     TextButton(onClick = { viewModel.inspectPullRequest(pr.text("number").toInt()) }, enabled = !state.busy) { Text("#${pr.text("number")} ${pr.text("title")}") }
                                 }
                                 if (state.morePullRequests) TextButton(onClick = viewModel::morePullRequests, enabled = !state.busy) { Text("Load more pull requests") }

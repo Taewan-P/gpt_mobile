@@ -198,4 +198,46 @@ class GitHubWorkspaceClientTest {
             http.close()
         }
     }
+
+    @Test
+    fun `directory paging returns complete entries and continuation without oversized payloads`() = runTest {
+        val response = buildJsonArray {
+            repeat(65) { index ->
+                add(
+                    buildJsonObject {
+                        put("name", "file$index")
+                        put("path", "file$index")
+                        put("type", "file")
+                    }
+                )
+            }
+        }.toString()
+        val http = HttpClient(MockEngine { respond(response) })
+        try {
+            val client = GitHubWorkspaceClient("token", http)
+            val result = client.execute(
+                "browse_files",
+                buildJsonObject {
+                    put("owner", "owner")
+                    put("repo", "repo")
+                    put("page", 2)
+                }
+            ).jsonObject
+            assertEquals(30, result["entries"]!!.jsonArray.size)
+            assertEquals("file30", result["entries"]!!.jsonArray[0].jsonObject["path"]!!.jsonPrimitive.content)
+            assertEquals("true", result["has_more"].toString())
+            val last = client.execute(
+                "browse_files",
+                buildJsonObject {
+                    put("owner", "owner")
+                    put("repo", "repo")
+                    put("page", 3)
+                }
+            ).jsonObject
+            assertEquals(5, last["entries"]!!.jsonArray.size)
+            assertEquals("false", last["has_more"].toString())
+        } finally {
+            http.close()
+        }
+    }
 }
