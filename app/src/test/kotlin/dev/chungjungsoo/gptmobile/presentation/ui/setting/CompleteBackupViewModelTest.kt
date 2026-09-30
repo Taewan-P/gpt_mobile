@@ -42,6 +42,7 @@ class CompleteBackupViewModelTest {
         every { settings.observeFeatureSettings() } returns flowOf(dev.chungjungsoo.gptmobile.data.model.AppFeatureSettings())
         coEvery { settings.getLocalRuntimeBackend() } returns LocalRuntimeBackend.DEFAULT
         every { manager.getBackupStatus() } returns BackupStatus()
+        every { manager.savedSelection() } returns dev.chungjungsoo.gptmobile.data.backup.CompleteBackupSelection.ALL
         viewModel = SettingViewModelV2(settings, manager, dev.chungjungsoo.gptmobile.data.localruntime.FakeLocalRuntime())
     }
 
