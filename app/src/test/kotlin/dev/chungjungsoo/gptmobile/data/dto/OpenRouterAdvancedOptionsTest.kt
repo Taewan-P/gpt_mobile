@@ -26,6 +26,13 @@ class OpenRouterAdvancedOptionsTest {
     )
 
     @Test
+    fun `reasoning off is explicit rather than leaving provider default enabled`() {
+        val encoded = json.encodeToString(OpenRouterReasoning(enabled = false))
+        assertTrue(encoded.contains("\"enabled\":false"))
+        assertFalse(encoded.contains("\"effort\""))
+    }
+
+    @Test
     fun `standard request does not serialize openrouter fields when null`() {
         val request = ChatCompletionRequest(
             model = "openai/gpt-4o",

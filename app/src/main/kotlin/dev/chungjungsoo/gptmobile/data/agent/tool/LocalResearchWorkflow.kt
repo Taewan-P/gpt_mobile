@@ -91,7 +91,8 @@ internal class LocalResearchWorkflow(
             if (sources.isEmpty()) explicitUrls.take(config.maxPages).forEach { addSource(it, it) }
             if (queries.isEmpty() && sources.isEmpty()) {
                 noResearchNeeded = plan != null
-                if (!automatic) brief = generate(delegationPrompt("Complete the supplied text task concisely. Do not claim web research occurred.", task, "", config.maxInputCharacters), config.maxOutputTokens).orEmpty()
+                // Non-web tasks belong to the tool-capable worker, not a research
+                // transform that has no tool access. The coordinator routes them next.
                 return@withTimeoutOrNull true
             }
             val search = tools.firstOrNull { it.realToolName == "web_search" }
@@ -253,7 +254,7 @@ internal class LocalResearchWorkflow(
         }
         if (completed == null) notes += "Local research timed out; completed evidence is retained."
         if (!stillEnabled()) notes += "Delegation was disabled before research completed."
-        if (automatic && noResearchNeeded) {
+        if (noResearchNeeded) {
             return LocalResearchResult("", rawBytes, 0, searches, LocalResearchOutcome.NO_RESEARCH_NEEDED)
         }
         if (brief.isBlank()) brief = sources.values.joinToString("\n") { "[${it.id}] ${relevantEvidence(it.text.ifBlank { it.snippet }, task, 600)}" }

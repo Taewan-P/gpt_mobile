@@ -35,6 +35,37 @@ class LocalDelegationCoordinatorTest {
         return ResolvedAgentTool(tool, "docs", "Documents", "update_document", "update_document")
     }
 
+    @Test fun `research transforms and direct tasks use separate worker paths`() = runTest {
+        var textCalls = 0
+        var toolCalls = 0
+        val coordinator = LocalDelegationCoordinator(
+            source, { config.copy(researchEnabled = false) }, { listOf(target) },
+            { _, _, _ -> error("Must use explicit worker path") },
+            generateWithProgress = { _, _, _, _, _ -> toolCalls++; "tool answer" },
+            generateTextWithProgress = { _, _, _, _, _ -> textCalls++; "text answer" }
+        )
+        assertEquals("text answer", coordinator.processText("Extract a code", 256))
+        assertEquals("tool answer", coordinator.executeTask(target, "Inspect a repository", 256))
+        assertEquals(1, textCalls)
+        assertEquals(1, toolCalls)
+    }
+
+    @Test fun `intermittent malformed calls still quarantine the worker`() = runTest {
+        var calls = 0
+        val coordinator = LocalDelegationCoordinator(
+            source, { config.copy(researchEnabled = false, maxLocalModelCalls = 10) }, { listOf(target) },
+            { _, _, _ ->
+                calls++
+                if (calls % 2 == 1) error("DELEGATION_FAILED: Tool arguments were not valid JSON.")
+                "usable answer"
+            }
+        )
+        repeat(5) { index -> runCatching { coordinator.delegate(target, "Task", 256, emptyList(), "case-$index") } }
+        assertFalse(coordinator.researchAvailable())
+        runCatching { coordinator.delegate(target, "Task", 256, emptyList(), "blocked") }
+        assertEquals(5, calls)
+    }
+
     @Test fun `parallel result processing serializes local inference and shares its call allowance`() = runTest {
         var calls = 0
         var active = 0

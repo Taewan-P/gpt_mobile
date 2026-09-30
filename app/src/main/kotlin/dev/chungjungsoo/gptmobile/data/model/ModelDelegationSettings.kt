@@ -54,7 +54,7 @@ data class ModelDelegationSettings(
     val localRetryLimit: Int = 0,
     /** Pause aggressive local research at or below this battery percentage. */
     val lowBatteryThresholdPercent: Int = 15,
-    /** Keep remote synthesis compact after local research has prepared evidence. */
+    /** Legacy saved preference; final answers now follow the primary profile output budget. */
     val remoteSynthesisOutputTokens: Int = 256,
     /** Maximum prior tool-exchange tokens replayed to the primary model on each round. */
     val primaryReplayTokens: Int = 4000,

@@ -52,7 +52,7 @@ data class EverydayToolPerformance(val profileUid: String, val provider: String,
 
 @HiltViewModel
 class ProfileBenchmarkViewModel @Inject constructor(
-    settings: SettingRepository,
+    private val settings: SettingRepository,
     private val chats: ChatRepository,
     private val store: BenchmarkStore,
     private val runtime: LocalRuntime,
@@ -71,6 +71,8 @@ class ProfileBenchmarkViewModel @Inject constructor(
         "$backend|${features.localCpuThreads}|${features.localModelCache}|${features.qnnAutomaticFallback}|" +
             "${features.localSpeculativeDecoding}|${features.localNativeMetrics}|${dev.chungjungsoo.gptmobile.BuildConfig.LITERT_LM_VERSION}"
     }.stateIn(viewModelScope, SharingStarted.Eagerly, "")
+    val delegationSettings = settings.observeFeatureSettings().map { it.delegation.normalized() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, dev.chungjungsoo.gptmobile.data.model.ModelDelegationSettings())
     val legacyReport: String? = context.getSharedPreferences("connection_doctor", Context.MODE_PRIVATE)
         .getString("last_report", null)?.takeIf { it.startsWith("Benchmark v1") }
     private val mutableProgress = MutableStateFlow<BenchmarkProgress?>(null)
@@ -86,7 +88,7 @@ class ProfileBenchmarkViewModel @Inject constructor(
     private val invocations = database.invocationDao().statistics()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val activeRequests = invocations.map { requests -> requests.any { it.status == "RUNNING" } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
     val everyday = combine(invocations, profiles, days) { requests, list, range ->
         val since = if (range == 0) 0L else System.currentTimeMillis() - range.toLong() * 24 * 60 * 60 * 1000
         profilePerformance(requests.filter { it.kind != "benchmark" && !it.parentRunId.startsWith("benchmark-") && it.startedAt >= since }, list.associate { it.uid to it.name })
@@ -156,21 +158,25 @@ class ProfileBenchmarkViewModel @Inject constructor(
             return
         }
         mutableError.value = null
+        mutableProgress.value = BenchmarkProgress(profile.name, "Validating profile", 0, benchmarkSuite(mode).size)
         job = viewModelScope.launch {
             try {
                 chats.validateBenchmarkProfile(profile)
             } catch (error: Exception) {
+                mutableProgress.value = null
                 if (error is CancellationException) throw error
                 mutableError.value = safeMessage(error)
                 return@launch
             }
+            val config = delegationSettings.value
             val suite = benchmarkSuite(mode)
             var run = BenchmarkRun(
                 UUID.randomUUID().toString(), profile.uid, profile.name, profile.compatibleType.name,
                 profile.model, benchmarkConfigKey(profile, localEnvironment.value), profile.compatibleType == ClientType.LITERT_LM,
                 mode, System.currentTimeMillis(), finished = false,
                 device = "${Build.MANUFACTURER} ${Build.MODEL}", thermalBefore = thermal(), batteryBefore = battery(),
-                engineWasLoaded = profile.compatibleType == ClientType.LITERT_LM && runtime.loadedEngineSpec() != null
+                engineWasLoaded = profile.compatibleType == ClientType.LITERT_LM && runtime.loadedEngineSpec() != null,
+                delegationSettings = config.takeIf { mode == BenchmarkMode.DELEGATION }
             )
             var currentTest = suite.first()
             try {
@@ -182,7 +188,15 @@ class ProfileBenchmarkViewModel @Inject constructor(
                     runCase = { index, test ->
                         currentTest = test
                         mutableProgress.value = BenchmarkProgress(profile.name, test.label, index, suite.size)
-                        BenchmarkRunner(openSession = { turns, tools ->
+                        if (mode == BenchmarkMode.DELEGATION) {
+                            try {
+                                chats.runDelegationBenchmark(profile, test, "benchmark-${run.id}-${test.id}", config)
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (failure: Exception) {
+                                BenchmarkSample(test.id, test.label, test.category, BenchmarkOutcome.ERROR, error = safeMessage(failure))
+                            }
+                        } else BenchmarkRunner(openSession = { turns, tools ->
                             chats.openBenchmarkSession(profile, turns, tools, "benchmark-${run.id}-${test.id}")
                         }).run(test, supportsTools)
                     },
@@ -196,7 +210,8 @@ class ProfileBenchmarkViewModel @Inject constructor(
                             accelerator = actual?.engineSpec?.accelerator ?: run.accelerator
                         )
                         store.save(run)
-                    }
+                    },
+                    stopOnError = mode != BenchmarkMode.DELEGATION
                 )
                 if (stoppedReason != null) {
                     run = run.copy(stoppedReason = stoppedReason)

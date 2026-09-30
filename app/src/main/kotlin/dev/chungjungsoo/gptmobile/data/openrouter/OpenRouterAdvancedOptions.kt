@@ -47,6 +47,10 @@ data class OpenRouterProviderRouting(
 @OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class OpenRouterReasoning(
+    @SerialName("enabled")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val enabled: Boolean? = null,
+
     @SerialName("effort")
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val effort: String? = null,

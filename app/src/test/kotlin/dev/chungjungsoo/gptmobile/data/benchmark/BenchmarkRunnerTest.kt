@@ -31,6 +31,36 @@ class BenchmarkRunnerTest {
     private val toolTest = benchmarkSuite(BenchmarkMode.QUICK).first { it.id == "tool" }
 
     @Test
+    fun `independent delegation cases continue after a failed stage`() = runTest {
+        val saved = mutableListOf<BenchmarkSample>()
+        val suite = delegationBenchmarkSuite()
+        val reason = runBenchmarkSuite(suite, { _, test ->
+            BenchmarkSample(test.id, test.label, test.category, BenchmarkOutcome.ERROR, error = "Worker failed")
+        }, { saved.add(it) }, stopOnError = false)
+        assertNull(reason)
+        assertEquals(3, saved.size)
+    }
+
+    @Test
+    fun `provider failure preserves cleanup usage without flow transparency errors`() = runTest {
+        var cleanupFinished = false
+        val runner = BenchmarkRunner({ _, _ ->
+            session(flow {
+                emit(ProviderEvent.Failed("Model unavailable"))
+                emit(ProviderEvent.Usage(inputTokens = 77, outputTokens = 9))
+                cleanupFinished = true
+                emit(ProviderEvent.Completed)
+            })
+        })
+        val result = runner.run(instruction, true)
+        assertEquals(BenchmarkOutcome.ERROR, result.outcome)
+        assertEquals("Model unavailable", result.error)
+        assertEquals(77, result.inputTokens)
+        assertEquals(9, result.outputTokens)
+        assertTrue(cleanupFinished)
+    }
+
+    @Test
     fun `native segment counters are preserved without replacing whole response usage`() = runTest {
         val native = dev.chungjungsoo.gptmobile.data.localruntime.NativeInferenceMetrics(50, 4, 200.0, 40.0)
         val runner = BenchmarkRunner({ _, _ ->

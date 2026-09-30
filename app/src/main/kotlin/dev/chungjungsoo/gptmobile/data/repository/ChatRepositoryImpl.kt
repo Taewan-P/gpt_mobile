@@ -280,6 +280,67 @@ class ChatRepositoryImpl(
         ) ?: session
     }
 
+    override suspend fun runDelegationBenchmark(
+        platform: PlatformV2,
+        test: dev.chungjungsoo.gptmobile.data.benchmark.BenchmarkCase,
+        runId: String,
+        settings: dev.chungjungsoo.gptmobile.data.model.ModelDelegationSettings
+    ): dev.chungjungsoo.gptmobile.data.benchmark.BenchmarkSample {
+        val config = settings.normalized()
+        check(config.enabled) { "Enable delegation before benchmarking its settings." }
+        val profiles = settingRepository.fetchPlatformV2s()
+        val eligible = profiles.filter {
+            it.enabled && it.uid != platform.uid && !it.excludesMemory() &&
+                (config.allowRemoteWorkers || it.isPrivateDestination()) &&
+                !(platform.compatibleType == ClientType.LITERT_LM && it.compatibleType == ClientType.LITERT_LM)
+        }
+        val target = eligible.firstOrNull { it.uid == config.targetProfileUid } ?: eligible.firstOrNull()
+            ?: error("No eligible helper is configured for this primary profile.")
+        validateBenchmarkProfile(target)
+        var calls = 0
+        var input = 0L
+        var output = 0L
+        val runner = dev.chungjungsoo.gptmobile.data.benchmark.DelegationBenchmarkRunner(
+            createCoordinator = { fixtures ->
+                suspend fun generate(targetProfile: PlatformV2, task: String, cap: Int, inputCap: Int, progress: (DelegateProgress) -> Unit, allowTools: Boolean): String {
+                    calls++
+                    var roundInput = 0L
+                    var roundOutput = 0L
+                    try {
+                        return delegateToProfile(targetProfile, task, cap, runId, runId, inputCap, { event ->
+                            if (event.kind == DelegateProgressKind.REQUEST_STARTED) {
+                                input += roundInput
+                                output += roundOutput
+                                roundInput = 0
+                                roundOutput = 0
+                            }
+                            event.inputTokens?.let { roundInput = maxOf(roundInput, it) }
+                            event.outputTokens?.let { roundOutput = maxOf(roundOutput, it) }
+                            progress(event)
+                        }, allowTools = allowTools, fixtureTools = fixtures)
+                    } finally {
+                        input += roundInput
+                        output += roundOutput
+                    }
+                }
+                LocalDelegationCoordinator(
+                    platform, settings = { config }, profiles = { profiles },
+                    generate = { helper, task, cap -> generate(helper, task, cap, config.effectiveLocalInputTokens(), {}, true) },
+                    generateWithProgress = { helper, task, cap, inputCap, progress -> generate(helper, task, cap, inputCap, progress, true) },
+                    generateTextWithProgress = { helper, task, cap, inputCap, progress -> generate(helper, task, cap, inputCap, progress, false) },
+                    inputBudget = ::delegationInputBudget,
+                    batteryPercent = {
+                        context.getSystemService(BatteryManager::class.java)?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)?.takeIf { it in 0..100 }
+                    }
+                )
+            },
+            target = target, config = config,
+            openPrimary = { turns, tools -> openBenchmarkSession(platform, turns, tools, "$runId-primary") },
+            workerTokens = { input to output }, workerCalls = { calls }
+        )
+        return runner.run(test)
+    }
+
     private suspend fun delegationInputBudget(target: PlatformV2, outputTokens: Int): Int {
         val budget = settingRepository.getFeatureSettings().tokenBudget.normalized()
         var capacity = minOf(budget.contextTokens, budget.profileContextCeilings[target.uid] ?: Int.MAX_VALUE)
@@ -363,12 +424,14 @@ class ChatRepositoryImpl(
         return head + marker + tail
     }
 
-    private suspend fun delegateToProfile(target: PlatformV2, task: String, maxTokens: Int, parentRunId: String, turnKey: String, maxInputTokens: Int = Int.MAX_VALUE, onProgress: (DelegateProgress) -> Unit = {}): String {
+    private suspend fun delegateToProfile(target: PlatformV2, task: String, maxTokens: Int, parentRunId: String, turnKey: String, maxInputTokens: Int = Int.MAX_VALUE, onProgress: (DelegateProgress) -> Unit = {}, allowTools: Boolean = true, fixtureTools: List<AgentTool>? = null): String {
         // Delegated runs are real child agent runs: they receive the target profile's
         // authorized tools, but never receive delegate_to_model itself. This enables
         // local -> remote tool use and remote -> local tool use without recursion.
-        var childTools: MutableList<AgentTool> = if (target.disableAllTools) {
+        var childTools: MutableList<AgentTool> = if (!allowTools || target.disableAllTools) {
             mutableListOf()
+        } else if (fixtureTools != null) {
+            fixtureTools.toMutableList()
         } else {
             agentToolResolver.resolve(
                 profileUid = target.uid,
@@ -422,6 +485,8 @@ class ChatRepositoryImpl(
             allowReasoning = false
         )
         val bounded = target.copy(
+            batchMode = false,
+            model = if (target.compatibleType == ClientType.OPENROUTER) target.model.removeSuffix(":batch") else target.model,
             reasoning = false,
             disableAllTools = childTools.isEmpty(),
             systemPrompt = boundedSystemPrompt
@@ -621,6 +686,9 @@ class ChatRepositoryImpl(
                 generateWithProgress = { target, task, cap, inputCap, progress ->
                     delegateToProfile(target, task, cap, runId, turnKey, inputCap, progress)
                 },
+                generateTextWithProgress = { target, task, cap, inputCap, progress ->
+                    delegateToProfile(target, task, cap, runId, turnKey, inputCap, progress, allowTools = false)
+                },
                 inputBudget = ::delegationInputBudget,
                 batteryPercent = {
                     val manager = context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
@@ -781,7 +849,7 @@ class ChatRepositoryImpl(
             )
             val boundedTools = resolvedTools.filter { resolved ->
                 resolved in connectedMemoryTools ||
-                    (localResearch && (resolved.isWebSearchEngine() || resolved.isResearchPageReader())) ||
+                    (localResearch && (processingOwnership < 35 || resolved.isWebSearchEngine() || resolved.isResearchPageReader())) ||
                     contextPlan.tools.any { it.name == resolved.modelToolName || (it.name == "web_search" && resolved.isWebSearchEngine()) }
             }.map { resolved ->
                 resolved.copy(
@@ -844,7 +912,21 @@ class ChatRepositoryImpl(
                 emit(ApiState.ToolCall(event.sequence))
                 val research = localDelegation.prepare(latestUser.content, delegatedTools, call.callId, automatic = true)
                 val content = ToolResultContent.Text(research.handoff.ifBlank { "No external research was needed for this task." })
-                trace.finish(call, AgentToolResult(call.callId, content, false))?.let { emit(it) }
+                val preparationFailed = research.outcome in setOf(
+                    dev.chungjungsoo.gptmobile.data.agent.tool.LocalResearchOutcome.FAILED,
+                    dev.chungjungsoo.gptmobile.data.agent.tool.LocalResearchOutcome.NO_USEFUL_OUTPUT
+                )
+                trace.finish(call, AgentToolResult(call.callId, content, preparationFailed))?.let { emit(it) }
+                if (preparationFailed) {
+                    // An unavailable helper must not leave the primary with only a dead
+                    // delegate tool. Reuse authorized/budgeted tools, without reexecuting
+                    // any completed action or claiming research succeeded.
+                    localResearch = false
+                    exposedTools = orderPrimaryTools(aggregatedTools)
+                    requestPlatform = platform.copy(systemPrompt = recalled.prefix() + documentContext + baseSystemPrompt())
+                    contextPlan = dev.chungjungsoo.gptmobile.data.context.ContextBudgetService.plan(preparedTurns, requestPlatform.systemPrompt.orEmpty(), exposedTools.map { it.tool.definition }, limits)
+                    emit(ApiState.Notice("Delegated preparation failed. The main profile can use its enabled tools to recover.", persistent = true))
+                }
                 if (research.handoff.isNotBlank()) {
                     appendPreparedEvidence(research.handoff)
                     emit(ApiState.Notice("Local research: ${research.searches} searches, ${research.pagesRead} pages; approximately ${research.rawBytes / 3} evidence tokens reduced to ${research.handoff.toByteArray().size / 3} brief tokens.", persistent = false))
@@ -862,19 +944,16 @@ class ChatRepositoryImpl(
                 .map { if (resolvedTools.any { tool -> tool.realToolName == "delegate_to_model" }) localDelegation.processToolResults(it, latestUser?.content.orEmpty()) else it }
             val delegationSettings = settingRepository.getFeatureSettings().delegation.normalized()
             val requestedOutputTokens = contextPlan.outputTokens
-            val synthesisCap = if (localResearch) delegationSettings.remoteSynthesisOutputTokens else Int.MAX_VALUE
-            val effectiveOutputCap = if (localResearch) {
-                minOf(requestedOutputTokens ?: synthesisCap, synthesisCap)
-            } else {
-                requestedOutputTokens
-            }
+            // Delegation saves input/replay tokens. Its brief budget must never cap the
+            // user's final answer (a 256-token brief cannot satisfy a 1000-word task).
+            val effectiveOutputCap = requestedOutputTokens
             val requestConstraints = RequestConstraints(
                 maxOutputTokens = effectiveOutputCap
             )
             if (localResearch) {
                 AppLogRecorder.record(
                     "Delegation",
-                    "Remote synthesis budget · ownership=$processingOwnership · requested=${requestedOutputTokens ?: -1} · synthesisCap=$synthesisCap · effective=${effectiveOutputCap ?: -1} · exposedTools=${exposedTools.size} · selectedTools=${contextPlan.tools.size}"
+                    "Remote synthesis budget · ownership=$processingOwnership · requested=${requestedOutputTokens ?: -1} · profileCap=${platform.maxTokens} · effective=${effectiveOutputCap ?: -1} · exposedTools=${exposedTools.size} · selectedTools=${contextPlan.tools.size}"
                 )
             }
             val session = when (platform.compatibleType) {
