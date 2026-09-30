@@ -2,6 +2,10 @@ package dev.chungjungsoo.gptmobile.data.backup
 
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.nio.ByteBuffer
+import javax.crypto.Cipher
+import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.SecretKeySpec
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
@@ -97,10 +101,27 @@ class CompleteBackupCryptoTest {
         }.toByteArray()
     }
 
+    /** Test-only encoder for the retired GPTFULL2 restore format. */
     private fun encryptPasswordless(bytes: ByteArray): ByteArray {
-        val source = File(temp.root, "v2-source").apply { writeBytes(bytes) }
-        return ByteArrayOutputStream().also {
-            CompleteBackupCrypto.encryptWithKey(source, it, rawKey)
-        }.toByteArray()
+        val header = ByteBuffer.allocate(24)
+            .put("GPTFULL2".toByteArray())
+            .put(ByteArray(8) { (it + 11).toByte() })
+            .putLong(bytes.size.toLong())
+            .array()
+        val prefix = header.copyOfRange(8, 16)
+        val output = ByteArrayOutputStream()
+        output.write(header)
+        var offset = 0
+        var index = 0
+        while (offset < bytes.size) {
+            val count = minOf(1024 * 1024, bytes.size - offset)
+            val nonce = ByteBuffer.allocate(12).put(prefix).putInt(index++).array()
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(rawKey, "AES"), GCMParameterSpec(128, nonce))
+            cipher.updateAAD(header)
+            output.write(cipher.doFinal(bytes, offset, count))
+            offset += count
+        }
+        return output.toByteArray()
     }
 }
