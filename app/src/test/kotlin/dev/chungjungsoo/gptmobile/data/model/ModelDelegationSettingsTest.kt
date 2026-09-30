@@ -65,6 +65,7 @@ class ModelDelegationSettingsTest {
         ).normalized()
 
         assertEquals(16, localFirst.effectiveLocalModelCalls())
+        assertEquals(5, localFirst.effectiveResearchCalls())
         assertEquals(8000, localFirst.effectiveLocalInputTokens())
         assertEquals(24000, localFirst.effectiveWastedLocalTokens())
     }
@@ -79,6 +80,7 @@ class ModelDelegationSettingsTest {
         ).normalized()
 
         assertEquals(4, balanced.effectiveLocalModelCalls())
+        assertEquals(5, balanced.effectiveResearchCalls())
         assertEquals(3000, balanced.effectiveLocalInputTokens())
         assertEquals(4000, balanced.effectiveWastedLocalTokens())
     }

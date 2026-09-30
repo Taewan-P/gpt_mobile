@@ -432,9 +432,10 @@ internal class LocalDelegationCoordinator(
             AppLogRecorder.record("Delegation", "Research skipped · automatic=$automatic · enabled=${config.researchEnabled} · target=null")
             return LocalResearchResult("", 0, 0, 0)
         }
+        val effectiveResearchLimit = config.effectiveResearchCalls()
         val requestIndex = requests.getAndIncrement()
-        if (requestIndex >= config.maxCallsPerTurn) {
-            AppLogRecorder.record("Delegation", "Research skipped · request budget exhausted · request=$requestIndex max=${config.maxCallsPerTurn}", "W")
+        if (requestIndex >= effectiveResearchLimit) {
+            AppLogRecorder.record("Delegation", "Research skipped · request budget exhausted · request=$requestIndex max=$effectiveResearchLimit · configured=${config.maxCallsPerTurn} · ownership=${config.processingOwnership}", "W")
             return LocalResearchResult("", 0, 0, 0)
         }
         val result = try {
@@ -467,7 +468,15 @@ internal class LocalDelegationCoordinator(
         }
         if (researchAvailable()) {
             val result = prepare(task, tools, callId)
-            return result.handoff.ifBlank { "The local research allowance for this turn is exhausted. Use evidence already available; do not retry the delegated research." }
+            if (result.handoff.isNotBlank()) return result.handoff
+            AppLogRecorder.record(
+                "Delegation",
+                "Research produced no handoff; falling back to direct delegate inference · call=$callId · target=${target.uid}",
+                "W"
+            )
+            // Do not turn an exhausted/empty research workflow into a fake successful tool result.
+            // The selected worker can still answer the delegated task directly within the worker
+            // call/input/output budgets below.
         }
 
         val hardCap = minOf(config.effectiveLocalInputTokens(), MAX_DELEGATION_INPUT_TOKENS)

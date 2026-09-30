@@ -118,6 +118,23 @@ data class ModelDelegationSettings(
         return maxOf(maxLocalModelCalls, ownershipFloor).coerceIn(1, 48)
     }
 
+    /** Effective research-workflow allowance for this turn.
+     *
+     * Keep the strategy slider from starving Local-first delegation. maxCallsPerTurn controls
+     * research workflow requests, while maxLocalModelCalls controls individual worker calls.
+     * A Local-first profile therefore needs more than one research request even when an
+     * efficiency preset configured maxCallsPerTurn=1.
+     */
+    fun effectiveResearchCalls(): Int {
+        val ownershipFloor = when {
+            processingOwnership <= 10 -> 4
+            processingOwnership <= 25 -> 3
+            processingOwnership <= 40 -> 2
+            else -> 1
+        }
+        return maxOf(maxCallsPerTurn, ownershipFloor).coerceIn(1, 16)
+    }
+
     /** Local-first needs enough request room for the worker system prompt/tool schemas.
      * Keep the emergency ceiling in the coordinator, but do not let a low-efficiency
      * preset make a private worker unusable because provider overhead alone exceeds 3k. */
