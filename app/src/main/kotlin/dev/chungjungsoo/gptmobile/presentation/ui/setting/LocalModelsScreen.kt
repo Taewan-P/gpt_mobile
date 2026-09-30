@@ -195,7 +195,7 @@ fun LocalModelsScreen(
                                                         accelerator.contains("mediatek", true)
                                                 }
                                     }
-                                )
+                                    )
                         }.sortedWith(
                             compareByDescending<LocalModelListItem> {
                                 backend == dev.chungjungsoo.gptmobile.data.model.LocalRuntimeBackend.QUALCOMM_QNN && dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators.isNpuEligible(it.entry.supportedAccelerators, it.entry.socToModelFiles, runtimeViewModel.soc)
@@ -267,9 +267,9 @@ fun LocalModelsScreen(
                             items(
                                 items = uiState.items.filter { item ->
                                     when (selectedArchitecture) {
-                                    "QNN" -> qnnAvailable && dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators.isNpuEligible(item.entry.supportedAccelerators, item.entry.socToModelFiles, runtimeViewModel.soc)
-                                    "LiteRT" -> item.entry.supportedAccelerators.any { it.equals("cpu", true) || it.equals("gpu", true) }
-                                    "MTP" -> item.entry.supportedAccelerators.any { it.equals("mtp", true) || it.contains("mediatek", true) }
+                                        "QNN" -> qnnAvailable && dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators.isNpuEligible(item.entry.supportedAccelerators, item.entry.socToModelFiles, runtimeViewModel.soc)
+                                        "LiteRT" -> item.entry.supportedAccelerators.any { it.equals("cpu", true) || it.equals("gpu", true) }
+                                        "MTP" -> item.entry.supportedAccelerators.any { it.equals("mtp", true) || it.contains("mediatek", true) }
                                         else ->
                                             item.entry.supportedAccelerators.any {
                                                 it.equals("cpu", true) ||
@@ -284,7 +284,7 @@ fun LocalModelsScreen(
                                                             item.entry.socToModelFiles,
                                                             runtimeViewModel.soc
                                                         )
-                                                )
+                                                    )
                                     }
                                 },
                                 key = { it.entry.id },
