@@ -8,6 +8,7 @@ import org.junit.Test
 class AddPlatformScreenTest {
     @Test
     fun `Mistral save gate requires v1 URL and key`() {
+        assertFalse(canSavePlatform(false, ClientType.MISTRAL, "Mistral", "http://api.mistral.ai/v1/", "secret", "mistral-large-latest", false))
         assertFalse(canSavePlatform(false, ClientType.MISTRAL, "Mistral", "https://api.mistral.ai/", "secret", "mistral-large-latest", false))
         assertFalse(canSavePlatform(false, ClientType.MISTRAL, "Mistral", "https://api.mistral.ai/v1/", "", "mistral-large-latest", false))
         assertTrue(canSavePlatform(false, ClientType.MISTRAL, "Mistral", "https://api.mistral.ai/v1/", "secret", "mistral-large-latest", false))

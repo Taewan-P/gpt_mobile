@@ -293,6 +293,9 @@ class SetupViewModelV2Test {
         val viewModel = setupViewModel()
         viewModel.selectClientType(ClientType.MISTRAL)
 
+        viewModel.updateApiUrl("http://api.mistral.ai/v1/")
+        assertFalse(viewModel.canProceedFromStep(SetupViewModelV2.WIZARD_STEP_BASICS))
+
         viewModel.updateApiUrl("https://api.mistral.ai/")
         assertFalse(viewModel.canProceedFromStep(SetupViewModelV2.WIZARD_STEP_BASICS))
 
@@ -317,8 +320,12 @@ class SetupViewModelV2Test {
         val viewModel = setupViewModel(settings = settings)
         viewModel.selectClientType(ClientType.MISTRAL)
 
-        viewModel.updateApiUrl("https://api.mistral.ai/")
         viewModel.updateApiKey("secret")
+        viewModel.updateApiUrl("http://api.mistral.ai/v1/")
+        viewModel.savePlatform()
+        assertTrue(settings.addedPlatforms.isEmpty())
+
+        viewModel.updateApiUrl("https://api.mistral.ai/")
         viewModel.savePlatform()
         assertTrue(settings.addedPlatforms.isEmpty())
 

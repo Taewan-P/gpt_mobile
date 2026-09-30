@@ -62,8 +62,8 @@ Both platform-creation surfaces show Mistral as a branded choice. The initial se
 
 For Mistral only:
 
-- the API key is required;
-- the trimmed API URL must end with `/v1/`;
+- the API key is required, during creation and edits;
+- the trimmed API URL must use HTTPS and end with `/v1/`, during creation and edits;
 - an invalid URL shows an inline error and blocks progression or saving;
 - the app does not silently rewrite an invalid URL.
 

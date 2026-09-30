@@ -4,7 +4,7 @@
 
 **Goal:** Add a first-class Mistral Platform that uses a dedicated streaming session, validates setup, discovers model capacity, and preserves the existing OpenAI-compatible wire machinery.
 
-**Architecture:** Persist `ClientType.MISTRAL` with provider-specific defaults and UI copy. A dedicated `MistralAdapter` delegates to one private Chat Completions session function shared with `OpenAICompatibleAdapter`; context discovery and inline attachment safety reuse existing provider infrastructure.
+**Architecture:** Persist `ClientType.MISTRAL` with provider-specific defaults and UI copy. A dedicated `MistralAdapter` delegates to one internal Chat Completions session function shared with `OpenAICompatibleAdapter`; context discovery and inline attachment safety reuse existing provider infrastructure.
 
 **Tech Stack:** Kotlin, Coroutines/Flow, Ktor CIO, kotlinx.serialization, Jetpack Compose Material 3, Room, JUnit 4.
 
@@ -18,7 +18,7 @@
 - Mistral has a dedicated adapter/session seam but reuses Chat Completions DTOs, `OpenAIAPI`, attachment encoding, and event assembly.
 - Do not add a Mistral SDK, new HTTP client, duplicate DTO stack, database migration, model catalog, or provider-preset abstraction.
 - Existing Custom and OpenAI-compatible Platforms remain unchanged.
-- New Mistral Platforms require a nonblank API key and a trimmed API URL ending in `/v1/`; the app never silently rewrites the URL.
+- Mistral platform creation and edits require a nonblank API key and a trimmed HTTPS API URL ending in `/v1/`; the app never silently rewrites the URL.
 - Mistral images stay inline and use the existing 12 MiB ceiling.
 - A missing or invalid `max_context_length` remains unknown and uses the existing manual context-window flow.
 - Amazon Bedrock, Gemini Enterprise Agent Platform, Mistral Agents, Connectors, OCR, prompt-cache controls, and non-stream transport work are out of scope.

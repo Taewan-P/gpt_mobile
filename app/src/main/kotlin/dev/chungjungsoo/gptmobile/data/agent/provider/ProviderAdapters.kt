@@ -211,21 +211,7 @@ class OpenAICompatibleAdapter @Inject constructor(
     }
 }
 
-class MistralAdapter @Inject constructor(
-    private val openAIAPI: OpenAIAPI,
-    private val attachmentEncoder: ProviderAttachmentEncoder
-) {
-    suspend fun openSession(
-        turns: List<ConversationTurn>,
-        platform: PlatformV2
-    ): AgentProviderSession = openChatCompletionsSession(
-        openAIAPI,
-        attachmentEncoder.openAIChatMessages(turns, platform.systemPrompt),
-        platform
-    )
-}
-
-private fun openChatCompletionsSession(
+internal fun openChatCompletionsSession(
     api: OpenAIAPI,
     initialMessages: List<ChatMessage>,
     platform: PlatformV2
