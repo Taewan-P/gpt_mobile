@@ -90,7 +90,7 @@ class AgentToolResolver @Inject constructor(
         val disableLocal = platform?.disableLocalTools == true
         val featureSettings = settingRepository.getFeatureSettings()
         val allowRemoteMcp = !disableRemote && !memoryExcluded && featureSettings.remoteMcpConnections
-        val allowDeviceLocation = !disableLocal && !freeProfile && featureSettings.deviceLocationTool
+        val allowDeviceLocation = !disableLocal && featureSettings.deviceLocationTool
 
         // Baseline zero-config tools available out of the box to all models
         val defaultWebSearch = WebSearchTool(
@@ -107,7 +107,7 @@ class AgentToolResolver @Inject constructor(
 
         if (!disableLocal) {
             // Keep explicitly enabled delegation available in small on-device context windows.
-            if (!freeProfile && featureSettings.delegation.enabled && delegate != null && platform != null) {
+            if (featureSettings.delegation.enabled && delegate != null && platform != null) {
                 val tool = ModelDelegationTool(platform, { settingRepository.getFeatureSettings().delegation }, { settingRepository.fetchPlatformV2s() }, delegate)
                 resolved += tool.resolved(null, "Model delegation", tool.definition.name)
             }
@@ -133,12 +133,12 @@ class AgentToolResolver @Inject constructor(
             }
             resolved += CurrentDateTool().resolved(null, null, BuiltInAgentTool.CURRENT_DATE)
             resolved += CalculatorTool().resolved(null, null, BuiltInAgentTool.CALCULATE_EXPRESSION)
-            if (!freeProfile) resolved += ReadFileSliceTool().resolved(null, null, BuiltInAgentTool.READ_FILE_SLICE)
+            resolved += ReadFileSliceTool().resolved(null, null, BuiltInAgentTool.READ_FILE_SLICE)
         }
 
         if (!disableRemote) {
             resolved += ReadUrlTool().resolved(null, null, BuiltInAgentTool.READ_URL)
-            if (!freeProfile) resolved += GitHubTool().resolved(null, null, BuiltInAgentTool.GITHUB)
+            resolved += GitHubTool().resolved(null, null, BuiltInAgentTool.GITHUB)
             resolved += defaultWebSearch.resolved(null, null, WEB_SEARCH_TOOL)
         }
 
@@ -148,7 +148,6 @@ class AgentToolResolver @Inject constructor(
             .filterNot { it.connection?.type == ToolConnectionType.MCP }
             .distinctBy { if (it.binding.toolName == WEB_SEARCH_TOOL) "${it.binding.toolName}:${it.binding.connectionUid}" else it.binding.toolName }
             .forEach { binding ->
-                if (freeProfile && binding.binding.toolName !in setOf(WEB_SEARCH_TOOL, BuiltInAgentTool.READ_URL, BuiltInAgentTool.CURRENT_DATE, BuiltInAgentTool.CALCULATE_EXPRESSION)) return@forEach
                 val isRemoteBinding = binding.binding.toolName in setOf(WEB_SEARCH_TOOL, BuiltInAgentTool.READ_URL, BuiltInAgentTool.GITHUB)
                 val isLocalBinding = !isRemoteBinding
                 if ((isRemoteBinding && !disableRemote) || (isLocalBinding && !disableLocal)) {
