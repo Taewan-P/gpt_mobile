@@ -21,7 +21,7 @@ import org.junit.Test
 class LocalDelegationCoordinatorTest {
     private val source = PlatformV2(uid = "remote", name = "Remote", compatibleType = ClientType.OPENAI, apiUrl = "https://api.example.com")
     private val target = PlatformV2(uid = "local", name = "Local", compatibleType = ClientType.LLAMA, apiUrl = "http://192.168.1.2:8080")
-    private val config = ModelDelegationSettings(enabled = true, targetProfileUid = "local", maxLocalModelCalls = 2)
+    private val config = ModelDelegationSettings(enabled = true, processingOwnership = 50, targetProfileUid = "local", maxLocalModelCalls = 2)
     private val raw = ToolResultContent.Text("Completed action: id=42. " + "Details. ".repeat(1000))
     private fun tool(action: () -> Unit = {}): ResolvedAgentTool {
         val tool = object : AgentTool {
@@ -337,4 +337,19 @@ class LocalDelegationCoordinatorTest {
         assertFalse(result.isError)
         assertEquals(raw, result.content)
     }
+    @Test fun `named missing model is quarantined on the first failure`() = runTest {
+        var failedCalls = 0
+        val fallback = target.copy(uid = "working", model = "available-model")
+        val coordinator = LocalDelegationCoordinator(source, { config.copy(researchEnabled = false) }, { listOf(target, fallback) }, { profile, _, _ ->
+            if (profile.uid == target.uid) {
+                failedCalls++
+                error("DELEGATION_FAILED: model 'jackod' not found")
+            }
+            "usable fallback answer"
+        })
+        assertEquals("usable fallback answer", coordinator.executeTask(target, "Read a page", 256))
+        assertEquals(1, failedCalls)
+        assertFalse(coordinator.researchAvailable())
+    }
+
 }

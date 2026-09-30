@@ -424,6 +424,7 @@ internal class LocalDelegationCoordinator(
                 val permanentlyUnavailable = message.contains("HTTP 404", ignoreCase = true) ||
                     message.contains("HTTP 410", ignoreCase = true) ||
                     message.contains("model not found", ignoreCase = true) ||
+                    Regex("model\\s+.+?\\s+not found", RegexOption.IGNORE_CASE).containsMatchIn(message) ||
                     message.contains("model unavailable", ignoreCase = true) ||
                     message.contains("model is unavailable", ignoreCase = true) ||
                     message.contains("no longer available", ignoreCase = true) ||

@@ -33,7 +33,14 @@ class LocalToolsViewModel @Inject constructor(private val settings: SettingRepos
     val error = _error.asStateFlow()
 
     fun resetDelegationDefaults() {
-        update { ModelDelegationSettings() }
+        update { current ->
+            ModelDelegationSettings(
+                enabled = current.enabled,
+                targetProfileUid = current.targetProfileUid,
+                localPlatformsOnly = current.localPlatformsOnly,
+                allowRemoteWorkers = current.allowRemoteWorkers
+            )
+        }
     }
 
     fun update(transform: (ModelDelegationSettings) -> ModelDelegationSettings) {
