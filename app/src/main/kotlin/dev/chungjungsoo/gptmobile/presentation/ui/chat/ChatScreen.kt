@@ -1380,85 +1380,85 @@ fun ChatInputBox(
             .background(Color.Transparent)
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        color = inputColor,
-        contentColor = MaterialTheme.colorScheme.onBackground,
-        tonalElevation = 0.dp,
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)),
-        shadowElevation = 0.dp
-    ) {
-        Column {
-            if (selectedAttachments.isNotEmpty()) {
-                FileThumbnailRow(
-                    selectedAttachments = selectedAttachments,
-                    onFileRemoved = onFileRemoved
-                )
-            }
-            BasicTextField(
-                state = inputState,
-                modifier = Modifier.fillMaxWidth().background(inputColor),
-                enabled = chatEnabled,
-                textStyle = mergedStyle,
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                lineLimits = chatInputLineLimits,
-                decorator = { innerTextField ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(inputColor)
-                            .padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            enabled = chatEnabled,
-                            onClick = { filePickerLauncher.launch("*/*") }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.AttachFile,
-                                tint = MaterialTheme.colorScheme.primary,
-                                contentDescription = stringResource(R.string.attach_file)
-                            )
-                        }
-                        Box(
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.large,
+            color = inputColor,
+            contentColor = MaterialTheme.colorScheme.onBackground,
+            tonalElevation = 0.dp,
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)),
+            shadowElevation = 0.dp
+        ) {
+            Column {
+                if (selectedAttachments.isNotEmpty()) {
+                    FileThumbnailRow(
+                        selectedAttachments = selectedAttachments,
+                        onFileRemoved = onFileRemoved
+                    )
+                }
+                BasicTextField(
+                    state = inputState,
+                    modifier = Modifier.fillMaxWidth().background(inputColor),
+                    enabled = chatEnabled,
+                    textStyle = mergedStyle,
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    lineLimits = chatInputLineLimits,
+                    decorator = { innerTextField ->
+                        Row(
                             modifier = Modifier
-                                .weight(1f)
-                                .padding(start = 8.dp)
+                                .fillMaxWidth()
+                                .background(inputColor)
+                                .padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            if (inputState.text.isEmpty()) {
-                                Text(
-                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                                    text = if (chatEnabled) stringResource(R.string.write_a_message) else stringResource(R.string.some_platforms_disabled)
+                            IconButton(
+                                enabled = chatEnabled,
+                                onClick = { filePickerLauncher.launch("*/*") }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.AttachFile,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    contentDescription = stringResource(R.string.attach_file)
                                 )
                             }
-                            Box(modifier = Modifier.fillMaxWidth()) {
-                                innerTextField()
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(start = 8.dp)
+                            ) {
+                                if (inputState.text.isEmpty()) {
+                                    Text(
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                                        text = if (chatEnabled) stringResource(R.string.write_a_message) else stringResource(R.string.some_platforms_disabled)
+                                    )
+                                }
+                                Box(modifier = Modifier.fillMaxWidth()) {
+                                    innerTextField()
+                                }
                             }
-                        }
-                        val showStop = isRunning && !hasQuestionText && selectedAttachments.isEmpty()
-                        FilledIconButton(
-                            colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary),
-                            enabled = showStop || (chatEnabled && sendButtonEnabled && (hasQuestionText || selectedAttachments.isNotEmpty())),
-                            onClick = if (showStop) onCancelButtonClick else onSendButtonClick
-                        ) {
-                            if (showStop) {
-                                Icon(
-                                    imageVector = Icons.Filled.Stop,
-                                    contentDescription = stringResource(R.string.cancel_active_runs)
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Rounded.ArrowUpward,
-                                    contentDescription = stringResource(R.string.send)
-                                )
+                            val showStop = isRunning && !hasQuestionText && selectedAttachments.isEmpty()
+                            FilledIconButton(
+                                colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary),
+                                enabled = showStop || (chatEnabled && sendButtonEnabled && (hasQuestionText || selectedAttachments.isNotEmpty())),
+                                onClick = if (showStop) onCancelButtonClick else onSendButtonClick
+                            ) {
+                                if (showStop) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Stop,
+                                        contentDescription = stringResource(R.string.cancel_active_runs)
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Rounded.ArrowUpward,
+                                        contentDescription = stringResource(R.string.send)
+                                    )
+                                }
                             }
                         }
                     }
-                }
-            )
+                )
+            }
         }
-    }
     }
 }
 
