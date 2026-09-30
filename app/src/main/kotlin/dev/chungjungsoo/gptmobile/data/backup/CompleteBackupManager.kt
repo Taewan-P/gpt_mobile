@@ -47,6 +47,25 @@ class CompleteBackupManager @Inject constructor(
     private fun files() = CompleteBackupFiles(mapOf("internal" to context.filesDir, "external" to (context.getExternalFilesDir(null) ?: context.filesDir)))
     fun getBackupStatus() = legacy.getBackupStatus()
 
+    fun savedSelection(): CompleteBackupSelection {
+        val raw = context.getSharedPreferences("complete_backup_ui_v1", Context.MODE_PRIVATE)
+            .getStringSet("sections", null)
+            ?: return CompleteBackupSelection()
+        val sections = raw.mapNotNull { runCatching { CompleteBackupSection.valueOf(it) }.getOrNull() }.toSet()
+        return CompleteBackupSelection(sections).normalized()
+    }
+
+    fun saveSelection(selection: CompleteBackupSelection) {
+        val names = selection.normalized().sections.mapTo(mutableSetOf()) { it.name }
+        check(
+            context.getSharedPreferences("complete_backup_ui_v1", Context.MODE_PRIVATE)
+                .edit()
+                .putStringSet("sections", names)
+                .commit()
+        ) { "Could not save backup selection." }
+    }
+
+
     suspend fun backup(
         uri: Uri,
         selection: CompleteBackupSelection = CompleteBackupSelection(),
@@ -120,7 +139,12 @@ class CompleteBackupManager @Inject constructor(
             if (protectionPassword != null) {
                 CompleteBackupCrypto.encrypt(archive, output, protectionPassword)
             } else {
-                archive.inputStream().buffered().use { input -> input.copyTo(output) }
+                val backupKey = getOrCreateBackupKey()
+                try {
+                    CompleteBackupCrypto.encryptWithKey(archive, output, backupKey)
+                } finally {
+                    backupKey.fill(0)
+                }
             }
         } ?: error("Could not open the backup destination.")
 
@@ -128,7 +152,7 @@ class CompleteBackupManager @Inject constructor(
         BackupRestoreResult(
             true,
             if (password.isNullOrBlank()) {
-                "Backup saved."
+                "Encrypted backup saved."
             } else {
                 "Password-encrypted backup saved."
             }
