@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.outlined.Router
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -77,7 +78,10 @@ fun InlineExecutionTrace(events: List<ToolEvent>, timeline: List<AssistantTimeli
             }
             val running = event.status == ToolEventStatus.RUNNING || event.status == ToolEventStatus.PENDING
             val failed = event.isError || event.status == ToolEventStatus.FAILED
-            val isDelegation = event.toolName.contains("delegate_to_model", true) || event.modelToolName.contains("delegate_to_model", true)
+            val isDelegation =
+                event.toolName.contains("delegate_to_model", true) ||
+                    event.modelToolName.contains("delegate_to_model", true)
+            val isRemoteDelegation = isDelegation && event.result.orEmpty().startsWith("<!-- delegation:remote -->")
             var dots by androidx.compose.runtime.remember(event.eventId) { mutableStateOf(1) }
             LaunchedEffect(running) {
                 while (running) {
@@ -109,7 +113,7 @@ fun InlineExecutionTrace(events: List<ToolEvent>, timeline: List<AssistantTimeli
                 Column(Modifier.padding(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Icon(
-                            toolActivityIcon(event.toolName),
+                            if (isRemoteDelegation) Icons.Outlined.Router else toolActivityIcon(event.toolName),
                             null,
                             tint = if (isDelegation) androidx.compose.ui.graphics.Color(0xFFFFC107) else MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(20.dp)
@@ -167,7 +171,11 @@ fun InlineExecutionTrace(events: List<ToolEvent>, timeline: List<AssistantTimeli
                             mediaLinks.forEach { link -> ChatMarkdown("[Open media result]($link)") }
                             if (debugMode && isDelegation && !event.result.isNullOrBlank()) {
                                 Text(
-                                    event.result.orEmpty(),
+                                    event.result
+                                        .orEmpty()
+                                        .removePrefix("<!-- delegation:remote -->")
+                                        .removePrefix("<!-- delegation:local -->")
+                                        .trimStart(),
                                     color = androidx.compose.ui.graphics.Color(0xFF4CAF50),
                                     style = MaterialTheme.typography.bodySmall,
                                     modifier = Modifier.padding(top = 6.dp)
