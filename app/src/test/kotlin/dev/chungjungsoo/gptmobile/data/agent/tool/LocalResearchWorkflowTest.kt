@@ -114,4 +114,31 @@ class LocalResearchWorkflowTest {
         assertTrue(result.handoff.contains("https://example.org/one"))
         assertEquals(0, result.pagesRead)
     }
+
+    @Test fun `legacy research limits are clamped to the search tool contract`() = runTest {
+        var requestedLimit = 0
+        val search = tool("web_search") { id, args ->
+            requestedLimit = args.getValue("maxResults").jsonPrimitive.content.toInt()
+            response(id, """{"results":[{"title":"One","url":"https://example.org/one","snippet":"Verified snippet"}]}""")
+        }
+        val result = LocalResearchWorkflow(config.copy(searchResultsPerEngine = 28, maxPages = 0), listOf(search), { prompt, _ -> worker(prompt) }).run("Research latency", "legacy")
+        assertEquals(10, requestedLimit)
+        assertEquals(LocalResearchOutcome.SUCCESS, result.outcome)
+    }
+
+    @Test fun `unusable search providers stop early without claiming successful research`() = runTest {
+        for (isError in listOf(true, false)) {
+            var searches = 0
+            val search = tool("web_search") { id, _ ->
+                searches++
+                AgentToolResult(id, ToolResultContent.Text("No usable results"), isError)
+            }
+            val result = LocalResearchWorkflow(config.copy(maxSearchQueries = 12), listOf(search), { _, _ ->
+                """{"queries":["one","two","three","four"],"urls":[]}"""
+            }).run("Research latency", "unavailable")
+            assertEquals(2, searches)
+            assertEquals(LocalResearchOutcome.NO_USEFUL_OUTPUT, result.outcome)
+            assertTrue(result.handoff.contains("Search stopped"))
+        }
+    }
 }

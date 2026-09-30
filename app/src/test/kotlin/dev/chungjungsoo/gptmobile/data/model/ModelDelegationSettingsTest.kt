@@ -43,7 +43,7 @@ class ModelDelegationSettingsTest {
         assertEquals(16, normalized.maxCallsPerTurn)
         assertEquals(48, normalized.maxLocalModelCalls)
         assertEquals(20, normalized.maxSearchQueries)
-        assertEquals(28, normalized.searchResultsPerEngine)
+        assertEquals(10, normalized.searchResultsPerEngine)
         assertEquals(32, normalized.maxPages)
         assertEquals(8, normalized.crawlDepth)
         assertEquals(16, normalized.pageFetchConcurrency)
@@ -65,7 +65,7 @@ class ModelDelegationSettingsTest {
         ).normalized()
 
         assertEquals(16, localFirst.effectiveLocalModelCalls())
-        assertEquals(5, localFirst.effectiveResearchCalls())
+        assertEquals(8, localFirst.effectiveResearchCalls())
         assertEquals(8000, localFirst.effectiveLocalInputTokens())
         assertEquals(24000, localFirst.effectiveWastedLocalTokens())
     }
@@ -80,32 +80,50 @@ class ModelDelegationSettingsTest {
         ).normalized()
 
         assertEquals(4, balanced.effectiveLocalModelCalls())
-        assertEquals(5, balanced.effectiveResearchCalls())
+        assertEquals(8, balanced.effectiveResearchCalls())
         assertEquals(3000, balanced.effectiveLocalInputTokens())
         assertEquals(4000, balanced.effectiveWastedLocalTokens())
     }
 
     @Test
-    fun balancedStrategyKeepsToolCompactionEnabled() {
-        val balanced = ModelDelegationSettings().withStrategy(50)
-        val maximumAccuracy = ModelDelegationSettings().withStrategy(100)
+    fun researchDepthPreservesCompressionAndWorkerBudgets() {
+        val customized = ModelDelegationSettings(maxOutputTokens = 768, timeoutSeconds = 90)
+        for (depth in listOf(0, 50, 100)) {
+            val changed = customized.withStrategy(depth)
+            assertEquals(true, changed.compactToolResults)
+            assertEquals(customized.handoffTokens, changed.handoffTokens)
+            assertEquals(customized.maxLocalModelCalls, changed.maxLocalModelCalls)
+            assertEquals(768, changed.maxOutputTokens)
+            assertEquals(90, changed.timeoutSeconds)
+            assertEquals(10, changed.searchResultsPerEngine)
+        }
+    }
 
-        assertEquals(true, balanced.compactToolResults)
-        assertEquals(1152, balanced.handoffTokens)
-        assertEquals(false, maximumAccuracy.compactToolResults)
-        assertEquals(2048, maximumAccuracy.handoffTokens)
+    @Test
+    fun delegationAmountFavorsHelperWithoutChangingPerRequestLimits() {
+        val defaults = ModelDelegationSettings()
+        val high = defaults.withDelegationAmount(80)
+        val low = defaults.withDelegationAmount(20)
+        assertEquals(20, high.processingOwnership)
+        assertEquals(16, high.maxLocalModelCalls)
+        assertEquals(8, high.maxCallsPerTurn)
+        assertEquals(defaults.maxInputCharacters, high.maxInputCharacters)
+        assertEquals(defaults.maxOutputTokens, high.maxOutputTokens)
+        assertEquals(80, low.processingOwnership)
+        assertEquals(7, low.maxLocalModelCalls)
+        assertEquals(defaults.maxConcurrentDelegates, high.maxConcurrentDelegates)
     }
 
     @Test
     fun defaultsKeepResearchScopedAndHandoffCompact() {
         val defaults = ModelDelegationSettings()
-        assertEquals(6, defaults.maxSearchQueries)
+        assertEquals(9, defaults.maxSearchQueries)
         assertEquals(10, defaults.searchResultsPerEngine)
-        assertEquals(10, defaults.maxPages)
-        assertEquals(2, defaults.crawlDepth)
+        assertEquals(11, defaults.maxPages)
+        assertEquals(1, defaults.crawlDepth)
         assertEquals(4, defaults.pageFetchConcurrency)
-        assertEquals(36000, defaults.maxPageCharacters)
-        assertEquals(256, defaults.handoffTokens)
+        assertEquals(37200, defaults.maxPageCharacters)
+        assertEquals(512, defaults.handoffTokens)
         assertEquals(6000, defaults.maxInputTokensPerDelegate)
         assertEquals(5000, defaults.chunkSizeTokens)
         assertEquals(2500, defaults.retryChunkSizeTokens)
@@ -114,7 +132,7 @@ class ModelDelegationSettingsTest {
         assertEquals(120, defaults.maxDelegateRuntimeSeconds)
         assertEquals(1, defaults.maxConcurrentDelegates)
         assertEquals(8000, defaults.maxWastedLocalTokensPerTurn)
-        assertEquals(75, defaults.evidenceSufficiencyPercent)
+        assertEquals(79, defaults.evidenceSufficiencyPercent)
         assertEquals(false, defaults.allowRemoteWorkers)
         assertEquals(1, defaults.maxDelegationDepth)
         assertEquals(500, defaults.compactionThresholdCharacters)

@@ -100,22 +100,29 @@ internal class LocalResearchWorkflow(
                 toolUnavailable = true
                 notes += "Web search is not enabled for this profile; live research is unavailable and no research was completed."
             }
+            var consecutiveUnusableSearches = 0
             for ((index, query) in queries.withIndex()) {
+                if (consecutiveUnusableSearches >= 2) {
+                    notes += "Search stopped after two requests returned no usable sources. Check the search provider connection before retrying."
+                    break
+                }
                 if (search == null || toolsExhausted) break
                 val result = execute(
                     search,
                     "search:$index",
                     buildJsonObject {
                         put("query", query)
-                        put("maxResults", config.searchResultsPerEngine)
+                        put("maxResults", config.searchResultsPerEngine.coerceIn(1, 10))
                     }
                 )
                 searches++
                 if (result == null || result.isError) {
+                    consecutiveUnusableSearches++
                     toolUnavailable = true
                     notes += "Search ${index + 1} did not return usable evidence; no result from that search is trusted."
                     continue
                 }
+                val sourcesBeforeSearch = sources.size
                 val payload = result.content.researchPayload()
                 val statuses = (payload as? JsonObject)?.get("engines") as? JsonArray
                 if (statuses.orEmpty().any { (it as? JsonObject)?.get("status") == JsonPrimitive("unavailable") }) notes += "Some search engines were unavailable."
@@ -133,6 +140,7 @@ internal class LocalResearchWorkflow(
                         addSource(url, url, rawSearchText.take(600))
                     }
                 }
+                consecutiveUnusableSearches = if (sources.size == sourcesBeforeSearch && extractedSources.isEmpty()) consecutiveUnusableSearches + 1 else 0
                 AppLogRecorder.record(
                     "Delegation",
                     "Research search parsed · queryIndex=${index + 1} · structured=${extractedSources.size} · totalSources=${sources.size} · toolsExhausted=$toolsExhausted"

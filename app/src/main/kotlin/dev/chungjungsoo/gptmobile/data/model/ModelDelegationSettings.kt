@@ -5,10 +5,10 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class ModelDelegationSettings(
     val enabled: Boolean = false,
-    /** 0 = extremely token efficient, 50 = balanced, 100 = maximum accuracy. */
-    val strategy: Int = 50,
+    /** Research depth: 0 = focused, 50 = standard, 100 = broad coverage. */
+    val strategy: Int = 70,
     /** 0 = local-first, 50 = shared concurrent-capable, 100 = remote-first. */
-    val processingOwnership: Int = 50,
+    val processingOwnership: Int = 20,
     val targetProfileUid: String = "",
     val fallbackToAnotherProfile: Boolean = true,
     val localPlatformsOnly: Boolean = true,
@@ -16,7 +16,7 @@ data class ModelDelegationSettings(
     val allowRemoteWorkers: Boolean = false,
     /** Maximum worker-to-worker delegation depth; 1 prevents delegation loops by default. */
     val maxDelegationDepth: Int = 1,
-    val maxInputCharacters: Int = 3500,
+    val maxInputCharacters: Int = 4000,
     /** Hard token estimate cap for one delegated inference request. Oversized work is chunked before dispatch. */
     val maxInputTokensPerDelegate: Int = 6000,
     /** Preferred chunk size for oversized delegated work. */
@@ -37,19 +37,19 @@ data class ModelDelegationSettings(
     /** Stop spending local compute after this many estimated tokens have been discarded in a turn. */
     val maxWastedLocalTokensPerTurn: Int = 8000,
     /** Evidence coverage percentage at which additional research can stop early. */
-    val evidenceSufficiencyPercent: Int = 75,
-    val maxCallsPerTurn: Int = 5,
+    val evidenceSufficiencyPercent: Int = 79,
+    val maxCallsPerTurn: Int = 8,
     val researchEnabled: Boolean = true,
     val automaticResearch: Boolean = true,
     val compactToolResults: Boolean = true,
-    val maxLocalModelCalls: Int = 10,
-    val maxSearchQueries: Int = 6,
+    val maxLocalModelCalls: Int = 16,
+    val maxSearchQueries: Int = 9,
     val searchResultsPerEngine: Int = 10,
-    val maxPages: Int = 10,
-    val crawlDepth: Int = 2,
+    val maxPages: Int = 11,
+    val crawlDepth: Int = 1,
     val pageFetchConcurrency: Int = 4,
-    val maxPageCharacters: Int = 36000,
-    val handoffTokens: Int = 256,
+    val maxPageCharacters: Int = 37200,
+    val handoffTokens: Int = 512,
     val compactionThresholdCharacters: Int = 500,
     /** Maximum local retry attempts after the initial delegation attempt. */
     val localRetryLimit: Int = 0,
@@ -62,37 +62,28 @@ data class ModelDelegationSettings(
     /** Maximum tokens retained from one already-consumed tool result on later rounds. */
     val primaryReplayResultTokens: Int = 512
 ) {
-    /** Apply the master slider to every delegation budget and breadth setting. */
+    /** Research depth changes breadth without disabling compaction or rewriting worker limits. */
     fun withStrategy(value: Int): ModelDelegationSettings {
         val level = value.coerceIn(0, 100)
         fun scale(min: Int, max: Int): Int = min + ((max - min) * level / 100)
         return copy(
             strategy = level,
-            maxInputCharacters = scale(2000, 32000),
-            maxInputTokensPerDelegate = scale(3000, 8000),
-            chunkSizeTokens = scale(2500, 7000),
-            retryChunkSizeTokens = scale(1500, 4000),
-            maxOutputTokens = scale(256, 2048),
-            timeoutSeconds = scale(30, 180),
-            timeToFirstTokenTimeoutSeconds = scale(20, 45),
-            idleTokenTimeoutSeconds = scale(12, 30),
-            maxDelegateRuntimeSeconds = scale(60, 120),
-            maxConcurrentDelegates = if (level >= 90) 2 else 1,
-            maxWastedLocalTokensPerTurn = scale(4000, 16000),
-            evidenceSufficiencyPercent = scale(65, 90),
-            maxCallsPerTurn = scale(1, 16),
-            maxLocalModelCalls = scale(4, 32),
-            maxSearchQueries = scale(1, 12),
-            searchResultsPerEngine = scale(2, 20),
-            maxPages = scale(1, 8),
-            crawlDepth = scale(0, 4),
-            pageFetchConcurrency = scale(1, 6),
-            maxPageCharacters = scale(6000, 60000),
-            handoffTokens = scale(256, 2048),
-            compactionThresholdCharacters = scale(256, 12000),
-            compactToolResults = level < 90,
-            primaryReplayTokens = scale(2000, 8000),
-            primaryReplayResultTokens = scale(256, 1200)
+            maxSearchQueries = scale(2, 12),
+            searchResultsPerEngine = 10,
+            maxPages = scale(4, 14),
+            crawlDepth = if (level >= 85) 2 else 1,
+            maxPageCharacters = scale(12000, 48000),
+            evidenceSufficiencyPercent = scale(65, 85)
+        )
+    }
+
+    /** Higher amounts favor the helper and give it more small, bounded calls. */
+    fun withDelegationAmount(value: Int): ModelDelegationSettings {
+        val amount = value.coerceIn(0, 100)
+        return copy(
+            processingOwnership = 100 - amount,
+            maxLocalModelCalls = 4 + 16 * amount / 100,
+            maxCallsPerTurn = 2 + 8 * amount / 100
         )
     }
 
@@ -185,7 +176,7 @@ data class ModelDelegationSettings(
             maxCallsPerTurn = maxCallsPerTurn.coerceIn(1, 16),
             maxLocalModelCalls = maxLocalModelCalls.coerceIn(1, 48),
             maxSearchQueries = maxSearchQueries.coerceIn(1, 20),
-            searchResultsPerEngine = searchResultsPerEngine.coerceIn(1, 28),
+            searchResultsPerEngine = searchResultsPerEngine.coerceIn(1, 10),
             maxPages = maxPages.coerceIn(0, 32),
             crawlDepth = crawlDepth.coerceIn(0, 8),
             pageFetchConcurrency = pageFetchConcurrency.coerceIn(1, 16),
