@@ -134,6 +134,18 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun alwaysAllowToolProvider(id: String) {
+        viewModelScope.launch {
+            try {
+                toolApprovals?.alwaysAllowProvider(id)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                _attachmentNotice.value = "Could not save provider permission. You can still allow this action once."
+            }
+        }
+    }
+
     sealed class LoadingState {
         data object Idle : LoadingState()
         data object Loading : LoadingState()
