@@ -95,10 +95,54 @@ data class ModelDelegationSettings(
         )
     }
 
-    /** Apply the local-to-remote processing ownership slider without changing token budgets. */
+    /** Apply the local-to-remote processing ownership slider without rewriting the user's
+     * detailed controls. Runtime floors below ensure Local-first cannot be starved by an
+     * efficiency preset that was designed only to reduce breadth/verbosity. */
     fun withProcessingOwnership(value: Int): ModelDelegationSettings = copy(
         processingOwnership = value.coerceIn(0, 100)
     )
+
+    /** Effective local-worker call allowance for this turn.
+     *
+     * The ownership slider is authoritative for where work happens. Previously an
+     * "extremely efficient" strategy could reduce maxLocalModelCalls to 4 even with
+     * processingOwnership=0, causing the remote primary to take over most of the turn.
+     */
+    fun effectiveLocalModelCalls(): Int {
+        val ownershipFloor = when {
+            processingOwnership <= 10 -> 16
+            processingOwnership <= 25 -> 12
+            processingOwnership <= 40 -> 8
+            else -> 1
+        }
+        return maxOf(maxLocalModelCalls, ownershipFloor).coerceIn(1, 48)
+    }
+
+    /** Local-first needs enough request room for the worker system prompt/tool schemas.
+     * Keep the emergency ceiling in the coordinator, but do not let a low-efficiency
+     * preset make a private worker unusable because provider overhead alone exceeds 3k. */
+    fun effectiveLocalInputTokens(): Int {
+        val ownershipFloor = when {
+            processingOwnership <= 10 -> 8_000
+            processingOwnership <= 25 -> 6_000
+            processingOwnership <= 40 -> 4_500
+            else -> 1_000
+        }
+        return maxOf(maxInputTokensPerDelegate, ownershipFloor).coerceIn(1_000, 12_000)
+    }
+
+    /** Failed local attempts should still be bounded, but Local-first gets enough room to
+     * recover from one or two reasoning-only/empty responses without immediately handing
+     * the rest of the workload back to the remote primary. */
+    fun effectiveWastedLocalTokens(): Int {
+        val ownershipFloor = when {
+            processingOwnership <= 10 -> 24_000
+            processingOwnership <= 25 -> 16_000
+            processingOwnership <= 40 -> 10_000
+            else -> 1_000
+        }
+        return maxOf(maxWastedLocalTokensPerTurn, ownershipFloor).coerceIn(1_000, 64_000)
+    }
 
     fun normalized(): ModelDelegationSettings {
         val normalizedInputCap = maxInputTokensPerDelegate.coerceIn(1000, 12000)
