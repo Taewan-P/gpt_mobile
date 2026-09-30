@@ -16,8 +16,9 @@ import javax.crypto.spec.SecretKeySpec
  * Authenticated complete-backup crypto.
  *
  * GPTFULL1: legacy password-derived AES-256-GCM.
- * GPTFULL2: passwordless AES-256-GCM using an app-managed key supplied by
- * CompleteBackupManager. The key is never written into the backup file.
+ * GPTFULL2: legacy restore-only passwordless AES-256-GCM that used an
+ * installation-bound app-managed key. Production code must never create this
+ * format because it cannot survive reinstall/migration without the old key.
  *
  * Each 1 MiB chunk authenticates its position and the complete header.
  * Decryption always targets staging so a failed authentication never mutates
@@ -84,23 +85,7 @@ internal object CompleteBackupCrypto {
         }
     }
 
-    fun encryptWithKey(source: File, output: OutputStream, rawKey: ByteArray) {
-        requireRawKey(rawKey)
-        val size = source.length()
-        require(size in 1..MAX_BYTES)
-        val prefix = ByteArray(8).also(SecureRandom()::nextBytes)
-        val header = ByteBuffer.allocate(PASSWORDLESS_HEADER)
-            .put(passwordlessMagic)
-            .put(prefix)
-            .putLong(size)
-            .array()
-        try {
-            encryptChunks(source, output, rawKey, prefix, header)
-        } finally {
-            prefix.fill(0)
-        }
-    }
-
+    // GPTFULL2 encryption was retired. Decryption remains for legacy recovery only.
     fun decryptWithKey(
         input: InputStream,
         target: File,
