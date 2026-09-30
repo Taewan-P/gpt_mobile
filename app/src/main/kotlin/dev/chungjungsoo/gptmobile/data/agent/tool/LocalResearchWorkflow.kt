@@ -110,7 +110,24 @@ internal class LocalResearchWorkflow(
                 val payload = result.content.researchPayload()
                 val statuses = (payload as? JsonObject)?.get("engines") as? JsonArray
                 if (statuses.orEmpty().any { (it as? JsonObject)?.get("status") == JsonPrimitive("unavailable") }) notes += "Some search engines were unavailable."
-                extractSearchSources(payload).take(32).forEach { source -> addSource(source.string("url"), source.string("title"), source.string("snippet")) }
+                val extractedSources = extractSearchSources(payload).take(32)
+                extractedSources.forEach { source ->
+                    addSource(source.string("url"), source.string("title"), source.string("snippet"))
+                }
+                if (extractedSources.isEmpty()) {
+                    // MCP aggregators/providers do not all return the same JSON shape. If the
+                    // structured parser misses a provider-specific envelope, recover any public
+                    // URLs from the raw result so page reading can still do the expensive evidence
+                    // work locally instead of forcing the remote primary to re-research the task.
+                    val rawSearchText = result.content.researchText()
+                    researchLinks(rawSearchText).take(32).forEach { url ->
+                        addSource(url, url, rawSearchText.take(600))
+                    }
+                }
+                AppLogRecorder.record(
+                    "Delegation",
+                    "Research search parsed · queryIndex=${index + 1} · structured=${extractedSources.size} · totalSources=${sources.size} · toolsExhausted=$toolsExhausted"
+                )
                 if (evidenceSufficient()) {
                     notes += "Evidence threshold reached; remaining searches were skipped to avoid low-value delegate work."
                     AppLogRecorder.record("Delegation", "Evidence sufficient · sources=${sources.size} · threshold=${config.evidenceSufficiencyPercent}% · searches=$searches")
