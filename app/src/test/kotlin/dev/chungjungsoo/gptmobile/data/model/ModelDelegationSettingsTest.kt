@@ -55,7 +55,6 @@ class ModelDelegationSettingsTest {
         assertEquals(256, normalized.remoteSynthesisOutputTokens)
     }
 
-
     @Test
     fun localFirstOwnershipCannotBeStarvedByLowManualBudgets() {
         val localFirst = ModelDelegationSettings(
