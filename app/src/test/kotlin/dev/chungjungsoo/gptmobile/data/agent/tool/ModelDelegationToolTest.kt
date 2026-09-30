@@ -77,6 +77,13 @@ class ModelDelegationToolTest {
     }
 
     @Test
+    fun conversationChoiceNeverSilentlyUsesAnotherHelper() = runTest {
+        val config = dev.chungjungsoo.gptmobile.data.model.ConversationDelegationSettings(true, "missing").applyTo(enabled)
+        val tool = ModelDelegationTool(source, { config }, { listOf(target) }) { _, _, _ -> error("A different helper must not receive this task") }
+        assertTrue(tool.execute("chat-choice", task).isError)
+    }
+
+    @Test
     fun staleConfiguredTargetFallsBackToEligibleHelper() = runTest {
         var selected: String? = null
         val tool = ModelDelegationTool(

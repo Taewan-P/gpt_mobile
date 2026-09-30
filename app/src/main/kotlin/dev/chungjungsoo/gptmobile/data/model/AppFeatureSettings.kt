@@ -30,6 +30,7 @@ data class AppFeatureSettings(
     val localNativeMetrics: Boolean = false,
     val localIdleMinutes: Int = 10,
     val delegation: ModelDelegationSettings = ModelDelegationSettings(),
+    val conversationDelegation: Map<Int, ConversationDelegationSettings> = emptyMap(),
     val tokenBudget: dev.chungjungsoo.gptmobile.data.context.TokenBudgetSettings = dev.chungjungsoo.gptmobile.data.context.TokenBudgetSettings()
 ) {
     fun withFeature(feature: AppFeature, enabled: Boolean): AppFeatureSettings = when (feature) {

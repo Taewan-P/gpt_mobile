@@ -47,11 +47,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
+import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveThoughts
 import dev.chungjungsoo.gptmobile.data.model.AvailableChatTool
 import dev.chungjungsoo.gptmobile.data.model.ClientType
+import dev.chungjungsoo.gptmobile.data.model.ConversationDelegationSettings
+import dev.chungjungsoo.gptmobile.data.model.ModelDelegationSettings
 import dev.chungjungsoo.gptmobile.data.repository.ProfileModelOption
+import dev.chungjungsoo.gptmobile.presentation.ui.setting.ConversationDelegationCard
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.LlamaModelPickerDialog
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.DownloadedLocalModelOption
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.LocalModelPicker
@@ -84,6 +88,10 @@ fun ChatModelDialog(
     onLocationToolsChanged: (Boolean) -> Unit = {},
     onWebSearchToolsChanged: (Boolean) -> Unit = {},
     onNavigateToLocalModels: () -> Unit = {},
+    delegationSettings: ModelDelegationSettings = ModelDelegationSettings(),
+    delegationProfiles: List<PlatformV2> = emptyList(),
+    usesDefaultDelegation: Boolean = true,
+    onDelegationChanged: (ConversationDelegationSettings?) -> Unit = {},
     onDismissRequest: () -> Unit,
     onConfirmRequest: (Map<String, String>, Float) -> Unit
 ) {
@@ -119,6 +127,13 @@ fun ChatModelDialog(
                 }
                 Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (section == "Models") {
+                        ConversationDelegationCard(
+                            settings = delegationSettings,
+                            profiles = delegationProfiles,
+                            usesDefaults = usesDefaultDelegation,
+                            onChange = onDelegationChanged
+                        )
+                        HorizontalDivider(Modifier.padding(vertical = 8.dp))
                         OutlinedTextField(
                             value = modelSearch,
                             onValueChange = { modelSearch = it },

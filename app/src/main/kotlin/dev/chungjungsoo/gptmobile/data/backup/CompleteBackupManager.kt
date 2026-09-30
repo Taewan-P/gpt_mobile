@@ -38,6 +38,7 @@ class CompleteBackupManager @Inject constructor(
     private val legacy: AppBackupManager
 ) {
     private val mutex = Mutex()
+    private val protectionMutex = Mutex()
     private val preferences = CompleteBackupPreferences(context, dataStore)
     private val json = Json {
         ignoreUnknownKeys = true
@@ -64,17 +65,47 @@ class CompleteBackupManager @Inject constructor(
         ) { "Could not save backup selection." }
     }
 
+    suspend fun savedProtection(): BackupProtection = withContext(Dispatchers.IO) {
+        protectionMutex.withLock {
+            val bytes = secretVault.read(BACKUP_PASSWORD_REF)
+            try {
+                BackupProtection(
+                    context.getSharedPreferences("complete_backup_ui_v1", Context.MODE_PRIVATE).getBoolean("encrypt", false),
+                    bytes?.decodeToString().orEmpty()
+                )
+            } finally {
+                bytes?.fill(0)
+            }
+        }
+    }
+
+    suspend fun saveProtection(protection: BackupProtection) = withContext(Dispatchers.IO) {
+        protectionMutex.withLock {
+            val bytes = protection.password.toByteArray()
+            try {
+                secretVault.put(BACKUP_PASSWORD_REF, bytes)
+            } finally {
+                bytes.fill(0)
+            }
+            check(
+                context.getSharedPreferences("complete_backup_ui_v1", Context.MODE_PRIVATE)
+                    .edit().putBoolean("encrypt", protection.enabled).commit()
+            ) { "Could not save backup encryption settings." }
+        }
+    }
+
     suspend fun backup(
         uri: Uri,
         selection: CompleteBackupSelection = CompleteBackupSelection(),
         password: String? = null,
-        recoveryKeyUri: Uri? = null
+        recoveryKeyUri: Uri? = null,
+        encrypt: Boolean = true
     ): BackupRestoreResult = operation { work ->
         val selected = selection.normalized()
         require(selected.sections.isNotEmpty()) { "Select at least one backup section." }
 
-        require(password.isNullOrBlank() || password.length >= 8) { "Use a backup password with at least 8 characters." }
-        require(!password.isNullOrBlank() || recoveryKeyUri != null) { "Save a separate recovery key file to create a passwordless encrypted backup." }
+        require(!encrypt || password.isNullOrBlank() || password.length >= 8) { "Use a backup password with at least 8 characters." }
+        require(!encrypt || !password.isNullOrBlank() || recoveryKeyUri != null) { "Save a separate recovery key file to create a passwordless encrypted backup." }
         require(recoveryKeyUri != uri) { "The backup and recovery key must be separate files." }
 
         val storage = files()
@@ -127,14 +158,15 @@ class CompleteBackupManager @Inject constructor(
             sharedPreferences = if (CompleteBackupSection.SETTINGS in selected.sections) preferences.readShared() else emptyMap(),
             secrets = readSecrets(selected),
             files = sources.mapValues { it.value.length() },
-            sections = selected.sections.mapTo(linkedSetOf()) { it.name }
+            sections = selected.sections.mapTo(linkedSetOf()) { it.name },
+            protection = savedProtection()
         )
 
         val archive = File(work, "archive.zip")
         CompleteBackupArchive.write(archive, manifest, sources)
 
         val protectionPassword = password?.takeIf(String::isNotBlank)
-        val recoveryKey = if (protectionPassword == null) CompleteBackupCrypto.generateRecoveryKey() else null
+        val recoveryKey = if (encrypt && protectionPassword == null) CompleteBackupCrypto.generateRecoveryKey() else null
         try {
             if (recoveryKey != null) {
                 context.contentResolver.openOutputStream(requireNotNull(recoveryKeyUri), "wt")?.use {
@@ -142,7 +174,9 @@ class CompleteBackupManager @Inject constructor(
                 } ?: error("Could not save the recovery key. No backup was created.")
             }
             context.contentResolver.openOutputStream(uri, "wt")?.use { output ->
-                if (protectionPassword != null) {
+                if (!encrypt) {
+                    archive.inputStream().buffered().use { it.copyTo(output) }
+                } else if (protectionPassword != null) {
                     CompleteBackupCrypto.encrypt(archive, output, protectionPassword)
                 } else {
                     CompleteBackupCrypto.encryptPortable(archive, output, requireNotNull(recoveryKey))
@@ -156,7 +190,9 @@ class CompleteBackupManager @Inject constructor(
         legacy.recordBackupMetadata()
         BackupRestoreResult(
             true,
-            if (password.isNullOrBlank()) {
+            if (!encrypt) {
+                "Backup saved without encryption."
+            } else if (password.isNullOrBlank()) {
                 "Encrypted backup and recovery key saved. Keep the key private and separate; it is required after reinstall or on another device."
             } else {
                 "Password-encrypted backup saved."
@@ -310,6 +346,7 @@ class CompleteBackupManager @Inject constructor(
             val oldPreferences = if (restoreSettings) preferences.read() else emptyMap()
             val oldShared = if (restoreSettings) preferences.readShared() else emptyMap()
             val oldSecrets = if (restoreSecrets) readSecrets(effective) else emptyMap()
+            val oldProtection = savedProtection()
             val replacement = storage.replacement(staging, selectedPaths)
 
             try {
@@ -327,12 +364,14 @@ class CompleteBackupManager @Inject constructor(
                     if (restoreSettings) {
                         preferences.replace(manifest.preferences, manifest.sharedPreferences)
                     }
+                    manifest.protection?.let { saveProtection(it) }
                 }
             } catch (error: Throwable) {
                 withContext(NonCancellable) {
                     if (selectedPaths.isNotEmpty()) runCatching { replacement.rollback() }
                     if (restoreSecrets) runCatching { replaceSecrets(oldSecrets, effective) }
                     if (restoreSettings) runCatching { preferences.replace(oldPreferences, oldShared) }
+                    if (manifest.protection != null) runCatching { saveProtection(oldProtection) }
                 }
                 throw error
             }
@@ -511,7 +550,7 @@ class CompleteBackupManager @Inject constructor(
     }
 
     private fun secretBelongsTo(reference: String, selection: CompleteBackupSelection): Boolean = when {
-        reference == BACKUP_KEY_REF || reference.startsWith("backup-recovery-") -> false
+        reference == BACKUP_PASSWORD_REF || reference == BACKUP_KEY_REF || reference.startsWith("backup-recovery-") -> false
         reference == FactVaultRepository.VAULT_REFERENCE || reference.startsWith("memory-part-") -> selection.includes(CompleteBackupSection.MEMORY)
         else -> selection.includes(CompleteBackupSection.CREDENTIALS)
     }
@@ -651,6 +690,7 @@ class CompleteBackupManager @Inject constructor(
     private companion object {
         const val RESERVE = 16L * 1024 * 1024
         const val BACKUP_KEY_BYTES = 32
+        const val BACKUP_PASSWORD_REF = "complete_backup_password_v1"
 
         // Restore-only compatibility for retired GPTFULL2 backups. New backups never use this key.
         const val BACKUP_KEY_REF = "complete_backup_master_v2"

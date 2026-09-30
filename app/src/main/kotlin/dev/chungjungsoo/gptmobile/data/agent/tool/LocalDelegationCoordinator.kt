@@ -111,6 +111,7 @@ internal class LocalDelegationCoordinator(
         val selected = eligible.firstOrNull { it.uid == config.targetProfileUid }
         if (selected != null) return selected
 
+        if (config.targetProfileUid.isNotBlank() && !config.fallbackToAnotherProfile) return null
         val fallback = eligible.firstOrNull()
         if (fallback != null) {
             AppLogRecorder.record(

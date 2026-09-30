@@ -337,6 +337,7 @@ class LocalDelegationCoordinatorTest {
         assertFalse(result.isError)
         assertEquals(raw, result.content)
     }
+
     @Test fun `named missing model is quarantined on the first failure`() = runTest {
         var failedCalls = 0
         val fallback = target.copy(uid = "working", model = "available-model")
@@ -351,5 +352,4 @@ class LocalDelegationCoordinatorTest {
         assertEquals(1, failedCalls)
         assertFalse(coordinator.researchAvailable())
     }
-
 }

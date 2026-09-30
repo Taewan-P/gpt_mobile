@@ -114,6 +114,7 @@ class LocalResearchWorkflowTest {
         assertTrue(result.handoff.contains("https://example.org/one"))
         assertEquals(0, result.pagesRead)
     }
+
     @Test fun `legacy research limits are clamped to the search tool contract`() = runTest {
         var requestedLimit = 0
         val search = tool("web_search") { id, args ->
@@ -140,5 +141,4 @@ class LocalResearchWorkflowTest {
             assertTrue(result.handoff.contains("Search stopped"))
         }
     }
-
 }
