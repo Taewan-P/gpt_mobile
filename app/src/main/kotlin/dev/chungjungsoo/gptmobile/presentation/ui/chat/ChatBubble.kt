@@ -352,9 +352,22 @@ fun OpponentChatBubble(
         attachments.isNotEmpty() ||
         locationToolEvents.isNotEmpty() ||
         (!isLoading && (canRetry || canEdit || isError))
-    val showTerminalFallback = !isLoading && isLastMessage && text.isBlank() &&
-        contentTimeline.isEmpty() && toolEvents.isEmpty() && !hasVisibleProcess && !hasVisibleExtras
-    val shouldShowBubble = isLoading || contentTimeline.isNotEmpty() || toolEvents.isNotEmpty() || hasVisibleText || hasVisibleProcess || hasVisibleExtras || showTerminalFallback
+    val showTerminalFallback =
+        !isLoading &&
+            isLastMessage &&
+            text.isBlank() &&
+            contentTimeline.isEmpty() &&
+            toolEvents.isEmpty() &&
+            !hasVisibleProcess &&
+            !hasVisibleExtras
+    val shouldShowBubble =
+        isLoading ||
+            contentTimeline.isNotEmpty() ||
+            toolEvents.isNotEmpty() ||
+            hasVisibleText ||
+            hasVisibleProcess ||
+            hasVisibleExtras ||
+            showTerminalFallback
 
     Column(modifier = modifier) {
         AnimatedVisibility(
