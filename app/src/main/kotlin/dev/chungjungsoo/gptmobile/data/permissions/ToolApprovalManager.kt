@@ -100,7 +100,7 @@ class ToolApprovalManager @Inject constructor(database: ChatDatabaseV2, private 
             arguments["action"]?.let {
                 (it as? kotlinx.serialization.json.JsonPrimitive)?.content in setOf(
                     "search_repositories", "search_issues", "search_code", "get_file_contents", "get_issue", "get_pull_request", "list_pull_requests", "list_workflow_runs", "list_workflows", "get_workflow_run", "list_workflow_jobs", "list_workflow_artifacts", "get_job_logs"
-                )
+                ) + dev.chungjungsoo.gptmobile.data.github.GitHubWorkspaceClient.readActions
             } == true
         val readOnly = githubRead && tool in connection.approvedReadTools.lines().map(String::trim)
         if (policy == ToolPolicy.READ_ONLY && !readOnly) return false

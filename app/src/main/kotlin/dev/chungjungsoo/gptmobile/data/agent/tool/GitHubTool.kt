@@ -5,6 +5,8 @@ import dev.chungjungsoo.gptmobile.data.agent.AgentToolDefinition
 import dev.chungjungsoo.gptmobile.data.agent.AgentToolResult
 import dev.chungjungsoo.gptmobile.data.agent.ToolResultContent
 import dev.chungjungsoo.gptmobile.data.database.entity.BuiltInAgentTool
+import dev.chungjungsoo.gptmobile.data.github.GitHubRepositoryContext
+import dev.chungjungsoo.gptmobile.data.github.GitHubWorkspaceClient
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.request.get
@@ -47,7 +49,8 @@ class GitHubTool(
     private val apiToken: String = "",
     private val httpClient: HttpClient = defaultHttpClient,
     private val modelToolName: String = BuiltInAgentTool.GITHUB,
-    private val accountName: String? = null
+    private val accountName: String? = null,
+    private val repositoryContext: GitHubRepositoryContext? = null
 ) : AgentTool {
 
     companion object {
@@ -72,7 +75,7 @@ class GitHubTool(
 
     override val definition: AgentToolDefinition = AgentToolDefinition(
         name = modelToolName,
-        description = "Work with GitHub repositories: search code/issues, read files and pull requests, inspect Actions workflows, create branches, update files, and open pull requests." + (accountName?.let { " Authenticated connection: $it. Use this tool for repositories available to this account." } ?: " Public read access; configure a GitHub API connection for private repositories and writes."),
+        description = "Work with GitHub repositories: search code/issues, read files and pull requests, inspect Actions workflows, create branches, update files, and open pull requests." + (accountName?.let { " Authenticated connection: $it. Use this tool for repositories available to this account." } ?: " Public read access; configure a GitHub API connection for private repositories and writes.") + (repositoryContext?.let { " Selected repository: ${it.fullName}, branch: ${it.ref}. Omitted owner/repo/ref use this selection. Read code in line ranges and include source paths. Read get_branch_head before commit_files; supply expected_head_sha. Commit only to a working branch and create a draft PR for review." } ?: ""),
         inputSchema = buildJsonObject {
             put("type", "object")
             put(
@@ -84,7 +87,7 @@ class GitHubTool(
                             put("type", "string")
                             put(
                                 "description",
-                                "Action to perform: search_repositories, search_issues, search_code, get_file_contents, get_issue, get_pull_request, list_pull_requests, list_workflow_runs, create_branch, update_file, create_pull_request, list_workflows, get_workflow_run, list_workflow_jobs, list_workflow_artifacts, get_job_logs, dispatch_workflow, rerun_workflow, rerun_failed_jobs, cancel_workflow."
+                                "GitHub action. Use browse_files for directory navigation, read_code for line ranges with metadata, get_branch_head then commit_files for atomic changes on a working branch. Additional actions: " + GitHubWorkspaceClient.actions.sorted().joinToString(", ")
                             )
                             put(
                                 "enum",
@@ -110,6 +113,7 @@ class GitHubTool(
                                     add(JsonPrimitive("create_branch"))
                                     add(JsonPrimitive("update_file"))
                                     add(JsonPrimitive("create_pull_request"))
+                                    GitHubWorkspaceClient.actions.sorted().forEach { add(JsonPrimitive(it)) }
                                 }
                             )
                         }
@@ -211,7 +215,7 @@ class GitHubTool(
                         "head",
                         buildJsonObject {
                             put("type", "string")
-                            put("description", "Head branch fcreate_pull_request, list_workflows, get_workflow_run, list_workflow_jobs, list_workflow_artifacts, get_job_logs, dispatch_workflow, rerun_workflow, rerun_failed_jobs, cancel_workflow.")
+                            put("description", "Head branch for create_pull_request or compare_refs.")
                         }
                     )
                     put(
@@ -235,6 +239,58 @@ class GitHubTool(
                             put("description", "Existing blob SHA when replacing a file.")
                         }
                     )
+                    listOf("start_line", "end_line").forEach { key ->
+                        put(
+                            key,
+                            buildJsonObject {
+                                put("type", "integer")
+                                put("minimum", 1)
+                            }
+                        )
+                    }
+                    put(
+                        "draft",
+                        buildJsonObject {
+                            put("type", "boolean")
+                            put("description", "Create a draft pull request; defaults to true.")
+                        }
+                    )
+                    put(
+                        "expected_head_sha",
+                        buildJsonObject {
+                            put("type", "string")
+                            put("description", "Exact branch commit SHA read before preparing these changes; required for commit_files.")
+                        }
+                    )
+                    put(
+                        "files",
+                        buildJsonObject {
+                            put("type", "array")
+                            put("minItems", 1)
+                            put("maxItems", 20)
+                            put("description", "UTF-8 file replacements committed together on an explicit working branch.")
+                            put(
+                                "items",
+                                buildJsonObject {
+                                    put("type", "object")
+                                    put(
+                                        "properties",
+                                        buildJsonObject {
+                                            put("path", buildJsonObject { put("type", "string") })
+                                            put("content", buildJsonObject { put("type", "string") })
+                                        }
+                                    )
+                                    put(
+                                        "required",
+                                        buildJsonArray {
+                                            add(JsonPrimitive("path"))
+                                            add(JsonPrimitive("content"))
+                                        }
+                                    )
+                                }
+                            )
+                        }
+                    )
                     put(
                         "pull_number",
                         buildJsonObject {
@@ -254,10 +310,30 @@ class GitHubTool(
     )
 
     override suspend fun execute(callId: String, arguments: JsonObject): AgentToolResult {
+        val effectiveArguments = buildJsonObject {
+            arguments.forEach { (key, value) -> put(key, value) }
+            repositoryContext?.let { selected ->
+                if (arguments["owner"] == null && arguments["repo"] == null) {
+                    put("owner", selected.owner)
+                    put("repo", selected.repo)
+                }
+                val sameRepo = (arguments["owner"]?.jsonPrimitive?.content ?: selected.owner) == selected.owner &&
+                    (arguments["repo"]?.jsonPrimitive?.content ?: selected.repo) == selected.repo
+                if (sameRepo && arguments["ref"] == null) put("ref", selected.ref)
+            }
+        }
+        return executeEffective(callId, effectiveArguments)
+    }
+
+    private suspend fun executeEffective(callId: String, arguments: JsonObject): AgentToolResult {
         val action = arguments["action"]?.jsonPrimitive?.content?.trim()
             ?: return errorResult(callId, "Missing required parameter: 'action'.")
 
         return try {
+            if (action in GitHubWorkspaceClient.actions) {
+                val result = GitHubWorkspaceClient(apiToken, httpClient).execute(action, arguments)
+                return successResult(callId, result.toString())
+            }
             when (action) {
                 "search_repositories" -> handleSearchRepositories(callId, arguments)
                 "search_issues" -> handleSearchIssues(callId, arguments)
@@ -475,12 +551,24 @@ class GitHubTool(
         if (owner.isEmpty() || repo.isEmpty()) {
             return errorResult(callId, "Parameters 'owner' and 'repo' are required.")
         }
-        val response = getGitHubApi("$BASE_URL/repos/$owner/$repo/pulls?state=all&per_page=20")
+        val page = arguments["page"]?.jsonPrimitive?.intOrNull ?: 1
+        require(page in 1..1000)
+        val response = getGitHubApi("$BASE_URL/repos/$owner/$repo/pulls?state=all&per_page=20&page=$page")
         val text = response.bodyAsText()
         if (!response.status.isSuccess()) {
             return errorResult(callId, "GitHub API returned HTTP ${response.status.value}: ${truncate(text, 500)}")
         }
-        return successResult(callId, truncate(text, MAX_OUTPUT_CHARS))
+        val items = jsonParser.parseToJsonElement(text).jsonArray
+        val summary = buildJsonArray {
+            items.forEach { item ->
+                add(
+                    buildJsonObject {
+                        listOf("number", "title", "state", "draft", "html_url", "head", "base").forEach { key -> item.jsonObject[key]?.let { put(key, it) } }
+                    }
+                )
+            }
+        }
+        return successResult(callId, summary.toString())
     }
 
     private suspend fun handleGetPullRequest(callId: String, arguments: JsonObject): AgentToolResult {
@@ -495,7 +583,12 @@ class GitHubTool(
         if (!response.status.isSuccess()) {
             return errorResult(callId, "GitHub API returned HTTP ${response.status.value}: ${truncate(text, 500)}")
         }
-        return successResult(callId, truncate(text, MAX_OUTPUT_CHARS))
+        val result = jsonParser.parseToJsonElement(text).jsonObject
+        val summary = buildJsonObject {
+            listOf("number", "title", "state", "draft", "html_url", "head", "base", "mergeable", "mergeable_state", "merged", "changed_files").forEach { key -> result[key]?.let { put(key, it) } }
+            put("body", truncate(result["body"]?.jsonPrimitive?.content.orEmpty(), 8000))
+        }
+        return successResult(callId, summary.toString())
     }
 
     private suspend fun handleListWorkflowRuns(callId: String, arguments: JsonObject): AgentToolResult {
@@ -682,6 +775,7 @@ class GitHubTool(
                 put("head", head)
                 put("base", base)
                 put("body", bodyText)
+                put("draft", arguments["draft"] ?: JsonPrimitive(true))
             }
         )
         val text = response.bodyAsText()
