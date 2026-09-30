@@ -55,6 +55,35 @@ class ModelDelegationSettingsTest {
         assertEquals(256, normalized.remoteSynthesisOutputTokens)
     }
 
+
+    @Test
+    fun localFirstOwnershipCannotBeStarvedByLowManualBudgets() {
+        val localFirst = ModelDelegationSettings(
+            processingOwnership = 0,
+            maxLocalModelCalls = 4,
+            maxInputTokensPerDelegate = 3000,
+            maxWastedLocalTokensPerTurn = 4000
+        ).normalized()
+
+        assertEquals(16, localFirst.effectiveLocalModelCalls())
+        assertEquals(8000, localFirst.effectiveLocalInputTokens())
+        assertEquals(24000, localFirst.effectiveWastedLocalTokens())
+    }
+
+    @Test
+    fun balancedOwnershipStillRespectsConfiguredBudgets() {
+        val balanced = ModelDelegationSettings(
+            processingOwnership = 50,
+            maxLocalModelCalls = 4,
+            maxInputTokensPerDelegate = 3000,
+            maxWastedLocalTokensPerTurn = 4000
+        ).normalized()
+
+        assertEquals(4, balanced.effectiveLocalModelCalls())
+        assertEquals(3000, balanced.effectiveLocalInputTokens())
+        assertEquals(4000, balanced.effectiveWastedLocalTokens())
+    }
+
     @Test
     fun balancedStrategyKeepsToolCompactionEnabled() {
         val balanced = ModelDelegationSettings().withStrategy(50)
