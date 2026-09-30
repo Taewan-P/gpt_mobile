@@ -12,6 +12,7 @@ object QnnEnvironment {
     private const val TAG = "QnnEnvironment"
 
     @Volatile private var lastProbeStatus: QnnProbeStatus? = null
+    @Volatile private var lastProbeKey: String? = null
 
     data class QnnProbeStatus(
         val isQualcommDevice: Boolean,
@@ -29,9 +30,12 @@ object QnnEnvironment {
     )
 
     @Synchronized
-    fun initialize(context: Context): QnnProbeStatus {
-        lastProbeStatus?.let { return it }
+    fun initialize(context: Context, forceRefresh: Boolean = false): QnnProbeStatus {
         val app = context.applicationContext
+        val probeKey = probeKey(app)
+        if (!forceRefresh && lastProbeKey == probeKey) {
+            lastProbeStatus?.let { return it }
+        }
         val soc = Build.SOC_MODEL.orEmpty()
         val nativeDir = File(app.applicationInfo.nativeLibraryDir)
         val required = QualcommSocSupport.requiredLibraries(soc)
@@ -80,13 +84,41 @@ object QnnEnvironment {
             skelFileExists = skel?.isUsableLibrary() == true,
             skelFilePath = skel?.takeIf { it.isUsableLibrary() }?.path.orEmpty(),
             isReady = reason == null, errorMessage = reason
-        ).also { lastProbeStatus = it }
+        ).also {
+            lastProbeStatus = it
+            lastProbeKey = probeKey
+        }
+    }
+
+    /**
+     * Re-validates the packaged dispatch stack immediately before native engine
+     * creation. This prevents a stale successful probe from surviving an app,
+     * split-APK, ABI or QAIRT deployment change.
+     */
+    fun prepareForExecution(context: Context): QnnProbeStatus = initialize(context, forceRefresh = true)
+
+    @Synchronized
+    fun resetProbe() {
+        lastProbeStatus = null
+        lastProbeKey = null
     }
 
     fun getDispatchDir(context: Context): String = getProbeStatus(context).dispatchDir
     fun isEnvironmentConfigured(): Boolean = lastProbeStatus != null
-    fun getProbeStatus(context: Context): QnnProbeStatus = lastProbeStatus ?: initialize(context)
+    fun getProbeStatus(context: Context): QnnProbeStatus = initialize(context)
     fun verifyQnnLibraries(context: Context): Boolean = getProbeStatus(context).isReady
+
+    private fun probeKey(context: Context): String {
+        val install = context.packageManager.getPackageInfo(context.packageName, 0)
+        return listOf(
+            install.longVersionCode,
+            install.lastUpdateTime,
+            Build.SOC_MODEL.orEmpty(),
+            Build.SOC_MANUFACTURER.orEmpty(),
+            Build.SUPPORTED_ABIS.joinToString(","),
+            context.applicationInfo.nativeLibraryDir
+        ).joinToString("|")
+    }
 
     private fun ensurePhysicalLibraries(context: Context, required: List<String>): File {
         val info = context.applicationInfo
