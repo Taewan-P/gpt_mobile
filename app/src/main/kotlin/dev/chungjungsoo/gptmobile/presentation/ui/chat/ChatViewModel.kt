@@ -90,6 +90,7 @@ class ChatViewModel @Inject constructor(
     private val localModelRepository: LocalModelRepository,
     private val modelCatalogRepository: ModelCatalogRepository,
     private val freeModelToolConsentStore: dev.chungjungsoo.gptmobile.data.permissions.FreeModelToolConsentStore,
+    private val conversationReadStateStore: dev.chungjungsoo.gptmobile.data.chat.ConversationReadStateStore,
     private val durablePromptQueue: dev.chungjungsoo.gptmobile.data.queue.DurablePromptQueue? = null,
     private val toolApprovals: dev.chungjungsoo.gptmobile.data.permissions.ToolApprovalManager? = null,
     private val mcpInteractions: dev.chungjungsoo.gptmobile.data.agent.tool.McpInteractions? = null,
@@ -624,6 +625,10 @@ class ChatViewModel @Inject constructor(
 
     fun dismissFreeToolConsent() {
         _pendingFreeToolConsent.value = null
+    }
+
+    fun markCurrentChatViewed() {
+        conversationReadStateStore.markViewed(chatRoom.value.id)
     }
 
     fun setChatToolsEnabled(toolIds: Collection<String>, enabled: Boolean) {
