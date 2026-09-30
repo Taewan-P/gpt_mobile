@@ -99,7 +99,13 @@ class ModelDelegationTool(
             }
             if (response.isBlank()) return error("The target model returned no text.").also { AppLogRecorder.record("Delegation", "Empty response · call=$callId · target=${target.uid} · elapsedMs=$elapsedMs", "W") }
             AppLogRecorder.record("Delegation", "Completed · call=$callId · target=${target.uid} · elapsedMs=$elapsedMs · outputChars=${response.length} · approxOutputTokens=${(response.length + 3) / 4} · requestedOutputCap=${config.maxOutputTokens}")
-            AgentToolResult(callId, ToolResultContent.Text(response), false)
+            val transportMarker =
+                if (target.isPrivateDestination()) {
+                    "<!-- delegation:local -->"
+                } else {
+                    "<!-- delegation:remote -->"
+                }
+            AgentToolResult(callId, ToolResultContent.Text("$transportMarker\n$response"), false)
         } catch (cancellation: CancellationException) {
             AppLogRecorder.record("Delegation", "Cancelled · call=$callId · target=${target.uid} · elapsedMs=${System.currentTimeMillis() - startedAtMs} · timeoutMs=$timeoutMs · cancellation=${cancellation.javaClass.simpleName} · reason=${cancellation.message.orEmpty()}", "W")
             throw cancellation
