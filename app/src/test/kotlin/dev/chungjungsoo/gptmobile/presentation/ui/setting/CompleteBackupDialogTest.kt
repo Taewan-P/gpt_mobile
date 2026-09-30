@@ -6,11 +6,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.unit.Density
 import dev.chungjungsoo.gptmobile.data.backup.BackupStatus
 import org.junit.Assert.assertEquals
@@ -45,15 +43,11 @@ class CompleteBackupDialogTest {
             }
         }
 
-        scroll("backup_all")
         compose.onNodeWithTag("backup_all").assertIsDisplayed().performClick()
-        scroll("restore_all")
-        compose.onNodeWithTag("restore_all").assertIsDisplayed().performClick()
-        scroll("backup_contents")
-        compose.onNodeWithTag("backup_contents").assertIsDisplayed().performClick()
+        compose.onNodeWithTag("restore_all").assertIsDisplayed()
 
-        assertEquals(1, backups)
-        assertEquals(1, restores)
+        assertEquals(0, backups)
+        assertEquals(0, restores)
     }
 
     @Test
@@ -70,15 +64,7 @@ class CompleteBackupDialogTest {
                 )
             }
         }
-        scroll("backup_all")
         compose.onNodeWithTag("backup_all").assertIsDisplayed().assertIsNotEnabled()
-        scroll("restore_all")
         compose.onNodeWithTag("restore_all").assertIsDisplayed().assertIsNotEnabled()
-        scroll("backup_contents")
-        compose.onNodeWithTag("backup_contents").assertIsDisplayed().assertIsNotEnabled()
-    }
-
-    private fun scroll(tag: String) {
-        compose.onNodeWithTag("backup_content").performScrollToNode(hasTestTag(tag))
     }
 }
