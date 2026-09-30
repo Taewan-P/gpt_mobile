@@ -695,9 +695,10 @@ class ChatViewModel @Inject constructor(
             if (freeProfiles.isNotEmpty()) {
                 val lockedMcpIds = available
                     .filter { tool ->
-                        tool.source == "MCP" && freeProfiles.any { profile ->
-                            !freeModelToolConsentStore.isGranted(profile.uid, tool.id)
-                        }
+                        tool.source == "MCP" &&
+                            freeProfiles.any { profile ->
+                                !freeModelToolConsentStore.isGranted(profile.uid, tool.id)
+                            }
                     }
                     .mapTo(mutableSetOf()) { it.id }
                 if (lockedMcpIds.isNotEmpty()) {
