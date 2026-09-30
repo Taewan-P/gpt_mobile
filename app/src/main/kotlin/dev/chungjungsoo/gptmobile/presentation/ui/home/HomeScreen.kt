@@ -835,11 +835,13 @@ private fun ConversationModeSymbol(
 ) {
     val (icon, description) = if (hasUnreadResponse) {
         Icons.Filled.ChatBubble to "Unread AI response"
-    } else when {
-        chatRoom.conversationMode == ConversationMode.COMBINED -> Icons.Outlined.Hub to "Combined conversation"
-        chatRoom.enabledPlatform.size > 1 -> Icons.Outlined.Forum to "Multiple AI conversation"
-        isServerChat -> Icons.Outlined.Dns to "Local or server AI conversation"
-        else -> Icons.Outlined.ChatBubbleOutline to "Conversation"
+    } else {
+        when {
+            chatRoom.conversationMode == ConversationMode.COMBINED -> Icons.Outlined.Hub to "Combined conversation"
+            chatRoom.enabledPlatform.size > 1 -> Icons.Outlined.Forum to "Multiple AI conversation"
+            isServerChat -> Icons.Outlined.Dns to "Local or server AI conversation"
+            else -> Icons.Outlined.ChatBubbleOutline to "Conversation"
+        }
     }
     Box(modifier = Modifier.size(34.dp), contentAlignment = Alignment.Center) {
         Box(contentAlignment = Alignment.Center) {
