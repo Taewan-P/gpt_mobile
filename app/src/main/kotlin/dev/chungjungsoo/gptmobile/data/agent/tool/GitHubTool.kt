@@ -561,8 +561,11 @@ class GitHubTool(
             }
         )
         val text = response.bodyAsText()
-        return if (response.status.isSuccess()) successResult(callId, truncate(text, MAX_OUTPUT_CHARS))
-        else errorResult(callId, "GitHub API returned HTTP ${response.status.value}: ${truncate(text, 500)}")
+        return if (response.status.isSuccess()) {
+            successResult(callId, truncate(text, MAX_OUTPUT_CHARS))
+        } else {
+            errorResult(callId, "GitHub API returned HTTP ${response.status.value}: ${truncate(text, 500)}")
+        }
     }
 
     private fun requireToken() {
