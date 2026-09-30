@@ -136,7 +136,13 @@ fun ToolConnectionsScreen(
     )
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var browsingConnection by remember { mutableStateOf<ToolConnection?>(null) }
-    browsingConnection?.let { connection -> McpBrowserDialog(connection, onDismiss = { browsingConnection = null }) }
+    browsingConnection?.let { connection ->
+        if (connection.type == ToolConnectionType.GITHUB) {
+            GitHubWorkspaceScreen(connection, onDismiss = { browsingConnection = null })
+        } else {
+            McpBrowserDialog(connection, onDismiss = { browsingConnection = null })
+        }
+    }
     var permissionsConnection by remember { mutableStateOf<ToolConnection?>(null) }
     var deletingConnection by remember { mutableStateOf<ToolConnection?>(null) }
     var pendingOAuthConnection by remember { mutableStateOf<ToolConnection?>(null) }
@@ -455,6 +461,7 @@ private fun CollapsibleToolConnectionCard(
             AnimatedVisibility(visible = expanded) {
                 Column(modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
                     if (connection.type == ToolConnectionType.MCP) TextButton(onClick = onBrowseClick) { Text("Resources and prompts") }
+                    if (connection.type == ToolConnectionType.GITHUB) TextButton(onClick = onBrowseClick) { Text("Open GitHub workspace") }
                     if (connection.type in setOf(ToolConnectionType.MCP, ToolConnectionType.GITHUB)) TextButton(onClick = onPermissionsClick) { Text(stringResource(R.string.tool_policy)) }
                     connection.endpointUrl?.let { url ->
                         if (url.isNotBlank()) {

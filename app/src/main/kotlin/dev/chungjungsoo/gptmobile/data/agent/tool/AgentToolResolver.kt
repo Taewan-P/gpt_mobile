@@ -50,7 +50,8 @@ class AgentToolResolver @Inject constructor(
     private val deviceLocationTool: DeviceLocationTool,
     private val factVault: FactVaultRepository? = null,
     private val memoryDocuments: dev.chungjungsoo.gptmobile.data.knowledge.MemoryDocumentRepository? = null,
-    private val freeModelToolConsentStore: dev.chungjungsoo.gptmobile.data.permissions.FreeModelToolConsentStore? = null
+    private val freeModelToolConsentStore: dev.chungjungsoo.gptmobile.data.permissions.FreeModelToolConsentStore? = null,
+    private val gitHubWorkspaceStore: dev.chungjungsoo.gptmobile.data.github.GitHubWorkspaceStore? = null
 ) {
     suspend fun discoverMcpTools(connection: ToolConnection, forceRefresh: Boolean = false): List<Tool> {
         val config = mcpConfig(connection)
@@ -271,7 +272,8 @@ class AgentToolResolver @Inject constructor(
         val tool = GitHubTool(
             apiToken = token,
             modelToolName = actualConnection?.let { "github__${it.alias}" } ?: BuiltInAgentTool.GITHUB,
-            accountName = actualConnection?.name
+            accountName = actualConnection?.name,
+            repositoryContext = actualConnection?.let { gitHubWorkspaceStore?.get(it.connectionUid) }
         )
         return tool.resolved(actualConnection?.connectionUid, actualConnection?.name, BuiltInAgentTool.GITHUB)
     }
