@@ -1,5 +1,10 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,16 +18,23 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineItem
 import dev.chungjungsoo.gptmobile.data.database.entity.AssistantTimelineItemType
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
 import dev.chungjungsoo.gptmobile.presentation.ui.thinking.ThinkingParser
+import kotlinx.coroutines.delay
 
 /** One disclosure controls the entire process; response text remains readable while collapsed. */
 @Composable
@@ -56,8 +68,12 @@ internal fun AssistantChronologicalContent(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     if (isLoading) {
-                        Text("Preparing the response and checking the available context.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(bottom = 8.dp))
-                        LinearProgressIndicator(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.primary, trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                        GenerationStatusText(toolEvents)
+                        LinearProgressIndicator(
+                            Modifier.fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                        )
                     } else {
                         androidx.compose.foundation.layout.Spacer(Modifier.fillMaxWidth())
                     }
@@ -106,3 +122,52 @@ internal fun AssistantChronologicalContent(
 }
 
 internal fun isContextDiagnostic(value: String): Boolean = value.startsWith("Context estimate:", true) || value.startsWith("Context:", true) || value.startsWith("[telemetry]", true)
+
+
+@Composable
+private fun GenerationStatusText(toolEvents: List<ToolEvent>) {
+    var dots by remember { mutableIntStateOf(1) }
+    var phase by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        var ticks = 0
+        while (true) {
+            delay(500)
+            dots = dots % 3 + 1
+            ticks++
+            if (ticks % 10 == 0) phase++
+        }
+    }
+
+    val runningTool = toolEvents.lastOrNull {
+        it.status == dev.chungjungsoo.gptmobile.data.database.entity.ToolEventStatus.RUNNING ||
+            it.status == dev.chungjungsoo.gptmobile.data.database.entity.ToolEventStatus.PENDING
+    }
+    val base = runningTool?.let { smartToolVerb(it.toolName) } ?: when (phase % 3) {
+        0 -> "Preparing response"
+        1 -> "Checking context"
+        else -> "Organizing the answer"
+    }
+    val suffix = ".".repeat(dots)
+
+    val transition = rememberInfiniteTransition(label = "generationStatusGradient")
+    val sweep by transition.animateFloat(
+        initialValue = -250f,
+        targetValue = 900f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1800),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "generationStatusSweep"
+    )
+    val primary = MaterialTheme.colorScheme.primary
+    val brush = Brush.linearGradient(
+        colors = listOf(primary.copy(alpha = 0.35f), primary, primary.copy(alpha = 0.35f)),
+        start = Offset(sweep, 0f),
+        end = Offset(sweep + 300f, 0f)
+    )
+    Text(
+        text = base.removeSuffix("...").removeSuffix(".") + suffix,
+        style = MaterialTheme.typography.labelSmall.copy(brush = brush),
+        modifier = Modifier.padding(bottom = 8.dp)
+    )
+}
