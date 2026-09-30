@@ -28,7 +28,7 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class CompleteBackupViewModelTest {
     private val dispatcher = StandardTestDispatcher()
-    private val manager = mockk<CompleteBackupManager>()
+    private val manager = mockk<CompleteBackupManager>(relaxed = true)
     private lateinit var viewModel: SettingViewModelV2
 
     @Before
