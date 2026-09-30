@@ -1366,10 +1366,14 @@ fun ChatInputBox(
         }
     }
 
-    Surface(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .background(Color.Transparent)
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         color = inputColor,
         contentColor = MaterialTheme.colorScheme.onBackground,
