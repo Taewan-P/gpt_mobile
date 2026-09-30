@@ -72,6 +72,34 @@ class CompleteBackupManagerTest {
     }
 
     @Test
+    fun encryptionSettingsAndPasswordRoundTripWithoutCredentialSelection() = runBlocking {
+        val selected = CompleteBackupSelection(setOf(CompleteBackupSection.CONVERSATIONS))
+        val protection = BackupProtection(true, "persistent-password")
+        manager.saveProtection(protection)
+        val recreated = CompleteBackupManager(context, database, preferences, vault, settings, legacy)
+        assertEquals(protection, recreated.savedProtection())
+        val encrypted = File(context.cacheDir, "saved-password.gptbackup")
+        val saved = manager.backup(Uri.fromFile(encrypted), selected, protection.password)
+        assertTrue(saved.message, saved.success)
+        assertTrue(manager.requiresPassword(Uri.fromFile(encrypted)))
+        manager.saveProtection(BackupProtection(false, "changed-password"))
+        val restored = manager.restore(Uri.fromFile(encrypted), protection.password, selected)
+        assertTrue(restored.message, restored.success)
+        assertEquals(protection, recreated.savedProtection())
+
+        val plain = File(context.cacheDir, "plain.gptbackup")
+        manager.saveProtection(protection.copy(enabled = false))
+        val plainSaved = manager.backup(Uri.fromFile(plain), selected, encrypt = false)
+        assertTrue(plainSaved.message, plainSaved.success)
+        assertFalse(manager.requiresPassword(Uri.fromFile(plain)))
+        assertFalse(manager.requiresRecoveryKey(Uri.fromFile(plain)))
+        manager.saveProtection(BackupProtection())
+        val plainRestored = manager.restore(Uri.fromFile(plain), selection = selected)
+        assertTrue(plainRestored.message, plainRestored.success)
+        assertEquals(protection.copy(enabled = false), manager.savedProtection())
+    }
+
+    @Test
     fun completeRoundTripRestoresEveryTablePreferencesCredentialsAndPortableFiles() = runBlocking {
         val attachment = File(context.cacheDir, "photo.txt").apply { writeText("attachment data") }
         seed(attachment)

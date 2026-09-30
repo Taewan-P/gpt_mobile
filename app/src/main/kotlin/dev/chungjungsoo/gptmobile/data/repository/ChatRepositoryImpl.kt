@@ -774,9 +774,13 @@ class ChatRepositoryImpl(
             }
             val turnKey = userMessages.lastOrNull()?.takeIf { it.id > 0 }?.let { "${it.chatId}:${it.id}" } ?: runId
             var delegatedTools = emptyList<ResolvedAgentTool>()
+            suspend fun effectiveDelegationSettings(): dev.chungjungsoo.gptmobile.data.model.ModelDelegationSettings {
+                val defaults = settingRepository.getFeatureSettings().delegation
+                return chatToolConfig?.effectiveDelegation(defaults) ?: defaults.normalized()
+            }
             val localDelegation = LocalDelegationCoordinator(
                 platform,
-                settings = { settingRepository.getFeatureSettings().delegation },
+                settings = { effectiveDelegationSettings() },
                 profiles = { settingRepository.fetchPlatformV2s() },
                 generate = { target, task, cap -> generateDelegate(target, task, cap) },
                 generateWithProgress = { target, task, cap, inputCap, progress ->
@@ -861,7 +865,7 @@ class ChatRepositoryImpl(
                 FactRecall()
             }
             if (recalled.facts.isNotEmpty()) emit(ApiState.MemoryRecalled(recalled.references))
-            val processingOwnership = settingRepository.getFeatureSettings().delegation.normalized().processingOwnership
+            val processingOwnership = effectiveDelegationSettings().processingOwnership
             var localResearch = resolvedTools.any { it.realToolName == "delegate_to_model" } &&
                 processingOwnership < 100 &&
                 localDelegation.researchAvailable()
@@ -1000,7 +1004,7 @@ class ChatRepositoryImpl(
                 }
                 if (brief.isNotBlank()) appendPreparedEvidence(brief)
             }
-            val delegationConfig = settingRepository.getFeatureSettings().delegation.normalized()
+            val delegationConfig = effectiveDelegationSettings()
             if (localResearch && delegationConfig.automaticResearch && latestUser?.content?.isNotBlank() == true && contextPlan.tools.any { it.name == "delegate_to_model" }) {
                 emit(ApiState.Notice("Local model is planning research and preparing evidence…", persistent = false))
                 val call = ProviderEvent.ToolCall("$runId:local-preparation", "delegate_to_model", kotlinx.serialization.json.buildJsonObject { put("task", kotlinx.serialization.json.JsonPrimitive(latestUser.content)) })
@@ -1038,7 +1042,7 @@ class ChatRepositoryImpl(
             val effectiveTools = aggregatedTools
                 .filter { resolved -> contextPlan.tools.any { it.name == resolved.modelToolName } }
                 .map { if (resolvedTools.any { tool -> tool.realToolName == "delegate_to_model" }) localDelegation.processToolResults(it, latestUser?.content.orEmpty()) else it }
-            val delegationSettings = settingRepository.getFeatureSettings().delegation.normalized()
+            val delegationSettings = effectiveDelegationSettings()
             val requestedOutputTokens = contextPlan.outputTokens
             // Delegation saves input/replay tokens. Its brief budget must never cap the
             // user's final answer (a 256-token brief cannot satisfy a 1000-word task).

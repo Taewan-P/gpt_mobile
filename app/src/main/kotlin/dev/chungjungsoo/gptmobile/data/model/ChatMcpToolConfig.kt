@@ -25,8 +25,12 @@ data class ChatMcpToolConfig(
     val allowAllByDefault: Boolean = true,
     val allToolsDisabled: Boolean = false,
     val maxTools: Int? = null,
-    val maxToolCalls: Int? = null
+    val maxToolCalls: Int? = null,
+    val delegation: ConversationDelegationSettings? = null
 ) {
+    fun effectiveDelegation(defaults: ModelDelegationSettings): ModelDelegationSettings =
+        delegation?.applyTo(defaults) ?: defaults.normalized()
+
     fun isToolEnabled(toolId: String): Boolean {
         if (allToolsDisabled) return false
         return if (allowAllByDefault) {

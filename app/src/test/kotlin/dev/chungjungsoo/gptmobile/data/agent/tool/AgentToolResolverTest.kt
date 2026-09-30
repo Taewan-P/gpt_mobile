@@ -42,6 +42,23 @@ import org.junit.Test
 class AgentToolResolverTest {
 
     @Test
+    fun conversationDelegationCanEnableAndDisableTheActualToolIndependentlyOfDefaults() = runBlocking {
+        val main = PlatformV2(uid = "main", name = "Main", compatibleType = ClientType.OPENAI)
+        val helper = PlatformV2(uid = "helper", name = "Helper", compatibleType = ClientType.OLLAMA, apiUrl = "http://localhost:11434")
+        val enabledForChat = ChatMcpToolConfig(delegation = dev.chungjungsoo.gptmobile.data.model.ConversationDelegationSettings(true, helper.uid))
+        val offByDefault = resolver(settings = ResolverFakeSettingRepository(listOf(main, helper)))
+        val tools = offByDefault.resolve(main.uid, enabledForChat, delegate = { target, _, _ -> "Helper ${target.uid}" })
+        val delegate = tools.single { it.realToolName == "delegate_to_model" }
+        assertFalse(delegate.tool.execute("chat-enabled", buildJsonObject { put("task", "Summarize") }).isError)
+        assertFalse(offByDefault.resolve(main.uid, delegate = { _, _, _ -> "unused" }).any { it.realToolName == "delegate_to_model" })
+
+        val enabledDefaults = dev.chungjungsoo.gptmobile.data.model.AppFeatureSettings(delegation = dev.chungjungsoo.gptmobile.data.model.ModelDelegationSettings(enabled = true))
+        val onByDefault = resolver(settings = ResolverFakeSettingRepository(listOf(main, helper), enabledDefaults))
+        val disabledForChat = enabledForChat.copy(delegation = dev.chungjungsoo.gptmobile.data.model.ConversationDelegationSettings(false))
+        assertFalse(onByDefault.resolve(main.uid, disabledForChat, delegate = { _, _, _ -> "unused" }).any { it.realToolName == "delegate_to_model" })
+    }
+
+    @Test
     fun `GitHub API connections are available without profile bindings and respect conversation options`() = runBlocking {
         val dao = ResolverFakeToolConnectionDao()
         dao.upsertConnection(connection("work", ToolConnectionType.GITHUB, endpointUrl = "https://api.github.com"))
@@ -666,7 +683,12 @@ class AgentToolResolverTest {
     }
 }
 
-private class ResolverFakeSettingRepository(private val profiles: List<PlatformV2> = emptyList()) : SettingRepository {
+private class ResolverFakeSettingRepository(
+    private val profiles: List<PlatformV2> = emptyList(),
+    private val features: dev.chungjungsoo.gptmobile.data.model.AppFeatureSettings = dev.chungjungsoo.gptmobile.data.model.AppFeatureSettings()
+) : SettingRepository {
+    override suspend fun getFeatureSettings() = features
+
     override suspend fun fetchProviderConnections(): List<ProviderConnection> = emptyList()
     override fun observeProviderConnections(): Flow<List<ProviderConnection>> = kotlinx.coroutines.flow.flowOf(emptyList())
     override suspend fun getProviderConnection(uid: String): ProviderConnection? = null

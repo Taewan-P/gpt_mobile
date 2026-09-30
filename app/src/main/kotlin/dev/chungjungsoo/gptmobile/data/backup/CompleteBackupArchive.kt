@@ -16,7 +16,8 @@ internal data class CompleteBackupManifest(
     val sharedPreferences: Map<String, Map<String, BackupValue>> = emptyMap(),
     val secrets: Map<String, String> = emptyMap(),
     val files: Map<String, Long> = emptyMap(),
-    val sections: Set<String> = emptySet()
+    val sections: Set<String> = emptySet(),
+    val protection: BackupProtection? = null
 )
 
 @Serializable

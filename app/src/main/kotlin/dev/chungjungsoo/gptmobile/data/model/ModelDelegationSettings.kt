@@ -10,6 +10,7 @@ data class ModelDelegationSettings(
     /** 0 = local-first, 50 = shared concurrent-capable, 100 = remote-first. */
     val processingOwnership: Int = 50,
     val targetProfileUid: String = "",
+    val fallbackToAnotherProfile: Boolean = true,
     val localPlatformsOnly: Boolean = true,
     /** Allow enabled remote profiles to receive delegated worker tasks. */
     val allowRemoteWorkers: Boolean = false,

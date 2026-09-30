@@ -40,6 +40,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.snapshotLatestAssistantRe
 import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelStatus
 import dev.chungjungsoo.gptmobile.data.model.AvailableChatTool
 import dev.chungjungsoo.gptmobile.data.model.ChatMcpToolConfig
+import dev.chungjungsoo.gptmobile.data.model.ConversationDelegationSettings
 import dev.chungjungsoo.gptmobile.data.repository.AttachmentUploadCoordinator
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
@@ -639,6 +640,31 @@ class ChatViewModel @Inject constructor(
         conversationReadStateStore.markViewed(chatRoom.value.id)
     }
 
+    private val conversationDelegationMutex = Mutex()
+
+    fun setConversationDelegation(value: ConversationDelegationSettings?) {
+        _chatToolConfig.update { it.copy(delegation = value) }
+        val chatId = _chatRoom.value.id
+        if (chatId <= 0) return
+        viewModelScope.launch {
+            try {
+                persistConversationDelegation(chatId, value)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                _attachmentNotice.value = "Could not save delegation for this conversation. Please try again."
+            }
+        }
+    }
+
+    private suspend fun persistConversationDelegation(chatId: Int, value: ConversationDelegationSettings?) {
+        conversationDelegationMutex.withLock {
+            val latest = settingRepository.getFeatureSettings()
+            val overrides = if (value == null) latest.conversationDelegation - chatId else latest.conversationDelegation + (chatId to value)
+            settingRepository.updateFeatureSettings(latest.copy(conversationDelegation = overrides))
+        }
+    }
+
     fun setChatToolsEnabled(toolIds: Collection<String>, enabled: Boolean) {
         if (toolIds.isEmpty()) return
         val ids = toolIds.toSet()
@@ -1198,7 +1224,11 @@ class ChatViewModel @Inject constructor(
                     },
                     startProvider = { persisted ->
                         _agentRunsById.update { it + persisted.runs.associateBy(AgentRun::runId) }
+                        val wasNewConversation = _chatRoom.value.id <= 0
                         _chatRoom.update { persisted.chatRoom }
+                        if (wasNewConversation && _chatToolConfig.value.delegation != null) {
+                            setConversationDelegation(_chatToolConfig.value.delegation)
+                        }
                         _groupedMessages.update { groupedMessages ->
                             groupedMessages.copy(
                                 userMessages = groupedMessages.userMessages.toMutableList().apply {
@@ -1505,6 +1535,8 @@ class ChatViewModel @Inject constructor(
             } else {
                 chatRepository.fetchChatListV2().first { it.id == chatRoomId }
             }
+            val features = settingRepository.getFeatureSettings()
+            _chatToolConfig.update { it.copy(delegation = features.conversationDelegation[room.id]) }
             _chatRoom.value = room
             applyChatPlatformState(room)
         }
