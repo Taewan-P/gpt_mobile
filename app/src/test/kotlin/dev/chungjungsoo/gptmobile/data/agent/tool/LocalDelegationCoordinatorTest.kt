@@ -236,6 +236,32 @@ class LocalDelegationCoordinatorTest {
         assertEquals(1, calls)
     }
 
+    @Test fun `retired model is quarantined and delegation immediately fails over`() = runTest {
+        val fallback = target.copy(
+            uid = "fallback",
+            name = "Fallback",
+            compatibleType = ClientType.LLAMA,
+            apiUrl = "http://192.168.1.3:8080"
+        )
+        val dispatched = mutableListOf<String>()
+        val coordinator = LocalDelegationCoordinator(
+            source,
+            { config.copy(researchEnabled = false, maxLocalModelCalls = 4) },
+            { listOf(target, fallback) },
+            { profile, _, _ ->
+                dispatched += profile.uid
+                if (profile.uid == target.uid) {
+                    error("HTTP 410 Gone: model retired and no longer available")
+                }
+                "recovered"
+            }
+        )
+
+        assertEquals("recovered", coordinator.delegate(target, "first", 256, emptyList(), "first"))
+        assertEquals("recovered", coordinator.delegate(target, "second", 256, emptyList(), "second"))
+        assertEquals(listOf("local", "fallback", "fallback"), dispatched)
+    }
+
     @Test fun `llama prompt evaluation is not canceled by the generic first token watchdog`() = runTest {
         val coordinator = LocalDelegationCoordinator(
             source,

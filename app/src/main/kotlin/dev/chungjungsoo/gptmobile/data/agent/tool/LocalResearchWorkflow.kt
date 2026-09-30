@@ -18,7 +18,15 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
 
-internal data class LocalResearchResult(val handoff: String, val rawBytes: Int, val pagesRead: Int, val searches: Int)
+internal enum class LocalResearchOutcome { SUCCESS, NO_RESEARCH_NEEDED, NO_USEFUL_OUTPUT, FAILED }
+
+internal data class LocalResearchResult(
+    val handoff: String,
+    val rawBytes: Int,
+    val pagesRead: Int,
+    val searches: Int,
+    val outcome: LocalResearchOutcome = LocalResearchOutcome.SUCCESS
+)
 
 /** Tools are borrowed from the main profile after its authorization and budget wrappers. */
 internal class LocalResearchWorkflow(
@@ -245,10 +253,20 @@ internal class LocalResearchWorkflow(
         }
         if (completed == null) notes += "Local research timed out; completed evidence is retained."
         if (!stillEnabled()) notes += "Delegation was disabled before research completed."
-        if (automatic && noResearchNeeded) return LocalResearchResult("", rawBytes, 0, searches)
+        if (automatic && noResearchNeeded) {
+            return LocalResearchResult("", rawBytes, 0, searches, LocalResearchOutcome.NO_RESEARCH_NEEDED)
+        }
         if (brief.isBlank()) brief = sources.values.joinToString("\n") { "[${it.id}] ${relevantEvidence(it.text.ifBlank { it.snippet }, task, 600)}" }
-        if (sources.isEmpty() && brief.isBlank()) notes += "No verified evidence was retrieved."
-        return LocalResearchResult(delegationHandoff(brief, sources.values.toList(), notes, config.handoffTokens), rawBytes, sources.values.count { it.pageRead }, searches)
+        val hasUsefulOutput = brief.isNotBlank() || sources.values.any { it.pageRead }
+        if (!hasUsefulOutput) notes += "No verified evidence was retrieved."
+        val outcome = if (hasUsefulOutput) LocalResearchOutcome.SUCCESS else LocalResearchOutcome.NO_USEFUL_OUTPUT
+        return LocalResearchResult(
+            delegationHandoff(brief, sources.values.toList(), notes, config.handoffTokens),
+            rawBytes,
+            sources.values.count { it.pageRead },
+            searches,
+            outcome
+        )
     }
 }
 

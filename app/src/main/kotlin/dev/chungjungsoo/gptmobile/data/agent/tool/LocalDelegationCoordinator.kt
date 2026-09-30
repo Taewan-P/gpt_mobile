@@ -10,6 +10,7 @@ import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.model.ModelDelegationSettings
 import dev.chungjungsoo.gptmobile.data.model.excludesMemory
 import dev.chungjungsoo.gptmobile.data.model.isPrivateDestination
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CancellationException
@@ -61,8 +62,8 @@ internal class LocalDelegationCoordinator(
     private val failedLocalTokens = AtomicLong()
     private val canceledLocalTokens = AtomicLong()
     private val wastedLocalMs = AtomicLong()
-    private val consecutiveEmptyResponses = AtomicInteger()
-    private val workerCircuitOpen = AtomicInteger()
+    private val emptyResponsesByWorker = ConcurrentHashMap<String, AtomicInteger>()
+    private val quarantinedWorkerUids = ConcurrentHashMap.newKeySet<String>()
     private val observedRequestOverheadTokens = AtomicLong()
     private val worker = Semaphore(4)
 
@@ -77,10 +78,6 @@ internal class LocalDelegationCoordinator(
             val effectiveCallLimit = config.effectiveLocalModelCalls()
             if (localCalls.get() >= effectiveCallLimit) {
                 AppLogRecorder.record("Delegation", "Research unavailable · worker budget exhausted · calls=${localCalls.get()}/$effectiveCallLimit · configured=${config.maxLocalModelCalls} · ownership=${config.processingOwnership}", "W")
-                return false
-            }
-            if (workerCircuitOpen.get() != 0) {
-                AppLogRecorder.record("Delegation", "Research unavailable · worker circuit open · target=${target.uid}", "W")
                 return false
             }
             val available = inputBudget(target, config.maxOutputTokens)
@@ -104,6 +101,7 @@ internal class LocalDelegationCoordinator(
             it.uid != source.uid &&
                 it.enabled &&
                 !it.excludesMemory() &&
+                it.uid !in quarantinedWorkerUids &&
                 (config.allowRemoteWorkers || it.isPrivateDestination())
         }
         val selected = eligible.firstOrNull { it.uid == config.targetProfileUid }
@@ -256,7 +254,9 @@ internal class LocalDelegationCoordinator(
         val config = settings().normalized()
         if (!config.enabled) return null
         var observedForFailure = 0L
-        return worker.withPermit {
+        var resolvedProfileUid: String? = null
+        var failoverTarget: PlatformV2? = null
+        val result = worker.withPermit {
             val latest = settings().normalized()
             awaitWorkerSlot(latest.maxConcurrentDelegates)
             try {
@@ -266,8 +266,10 @@ internal class LocalDelegationCoordinator(
                         it.enabled &&
                         !it.excludesMemory() &&
                         it.uid != source.uid &&
+                        it.uid !in quarantinedWorkerUids &&
                         (latest.allowRemoteWorkers || it.isPrivateDestination())
                 } ?: localTarget(latest)
+                resolvedProfileUid = profile?.uid
                 val effectiveCallLimit = latest.effectiveLocalModelCalls()
                 val effectiveWasteLimit = latest.effectiveWastedLocalTokens()
                 AppLogRecorder.record("Delegation", "Worker gate · requested=${target.uid} · resolved=${profile?.uid} · profileFound=${profile != null} · private=${profile?.isPrivateDestination()} · calls=${localCalls.get()}/$effectiveCallLimit · configuredCalls=${latest.maxLocalModelCalls} · ownership=${latest.processingOwnership}")
@@ -280,10 +282,6 @@ internal class LocalDelegationCoordinator(
                     (source.compatibleType == ClientType.LITERT_LM && profile.compatibleType == ClientType.LITERT_LM)
                 ) {
                     AppLogRecorder.record("Delegation", "Worker rejected by gate · target=${target.uid}", "W")
-                    return@withPermit null
-                }
-                if (workerCircuitOpen.get() != 0) {
-                    AppLogRecorder.record("Delegation", "Worker rejected · circuit open · target=${profile.uid} · emptyResponses=${consecutiveEmptyResponses.get()}", "W")
                     return@withPermit null
                 }
                 val budget = inputBudget(profile, tokens).coerceAtLeast(0)
@@ -309,7 +307,9 @@ internal class LocalDelegationCoordinator(
                         "Worker rejected · provider request overhead exhausted input cap · target=${profile.uid} · observedRequestOverheadTokens=$knownRequestOverhead · maxInputTokens=$hardInputTokenCap",
                         "W"
                     )
-                    workerCircuitOpen.set(1)
+                    quarantinedWorkerUids += profile.uid
+                    AppLogRecorder.record("Delegation", "Worker quarantined · target=${profile.uid} · reason=INPUT_OVERHEAD_EXHAUSTED", "W")
+                    failoverTarget = localTarget(latest)
                     return@withPermit null
                 }
                 // Reserve observed provider/system/tool overhead before sizing the user/task prompt.
@@ -381,18 +381,22 @@ internal class LocalDelegationCoordinator(
                     return@withPermit null
                 }
                 return@withPermit response.takeIf { it.isNotBlank() }?.also {
-                    consecutiveEmptyResponses.set(0)
+                    emptyResponsesByWorker[profile.uid]?.set(0)
                     successfulLocalTokens.addAndGet(chargedInput + estimatedDelegateTokens(it))
                     AppLogRecorder.record("Delegation", "Worker completed · target=${profile.uid} · call=$callNumber/$effectiveCallLimit · elapsedMs=$elapsedMs · outputChars=${it.length} · requestedOutputCap=$requestedOutputCap · approxOutputTokens=${estimatedDelegateTokens(it)}")
                     logComputeTotals()
                 } ?: run {
                     failedLocalTokens.addAndGet(chargedInput)
                     wastedLocalMs.addAndGet(elapsedMs)
-                    val emptyCount = consecutiveEmptyResponses.incrementAndGet()
-                    if (emptyCount >= MAX_CONSECUTIVE_EMPTY_RESPONSES) workerCircuitOpen.set(1)
+                    val emptyCount = emptyResponsesByWorker.getOrPut(profile.uid, ::AtomicInteger).incrementAndGet()
+                    val quarantined = emptyCount >= MAX_CONSECUTIVE_EMPTY_RESPONSES
+                    if (quarantined) {
+                        quarantinedWorkerUids += profile.uid
+                        failoverTarget = localTarget(latest)
+                    }
                     AppLogRecorder.record(
                         "Delegation",
-                        "Worker completed empty · target=${profile.uid} · call=$callNumber/$effectiveCallLimit · elapsedMs=$elapsedMs · requestedOutputCap=$requestedOutputCap · consecutiveEmpty=$emptyCount/$MAX_CONSECUTIVE_EMPTY_RESPONSES · circuitOpen=${workerCircuitOpen.get() != 0}",
+                        "Worker completed empty · target=${profile.uid} · call=$callNumber/$effectiveCallLimit · elapsedMs=$elapsedMs · requestedOutputCap=$requestedOutputCap · consecutiveEmpty=$emptyCount/$MAX_CONSECUTIVE_EMPTY_RESPONSES · quarantined=$quarantined · fallback=${failoverTarget?.uid}",
                         "W"
                     )
                     logComputeTotals()
@@ -405,21 +409,35 @@ internal class LocalDelegationCoordinator(
                 val estimated = maxOf(estimatedDelegateTokens(prompt).toLong(), observedForFailure)
                 failedLocalTokens.addAndGet(estimated)
                 val message = failure.message.orEmpty()
+                val failedUid = resolvedProfileUid ?: target.uid
                 val authBlocked = message.contains("HTTP 401", ignoreCase = true) ||
                     message.contains("HTTP 403", ignoreCase = true) ||
                     message.contains("unauthorized", ignoreCase = true) ||
                     message.contains("forbidden", ignoreCase = true) ||
                     message.contains("denied access", ignoreCase = true)
+                val permanentlyUnavailable = message.contains("HTTP 404", ignoreCase = true) ||
+                    message.contains("HTTP 410", ignoreCase = true) ||
+                    message.contains("model not found", ignoreCase = true) ||
+                    message.contains("model unavailable", ignoreCase = true) ||
+                    message.contains("model is unavailable", ignoreCase = true) ||
+                    message.contains("no longer available", ignoreCase = true) ||
+                    message.contains("retired", ignoreCase = true) ||
+                    message.contains("deprecated", ignoreCase = true) ||
+                    message.contains("end of life", ignoreCase = true) ||
+                    message.contains("eol", ignoreCase = true)
                 val emptyResponse = message.contains("EMPTY_RESPONSE", ignoreCase = true)
                 val reasoningOnly = message.contains("REASONING_ONLY_RESPONSE", ignoreCase = true)
                 val softEmpty = emptyResponse || reasoningOnly
-                val emptyCount = if (softEmpty) consecutiveEmptyResponses.incrementAndGet() else consecutiveEmptyResponses.get()
-                if (authBlocked || (softEmpty && emptyCount >= MAX_CONSECUTIVE_EMPTY_RESPONSES)) {
-                    workerCircuitOpen.set(1)
+                val counter = emptyResponsesByWorker.getOrPut(failedUid, ::AtomicInteger)
+                val emptyCount = if (softEmpty) counter.incrementAndGet() else counter.get()
+                val shouldQuarantine = authBlocked || permanentlyUnavailable || (softEmpty && emptyCount >= MAX_CONSECUTIVE_EMPTY_RESPONSES)
+                if (shouldQuarantine) {
+                    quarantinedWorkerUids += failedUid
+                    failoverTarget = localTarget(latest)
                 }
                 AppLogRecorder.record(
                     "Delegation",
-                    "Worker failed · target=${target.uid} · calls=${localCalls.get()} · ${failure.javaClass.simpleName}: $message · observedInputTokens=$observedForFailure · emptyResponse=$emptyResponse · consecutiveEmpty=$emptyCount/$MAX_CONSECUTIVE_EMPTY_RESPONSES · reasoningOnly=$reasoningOnly · authBlocked=$authBlocked · circuitOpen=${workerCircuitOpen.get() != 0}",
+                    "Worker failed · target=$failedUid · calls=${localCalls.get()} · ${failure.javaClass.simpleName}: $message · observedInputTokens=$observedForFailure · emptyResponse=$emptyResponse · consecutiveEmpty=$emptyCount/$MAX_CONSECUTIVE_EMPTY_RESPONSES · reasoningOnly=$reasoningOnly · authBlocked=$authBlocked · permanentlyUnavailable=$permanentlyUnavailable · quarantined=$shouldQuarantine · fallback=${failoverTarget?.uid}",
                     "E"
                 )
                 logComputeTotals()
@@ -428,23 +446,34 @@ internal class LocalDelegationCoordinator(
                 activeWorkers.decrementAndGet()
             }
         }
+        if (result != null) return result
+        val fallback = failoverTarget
+        if (fallback != null && fallback.uid != target.uid) {
+            AppLogRecorder.record(
+                "Delegation",
+                "Worker failover · failed=${resolvedProfileUid ?: target.uid} · fallback=${fallback.uid} · type=${fallback.compatibleType}",
+                "W"
+            )
+            return workerText(fallback, prompt, tokens, requirePrivate)
+        }
+        return null
     }
 
     suspend fun prepare(task: String, tools: List<ResolvedAgentTool>, callId: String, automatic: Boolean = false): LocalResearchResult {
         val config = settings().normalized()
         if (!config.researchEnabled || (automatic && !config.automaticResearch)) {
             AppLogRecorder.record("Delegation", "Research skipped · automatic=$automatic · enabled=${config.researchEnabled} · target=null")
-            return LocalResearchResult("", 0, 0, 0)
+            return LocalResearchResult("", 0, 0, 0, LocalResearchOutcome.NO_RESEARCH_NEEDED)
         }
         val target = localTarget(config) ?: run {
             AppLogRecorder.record("Delegation", "Research skipped · automatic=$automatic · enabled=${config.researchEnabled} · target=null")
-            return LocalResearchResult("", 0, 0, 0)
+            return LocalResearchResult("", 0, 0, 0, LocalResearchOutcome.NO_USEFUL_OUTPUT)
         }
         val effectiveResearchLimit = config.effectiveResearchCalls()
         val requestIndex = requests.getAndIncrement()
         if (requestIndex >= effectiveResearchLimit) {
             AppLogRecorder.record("Delegation", "Research skipped · request budget exhausted · request=$requestIndex max=$effectiveResearchLimit · configured=${config.maxCallsPerTurn} · ownership=${config.processingOwnership}", "W")
-            return LocalResearchResult("", 0, 0, 0)
+            return LocalResearchResult("", 0, 0, 0, LocalResearchOutcome.NO_USEFUL_OUTPUT)
         }
         val result = try {
             LocalResearchWorkflow(
@@ -453,17 +482,23 @@ internal class LocalDelegationCoordinator(
                 generate = { prompt, tokens -> workerText(target, prompt, tokens) },
                 stillEnabled = {
                     val latest = settings().normalized()
-                    latest.researchEnabled && localTarget(latest)?.uid == target.uid
+                    latest.researchEnabled && localTarget(latest) != null
                 }
             ).run(task, "$callId:$requestIndex", automatic)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
             AppLogRecorder.record("Delegation", "Research workflow failed · call=$callId", "E")
-            LocalResearchResult(delegationHandoff("", emptyList(), listOf("Local preparation was unavailable. No completed research is claimed."), config.handoffTokens), 0, 0, 0)
+            LocalResearchResult(
+                delegationHandoff("", emptyList(), listOf("Local preparation was unavailable. No completed research is claimed."), config.handoffTokens),
+                0,
+                0,
+                0,
+                LocalResearchOutcome.FAILED
+            )
         }
-        AppLogRecorder.record("Delegation", "Research finished · call=$callId · automatic=$automatic · searches=${result.searches} · pages=${result.pagesRead} · rawBytes=${result.rawBytes} · handoffChars=${result.handoff.length}")
-        if (automatic && result.handoff.isEmpty()) requests.decrementAndGet()
+        AppLogRecorder.record("Delegation", "Research finished · call=$callId · automatic=$automatic · outcome=${result.outcome} · searches=${result.searches} · pages=${result.pagesRead} · rawBytes=${result.rawBytes} · handoffChars=${result.handoff.length}")
+        if (automatic && result.outcome != LocalResearchOutcome.SUCCESS) requests.decrementAndGet()
         return result
     }
 
@@ -476,7 +511,7 @@ internal class LocalDelegationCoordinator(
         }
         if (researchAvailable()) {
             val result = prepare(task, tools, callId)
-            if (result.handoff.isNotBlank()) return result.handoff
+            if (result.outcome == LocalResearchOutcome.SUCCESS && result.handoff.isNotBlank()) return result.handoff
             AppLogRecorder.record(
                 "Delegation",
                 "Research produced no handoff; falling back to direct delegate inference · call=$callId · target=${target.uid}",
