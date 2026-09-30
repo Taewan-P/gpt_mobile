@@ -946,45 +946,22 @@ private fun ArchivedHistoryHeader(
     hiddenTurnCount: Int,
     onExpand: () -> Unit
 ) {
-    Surface(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 10.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .clickable(onClick = onExpand),
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.86f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.45f))
+            .clickable(onClick = onExpand)
+            .padding(vertical = 4.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.History,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = "Archived conversation history",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = "$hiddenTurnCount older response${if (hiddenTurnCount == 1) "" else "s"} hidden",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-                )
+        Text(
+            text = "^",
+            style = MaterialTheme.typography.headlineLarge,
+            fontWeight = FontWeight.Light,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.72f),
+            modifier = Modifier.semantics {
+                contentDescription = "Show older conversation history ($hiddenTurnCount hidden)"
             }
-            Text(
-                text = "Show ${minOf(ARCHIVE_REVEAL_STEP, hiddenTurnCount)}",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
+        )
     }
 }
 
