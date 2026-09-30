@@ -24,7 +24,18 @@ internal fun benchmarkProfile(profile: PlatformV2, allowTools: Boolean): Platfor
     } else {
         profile.ollamaOptions
     }
+    // Benchmarks are synchronous/interactive requests. Some OpenRouter profiles persist
+    // a batch-only model variant in the model slug (for example ":batch"). Reusing that
+    // slug with batchMode disabled produces a provider 404 for models that do not expose
+    // a batch endpoint. Normalize only the benchmark copy so the user's saved profile is
+    // never modified.
+    val benchmarkModel = if (profile.compatibleType == ClientType.OPENROUTER) {
+        profile.model.removeSuffix(":batch")
+    } else {
+        profile.model
+    }
     return profile.copy(
+        model = benchmarkModel,
         reasoning = false, disableAllTools = !allowTools, temperature = 0f, maxTokens = 512, stream = true,
         openRouterRouting = openRouter, ollamaOptions = ollama, batchMode = false,
         systemPrompt = "Follow the benchmark instruction exactly. Use only the provided fixture tool when requested."

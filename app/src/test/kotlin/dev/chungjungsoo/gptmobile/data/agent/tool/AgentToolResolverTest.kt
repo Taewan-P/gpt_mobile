@@ -55,7 +55,7 @@ class AgentToolResolverTest {
             userMessage = dev.chungjungsoo.gptmobile.data.database.entity.MessageV2(content = "Remember that I prefer Kotlin", platformType = null),
             delegate = { _, _, _ -> error("Free profiles must not delegate") }
         )
-        assertEquals(listOf("calculate_expression", "current_date", "read_url", "web_search"), resolved.map { it.modelToolName })
+        assertEquals(listOf("calculate_expression", "current_date", "device_location", "github", "read_file_slice", "read_url", "web_search"), resolved.map { it.modelToolName })
     }
 
     @Test

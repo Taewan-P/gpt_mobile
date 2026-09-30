@@ -352,7 +352,22 @@ fun OpponentChatBubble(
         attachments.isNotEmpty() ||
         locationToolEvents.isNotEmpty() ||
         (!isLoading && (canRetry || canEdit || isError))
-    val shouldShowBubble = isLoading || contentTimeline.isNotEmpty() || toolEvents.isNotEmpty() || hasVisibleText || hasVisibleProcess || hasVisibleExtras
+    val showTerminalFallback =
+        !isLoading &&
+            isLastMessage &&
+            text.isBlank() &&
+            contentTimeline.isEmpty() &&
+            toolEvents.isEmpty() &&
+            !hasVisibleProcess &&
+            !hasVisibleExtras
+    val shouldShowBubble =
+        isLoading ||
+            contentTimeline.isNotEmpty() ||
+            toolEvents.isNotEmpty() ||
+            hasVisibleText ||
+            hasVisibleProcess ||
+            hasVisibleExtras ||
+            showTerminalFallback
 
     Column(modifier = modifier) {
         AnimatedVisibility(
@@ -385,6 +400,14 @@ fun OpponentChatBubble(
                     expanded = activityExpanded,
                     onExpandedChange = { activityExpanded = it }
                 )
+                if (showTerminalFallback) {
+                    Text(
+                        text = if (isError) "The response failed before displayable content was returned." else "The model finished without returning displayable text.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                    )
+                }
 
                 LocationToolMapPreview(
                     toolEvents = locationToolEvents,
@@ -768,7 +791,7 @@ fun GPTMobileIcon(loading: Boolean) {
         if (loading) {
             CircularProgressIndicator(
                 modifier = Modifier.size(40.dp),
-                color = Color(0xFF00E5FF),
+                color = MaterialTheme.colorScheme.primary,
                 strokeWidth = 2.5.dp,
                 trackColor = Color.Transparent
             )
@@ -777,7 +800,7 @@ fun GPTMobileIcon(loading: Boolean) {
             modifier = Modifier
                 .size(34.dp)
                 .clip(CircleShape)
-                .background(Color(0xFF00BCD4)),
+                .background(MaterialTheme.colorScheme.primaryContainer),
             contentAlignment = Alignment.Center
         ) {
             Image(
@@ -1051,7 +1074,17 @@ private fun isImageFile(extension: String?): Boolean =
 
 @Composable
 private fun MessageActionsToggle(expanded: Boolean, onClick: () -> Unit) {
-    IconButton(onClick = onClick, modifier = Modifier.size(34.dp)) {
-        Icon(Icons.Default.MoreHoriz, if (expanded) "Collapse message actions" else "Show message actions", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+    val opacity by animateFloatAsState(
+        targetValue = if (expanded) 1f else 0.7f,
+        animationSpec = tween(240),
+        label = "messageActionsOpacity"
+    )
+    IconButton(onClick = onClick, modifier = Modifier.size(34.dp).alpha(opacity)) {
+        Icon(
+            Icons.Default.MoreHoriz,
+            if (expanded) "Collapse message actions" else "Show message actions",
+            Modifier.size(18.dp),
+            tint = MaterialTheme.colorScheme.primary
+        )
     }
 }

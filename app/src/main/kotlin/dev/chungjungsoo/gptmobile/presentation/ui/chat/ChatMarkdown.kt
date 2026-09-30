@@ -27,7 +27,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
@@ -52,6 +56,9 @@ import com.mikepenz.markdown.compose.components.markdownComponents
 import com.mikepenz.markdown.compose.elements.MarkdownCodeBlock
 import com.mikepenz.markdown.compose.elements.MarkdownCodeFence
 import com.mikepenz.markdown.compose.elements.MarkdownParagraph
+import com.mikepenz.markdown.compose.elements.MarkdownTable
+import com.mikepenz.markdown.compose.elements.MarkdownTableHeader
+import com.mikepenz.markdown.compose.elements.MarkdownTableRow
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownTypography
 import com.mikepenz.markdown.model.MarkdownAnnotator
@@ -68,6 +75,8 @@ import dev.snipme.highlights.model.SyntaxLanguage
 import dev.snipme.highlights.model.SyntaxThemes
 import java.util.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import org.intellij.markdown.MarkdownTokenTypes
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -90,6 +99,7 @@ fun ChatMarkdown(
     contentIdentity: Any = content,
     highlightSentence: String? = null,
     highlightProgress: Float = 0f,
+    streaming: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val isDarkTheme = isSystemInDarkTheme()
@@ -115,10 +125,20 @@ fun ChatMarkdown(
             .toMap()
     }
     val normalTextColor = MaterialTheme.colorScheme.onSurface
+    val wordArrivalTimes = remember(contentIdentity) { mutableStateListOf<Long>() }
+    var fadeClock by remember(contentIdentity) { mutableLongStateOf(android.os.SystemClock.uptimeMillis()) }
+    LaunchedEffect(combinedMarkdown.length, streaming) {
+        val now = android.os.SystemClock.uptimeMillis()
+        while (wordArrivalTimes.size < combinedMarkdown.length) wordArrivalTimes.add(now)
+        while (streaming || wordArrivalTimes.lastOrNull()?.let { fadeClock - it < 1500L } == true) {
+            fadeClock = android.os.SystemClock.uptimeMillis()
+            delay(50)
+        }
+    }
     val targetYellow = SuggestionHighlightManager.HIGHLIGHT_YELLOW
     val targetBg = SuggestionHighlightManager.HIGHLIGHT_TRANSLUCENT_BG
 
-    val annotator = remember(inlineMathByPlaceholder, highlightSentence, highlightProgress, normalTextColor) {
+    val annotator = remember(inlineMathByPlaceholder, highlightSentence, highlightProgress, normalTextColor, streaming, fadeClock, wordArrivalTimes.size) {
         markdownAnnotator { source, child ->
             val text = source.substring(child.startOffset, child.endOffset)
             val hasMath = containsInlineMathPlaceholder(text)
@@ -126,7 +146,21 @@ fun ChatMarkdown(
                 highlightProgress > 0.01f &&
                 text.contains(highlightSentence, ignoreCase = true)
 
-            if (!hasMath && !hasSentenceHighlight) {
+            if (!hasMath && !hasSentenceHighlight && streaming && child.type == MarkdownTokenTypes.TEXT) {
+                val segmentStart = length
+                append(text)
+                Regex("\\S+").findAll(text).forEach { match ->
+                    val absoluteOffset = (child.startOffset + match.range.first).coerceAtMost(wordArrivalTimes.lastIndex)
+                    val arrivedAt = wordArrivalTimes.getOrNull(absoluteOffset) ?: fadeClock
+                    val alpha = ((fadeClock - arrivedAt).coerceAtLeast(0L) / 1500f).coerceIn(0f, 1f)
+                    addStyle(
+                        SpanStyle(color = normalTextColor.copy(alpha = alpha)),
+                        segmentStart + match.range.first,
+                        segmentStart + match.range.last + 1
+                    )
+                }
+                true
+            } else if (!hasMath && !hasSentenceHighlight) {
                 false
             } else {
                 if (hasSentenceHighlight && !hasMath) {
@@ -189,6 +223,44 @@ fun ChatMarkdown(
     }
     val components = remember(highlightsBuilder, copyCodeToClipboard, displayMathByPlaceholder, annotator) {
         markdownComponents(
+            table = { model ->
+                val settings = annotatorSettings(
+                    LocalMarkdownTypography.current.textLink,
+                    LocalMarkdownTypography.current.inlineCode.toSpanStyle(),
+                    annotator,
+                    LocalReferenceLinkHandler.current,
+                    LocalUriHandler.current,
+                    null
+                )
+                MarkdownTable(
+                    content = model.content,
+                    node = model.node,
+                    style = model.typography.table,
+                    annotatorSettings = settings,
+                    headerBlock = { tableContent, header, tableWidth, style ->
+                        MarkdownTableHeader(
+                            tableContent,
+                            header,
+                            tableWidth,
+                            style,
+                            maxLines = Int.MAX_VALUE,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Clip,
+                            annotatorSettings = settings
+                        )
+                    },
+                    rowBlock = { tableContent, row, tableWidth, style ->
+                        MarkdownTableRow(
+                            tableContent,
+                            row,
+                            tableWidth,
+                            style,
+                            maxLines = Int.MAX_VALUE,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Clip,
+                            annotatorSettings = settings
+                        )
+                    }
+                )
+            },
             codeBlock = {
                 MarkdownCodeBlock(it.content, it.node, it.typography.code) { code, language, style ->
                     val cleanLang = language?.trim()?.lowercase()

@@ -15,9 +15,9 @@ enum class FreeAiProvider(
     val maxOutputTokens: Int = 2048
 ) {
     KILO("Kilo", "https://api.kilo.ai/api/gateway", "kilo-auto/free", true, 0, 200),
-    POLLINATIONS("Pollinations", "https://text.pollinations.ai", "openai-fast", false, 0, 0),
+    POLLINATIONS("Pollinations", "https://text.pollinations.ai", "openai-fast", true, 0, 0),
     OVHCLOUD("OVHcloud", "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1", "Meta-Llama-3_3-70B-Instruct", true, 2, 0),
-    LLM7("LLM7", "https://api.llm7.io/v1", "mistral-Nemo-Instruct-2407", false, 10, 60);
+    LLM7("LLM7", "https://api.llm7.io/v1", "mistral-Nemo-Instruct-2407", true, 10, 60);
 
     val isAvailable: Boolean
         get() = this != LLM7 || BuildConfig.FREE_LLM7_APPROVED
@@ -26,7 +26,7 @@ enum class FreeAiProvider(
         get() = if (this == POLLINATIONS) "$apiUrl/openai" else "$apiUrl/chat/completions"
 
     fun applyTo(platform: PlatformV2): PlatformV2 = platform.copy(
-        name = "Free Models",
+        name = platform.name.takeUnless { it.isBlank() || it == "Free Models" } ?: displayName,
         compatibleType = ClientType.FREE,
         apiUrl = apiUrl,
         token = null,

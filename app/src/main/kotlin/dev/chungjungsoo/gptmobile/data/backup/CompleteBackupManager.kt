@@ -15,7 +15,6 @@ import dev.chungjungsoo.gptmobile.data.rag.FactVaultRepository
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import dev.chungjungsoo.gptmobile.data.security.SecretVault
 import java.io.File
-import java.security.SecureRandom
 import java.util.Base64
 import java.util.UUID
 import javax.crypto.AEADBadTagException
@@ -46,6 +45,24 @@ class CompleteBackupManager @Inject constructor(
     }
     private fun files() = CompleteBackupFiles(mapOf("internal" to context.filesDir, "external" to (context.getExternalFilesDir(null) ?: context.filesDir)))
     fun getBackupStatus() = legacy.getBackupStatus()
+
+    fun savedSelection(): CompleteBackupSelection {
+        val raw = context.getSharedPreferences("complete_backup_ui_v1", Context.MODE_PRIVATE)
+            .getStringSet("sections", null)
+            ?: return CompleteBackupSelection()
+        val sections = raw.mapNotNull { runCatching { CompleteBackupSection.valueOf(it) }.getOrNull() }.toSet()
+        return CompleteBackupSelection(sections).normalized()
+    }
+
+    fun saveSelection(selection: CompleteBackupSelection) {
+        val names = selection.normalized().sections.mapTo(mutableSetOf()) { it.name }
+        check(
+            context.getSharedPreferences("complete_backup_ui_v1", Context.MODE_PRIVATE)
+                .edit()
+                .putStringSet("sections", names)
+                .commit()
+        ) { "Could not save backup selection." }
+    }
 
     suspend fun backup(
         uri: Uri,
@@ -478,22 +495,6 @@ class CompleteBackupManager @Inject constructor(
         (secretVault.references().filter { secretBelongsTo(it, selection) }.toSet() - values.keys).forEach { secretVault.delete(it) }
     }
 
-    private suspend fun getOrCreateBackupKey(): ByteArray {
-        secretVault.read(BACKUP_KEY_REF)?.let { existing ->
-            if (existing.size == BACKUP_KEY_BYTES) return existing
-            existing.fill(0)
-            secretVault.delete(BACKUP_KEY_REF)
-        }
-
-        val generated = ByteArray(BACKUP_KEY_BYTES).also(SecureRandom()::nextBytes)
-        try {
-            secretVault.put(BACKUP_KEY_REF, generated)
-            return generated.copyOf()
-        } finally {
-            generated.fill(0)
-        }
-    }
-
     private suspend fun requireExistingBackupKey(): ByteArray {
         val key = secretVault.read(BACKUP_KEY_REF)
             ?: error(
@@ -605,6 +606,8 @@ class CompleteBackupManager @Inject constructor(
     private companion object {
         const val RESERVE = 16L * 1024 * 1024
         const val BACKUP_KEY_BYTES = 32
+
+        // Restore-only compatibility for retired GPTFULL2 backups. New backups never use this key.
         const val BACKUP_KEY_REF = "complete_backup_master_v2"
     }
 }

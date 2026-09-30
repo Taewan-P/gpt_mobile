@@ -42,6 +42,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.PushPin
@@ -168,6 +169,7 @@ fun HomeScreen(
     val showDeleteWarningDialog by homeViewModel.showDeleteWarningDialog.collectAsStateWithLifecycle()
     val platformState by homeViewModel.platformState.collectAsStateWithLifecycle()
     val activeChatIds by homeViewModel.activeChatIds.collectAsStateWithLifecycle()
+    val unreadChatIds by homeViewModel.unreadChatIds.collectAsStateWithLifecycle()
     val archivedChats by homeViewModel.archivedChats.collectAsStateWithLifecycle()
     val searchQuery by homeViewModel.searchQuery.collectAsStateWithLifecycle()
     val favoriteMessages by homeViewModel.favoriteMessages.collectAsStateWithLifecycle()
@@ -332,6 +334,7 @@ fun HomeScreen(
                                 }
                             val chatProfileLabels = collectReusableProfileLabels(chatProfiles.map { it.labels })
                             val isGenerating = activeChatIds.contains(chatRoom.id)
+                            val hasUnreadResponse = unreadChatIds.contains(chatRoom.id)
                             var hasTriggeredHaptic by remember { mutableStateOf(false) }
                             val dismissState = rememberSwipeToDismissBoxState(
                                 positionalThreshold = { totalDistance -> totalDistance * 0.38f },
@@ -374,6 +377,7 @@ fun HomeScreen(
                                     idx = idx,
                                     chatListState = chatListState,
                                     isGenerating = isGenerating,
+                                    hasUnreadResponse = hasUnreadResponse,
                                     usingPlatform = usingPlatform,
                                     profileLabels = chatProfileLabels,
                                     isServerChat = chatProfiles.singleOrNull()?.compatibleType in setOf(ClientType.OLLAMA, ClientType.LLAMA, ClientType.LITERT_LM),
@@ -381,6 +385,7 @@ fun HomeScreen(
                                         if (chatListState.isSelectionMode) {
                                             homeViewModel.selectChat(idx)
                                         } else {
+                                            homeViewModel.markChatViewed(chatRoom.id)
                                             onExistingChatClick(chatRoom, null)
                                         }
                                     },
@@ -398,10 +403,12 @@ fun HomeScreen(
                                     idx = idx,
                                     chatListState = chatListState,
                                     isGenerating = isGenerating,
+                                    hasUnreadResponse = hasUnreadResponse,
                                     usingPlatform = usingPlatform,
                                     profileLabels = chatProfileLabels,
                                     isServerChat = chatProfiles.singleOrNull()?.compatibleType in setOf(ClientType.OLLAMA, ClientType.LLAMA, ClientType.LITERT_LM),
                                     onItemClick = {
+                                        homeViewModel.markChatViewed(chatRoom.id)
                                         onExistingChatClick(chatRoom, null)
                                     },
                                     onItemLongClick = {
@@ -544,6 +551,7 @@ fun FancySwipeChatCard(
     idx: Int,
     chatListState: HomeViewModel.ChatListState,
     isGenerating: Boolean,
+    hasUnreadResponse: Boolean,
     usingPlatform: String,
     profileLabels: List<dev.chungjungsoo.gptmobile.data.model.ProfileLabel>,
     isServerChat: Boolean = false,
@@ -690,6 +698,7 @@ fun FancySwipeChatCard(
                 idx = idx,
                 chatListState = chatListState,
                 isGenerating = isGenerating,
+                hasUnreadResponse = hasUnreadResponse,
                 usingPlatform = usingPlatform,
                 profileLabels = profileLabels,
                 isServerChat = isServerChat,
@@ -707,6 +716,7 @@ private fun ChatListItem(
     idx: Int,
     chatListState: HomeViewModel.ChatListState,
     isGenerating: Boolean,
+    hasUnreadResponse: Boolean,
     usingPlatform: String,
     profileLabels: List<dev.chungjungsoo.gptmobile.data.model.ProfileLabel>,
     isServerChat: Boolean = false,
@@ -739,7 +749,8 @@ private fun ChatListItem(
                     text = chatRoom.title,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    color = if (chatRoom.isTitleCustomized) Color(0xFF67E8F9) else Color.Unspecified
+                    color = if (chatRoom.isTitleCustomized) Color(0xFF67E8F9) else Color.Unspecified,
+                    fontWeight = if (hasUnreadResponse) FontWeight.Bold else FontWeight.Normal
                 )
             }
         },
@@ -756,7 +767,11 @@ private fun ChatListItem(
                     color = MaterialTheme.colorScheme.primary
                 )
             } else {
-                ConversationModeSymbol(chatRoom = chatRoom, isServerChat = isServerChat)
+                ConversationModeSymbol(
+                    chatRoom = chatRoom,
+                    isServerChat = isServerChat,
+                    hasUnreadResponse = hasUnreadResponse
+                )
             }
         },
         supportingContent = {
@@ -813,12 +828,20 @@ private fun ChatListItem(
 }
 
 @Composable
-private fun ConversationModeSymbol(chatRoom: ChatRoomV2, isServerChat: Boolean) {
-    val (icon, description) = when {
-        chatRoom.conversationMode == ConversationMode.COMBINED -> Icons.Outlined.Hub to "Combined conversation"
-        chatRoom.enabledPlatform.size > 1 -> Icons.Outlined.Forum to "Multiple AI conversation"
-        isServerChat -> Icons.Outlined.Dns to "Local or server AI conversation"
-        else -> Icons.Outlined.ChatBubbleOutline to "Conversation"
+private fun ConversationModeSymbol(
+    chatRoom: ChatRoomV2,
+    isServerChat: Boolean,
+    hasUnreadResponse: Boolean
+) {
+    val (icon, description) = if (hasUnreadResponse) {
+        Icons.Filled.ChatBubble to "Unread AI response"
+    } else {
+        when {
+            chatRoom.conversationMode == ConversationMode.COMBINED -> Icons.Outlined.Hub to "Combined conversation"
+            chatRoom.enabledPlatform.size > 1 -> Icons.Outlined.Forum to "Multiple AI conversation"
+            isServerChat -> Icons.Outlined.Dns to "Local or server AI conversation"
+            else -> Icons.Outlined.ChatBubbleOutline to "Conversation"
+        }
     }
     Box(modifier = Modifier.size(34.dp), contentAlignment = Alignment.Center) {
         Box(contentAlignment = Alignment.Center) {

@@ -54,7 +54,8 @@ data class LocalModelListItem(
     val diskBytes: Long = 0L,
     val downloadSizeBytes: Long = 0L,
     val errorMessage: String? = null,
-    val failureKind: DownloadFailureKind = DownloadFailureKind.GENERIC
+    val failureKind: DownloadFailureKind = DownloadFailureKind.GENERIC,
+    val benchmarkScore: Int? = null
 )
 
 enum class LocalModelItemStatus {

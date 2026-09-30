@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.outlined.Router
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -77,6 +78,10 @@ fun InlineExecutionTrace(events: List<ToolEvent>, timeline: List<AssistantTimeli
             }
             val running = event.status == ToolEventStatus.RUNNING || event.status == ToolEventStatus.PENDING
             val failed = event.isError || event.status == ToolEventStatus.FAILED
+            val isDelegation =
+                event.toolName.contains("delegate_to_model", true) ||
+                    event.modelToolName.contains("delegate_to_model", true)
+            val isRemoteDelegation = isDelegation && event.result.orEmpty().startsWith("<!-- delegation:remote -->")
             var dots by androidx.compose.runtime.remember(event.eventId) { mutableStateOf(1) }
             LaunchedEffect(running) {
                 while (running) {
@@ -97,13 +102,22 @@ fun InlineExecutionTrace(events: List<ToolEvent>, timeline: List<AssistantTimeli
             Surface(
                 onClick = { expanded = !expanded },
                 shape = RoundedCornerShape(18.dp),
-                color = if (failed) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+                color = when {
+                    failed -> MaterialTheme.colorScheme.errorContainer
+                    isDelegation -> androidx.compose.ui.graphics.Color(0xFFFFD54F).copy(alpha = 0.10f)
+                    else -> MaterialTheme.colorScheme.surfaceContainerHigh
+                },
                 modifier = Modifier.fillMaxWidth().animateContentSize(defaultSpatialSpec())
                     .semantics { contentDescription = "$summary. ${if (expanded) "Collapse" else "Expand"} tool details" }
             ) {
                 Column(Modifier.padding(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(toolActivityIcon(event.toolName), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                        Icon(
+                            if (isRemoteDelegation) Icons.Outlined.Router else toolActivityIcon(event.toolName),
+                            null,
+                            tint = if (isDelegation) androidx.compose.ui.graphics.Color(0xFFFFC107) else MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
                         Text(summary, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         if (running) {
                             Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -155,7 +169,20 @@ fun InlineExecutionTrace(events: List<ToolEvent>, timeline: List<AssistantTimeli
                             }
                             val mediaLinks = Regex("gptmobile://media/[a-f0-9-]{36}\\.(?:png|jpg|webp|mp3|wav|ogg)").findAll(event.result.orEmpty()).map { it.value }.distinct().take(8).toList()
                             mediaLinks.forEach { link -> ChatMarkdown("[Open media result]($link)") }
-                            ToolTraceBlock(events = listOf(event))
+                            if (debugMode && isDelegation && !event.result.isNullOrBlank()) {
+                                Text(
+                                    event.result
+                                        .orEmpty()
+                                        .removePrefix("<!-- delegation:remote -->")
+                                        .removePrefix("<!-- delegation:local -->")
+                                        .trimStart(),
+                                    color = androidx.compose.ui.graphics.Color(0xFF4CAF50),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(top = 6.dp)
+                                )
+                            } else {
+                                ToolTraceBlock(events = listOf(event))
+                            }
                         }
                     }
                 }

@@ -107,6 +107,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -157,22 +159,20 @@ fun ChatScreen(
     inputRequests.firstOrNull()?.let { McpInputDialog(it, chatViewModel::respondMcpInput) }
     val approvals by chatViewModel.pendingToolApprovals.collectAsStateWithLifecycle(emptyList())
     approvals.firstOrNull()?.let { approval ->
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { chatViewModel.decideToolApproval(approval.id, false) },
-            title = { Text(stringResource(R.string.tool_approval_title)) },
-            text = {
-                Column(Modifier.verticalScroll(rememberScrollState())) {
-                    Text(stringResource(R.string.tool_approval_body, approval.tool, approval.connection))
-                    Text(approval.argumentPreview, style = MaterialTheme.typography.bodySmall)
-                }
-            },
-            confirmButton = {
-                Column(horizontalAlignment = Alignment.End) {
-                    TextButton(onClick = { chatViewModel.alwaysAllowTool(approval.id) }) { Text("Always allow this tool") }
-                    TextButton(onClick = { chatViewModel.decideToolApproval(approval.id, true) }) { Text("Allow once") }
-                }
-            },
-            dismissButton = { TextButton(onClick = { chatViewModel.decideToolApproval(approval.id, false) }) { Text(stringResource(R.string.tool_approval_deny)) } }
+        ToolApprovalDialog(
+            approval = approval,
+            onDeny = { chatViewModel.decideToolApproval(approval.id, false) },
+            onAllowOnce = { chatViewModel.decideToolApproval(approval.id, true) },
+            onAlwaysAllowTool = { chatViewModel.alwaysAllowTool(approval.id) },
+            onAlwaysAllowProvider = { chatViewModel.alwaysAllowToolProvider(approval.id) }
+        )
+    }
+    val freeToolConsent by chatViewModel.pendingFreeToolConsent.collectAsStateWithLifecycle()
+    freeToolConsent?.let { request ->
+        FreeToolConsentDialog(
+            request = request,
+            onAccept = chatViewModel::confirmFreeToolConsent,
+            onDismiss = chatViewModel::dismissFreeToolConsent
         )
     }
     val configuration = LocalConfiguration.current
@@ -217,6 +217,12 @@ fun ChatScreen(
     val toolEventsByRun by chatViewModel.toolEventsByRun.collectAsStateWithLifecycle()
     val indexStates by chatViewModel.indexStates.collectAsStateWithLifecycle()
     val loadingStates by chatViewModel.loadingStates.collectAsStateWithLifecycle()
+
+    LaunchedEffect(chatRoom.id, groupedMessages, activeAgentRuns) {
+        if (chatRoom.id > 0) {
+            chatViewModel.markCurrentChatViewed()
+        }
+    }
     val disabledPlatformUids by chatViewModel.disabledPlatformUids.collectAsStateWithLifecycle()
     val activePlatformUids by chatViewModel.activePlatformUids.collectAsStateWithLifecycle()
     val isChatTitleDialogOpen by chatViewModel.isChatTitleDialogOpen.collectAsStateWithLifecycle()
@@ -948,45 +954,22 @@ private fun ArchivedHistoryHeader(
     hiddenTurnCount: Int,
     onExpand: () -> Unit
 ) {
-    Surface(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 10.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .clickable(onClick = onExpand),
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.86f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.45f))
+            .clickable(onClick = onExpand)
+            .padding(vertical = 4.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.History,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = "Archived conversation history",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = "$hiddenTurnCount older response${if (hiddenTurnCount == 1) "" else "s"} hidden",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-                )
+        Text(
+            text = "^",
+            style = MaterialTheme.typography.headlineLarge,
+            fontWeight = FontWeight.Light,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.72f),
+            modifier = Modifier.semantics {
+                contentDescription = "Show older conversation history ($hiddenTurnCount hidden)"
             }
-            Text(
-                text = "Show ${minOf(ARCHIVE_REVEAL_STEP, hiddenTurnCount)}",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
+        )
     }
 }
 
@@ -1391,85 +1374,90 @@ fun ChatInputBox(
         }
     }
 
-    Surface(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        shape = MaterialTheme.shapes.large,
-        color = inputColor,
-        contentColor = MaterialTheme.colorScheme.onBackground,
-        tonalElevation = 0.dp,
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)),
-        shadowElevation = 0.dp
+            .background(Color.Transparent)
+            .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
-        Column {
-            if (selectedAttachments.isNotEmpty()) {
-                FileThumbnailRow(
-                    selectedAttachments = selectedAttachments,
-                    onFileRemoved = onFileRemoved
-                )
-            }
-            BasicTextField(
-                state = inputState,
-                modifier = Modifier.fillMaxWidth().background(inputColor),
-                enabled = chatEnabled,
-                textStyle = mergedStyle,
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                lineLimits = chatInputLineLimits,
-                decorator = { innerTextField ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(inputColor)
-                            .padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            enabled = chatEnabled,
-                            onClick = { filePickerLauncher.launch("*/*") }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.AttachFile,
-                                tint = MaterialTheme.colorScheme.primary,
-                                contentDescription = stringResource(R.string.attach_file)
-                            )
-                        }
-                        Box(
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.large,
+            color = inputColor,
+            contentColor = MaterialTheme.colorScheme.onBackground,
+            tonalElevation = 0.dp,
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)),
+            shadowElevation = 0.dp
+        ) {
+            Column {
+                if (selectedAttachments.isNotEmpty()) {
+                    FileThumbnailRow(
+                        selectedAttachments = selectedAttachments,
+                        onFileRemoved = onFileRemoved
+                    )
+                }
+                BasicTextField(
+                    state = inputState,
+                    modifier = Modifier.fillMaxWidth().background(inputColor),
+                    enabled = chatEnabled,
+                    textStyle = mergedStyle,
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    lineLimits = chatInputLineLimits,
+                    decorator = { innerTextField ->
+                        Row(
                             modifier = Modifier
-                                .weight(1f)
-                                .padding(start = 8.dp)
+                                .fillMaxWidth()
+                                .background(inputColor)
+                                .padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            if (inputState.text.isEmpty()) {
-                                Text(
-                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                                    text = if (chatEnabled) stringResource(R.string.write_a_message) else stringResource(R.string.some_platforms_disabled)
+                            IconButton(
+                                enabled = chatEnabled,
+                                onClick = { filePickerLauncher.launch("*/*") }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.AttachFile,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    contentDescription = stringResource(R.string.attach_file)
                                 )
                             }
-                            Box(modifier = Modifier.fillMaxWidth()) {
-                                innerTextField()
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(start = 8.dp)
+                            ) {
+                                if (inputState.text.isEmpty()) {
+                                    Text(
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                                        text = if (chatEnabled) stringResource(R.string.write_a_message) else stringResource(R.string.some_platforms_disabled)
+                                    )
+                                }
+                                Box(modifier = Modifier.fillMaxWidth()) {
+                                    innerTextField()
+                                }
                             }
-                        }
-                        val showStop = isRunning && !hasQuestionText && selectedAttachments.isEmpty()
-                        FilledIconButton(
-                            colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary),
-                            enabled = showStop || (chatEnabled && sendButtonEnabled && (hasQuestionText || selectedAttachments.isNotEmpty())),
-                            onClick = if (showStop) onCancelButtonClick else onSendButtonClick
-                        ) {
-                            if (showStop) {
-                                Icon(
-                                    imageVector = Icons.Filled.Stop,
-                                    contentDescription = stringResource(R.string.cancel_active_runs)
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Rounded.ArrowUpward,
-                                    contentDescription = stringResource(R.string.send)
-                                )
+                            val showStop = isRunning && !hasQuestionText && selectedAttachments.isEmpty()
+                            FilledIconButton(
+                                colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary),
+                                enabled = showStop || (chatEnabled && sendButtonEnabled && (hasQuestionText || selectedAttachments.isNotEmpty())),
+                                onClick = if (showStop) onCancelButtonClick else onSendButtonClick
+                            ) {
+                                if (showStop) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Stop,
+                                        contentDescription = stringResource(R.string.cancel_active_runs)
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Rounded.ArrowUpward,
+                                        contentDescription = stringResource(R.string.send)
+                                    )
+                                }
                             }
                         }
                     }
-                }
-            )
+                )
+            }
         }
     }
 }

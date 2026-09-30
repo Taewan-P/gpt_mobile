@@ -52,7 +52,7 @@ internal class LocalRuntimeQnnImpl(
     constructor(context: Context) : this(
         runtime = LocalRuntimeImpl(context),
         loadGuard = QnnInitializationCrashGuard(context),
-        probeEnvironment = { QnnEnvironment.getProbeStatus(context) }
+        probeEnvironment = { QnnEnvironment.prepareForExecution(context) }
     )
 
     private var requestedSpec: LocalEngineSpec? = null

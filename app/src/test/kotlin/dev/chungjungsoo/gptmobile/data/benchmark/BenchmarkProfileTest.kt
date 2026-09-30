@@ -46,6 +46,23 @@ class BenchmarkProfileTest {
     }
 
     @Test
+    fun `OpenRouter batch variant is normalized only for benchmark requests`() {
+        val original = PlatformV2(
+            name = "Batch remote",
+            compatibleType = ClientType.OPENROUTER,
+            model = "google/gemini-3.8-flash:batch",
+            batchMode = true
+        )
+
+        val result = benchmarkProfile(original, false)
+
+        assertEquals("google/gemini-3.8-flash", result.model)
+        assertFalse(result.batchMode)
+        assertEquals("google/gemini-3.8-flash:batch", original.model)
+        assertTrue(original.batchMode)
+    }
+
+    @Test
     fun `default OpenRouter routing survives omitted default JSON fields`() {
         val profile = PlatformV2(name = "Default", compatibleType = ClientType.OPENROUTER)
         val result = Json.decodeFromString<OpenRouterOptions>(benchmarkProfile(profile, false).openRouterRouting!!)

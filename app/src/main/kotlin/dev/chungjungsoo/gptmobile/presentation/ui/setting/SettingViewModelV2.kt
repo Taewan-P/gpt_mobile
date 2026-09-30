@@ -60,7 +60,7 @@ class SettingViewModelV2 @Inject constructor(
     private val _backupStatus = MutableStateFlow(completeBackupManager.getBackupStatus())
     val backupStatus: StateFlow<BackupStatus> = _backupStatus.asStateFlow()
 
-    private val _backupUi = MutableStateFlow(BackupUiState())
+    private val _backupUi = MutableStateFlow(BackupUiState(selection = completeBackupManager.savedSelection()))
     val backupUi: StateFlow<BackupUiState> = _backupUi.asStateFlow()
 
     private val _dialogState = MutableStateFlow(DialogState())
@@ -245,7 +245,7 @@ class SettingViewModelV2 @Inject constructor(
 
     fun closeBackupRestoreDialog() {
         if (_backupUi.value.isBusy) return
-        _backupUi.value = BackupUiState()
+        _backupUi.value = BackupUiState(selection = completeBackupManager.savedSelection())
         _dialogState.update { it.copy(isBackupRestoreDialogOpen = false) }
     }
 
@@ -260,13 +260,7 @@ class SettingViewModelV2 @Inject constructor(
             _backupUi.update {
                 it.copy(
                     passwordProtectionEnabled = enabled,
-                    selection = if (enabled) {
-                        it.selection
-                    } else {
-                        CompleteBackupSelection(
-                            it.selection.sections - setOf(CompleteBackupSection.CREDENTIALS, CompleteBackupSection.MEMORY)
-                        )
-                    },
+                    selection = it.selection,
                     backupPassword = if (enabled) it.backupPassword else "",
                     message = null,
                     isError = false
@@ -283,10 +277,12 @@ class SettingViewModelV2 @Inject constructor(
 
     fun updateBackupSection(section: CompleteBackupSection, enabled: Boolean) {
         if (!_backupUi.value.isWorking) {
+            val next = _backupUi.value.selection.toggled(section, enabled)
+            completeBackupManager.saveSelection(next)
             _backupUi.update {
                 it.copy(
-                    selection = it.selection.toggled(section, enabled),
-                    passwordProtectionEnabled = it.passwordProtectionEnabled || it.selection.toggled(section, enabled).requiresEncryption,
+                    selection = next,
+                    passwordProtectionEnabled = it.passwordProtectionEnabled,
                     message = null,
                     isError = false
                 )
@@ -296,14 +292,17 @@ class SettingViewModelV2 @Inject constructor(
 
     fun selectAllBackupSections() {
         if (!_backupUi.value.isWorking) {
-            _backupUi.update { it.copy(selection = CompleteBackupSelection.ALL, passwordProtectionEnabled = true, message = null, isError = false) }
+            completeBackupManager.saveSelection(CompleteBackupSelection.ALL)
+            _backupUi.update { it.copy(selection = CompleteBackupSelection.ALL, message = null, isError = false) }
         }
     }
 
     fun clearBackupSections() {
         if (!_backupUi.value.isWorking) {
+            val empty = CompleteBackupSelection(emptySet())
+            completeBackupManager.saveSelection(empty)
             _backupUi.update {
-                it.copy(selection = CompleteBackupSelection(emptySet()), message = null, isError = false)
+                it.copy(selection = empty, message = null, isError = false)
             }
         }
     }
@@ -459,7 +458,6 @@ class SettingViewModelV2 @Inject constructor(
             get() = !isBusy &&
                 !isWorking &&
                 selection.sections.isNotEmpty() &&
-                (!selection.requiresEncryption || passwordProtectionEnabled) &&
                 (!passwordProtectionEnabled || backupPassword.length >= 8)
     }
 

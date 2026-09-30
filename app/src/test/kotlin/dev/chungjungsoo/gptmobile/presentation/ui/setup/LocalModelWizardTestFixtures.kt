@@ -24,6 +24,7 @@ import dev.chungjungsoo.gptmobile.presentation.ui.setting.AddPlatformViewModel
 import dev.chungjungsoo.gptmobile.presentation.ui.setting.LocalModelsViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 
 internal fun wizardCatalogEntry(
@@ -242,6 +243,10 @@ internal fun localModelsViewModel(
 ) = LocalModelsViewModel(
     modelCatalogRepository = catalog,
     localModelRepository = localModels,
+    benchmarkStore = io.mockk.mockk<dev.chungjungsoo.gptmobile.data.benchmark.BenchmarkStore> {
+        io.mockk.coEvery { load() } returns Unit
+        io.mockk.every { history } returns MutableStateFlow(emptyList())
+    },
     gatedDownloadCoordinator = gatedCoordinator,
     huggingFaceTokenStore = tokenStore,
     downloadGuards = guards,

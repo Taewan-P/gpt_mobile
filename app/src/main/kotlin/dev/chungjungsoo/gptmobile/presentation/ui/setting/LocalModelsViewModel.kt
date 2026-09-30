@@ -34,6 +34,7 @@ import kotlinx.coroutines.launch
 class LocalModelsViewModel @Inject constructor(
     private val modelCatalogRepository: ModelCatalogRepository,
     private val localModelRepository: LocalModelRepository,
+    private val benchmarkStore: dev.chungjungsoo.gptmobile.data.benchmark.BenchmarkStore,
     gatedDownloadCoordinator: GatedDownloadCoordinator,
     private val huggingFaceTokenStore: HuggingFaceTokenStore,
     private val downloadGuards: LocalDownloadGuards,
@@ -140,6 +141,15 @@ class LocalModelsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            benchmarkStore.load()
+            benchmarkStore.history.collect { history ->
+                val scores = localBenchmarkScores(history)
+                localListState.update { state ->
+                    state.copy(items = state.items.map { it.copy(benchmarkScore = scores[it.entry.id]) })
+                }
+            }
+        }
+        viewModelScope.launch {
             hasHuggingFaceToken.value = huggingFaceTokenStore.readAccessToken() != null
         }
         viewModelScope.launch {
@@ -162,9 +172,10 @@ class LocalModelsViewModel @Inject constructor(
                     .sumOf { it.totalBytes }
                 items to storage
             }.collect { (items, storage) ->
+                val scores = localBenchmarkScores(benchmarkStore.history.value)
                 localListState.update {
                     it.copy(
-                        items = items,
+                        items = items.map { item -> item.copy(benchmarkScore = scores[item.entry.id]) },
                         isLoading = false,
                         totalStorageBytes = storage
                     )
@@ -338,6 +349,18 @@ class LocalModelsViewModel @Inject constructor(
         downloadActions.release()
         super.onCleared()
     }
+
+    private fun localBenchmarkScores(history: List<dev.chungjungsoo.gptmobile.data.benchmark.BenchmarkRun>): Map<String, Int> =
+        history
+            .filter { it.local && it.finished && !it.canceled && it.stoppedReason == null }
+            .groupBy { it.model }
+            .mapNotNull { (model, runs) ->
+                dev.chungjungsoo.gptmobile.data.benchmark.benchmarkRating(
+                    runs.sortedByDescending { it.startedAt }.take(5),
+                    local = true
+                ).score?.let { model to it }
+            }
+            .toMap()
 
     private companion object {
         const val HUGGING_FACE_SEARCH_DEBOUNCE_MS = 350L

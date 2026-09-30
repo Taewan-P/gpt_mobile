@@ -77,6 +77,13 @@ class ToolApprovalManager @Inject constructor(database: ChatDatabaseV2, private 
         dao.prune(System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000)
     }
     suspend fun decide(id: String, allow: Boolean) = dao.decide(id, if (allow) "APPROVED" else "DENIED")
+    suspend fun alwaysAllowProvider(id: String) {
+        val request = dao.observe(id).first() ?: return
+        if (request.state != "PENDING") return
+        val connection = requestConnections[id]?.let { connections.getConnection(it) } ?: return
+        requireNotNull(trust) { "Persistent tool permissions are unavailable." }.allowProvider(connection)
+        dao.decide(id, "APPROVED")
+    }
     suspend fun alwaysAllow(id: String) {
         val request = dao.observe(id).first() ?: return
         if (request.state != "PENDING") return

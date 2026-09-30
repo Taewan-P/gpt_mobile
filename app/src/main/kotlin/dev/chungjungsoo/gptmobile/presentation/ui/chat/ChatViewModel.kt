@@ -89,6 +89,8 @@ class ChatViewModel @Inject constructor(
     private val toolConnectionRepository: ToolConnectionRepository,
     private val localModelRepository: LocalModelRepository,
     private val modelCatalogRepository: ModelCatalogRepository,
+    private val freeModelToolConsentStore: dev.chungjungsoo.gptmobile.data.permissions.FreeModelToolConsentStore,
+    private val conversationReadStateStore: dev.chungjungsoo.gptmobile.data.chat.ConversationReadStateStore,
     private val durablePromptQueue: dev.chungjungsoo.gptmobile.data.queue.DurablePromptQueue? = null,
     private val toolApprovals: dev.chungjungsoo.gptmobile.data.permissions.ToolApprovalManager? = null,
     private val mcpInteractions: dev.chungjungsoo.gptmobile.data.agent.tool.McpInteractions? = null,
@@ -110,6 +112,14 @@ class ChatViewModel @Inject constructor(
         mcpInteractions?.respond(id, value)
     }
     val pendingToolApprovals get() = toolApprovals?.pending ?: flowOf(emptyList())
+    data class FreeToolConsentRequest(
+        val profileUid: String,
+        val profileName: String,
+        val toolId: String,
+        val toolName: String
+    )
+    private val _pendingFreeToolConsent = MutableStateFlow<FreeToolConsentRequest?>(null)
+    val pendingFreeToolConsent = _pendingFreeToolConsent.asStateFlow()
     fun decideToolApproval(id: String, allow: Boolean) {
         viewModelScope.launch { toolApprovals?.decide(id, allow) }
     }
@@ -121,6 +131,18 @@ class ChatViewModel @Inject constructor(
                 throw cancelled
             } catch (_: Exception) {
                 _attachmentNotice.value = "Could not save permission. You can still allow this action once."
+            }
+        }
+    }
+
+    fun alwaysAllowToolProvider(id: String) {
+        viewModelScope.launch {
+            try {
+                toolApprovals?.alwaysAllowProvider(id)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                _attachmentNotice.value = "Could not save provider permission. You can still allow this action once."
             }
         }
     }
@@ -556,10 +578,57 @@ class ChatViewModel @Inject constructor(
     fun closeChatToolSheet() = _isChatToolSheetOpen.update { false }
 
     fun toggleChatTool(toolId: String) {
-        _chatToolConfig.update { config ->
-            val isEnabled = config.isToolEnabled(toolId)
-            if (isEnabled) config.withToolDisabled(toolId) else config.withToolEnabled(toolId)
+        val config = _chatToolConfig.value
+        if (config.isToolEnabled(toolId)) {
+            _chatToolConfig.update { it.withToolDisabled(toolId) }
+            return
         }
+
+        val available = _availableChatTools.value.firstOrNull { it.id == toolId }
+        if (available?.source != "MCP") {
+            _chatToolConfig.update { it.withToolEnabled(toolId) }
+            return
+        }
+
+        viewModelScope.launch {
+            val freeProfile = settingRepository.fetchPlatformV2s()
+                .firstOrNull {
+                    it.uid in _activePlatformUids.value &&
+                        it.compatibleType == dev.chungjungsoo.gptmobile.data.model.ClientType.FREE &&
+                        !it.disableAllTools &&
+                        !freeModelToolConsentStore.isGranted(it.uid, toolId)
+                }
+            if (freeProfile == null) {
+                _chatToolConfig.update { it.withToolEnabled(toolId) }
+            } else {
+                _pendingFreeToolConsent.value = FreeToolConsentRequest(
+                    profileUid = freeProfile.uid,
+                    profileName = freeProfile.name,
+                    toolId = toolId,
+                    toolName = available.name
+                )
+            }
+        }
+    }
+
+    fun confirmFreeToolConsent() {
+        val request = _pendingFreeToolConsent.value ?: return
+        runCatching { freeModelToolConsentStore.grant(request.profileUid, request.toolId) }
+            .onSuccess {
+                _chatToolConfig.update { it.withToolEnabled(request.toolId) }
+                _pendingFreeToolConsent.value = null
+            }
+            .onFailure {
+                _attachmentNotice.value = "Could not save this tool permission."
+            }
+    }
+
+    fun dismissFreeToolConsent() {
+        _pendingFreeToolConsent.value = null
+    }
+
+    fun markCurrentChatViewed() {
+        conversationReadStateStore.markViewed(chatRoom.value.id)
     }
 
     fun setChatToolsEnabled(toolIds: Collection<String>, enabled: Boolean) {
@@ -615,7 +684,7 @@ class ChatViewModel @Inject constructor(
                 bindings.any {
                     it.profileUid in localProfiles && it.toolName == dev.chungjungsoo.gptmobile.data.database.entity.BuiltInAgentTool.DEVICE_LOCATION
                 }
-            _availableChatTools.value = ChatToolUtils.buildAvailableChatTools(
+            val available = ChatToolUtils.buildAvailableChatTools(
                 connections.filter {
                     it.connectionUid in boundConnectionIds && (it.type != ToolConnectionType.MCP || features.remoteMcpConnections)
                 }
@@ -623,6 +692,29 @@ class ChatViewModel @Inject constructor(
                 AvailableChatTool("web_search", "Web search", "All enabled web search engines", "Multi-engine", remoteProfiles.isNotEmpty()),
                 AvailableChatTool("device_location", "Device location", "Phone GPS location", "Built-in", locationEnabled)
             )
+            _availableChatTools.value = available
+
+            // Free profiles may use every tool, but a new profile must explicitly
+            // acknowledge external MCP data sharing once per tool before it is active.
+            val freeProfiles = profiles.filter { it.compatibleType == dev.chungjungsoo.gptmobile.data.model.ClientType.FREE }
+            if (freeProfiles.isNotEmpty()) {
+                val lockedMcpIds = available
+                    .filter { tool ->
+                        tool.source == "MCP" &&
+                            freeProfiles.any { profile ->
+                                !freeModelToolConsentStore.isGranted(profile.uid, tool.id)
+                            }
+                    }
+                    .mapTo(mutableSetOf()) { it.id }
+                if (lockedMcpIds.isNotEmpty()) {
+                    _chatToolConfig.update { config ->
+                        config.copy(
+                            disabledToolIds = config.disabledToolIds + lockedMcpIds,
+                            enabledToolIds = config.enabledToolIds - lockedMcpIds
+                        )
+                    }
+                }
+            }
         }
     }
 

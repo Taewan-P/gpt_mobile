@@ -70,8 +70,9 @@ internal class LocalDelegationCoordinator(
                 return false
             }
             if (!config.researchEnabled || config.processingOwnership >= 100) return false
-            if (localCalls.get() >= config.maxLocalModelCalls) {
-                AppLogRecorder.record("Delegation", "Research unavailable · worker budget exhausted · calls=${localCalls.get()}/${config.maxLocalModelCalls}", "W")
+            val effectiveCallLimit = config.effectiveLocalModelCalls()
+            if (localCalls.get() >= effectiveCallLimit) {
+                AppLogRecorder.record("Delegation", "Research unavailable · worker budget exhausted · calls=${localCalls.get()}/$effectiveCallLimit · configured=${config.maxLocalModelCalls} · ownership=${config.processingOwnership}", "W")
                 return false
             }
             if (workerCircuitOpen.get() != 0) {
@@ -132,7 +133,7 @@ internal class LocalDelegationCoordinator(
         return config.copy(
             maxInputCharacters = minOf(
                 config.maxInputCharacters,
-                available.coerceAtMost(config.maxInputTokensPerDelegate * APPROX_CHARS_PER_TOKEN)
+                available.coerceAtMost(config.effectiveLocalInputTokens() * APPROX_CHARS_PER_TOKEN)
             ).coerceAtLeast(600)
         )
     }
@@ -263,7 +264,9 @@ internal class LocalDelegationCoordinator(
                         it.uid != source.uid &&
                         (latest.allowRemoteWorkers || it.isPrivateDestination())
                 } ?: localTarget(latest)
-                AppLogRecorder.record("Delegation", "Worker gate · requested=${target.uid} · resolved=${profile?.uid} · profileFound=${profile != null} · private=${profile?.isPrivateDestination()} · calls=${localCalls.get()}/${latest.maxLocalModelCalls}")
+                val effectiveCallLimit = latest.effectiveLocalModelCalls()
+                val effectiveWasteLimit = latest.effectiveWastedLocalTokens()
+                AppLogRecorder.record("Delegation", "Worker gate · requested=${target.uid} · resolved=${profile?.uid} · profileFound=${profile != null} · private=${profile?.isPrivateDestination()} · calls=${localCalls.get()}/$effectiveCallLimit · configuredCalls=${latest.maxLocalModelCalls} · ownership=${latest.processingOwnership}")
                 if (!latest.enabled ||
                     profile == null ||
                     profile.excludesMemory() ||
@@ -284,16 +287,16 @@ internal class LocalDelegationCoordinator(
                     AppLogRecorder.record("Delegation", "Worker rejected · input budget too small · target=${profile.uid} · inputBudget=$budget", "W")
                     return@withPermit null
                 }
-                if (failedLocalTokens.get() + canceledLocalTokens.get() >= latest.maxWastedLocalTokensPerTurn) {
-                    AppLogRecorder.record("Delegation", "Worker rejected · wasted token budget exhausted · target=${profile.uid} · wasted=${failedLocalTokens.get() + canceledLocalTokens.get()} · max=${latest.maxWastedLocalTokensPerTurn}", "W")
+                if (failedLocalTokens.get() + canceledLocalTokens.get() >= effectiveWasteLimit) {
+                    AppLogRecorder.record("Delegation", "Worker rejected · wasted token budget exhausted · target=${profile.uid} · wasted=${failedLocalTokens.get() + canceledLocalTokens.get()} · max=$effectiveWasteLimit · configured=${latest.maxWastedLocalTokensPerTurn} · ownership=${latest.processingOwnership}", "W")
                     return@withPermit null
                 }
-                val callNumber = reserveWorkerCall(latest.maxLocalModelCalls)
+                val callNumber = reserveWorkerCall(effectiveCallLimit)
                 if (callNumber == null) {
-                    AppLogRecorder.record("Delegation", "Worker rejected · call budget exhausted · target=${profile.uid} · calls=${localCalls.get()}/${latest.maxLocalModelCalls}", "W")
+                    AppLogRecorder.record("Delegation", "Worker rejected · call budget exhausted · target=${profile.uid} · calls=${localCalls.get()}/$effectiveCallLimit · configured=${latest.maxLocalModelCalls} · ownership=${latest.processingOwnership}", "W")
                     return@withPermit null
                 }
-                val hardInputTokenCap = minOf(latest.maxInputTokensPerDelegate, MAX_DELEGATION_INPUT_TOKENS)
+                val hardInputTokenCap = minOf(latest.effectiveLocalInputTokens(), MAX_DELEGATION_INPUT_TOKENS)
                 val knownRequestOverhead = observedRequestOverheadTokens.get().coerceAtLeast(0L)
                 val promptTokenBudget = (hardInputTokenCap.toLong() - knownRequestOverhead).coerceAtLeast(0L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
                 if (promptTokenBudget < 150) {
@@ -324,7 +327,7 @@ internal class LocalDelegationCoordinator(
                 var observedInputTokens = 0L
                 AppLogRecorder.record(
                     "Delegation",
-                    "Worker dispatch · target=${profile.uid} · type=${profile.compatibleType} · model=${profile.model} · requestedInputChars=${prompt.length} · actualInputChars=${boundedPrompt.length} · estimatedPromptTokens=$estimatedInput · observedRequestOverheadTokens=$knownRequestOverhead · estimatedEffectiveInputTokens=$estimatedEffectiveInput · maxInputTokens=$hardInputTokenCap · call=$callNumber/${latest.maxLocalModelCalls} · requestedOutputCap=$requestedOutputCap · configuredOutputCap=${latest.maxOutputTokens} · adaptiveRuntimeMs=${runtimeSeconds * 1000L} · firstProgressTimeoutMs=${firstProgressSeconds * 1000L} · idleTimeoutMs=${idleSeconds * 1000L}"
+                    "Worker dispatch · target=${profile.uid} · type=${profile.compatibleType} · model=${profile.model} · requestedInputChars=${prompt.length} · actualInputChars=${boundedPrompt.length} · estimatedPromptTokens=$estimatedInput · observedRequestOverheadTokens=$knownRequestOverhead · estimatedEffectiveInputTokens=$estimatedEffectiveInput · maxInputTokens=$hardInputTokenCap · call=$callNumber/$effectiveCallLimit · requestedOutputCap=$requestedOutputCap · configuredOutputCap=${latest.maxOutputTokens} · adaptiveRuntimeMs=${runtimeSeconds * 1000L} · firstProgressTimeoutMs=${firstProgressSeconds * 1000L} · idleTimeoutMs=${idleSeconds * 1000L}"
                 )
                 val response = try {
                     invokeWorkerWithWatchdog(
@@ -355,14 +358,14 @@ internal class LocalDelegationCoordinator(
                 if (response == null) {
                     canceledLocalTokens.addAndGet(chargedInput)
                     wastedLocalMs.addAndGet(elapsedMs)
-                    AppLogRecorder.record("Delegation", "CANCELED_NO_RESULT · target=${profile.uid} · call=$callNumber/${latest.maxLocalModelCalls} · elapsedMs=$elapsedMs · estimatedInputTokens=$estimatedInput · observedInputTokens=$observedInputTokens · requestedOutputCap=$requestedOutputCap", "E")
+                    AppLogRecorder.record("Delegation", "CANCELED_NO_RESULT · target=${profile.uid} · call=$callNumber/$effectiveCallLimit · elapsedMs=$elapsedMs · estimatedInputTokens=$estimatedInput · observedInputTokens=$observedInputTokens · requestedOutputCap=$requestedOutputCap", "E")
                     logComputeTotals()
                     return@withPermit null
                 }
                 return@withPermit response.takeIf { it.isNotBlank() }?.also {
                     consecutiveEmptyResponses.set(0)
                     successfulLocalTokens.addAndGet(chargedInput + estimatedDelegateTokens(it))
-                    AppLogRecorder.record("Delegation", "Worker completed · target=${profile.uid} · call=$callNumber/${latest.maxLocalModelCalls} · elapsedMs=$elapsedMs · outputChars=${it.length} · requestedOutputCap=$requestedOutputCap · approxOutputTokens=${estimatedDelegateTokens(it)}")
+                    AppLogRecorder.record("Delegation", "Worker completed · target=${profile.uid} · call=$callNumber/$effectiveCallLimit · elapsedMs=$elapsedMs · outputChars=${it.length} · requestedOutputCap=$requestedOutputCap · approxOutputTokens=${estimatedDelegateTokens(it)}")
                     logComputeTotals()
                 } ?: run {
                     failedLocalTokens.addAndGet(chargedInput)
@@ -371,7 +374,7 @@ internal class LocalDelegationCoordinator(
                     if (emptyCount >= MAX_CONSECUTIVE_EMPTY_RESPONSES) workerCircuitOpen.set(1)
                     AppLogRecorder.record(
                         "Delegation",
-                        "Worker completed empty · target=${profile.uid} · call=$callNumber/${latest.maxLocalModelCalls} · elapsedMs=$elapsedMs · requestedOutputCap=$requestedOutputCap · consecutiveEmpty=$emptyCount/$MAX_CONSECUTIVE_EMPTY_RESPONSES · circuitOpen=${workerCircuitOpen.get() != 0}",
+                        "Worker completed empty · target=${profile.uid} · call=$callNumber/$effectiveCallLimit · elapsedMs=$elapsedMs · requestedOutputCap=$requestedOutputCap · consecutiveEmpty=$emptyCount/$MAX_CONSECUTIVE_EMPTY_RESPONSES · circuitOpen=${workerCircuitOpen.get() != 0}",
                         "W"
                     )
                     logComputeTotals()
@@ -446,8 +449,9 @@ internal class LocalDelegationCoordinator(
 
     suspend fun delegate(target: PlatformV2, task: String, maxTokens: Int, tools: List<ResolvedAgentTool>, callId: String): String {
         val config = settings().normalized()
-        if (localCalls.get() >= config.maxLocalModelCalls) {
-            AppLogRecorder.record("Delegation", "Delegation skipped · worker budget exhausted · call=$callId · calls=${localCalls.get()}/${config.maxLocalModelCalls}", "W")
+        val effectiveCallLimit = config.effectiveLocalModelCalls()
+        if (localCalls.get() >= effectiveCallLimit) {
+            AppLogRecorder.record("Delegation", "Delegation skipped · worker budget exhausted · call=$callId · calls=${localCalls.get()}/$effectiveCallLimit · configured=${config.maxLocalModelCalls} · ownership=${config.processingOwnership}", "W")
             return "The local delegation allowance for this turn is exhausted. Use evidence already available; do not retry this delegation in the same turn."
         }
         if (researchAvailable()) {
@@ -455,7 +459,7 @@ internal class LocalDelegationCoordinator(
             return result.handoff.ifBlank { "The local research allowance for this turn is exhausted. Use evidence already available; do not retry the delegated research." }
         }
 
-        val hardCap = minOf(config.maxInputTokensPerDelegate, MAX_DELEGATION_INPUT_TOKENS)
+        val hardCap = minOf(config.effectiveLocalInputTokens(), MAX_DELEGATION_INPUT_TOKENS)
         val estimated = estimatedDelegateTokens(task)
         if (estimated <= hardCap) {
             return workerText(target, task, maxTokens, requirePrivate = false)
@@ -472,7 +476,7 @@ internal class LocalDelegationCoordinator(
         )
         val summaries = mutableListOf<String>()
         for ((index, chunk) in chunks.withIndex()) {
-            if (failedLocalTokens.get() + canceledLocalTokens.get() >= config.maxWastedLocalTokensPerTurn) break
+            if (failedLocalTokens.get() + canceledLocalTokens.get() >= config.effectiveWastedLocalTokens()) break
             val prompt = "Process chunk ${index + 1}/${chunks.size} for the delegated task. Extract only facts/details needed to answer it. Preserve identifiers, numbers and source markers.\n\n$chunk"
             val summary = workerText(target, prompt, minOf(maxTokens, 512), requirePrivate = false)
             if (summary != null) {
@@ -482,7 +486,7 @@ internal class LocalDelegationCoordinator(
                 val retryPieces = chunk.chunked(retryChars)
                 AppLogRecorder.record("Delegation", "Chunk ${index + 1} returned no result · retrying as ${retryPieces.size} smaller chunks", "W")
                 for ((retryIndex, retry) in retryPieces.withIndex()) {
-                    if (failedLocalTokens.get() + canceledLocalTokens.get() >= config.maxWastedLocalTokensPerTurn) break
+                    if (failedLocalTokens.get() + canceledLocalTokens.get() >= config.effectiveWastedLocalTokens()) break
                     workerText(
                         target,
                         "Process retry chunk ${index + 1}.${retryIndex + 1}. Extract only relevant facts and preserve exact details.\n\n$retry",
