@@ -140,6 +140,9 @@ class AgentToolResolver @Inject constructor(
         if (!disableRemote) {
             resolved += ReadUrlTool().resolved(null, null, BuiltInAgentTool.READ_URL)
             resolved += GitHubTool().resolved(null, null, BuiltInAgentTool.GITHUB)
+            toolConnectionRepository.listConnections()
+                .filter { it.type == ToolConnectionType.GITHUB }
+                .forEach { connection -> resolved += resolveGitHub(connection) }
             resolved += defaultWebSearch.resolved(null, null, WEB_SEARCH_TOOL)
         }
 
@@ -259,7 +262,11 @@ class AgentToolResolver @Inject constructor(
             }
         }.orEmpty()
 
-        val tool = GitHubTool(apiToken = token)
+        val tool = GitHubTool(
+            apiToken = token,
+            modelToolName = actualConnection?.let { "github__${it.alias}" } ?: BuiltInAgentTool.GITHUB,
+            accountName = actualConnection?.name
+        )
         return tool.resolved(actualConnection?.connectionUid, actualConnection?.name, BuiltInAgentTool.GITHUB)
     }
 
@@ -387,7 +394,6 @@ class AgentToolResolver @Inject constructor(
             BuiltInAgentTool.READ_FILE_SLICE,
             BuiltInAgentTool.READ_URL,
             BuiltInAgentTool.DEVICE_LOCATION,
-            BuiltInAgentTool.GITHUB,
             WEB_SEARCH_TOOL
         )
         val SEARCH_PROVIDERS = mapOf(

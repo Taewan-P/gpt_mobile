@@ -42,6 +42,19 @@ import org.junit.Test
 class AgentToolResolverTest {
 
     @Test
+    fun `GitHub API connections are available without profile bindings and respect conversation options`() = runBlocking {
+        val dao = ResolverFakeToolConnectionDao()
+        dao.upsertConnection(connection("work", ToolConnectionType.GITHUB, endpointUrl = "https://api.github.com"))
+        val tools = resolver(dao = dao).resolve("profile")
+        val account = tools.single { it.connectionUid == "work" }
+        assertEquals("github__work", account.modelToolName)
+        assertEquals(BuiltInAgentTool.GITHUB, account.realToolName)
+        assertFalse(account.shareableReadOnly)
+        assertTrue(account.tool.definition.description.contains("Authenticated connection"))
+        assertFalse(resolver(dao = dao).resolve("profile", ChatMcpToolConfig(allowAllByDefault = true).withToolDisabled("work")).any { it.connectionUid == "work" })
+    }
+
+    @Test
     fun `free MCP usage requires the grant for the exact profile and tool at runtime`() = runBlocking {
         McpClientManagerTest.McpFixtureServer().use { server ->
             val profile = FreeAiProvider.KILO.applyTo(PlatformV2(uid = "free-profile", name = "Free"))

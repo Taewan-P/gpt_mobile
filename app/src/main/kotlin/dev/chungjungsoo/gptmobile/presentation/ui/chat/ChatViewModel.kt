@@ -704,7 +704,7 @@ class ChatViewModel @Inject constructor(
                 }
             val available = ChatToolUtils.buildAvailableChatTools(
                 connections.filter {
-                    it.connectionUid in boundConnectionIds && it.type != ToolConnectionType.MCP
+                    (it.connectionUid in boundConnectionIds || (it.type == ToolConnectionType.GITHUB && remoteProfiles.isNotEmpty())) && it.type != ToolConnectionType.MCP
                 }
             ) + if (features.remoteMcpConnections) {
                 bindings.filter { it.profileUid in remoteProfiles }
@@ -2031,7 +2031,7 @@ internal fun visibleChatRunNotices(
     return (timelineNotices + fromStore).distinct()
 }
 
-internal fun timelineNoticeMessages(timeline: List<AssistantTimelineItem>): List<String> = timeline.filter { it.type == AssistantTimelineItemType.NOTICE }.map { it.content }.filter { it.isNotBlank() }
+internal fun timelineNoticeMessages(timeline: List<AssistantTimelineItem>): List<String> = timeline.filter { it.type == AssistantTimelineItemType.NOTICE && it.delegationInvocationId == null && !it.statusSummary && !it.progressCheckpoint }.map { it.content }.filter { it.isNotBlank() }
 
 internal fun loadingStatesForLatestAssistant(
     platformCount: Int,

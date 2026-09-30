@@ -185,7 +185,7 @@ fun UserChatBubble(
                 }
             }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
             AnimatedVisibility(visible = actionsExpanded) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     CopyTextIcon(onCopyClick)

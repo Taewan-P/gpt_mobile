@@ -45,7 +45,9 @@ import kotlinx.serialization.json.put
  */
 class GitHubTool(
     private val apiToken: String = "",
-    private val httpClient: HttpClient = defaultHttpClient
+    private val httpClient: HttpClient = defaultHttpClient,
+    private val modelToolName: String = BuiltInAgentTool.GITHUB,
+    private val accountName: String? = null
 ) : AgentTool {
 
     companion object {
@@ -69,8 +71,8 @@ class GitHubTool(
     }
 
     override val definition: AgentToolDefinition = AgentToolDefinition(
-        name = BuiltInAgentTool.GITHUB,
-        description = "Work with GitHub repositories: search code/issues, read files and pull requests, inspect Actions workflows, create branches, update files, and open pull requests.",
+        name = modelToolName,
+        description = "Work with GitHub repositories: search code/issues, read files and pull requests, inspect Actions workflows, create branches, update files, and open pull requests." + (accountName?.let { " Authenticated connection: $it. Use this tool for repositories available to this account." } ?: " Public read access; configure a GitHub API connection for private repositories and writes."),
         inputSchema = buildJsonObject {
             put("type", "object")
             put(
@@ -202,7 +204,7 @@ class GitHubTool(
                         "base",
                         buildJsonObject {
                             put("type", "string")
-                            put("description", "Base branch for create_branch create_pull_request, list_workflows, get_workflow_run, list_workflow_jobs, list_workflow_artifacts, get_job_logs, dispatch_workflow, rerun_workflow, rerun_failed_jobs, cancel_workflow.")
+                            put("description", "Base branch for create_branch or create_pull_request.")
                         }
                     )
                     put(

@@ -203,7 +203,7 @@ class ChatPromptQueueTest {
         activeRuns.value = emptyMap()
         runCurrent()
         assertTrue(submissions.isEmpty())
-        assertTrue(model.availableChatTools.value.none { it.id == "profile-2-tools" })
+        assertTrue(model.availableChatTools.value.none { it.id == "profile-2-tools:search" })
 
         membershipGate = CompletableDeferred()
         model.setPlatformMembership("profile-2", true)
@@ -217,7 +217,7 @@ class ChatPromptQueueTest {
         assertEquals(listOf("profile-2"), starts.single().map { it.platform.uid })
         assertEquals(listOf("profile-1", "profile-2"), model.enabledPlatformsInChat)
         assertEquals("Unsent draft", model.question.text.toString())
-        assertTrue(model.availableChatTools.value.any { it.id == "profile-2-tools" })
+        assertTrue(model.availableChatTools.value.any { it.id == "profile-2-tools:search" })
         assertEquals(0, model.queuedPromptCount.value)
     }
 
@@ -243,7 +243,7 @@ class ChatPromptQueueTest {
 
         assertEquals(listOf("profile-1", "profile-3"), model.activePlatformUids.value)
         assertEquals(listOf("profile-3"), starts.single().map { it.platform.uid })
-        assertTrue(model.availableChatTools.value.none { it.id == "profile-2-tools" })
+        assertTrue(model.availableChatTools.value.none { it.id == "profile-2-tools:search" })
     }
 
     @Test

@@ -42,7 +42,7 @@ class FreeModelToolConsentStore @Inject constructor(
 
     private fun key(profileUid: String, toolId: String): String {
         val digest = MessageDigest.getInstance("SHA-256")
-            .digest(toolId.trim().lowercase().toByteArray())
+            .digest(toolId.trim().toByteArray())
             .joinToString("") { "%02x".format(it) }
         return "$profileUid:$digest"
     }

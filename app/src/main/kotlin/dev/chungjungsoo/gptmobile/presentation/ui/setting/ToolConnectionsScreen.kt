@@ -34,6 +34,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Cable
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Hub
@@ -338,6 +339,7 @@ private fun ToolProviderIcon(type: String, modifier: Modifier = Modifier) {
         ToolConnectionType.PERPLEXITY -> Icons.Filled.Search
         ToolConnectionType.EXA -> Icons.Filled.Search
         ToolConnectionType.BRAVE -> Icons.Filled.Search
+        ToolConnectionType.GITHUB -> Icons.Filled.Code
         else -> Icons.Filled.Cable
     }
     Surface(
@@ -453,7 +455,7 @@ private fun CollapsibleToolConnectionCard(
             AnimatedVisibility(visible = expanded) {
                 Column(modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
                     if (connection.type == ToolConnectionType.MCP) TextButton(onClick = onBrowseClick) { Text("Resources and prompts") }
-                    if (connection.type == ToolConnectionType.MCP) TextButton(onClick = onPermissionsClick) { Text(stringResource(R.string.tool_policy)) }
+                    if (connection.type in setOf(ToolConnectionType.MCP, ToolConnectionType.GITHUB)) TextButton(onClick = onPermissionsClick) { Text(stringResource(R.string.tool_policy)) }
                     connection.endpointUrl?.let { url ->
                         if (url.isNotBlank()) {
                             Text(
@@ -970,8 +972,8 @@ private fun ToolConnectionStepContent(
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
                 DestinationCard(
-                    title = stringResource(R.string.web_search),
-                    description = stringResource(R.string.web_search_connection_description),
+                    title = "Search & GitHub APIs",
+                    description = "Connect your own search or GitHub API credential. No custom remote host is needed.",
                     onClick = { onPathSelected(ToolConnectionSetupPath.WEB_SEARCH) }
                 )
                 Spacer(modifier = Modifier.height(12.dp))
@@ -984,7 +986,7 @@ private fun ToolConnectionStepContent(
 
             ToolConnectionSetupStep.WEB_SEARCH_PROVIDER -> {
                 Text(
-                    text = stringResource(R.string.choose_search_provider_description),
+                    text = "Choose an integrated API provider.",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 16.dp)
@@ -1061,10 +1063,14 @@ private fun ConnectionDetailsStep(
     val isAliasInvalid = alias.isNotBlank() && !ToolConnectionsViewModel.isValidAlias(normalizedAlias)
     val aliasError = stringResource(R.string.stable_alias_error)
     Text(
-        text = stringResource(
-            if (isMcp) R.string.mcp_details_description else R.string.web_search_details_description,
-            provider?.label.orEmpty()
-        ),
+        text = if (provider?.type == ToolConnectionType.GITHUB) {
+            "Connect your GitHub token for repositories, pull requests and Actions workflows. Token permissions control repository access; tool permissions control approvals for actions."
+        } else {
+            stringResource(
+                if (isMcp) R.string.mcp_details_description else R.string.web_search_details_description,
+                provider?.label.orEmpty()
+            )
+        },
         style = MaterialTheme.typography.bodyLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(bottom = 16.dp)

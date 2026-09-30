@@ -28,7 +28,7 @@ class BenchmarkStore @Inject constructor(@param:ApplicationContext context: Cont
     val history = mutableHistory.asStateFlow()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == "history") {
+        if (key == "history" || key == null) {
             scope.launch {
                 mutex.withLock {
                     loaded = false

@@ -670,9 +670,9 @@ class ChatRepositoryImpl(
             send(state)
         }
         val statusJob = launch {
-            var nextTick = android.os.SystemClock.elapsedRealtime() + 5000L
+            var nextTick = (System.nanoTime() / 1_000_000L) + 5000L
             while (isActive) {
-                delay((nextTick - android.os.SystemClock.elapsedRealtime()).coerceAtLeast(1L))
+                delay((nextTick - (System.nanoTime() / 1_000_000L)).coerceAtLeast(1L))
                 nextTick += 5000L
                 val current = activity.get()
                 send(ApiState.ActivitySummary(current))
