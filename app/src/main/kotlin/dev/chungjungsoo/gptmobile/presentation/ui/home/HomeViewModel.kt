@@ -39,7 +39,8 @@ class HomeViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     private val settingRepository: SettingRepository,
     private val agentRunCoordinator: AgentRunCoordinator,
-    private val managePlatformsUseCase: ManagePlatformsUseCase
+    private val managePlatformsUseCase: ManagePlatformsUseCase,
+    private val conversationReadStateStore: dev.chungjungsoo.gptmobile.data.chat.ConversationReadStateStore
 ) : ViewModel() {
 
     companion object {
@@ -109,6 +110,7 @@ class HomeViewModel @Inject constructor(
 
     private val _activeChatIds = MutableStateFlow<Set<Int>>(emptySet())
     val activeChatIds = _activeChatIds.asStateFlow()
+    val unreadChatIds = conversationReadStateStore.unreadChatIds
 
     private fun sortChats(chats: List<ChatRoomV2>, activeIds: Set<Int> = _activeChatIds.value): List<ChatRoomV2> =
         chats.sortedWith(
@@ -169,6 +171,8 @@ class HomeViewModel @Inject constructor(
         agentRunCoordinator.activeRuns
             .onEach { runs ->
                 val newActiveIds = runs.values.mapTo(mutableSetOf()) { it.chatId }
+                val finishedIds = _activeChatIds.value - newActiveIds
+                finishedIds.forEach(conversationReadStateStore::markUnread)
                 _activeChatIds.update { newActiveIds }
                 _chatListState.update { current ->
                     if (!current.isSelectionMode) {
@@ -355,7 +359,12 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    fun markChatViewed(chatId: Int) {
+        conversationReadStateStore.markViewed(chatId)
+    }
+
     fun deleteChat(chatRoom: ChatRoomV2) {
+        conversationReadStateStore.remove(chatRoom.id)
         viewModelScope.launch {
             agentRunCoordinator.withChatGate(chatRoom.id) {
                 agentRunCoordinator.cancelChatAndJoin(chatRoom.id)
@@ -382,6 +391,7 @@ class HomeViewModel @Inject constructor(
     }
 
     fun deleteArchivedChat(chatRoom: ChatRoomV2) {
+        conversationReadStateStore.remove(chatRoom.id)
         viewModelScope.launch {
             agentRunCoordinator.withChatGate(chatRoom.id) {
                 agentRunCoordinator.cancelChatAndJoin(chatRoom.id)
