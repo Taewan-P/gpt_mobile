@@ -181,6 +181,41 @@ class LocalDelegationCoordinatorTest {
         assertFalse(coordinator.researchAvailable())
     }
 
+    @Test fun `stale configured target falls back to an eligible helper`() = runTest {
+        val stale = config.copy(targetProfileUid = "missing", researchEnabled = true)
+        val coordinator = LocalDelegationCoordinator(
+            source,
+            { stale },
+            { listOf(target) },
+            { _, _, _ -> "done" }
+        )
+
+        assertTrue(coordinator.researchAvailable())
+    }
+
+    @Test fun `single reasoning only response does not quarantine worker`() = runTest {
+        var calls = 0
+        val coordinator = LocalDelegationCoordinator(
+            source,
+            { config.copy(researchEnabled = false, maxLocalModelCalls = 4) },
+            { listOf(target) },
+            { _, _, _ -> error("progressive path expected") },
+            generateWithProgress = { _, _, _, _, progress ->
+                calls++
+                progress(DelegateProgress(DelegateProgressKind.USAGE, inputTokens = 1_000, outputTokens = 256, totalTokens = 1_256))
+                if (calls == 1) error("REASONING_ONLY_RESPONSE: delegated provider produced reasoning tokens but no usable final answer.")
+                "recovered"
+            }
+        )
+
+        val first = runCatching { coordinator.delegate(target, "first", 256, emptyList(), "first") }.exceptionOrNull()
+        val second = coordinator.delegate(target, "second", 256, emptyList(), "second")
+
+        assertTrue(first?.message.orEmpty().contains("CANCELED_NO_RESULT"))
+        assertEquals("recovered", second)
+        assertEquals(2, calls)
+    }
+
     @Test fun `authorization failure quarantines delegated worker for the rest of the turn`() = runTest {
         var calls = 0
         val coordinator = LocalDelegationCoordinator(

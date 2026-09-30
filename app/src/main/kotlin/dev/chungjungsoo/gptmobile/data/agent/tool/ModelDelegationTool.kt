@@ -48,8 +48,28 @@ class ModelDelegationTool(
         if (!config.enabled) return error("Model delegation is disabled in Local models → Delegation.")
         val task = (arguments["task"] as? JsonPrimitive)?.takeIf { it.isString }?.content.orEmpty()
         if (task.isBlank() || task.length > config.maxInputCharacters) return error("Task must contain 1–${config.maxInputCharacters} characters.")
-        val target = profiles().firstOrNull { it.uid == config.targetProfileUid && it.enabled }
-            ?: return error("Choose an enabled helper profile in Settings → Local models → Delegation.").also { AppLogRecorder.record("Delegation", "Rejected · no enabled target=${config.targetProfileUid}", "W") }
+        val availableProfiles = profiles()
+        val eligibleTargets = availableProfiles.filter {
+            it.enabled &&
+                it.uid != source.uid &&
+                !it.excludesMemory() &&
+                (config.allowRemoteWorkers || it.isPrivateDestination())
+        }
+        val target = eligibleTargets.firstOrNull { it.uid == config.targetProfileUid }
+            ?: eligibleTargets.firstOrNull()?.also { fallback ->
+                AppLogRecorder.record(
+                    "Delegation",
+                    "Configured target unavailable; using fallback · configured=${config.targetProfileUid.ifBlank { "<none>" }} · fallback=${fallback.uid} · type=${fallback.compatibleType}",
+                    "W"
+                )
+            }
+            ?: return error("No eligible helper profile is available. Enable a local/private helper or allow a remote worker in Delegation settings.").also {
+                AppLogRecorder.record(
+                    "Delegation",
+                    "Rejected · no eligible target · configured=${config.targetProfileUid.ifBlank { "<none>" }} · profiles=${availableProfiles.size} · remoteWorkers=${config.allowRemoteWorkers}",
+                    "W"
+                )
+            }
         AppLogRecorder.record("Delegation", "Target selected · target=${target.uid} · type=${target.compatibleType} · model=${target.model.take(96)} · taskChars=${task.length}")
         if (target.excludesMemory()) return error("Free models cannot receive delegated context. Start a separate Free chat with a public prompt.").also { AppLogRecorder.record("Delegation", "Rejected free target · target=${target.uid}", "W") }
         if (target.uid == source.uid) return error("Choose a different target profile; self-delegation is disabled.").also { AppLogRecorder.record("Delegation", "Rejected self-delegation · target=${target.uid}", "W") }

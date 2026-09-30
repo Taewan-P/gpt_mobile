@@ -94,9 +94,31 @@ internal class LocalDelegationCoordinator(
         if (!config.enabled || config.processingOwnership >= 100 || source.disableAllTools || source.disableLocalTools || source.excludesMemory()) return null
         val battery = batteryPercent()
         if (battery != null && battery <= config.lowBatteryThresholdPercent && config.processingOwnership < 65) return null
-        return profiles().firstOrNull {
-            it.uid == config.targetProfileUid && it.uid != source.uid && it.enabled && !it.excludesMemory() && (config.allowRemoteWorkers || it.isPrivateDestination())
+        val availableProfiles = profiles()
+        val eligible = availableProfiles.filter {
+            it.uid != source.uid &&
+                it.enabled &&
+                !it.excludesMemory() &&
+                (config.allowRemoteWorkers || it.isPrivateDestination())
         }
+        val selected = eligible.firstOrNull { it.uid == config.targetProfileUid }
+        if (selected != null) return selected
+
+        val fallback = eligible.firstOrNull()
+        if (fallback != null) {
+            AppLogRecorder.record(
+                "Delegation",
+                "Configured target unavailable; using fallback · configured=${config.targetProfileUid.ifBlank { "<none>" }} · fallback=${fallback.uid} · type=${fallback.compatibleType}",
+                "W"
+            )
+        } else {
+            AppLogRecorder.record(
+                "Delegation",
+                "No eligible target · configured=${config.targetProfileUid.ifBlank { "<none>" }} · profiles=${availableProfiles.size} · remoteWorkers=${config.allowRemoteWorkers} · localOnly=${config.localPlatformsOnly}",
+                "W"
+            )
+        }
+        return fallback
     }
 
     private suspend fun boundedConfig(target: PlatformV2, config: ModelDelegationSettings): ModelDelegationSettings {
@@ -233,8 +255,15 @@ internal class LocalDelegationCoordinator(
             val latest = settings().normalized()
             awaitWorkerSlot(latest.maxConcurrentDelegates)
             try {
-                val profile = profiles().firstOrNull { it.uid == target.uid && it.uid == latest.targetProfileUid && it.enabled }
-                AppLogRecorder.record("Delegation", "Worker gate · target=${target.uid} · profileFound=${profile != null} · private=${profile?.isPrivateDestination()} · calls=${localCalls.get()}/${latest.maxLocalModelCalls}")
+                val availableProfiles = profiles()
+                val profile = availableProfiles.firstOrNull {
+                    it.uid == target.uid &&
+                        it.enabled &&
+                        !it.excludesMemory() &&
+                        it.uid != source.uid &&
+                        (latest.allowRemoteWorkers || it.isPrivateDestination())
+                } ?: localTarget(latest)
+                AppLogRecorder.record("Delegation", "Worker gate · requested=${target.uid} · resolved=${profile?.uid} · profileFound=${profile != null} · private=${profile?.isPrivateDestination()} · calls=${localCalls.get()}/${latest.maxLocalModelCalls}")
                 if (!latest.enabled ||
                     profile == null ||
                     profile.excludesMemory() ||
@@ -362,8 +391,9 @@ internal class LocalDelegationCoordinator(
                     message.contains("denied access", ignoreCase = true)
                 val emptyResponse = message.contains("EMPTY_RESPONSE", ignoreCase = true)
                 val reasoningOnly = message.contains("REASONING_ONLY_RESPONSE", ignoreCase = true)
-                val emptyCount = if (emptyResponse) consecutiveEmptyResponses.incrementAndGet() else consecutiveEmptyResponses.get()
-                if (authBlocked || reasoningOnly || (emptyResponse && emptyCount >= MAX_CONSECUTIVE_EMPTY_RESPONSES)) {
+                val softEmpty = emptyResponse || reasoningOnly
+                val emptyCount = if (softEmpty) consecutiveEmptyResponses.incrementAndGet() else consecutiveEmptyResponses.get()
+                if (authBlocked || (softEmpty && emptyCount >= MAX_CONSECUTIVE_EMPTY_RESPONSES)) {
                     workerCircuitOpen.set(1)
                 }
                 AppLogRecorder.record(

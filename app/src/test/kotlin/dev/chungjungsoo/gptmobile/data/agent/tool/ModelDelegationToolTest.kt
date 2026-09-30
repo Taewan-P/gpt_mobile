@@ -77,6 +77,24 @@ class ModelDelegationToolTest {
     }
 
     @Test
+    fun staleConfiguredTargetFallsBackToEligibleHelper() = runTest {
+        var selected: String? = null
+        val tool = ModelDelegationTool(
+            source,
+            { enabled.copy(targetProfileUid = "missing") },
+            { listOf(target) }
+        ) { profile, _, _ ->
+            selected = profile.uid
+            "Recovered"
+        }
+
+        val result = tool.execute("stale-target", task)
+
+        assertFalse(result.isError)
+        assertEquals(target.uid, selected)
+    }
+
+    @Test
     fun remoteWorkerOptInAllowsRemoteToRemoteDelegation() = runTest {
         val remote = target.copy(compatibleType = ClientType.OPENROUTER, apiUrl = "https://openrouter.ai/api/v1")
         var called = false
