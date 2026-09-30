@@ -13,7 +13,9 @@ class DelegationBenchmarkRatingTest {
         delegationSettings = ModelDelegationSettings(targetProfileUid = worker),
         samples = delegationBenchmarkSuite().map { test ->
             BenchmarkSample(
-                test.id, test.label, test.category,
+                test.id,
+                test.label,
+                test.category,
                 if (test.id == "delegation-tools" && !toolPassed) BenchmarkOutcome.FAILED else BenchmarkOutcome.PASSED,
                 durationMs = duration,
                 delegation = DelegationBenchmarkMetrics(

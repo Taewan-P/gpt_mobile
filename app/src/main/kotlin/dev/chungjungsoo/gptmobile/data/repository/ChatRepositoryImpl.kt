@@ -402,8 +402,11 @@ class ChatRepositoryImpl(
             workerConfigKey = dev.chungjungsoo.gptmobile.data.benchmark.benchmarkConfigKey(target, workerEnvironment),
             telemetry = {
                 dev.chungjungsoo.gptmobile.data.benchmark.WorkerBenchmarkTelemetry(
-                    workerMs, firstText.sorted().let { it.getOrNull((it.size - 1).coerceAtLeast(0) / 2) },
-                    decodeSpeeds.sorted().let { it.getOrNull((it.size - 1).coerceAtLeast(0) / 2) }, estimated, capViolations
+                    workerMs,
+                    firstText.sorted().let { it.getOrNull((it.size - 1).coerceAtLeast(0) / 2) },
+                    decodeSpeeds.sorted().let { it.getOrNull((it.size - 1).coerceAtLeast(0) / 2) },
+                    estimated,
+                    capViolations
                 )
             }
         )

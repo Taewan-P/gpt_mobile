@@ -375,5 +375,4 @@ class LocalDelegationCoordinatorTest {
         assertNull(coordinator.executeTask(target, "task", 256))
         assertEquals(0, calls)
     }
-
 }

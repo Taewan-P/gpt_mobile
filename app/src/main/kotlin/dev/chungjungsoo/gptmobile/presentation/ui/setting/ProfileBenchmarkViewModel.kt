@@ -78,7 +78,9 @@ class ProfileBenchmarkViewModel @Inject constructor(
     private val delegateUid = MutableStateFlow("")
     val delegates = combine(profiles, selected, delegationSettings) { list, primary, config ->
         list.filter {
-            it.enabled && it.uid != primary?.uid && !it.excludesMemory() &&
+            it.enabled &&
+                it.uid != primary?.uid &&
+                !it.excludesMemory() &&
                 (config.allowRemoteWorkers || it.isPrivateDestination()) &&
                 !(primary?.compatibleType == ClientType.LITERT_LM && it.compatibleType == ClientType.LITERT_LM)
         }
