@@ -611,7 +611,27 @@ class GitHubTool(
         if (!response.status.isSuccess()) {
             return errorResult(callId, "GitHub API returned HTTP ${response.status.value}: ${truncate(text, 500)}")
         }
-        return successResult(callId, truncate(text, MAX_OUTPUT_CHARS))
+        val json = jsonParser.parseToJsonElement(text).jsonObject
+        val runs = json["workflow_runs"]?.jsonArray ?: JsonArray(emptyList())
+        val compact = buildJsonObject {
+            put("total_count", json["total_count"] ?: JsonPrimitive(runs.size))
+            put(
+                "workflow_runs",
+                buildJsonArray {
+                    runs.take(20).forEach { item ->
+                        add(
+                            buildJsonObject {
+                                listOf(
+                                    "id", "name", "event", "status", "conclusion", "head_branch",
+                                    "head_sha", "run_number", "created_at", "updated_at", "html_url"
+                                ).forEach { key -> item.jsonObject[key]?.let { put(key, it) } }
+                            }
+                        )
+                    }
+                }
+            )
+        }
+        return successResult(callId, compact.toString())
     }
 
     private suspend fun handleWorkflowAction(callId: String, action: String, arguments: JsonObject): AgentToolResult {
@@ -668,11 +688,57 @@ class GitHubTool(
                 } else if (action == "get_job_logs") {
                     text
                 } else {
-                    truncate(text, MAX_OUTPUT_CHARS)
+                    compactWorkflowPayload(action, text)
                 }
             )
         } else {
             errorResult(callId, "GitHub API returned HTTP ${response.status.value}: ${truncate(text, 500)}")
+        }
+    }
+
+    private fun compactWorkflowPayload(action: String, text: String): String {
+        val parsed = runCatching { jsonParser.parseToJsonElement(text) }.getOrNull() ?: return truncate(text, MAX_OUTPUT_CHARS)
+        if (parsed !is JsonObject) return truncate(text, MAX_OUTPUT_CHARS)
+
+        fun projectedArray(key: String, fields: List<String>): JsonObject {
+            val values = parsed[key]?.jsonArray ?: JsonArray(emptyList())
+            return buildJsonObject {
+                put("total_count", parsed["total_count"] ?: JsonPrimitive(values.size))
+                put(
+                    key,
+                    buildJsonArray {
+                        values.take(30).forEach { value ->
+                            add(
+                                buildJsonObject {
+                                    fields.forEach { field -> value.jsonObject[field]?.let { put(field, it) } }
+                                }
+                            )
+                        }
+                    }
+                )
+            }
+        }
+
+        return when (action) {
+            "list_workflows" -> projectedArray(
+                "workflows",
+                listOf("id", "name", "path", "state", "html_url", "created_at", "updated_at")
+            ).toString()
+            "get_workflow_run" -> buildJsonObject {
+                listOf(
+                    "id", "name", "event", "status", "conclusion", "head_branch", "head_sha",
+                    "run_number", "run_attempt", "created_at", "updated_at", "html_url"
+                ).forEach { field -> parsed[field]?.let { put(field, it) } }
+            }.toString()
+            "list_workflow_jobs" -> projectedArray(
+                "jobs",
+                listOf("id", "name", "status", "conclusion", "started_at", "completed_at", "html_url")
+            ).toString()
+            "list_workflow_artifacts" -> projectedArray(
+                "artifacts",
+                listOf("id", "name", "size_in_bytes", "expired", "created_at", "expires_at", "archive_download_url")
+            ).toString()
+            else -> truncate(text, MAX_OUTPUT_CHARS)
         }
     }
 
