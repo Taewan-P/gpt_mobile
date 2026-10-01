@@ -336,7 +336,7 @@ private data class ReadUrlRequest(
 
 private fun androidHtmlToText(html: String): String {
     val articleBodies = Regex(
-        """["']articleBody["']\s*:\s*["']((?:\\.|[^"'\\])+)["']""",
+        """"articleBody"\s*:\s*"((?:\\.|[^"\\])*)"""",
         setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
     ).findAll(html).map { match ->
         match.groupValues[1]
@@ -346,11 +346,18 @@ private fun androidHtmlToText(html: String): String {
             .replace("\\\"", "\"")
             .replace("\\/", "/")
     }.filter { it.isNotBlank() }.take(3).toList()
-    val removable = Regex(
-        """<(script|style|noscript|template|svg)\b[^>]*>.*?</\1\s*>""",
-        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
-    )
-    val visible = Html.fromHtml(html.replace(removable, " "), Html.FROM_HTML_MODE_LEGACY).toString()
+
+    // Strip non-visible blocks one tag at a time. A single regex with a numeric
+    // back-reference was fragile under the Android/JVM regex implementations and
+    // could leak consent-manager JavaScript into the extracted article text.
+    var visibleHtml = html
+    listOf("script", "style", "noscript", "template", "svg").forEach { tag ->
+        visibleHtml = Regex(
+            """<$tag\b[^>]*>.*?</$tag\s*>""",
+            setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+        ).replace(visibleHtml, " ")
+    }
+    val visible = Html.fromHtml(visibleHtml, Html.FROM_HTML_MODE_LEGACY).toString()
     return (articleBodies + visible).filter { it.isNotBlank() }.distinct().joinToString("\n\n")
 }
 
