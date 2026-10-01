@@ -435,7 +435,8 @@ internal class LocalDelegationCoordinator(
             } catch (failure: Exception) {
                 dispatchedAtMs?.let { wastedLocalMs.addAndGet((System.currentTimeMillis() - it).coerceAtLeast(0L)) }
                 val estimated = maxOf(estimatedDelegateTokens(prompt).toLong(), observedForFailure)
-                failedLocalTokens.addAndGet(estimated)
+                val chargedFailureTokens = if (dispatchedAtMs != null || observedForFailure > 0L) estimated else 0L
+                if (chargedFailureTokens > 0L) failedLocalTokens.addAndGet(chargedFailureTokens)
                 val message = failure.message.orEmpty()
                 val failedUid = resolvedProfileUid ?: target.uid
                 val authBlocked = message.contains("HTTP 401", ignoreCase = true) ||
