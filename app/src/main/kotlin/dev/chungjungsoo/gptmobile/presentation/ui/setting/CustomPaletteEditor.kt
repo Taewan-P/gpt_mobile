@@ -77,19 +77,28 @@ fun CustomPaletteEditor() {
                 Text("▾")
             }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                DropdownMenuItem(text = { Text("Default") }, onClick = { theme.updateCustomPalette(null); menuOpen = false })
+                DropdownMenuItem(text = { Text("Default") }, onClick = {
+                    theme.updateCustomPalette(null)
+                    menuOpen = false
+                })
                 Text("Presets", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.labelMedium)
                 dev.chungjungsoo.gptmobile.data.dto.ThemePresets.profiles.forEach { preset ->
                     DropdownMenuItem(text = { Text(preset.name) }, leadingIcon = {
                         Surface(color = Color(preset.palette.primary), shape = MaterialTheme.shapes.small, modifier = Modifier.size(18.dp)) {}
-                    }, onClick = { theme.applyProfile(preset); menuOpen = false })
+                    }, onClick = {
+                        theme.applyProfile(preset)
+                        menuOpen = false
+                    })
                 }
                 if (saved.savedProfiles.isNotEmpty()) {
                     Text("Saved themes", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.labelMedium)
                     saved.savedProfiles.forEach { profile ->
                         DropdownMenuItem(text = { Text(profile.name) }, leadingIcon = {
                             Surface(color = Color(profile.palette.primary), shape = MaterialTheme.shapes.small, modifier = Modifier.size(18.dp)) {}
-                        }, onClick = { theme.applyProfile(profile); menuOpen = false })
+                        }, onClick = {
+                            theme.applyProfile(profile)
+                            menuOpen = false
+                        })
                     }
                 }
             }
