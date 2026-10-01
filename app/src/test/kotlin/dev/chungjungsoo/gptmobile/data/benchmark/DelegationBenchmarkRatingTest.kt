@@ -64,9 +64,11 @@ class DelegationBenchmarkRatingTest {
             DelegationBenchmarkEvent(20, "INSIGHT_LOW_THROUGHPUT", "WARN", "slow"),
             DelegationBenchmarkEvent(30, "WORKER_FAILURE", "ERROR", "failed")
         )
-        val enriched = base.copy(samples = base.samples.map { sample ->
-            sample.copy(delegation = sample.delegation!!.copy(diagnosticEvents = events))
-        })
+        val enriched = base.copy(
+            samples = base.samples.map { sample ->
+                sample.copy(delegation = sample.delegation!!.copy(diagnosticEvents = events))
+            }
+        )
         val result = delegationBenchmarkRating(listOf(enriched))
         assertEquals(100.0, result.toolTaskSuccessPercent!!, .01)
         assertEquals(100.0, result.toolCallSuccessPercent!!, .01)
