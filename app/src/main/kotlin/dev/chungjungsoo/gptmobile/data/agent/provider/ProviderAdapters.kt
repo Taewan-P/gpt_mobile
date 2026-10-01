@@ -453,12 +453,24 @@ class OpenAICompatibleAdapter @Inject constructor(
                     // The desktop gateway has its own intermediate-generation ceiling.
                     // Keep it aligned with the delegated provider cap so a 128/256-token
                     // worker cannot silently expand to the gateway default (for example 1024).
-                    val requestConfig = if (isLlama && effectiveOutputTokens != null) {
-                        config.copy(
-                            extraHeaders = config.extraHeaders + mapOf(
-                                "X-Gateway-Intermediate-Max-Tokens" to effectiveOutputTokens.toString()
-                            )
-                        )
+                    val requestConfig = if (isLlama) {
+                        val delegationHeaders = buildMap {
+                            effectiveOutputTokens?.let {
+                                put("X-Gateway-Intermediate-Max-Tokens", it.toString())
+                            }
+                            // Delegated/local-preparation requests explicitly disable reasoning.
+                            // Propagate that intent to Gateway v12 as a request-scoped override;
+                            // otherwise Qwen thinking models can spend a tiny output cap entirely
+                            // on hidden reasoning and return no usable text.
+                            if (!constraints.allowReasoning) {
+                                put("X-Gateway-Reasoning-Effort", "none")
+                            }
+                        }
+                        if (delegationHeaders.isEmpty()) {
+                            config
+                        } else {
+                            config.copy(extraHeaders = config.extraHeaders + delegationHeaders)
+                        }
                     } else {
                         config
                     }
