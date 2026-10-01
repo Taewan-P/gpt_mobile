@@ -464,6 +464,9 @@ class OpenAICompatibleAdapter @Inject constructor(
                             // on hidden reasoning and return no usable text.
                             if (!constraints.allowReasoning) {
                                 put("X-Gateway-Reasoning-Effort", "none")
+                                if (constraints.maxOutputTokens != null) {
+                                    put("X-Gateway-Delegated-Worker", "true")
+                                }
                             }
                         }
                         if (delegationHeaders.isEmpty()) {
