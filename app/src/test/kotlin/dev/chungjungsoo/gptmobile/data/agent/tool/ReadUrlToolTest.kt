@@ -153,6 +153,26 @@ class ReadUrlToolTest {
     }
 
     @Test
+    fun `HTML reader strips scripts but preserves JSON-LD article body`() = runBlocking {
+        val server = server { exchange ->
+            exchange.respond(
+                200,
+                "text/html; charset=utf-8",
+                """<html><head>
+                    <script>window.OneTrust = { huge: "consent-manager-noise" };</script>
+                    <script type="application/ld+json">{"@type":"NewsArticle","articleBody":"The verified article body says the result is 42 ms."}</script>
+                    </head><body><div>Cookie preferences and privacy choices.</div></body></html>"""
+            )
+        }
+
+        val result = tool(allowTestLoopback = true).execute("json-ld", args(server.url("fixture.test", "/article")))
+
+        assertFalse(result.isError)
+        assertTrue(result.text().contains("verified article body"))
+        assertFalse(result.text().contains("consent-manager-noise"))
+    }
+
+    @Test
     fun `declared charset decodes text with UTF-8 fallback`() = runBlocking {
         val latin1 = server { exchange ->
             exchange.respond(200, "text/plain; charset=iso-8859-1", byteArrayOf(0xE9.toByte()))
