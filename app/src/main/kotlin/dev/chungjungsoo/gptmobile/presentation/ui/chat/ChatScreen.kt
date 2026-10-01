@@ -156,6 +156,14 @@ fun ChatScreen(
     onBackAction: () -> Unit,
     onNavigateToLocalModels: () -> Unit = {}
 ) {
+    val delegationRecoveryRequests by chatViewModel.pendingDelegationRecovery.collectAsStateWithLifecycle()
+    delegationRecoveryRequests.firstOrNull()?.let { request ->
+        DelegationRecoveryDialog(
+            request = request,
+            onSwitch = { profileUid -> chatViewModel.respondDelegationRecovery(request.id, profileUid) },
+            onCancelDelegation = { chatViewModel.respondDelegationRecovery(request.id, null) }
+        )
+    }
     val inputRequests by chatViewModel.pendingMcpInput.collectAsStateWithLifecycle()
     inputRequests.firstOrNull()?.let { McpInputDialog(it, chatViewModel::respondMcpInput) }
     val approvals by chatViewModel.pendingToolApprovals.collectAsStateWithLifecycle(emptyList())
