@@ -57,6 +57,17 @@ class GatewayV12Tests(unittest.TestCase):
         self.assertIn('safe_max = max(\n        1,', source)
         self.assertIn('available_generation = max(\n        1,', source)
 
+    def test_explicit_no_reasoning_disables_qwen_thinking(self):
+        source = SOURCE.read_text()
+        self.assertIn('template_kwargs["enable_thinking"] = False', source)
+        self.assertIn('explicit_reasoning != "none"', source)
+
+    def test_tool_choice_none_is_a_strict_gateway_fast_path(self):
+        source = SOURCE.read_text()
+        self.assertIn('strict_no_tool_request = (', source)
+        self.assertIn('client_tools = [] if strict_no_tool_request else early_client_tools', source)
+        self.assertIn('"explicit tool_choice=none"', source)
+
 
 if __name__ == '__main__':
     unittest.main()
