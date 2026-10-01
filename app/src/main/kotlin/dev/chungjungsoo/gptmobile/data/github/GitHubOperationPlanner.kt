@@ -28,7 +28,11 @@ object GitHubOperationPlanner {
                 add(step("draft_pr", "Create or update a draft pull request for review."))
             }
             if (wantsMerge) add(step("merge_gate", "Merge only after explicit user intent and required checks/reviews pass."))
-            if (wantsRelease) add(step("release_gate", "Publish only after the requested build/release workflow succeeds."))
+            if (wantsRelease) {
+                add(step("release_status", "Check whether the requested tag/release already exists and identify the repository release workflow."))
+                add(step("publish_release", "Use the native publish_release action. Prefer the repository release workflow; use direct release creation only when no release workflow applies."))
+                add(step("release_verify", "Call release_status after publication to verify the workflow result, final release and assets."))
+            }
         }
     }
 

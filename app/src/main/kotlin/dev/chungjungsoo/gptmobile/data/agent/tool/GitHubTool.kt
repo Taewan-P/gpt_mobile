@@ -77,7 +77,7 @@ class GitHubTool(
 
     override val definition: AgentToolDefinition = AgentToolDefinition(
         name = modelToolName,
-        description = "Work with GitHub repositories through one native integration. Prefer compact high-level actions: repo_status for an overview, repo_map before code reads, find_symbol/find_references/find_tests for discovery, pr_context for PR inspection, changed_since for compact diffs, and plan_change before multi-step writes. Use read_code line ranges instead of full files." + (accountName?.let { " Authenticated connection: $it. Use this tool for repositories available to this account." } ?: " Public read access; configure a GitHub API connection for private repositories and writes.") + (repositoryContext?.let { " Selected repository: ${it.fullName}, branch: ${it.ref}. Omitted owner/repo/ref use this selection. Read code in line ranges and include source paths. Read get_branch_head before commit_files; supply expected_head_sha. Commit only to a working branch and create a draft PR for review." } ?: ""),
+        description = "Work with GitHub repositories through one native integration. Prefer compact high-level actions: repo_status for an overview, repo_map before code reads, find_symbol/find_references/find_tests for discovery, pr_context for PR inspection, changed_since for compact diffs, release_status before releases, publish_release for end-to-end publication, and plan_change before multi-step writes. publish_release prefers an active repository release workflow and falls back to the GitHub Releases API when appropriate; do not tell the user to use local gh or the GitHub Web UI while this action is available. Use read_code line ranges instead of full files." + (accountName?.let { " Authenticated connection: $it. Use this tool for repositories available to this account." } ?: " Public read access; configure a GitHub API connection for private repositories and writes.") + (repositoryContext?.let { " Selected repository: ${it.fullName}, branch: ${it.ref}. Omitted owner/repo/ref use this selection. Read code in line ranges and include source paths. Read get_branch_head before commit_files; supply expected_head_sha. Commit only to a working branch and create a draft PR for review." } ?: ""),
         inputSchema = buildJsonObject {
             put("type", "object")
             put(
@@ -120,7 +120,7 @@ class GitHubTool(
                             )
                         }
                     )
-                    listOf("run_id", "job_id", "page").forEach { name ->
+                    listOf("run_id", "job_id", "release_id", "page").forEach { name ->
                         put(
                             name,
                             buildJsonObject {
@@ -133,7 +133,7 @@ class GitHubTool(
                         "workflow_id",
                         buildJsonObject {
                             put("type", "string")
-                            put("description", "Workflow ID or filename, such as build.yml, for dispatch_workflow.")
+                            put("description", "Workflow ID or filename, such as release-build.yml. Used by dispatch_workflow and optionally publish_release/release_status.")
                         }
                     )
                     put(
@@ -141,6 +141,71 @@ class GitHubTool(
                         buildJsonObject {
                             put("type", "object")
                             put("description", "Input values declared by workflow_dispatch in the workflow file.")
+                        }
+                    )
+                    put(
+                        "tag_name",
+                        buildJsonObject {
+                            put("type", "string")
+                            put("description", "Git tag for release actions, for example v0.9.30.0.")
+                        }
+                    )
+                    put(
+                        "target_commitish",
+                        buildJsonObject {
+                            put("type", "string")
+                            put("description", "Branch, tag, or commit to target when creating a tag/release or dispatching a release workflow.")
+                        }
+                    )
+                    put(
+                        "release_name",
+                        buildJsonObject {
+                            put("type", "string")
+                            put("description", "Display name for a GitHub release. Defaults to tag_name.")
+                        }
+                    )
+                    put(
+                        "prerelease",
+                        buildJsonObject {
+                            put("type", "boolean")
+                            put("description", "Whether the GitHub release is a prerelease.")
+                        }
+                    )
+                    put(
+                        "generate_release_notes",
+                        buildJsonObject {
+                            put("type", "boolean")
+                            put("description", "Ask GitHub to generate release notes when creating a direct release.")
+                        }
+                    )
+                    put(
+                        "release_strategy",
+                        buildJsonObject {
+                            put("type", "string")
+                            put(
+                                "enum",
+                                buildJsonArray {
+                                    add(JsonPrimitive("auto"))
+                                    add(JsonPrimitive("workflow"))
+                                    add(JsonPrimitive("direct"))
+                                }
+                            )
+                            put("description", "publish_release strategy. auto prefers an active release workflow, workflow requires one, direct uses the Releases API.")
+                        }
+                    )
+                    put(
+                        "make_latest",
+                        buildJsonObject {
+                            put("type", "string")
+                            put(
+                                "enum",
+                                buildJsonArray {
+                                    add(JsonPrimitive("true"))
+                                    add(JsonPrimitive("false"))
+                                    add(JsonPrimitive("legacy"))
+                                }
+                            )
+                            put("description", "GitHub make_latest value for create_release/update_release.")
                         }
                     )
                     put(
@@ -175,7 +240,7 @@ class GitHubTool(
                         "ref",
                         buildJsonObject {
                             put("type", "string")
-                            put("description", "Branch name, commit SHA, or tag for get_file_contents. Defaults to default branch.")
+                            put("description", "Branch name, commit SHA, or tag. Used by code reads, workflow dispatch, release status, and release publication.")
                         }
                     )
                     put(
@@ -254,7 +319,7 @@ class GitHubTool(
                         "draft",
                         buildJsonObject {
                             put("type", "boolean")
-                            put("description", "Create a draft pull request; defaults to true.")
+                            put("description", "Draft state. For create_pull_request it defaults to true; for release creation/publication it defaults to false.")
                         }
                     )
                     put(

@@ -65,9 +65,17 @@ class GitHubWorkspaceClient(
             "get_account", "list_repositories", "get_repository", "list_branches", "browse_files",
             "read_code", "get_branch_head", "get_pull_request_files", "get_commit_checks", "compare_refs",
             "repo_status", "repo_map", "find_symbol", "find_references", "find_tests", "related_files",
-            "changed_since", "pr_context", "rate_limit_status", "plan_change"
+            "changed_since", "pr_context", "rate_limit_status", "plan_change",
+            "list_releases", "get_release", "get_release_by_tag", "list_tags", "release_status"
         )
-        val actions = readActions + "commit_files"
+        val writeActions = setOf(
+            "commit_files",
+            "create_tag",
+            "create_release",
+            "update_release",
+            "publish_release"
+        )
+        val actions = readActions + writeActions
 
         fun segment(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8.name()).replace("+", "%20")
 
@@ -130,6 +138,17 @@ class GitHubWorkspaceClient(
                 val head = field("head").ifBlank { ref.ifBlank { "HEAD" } }
                 compactCompare(request("$root/compare/${segment(required("base"))}...${segment(head)}?per_page=100").jsonObject)
             }
+            "list_releases" -> releasePageResult(request("$root/releases?$pagination"), page)
+            "get_release" -> compactRelease(
+                request("$root/releases/${required("release_id").toLong().also { require(it > 0) }}").jsonObject
+            )
+            "get_release_by_tag" -> compactRelease(request("$root/releases/tags/${segment(required("tag_name"))}").jsonObject)
+            "list_tags" -> pageResult(request("$root/tags?$pagination"), page, "name", "commit", "zipball_url", "tarball_url")
+            "release_status" -> releaseStatus(root, args)
+            "create_tag" -> createTag(root, args)
+            "create_release" -> createRelease(root, args)
+            "update_release" -> updateRelease(root, args)
+            "publish_release" -> publishRelease(root, args)
             "commit_files" -> commitFiles(root, args)
             else -> error("Unsupported workspace action: $action")
         }
@@ -505,6 +524,252 @@ class GitHubWorkspaceClient(
             put("branch", branch)
             put("files_changed", files.size)
         }
+    }
+
+    private suspend fun createTag(root: String, args: JsonObject): JsonObject {
+        require(token.isNotBlank()) { "Connect a GitHub account before creating a tag." }
+        val tagName = args["tag_name"]?.jsonPrimitive?.content.orEmpty()
+        require(tagName.isNotBlank() && !tagName.startsWith("/") && ".." !in tagName && !tagName.endsWith(".")) {
+            "A valid tag_name is required."
+        }
+        val target = args["target_commitish"]?.jsonPrimitive?.content.orEmpty()
+            .ifBlank { args["ref"]?.jsonPrimitive?.content.orEmpty() }
+        require(target.isNotBlank()) { "target_commitish or ref is required for create_tag." }
+        val commit = request("$root/commits/${segment(target)}").jsonObject
+        val sha = commit["sha"]?.jsonPrimitive?.content ?: error("Could not resolve target commit.")
+        val created = request(
+            "$root/git/refs",
+            HttpMethod.Post,
+            buildJsonObject {
+                put("ref", "refs/tags/$tagName")
+                put("sha", sha)
+            }
+        ).jsonObject
+        responseCache.clear()
+        return buildJsonObject {
+            put("tag_name", tagName)
+            put("target_commitish", target)
+            put("sha", sha)
+            created["url"]?.let { put("url", it) }
+        }
+    }
+
+    private suspend fun createRelease(root: String, args: JsonObject): JsonObject {
+        require(token.isNotBlank()) { "Connect a GitHub account before creating a release." }
+        val tagName = args["tag_name"]?.jsonPrimitive?.content.orEmpty()
+        require(tagName.isNotBlank()) { "tag_name is required." }
+        val bodyText = args["body"]?.jsonPrimitive?.content.orEmpty()
+        val releaseName = args["release_name"]?.jsonPrimitive?.content.orEmpty()
+            .ifBlank { args["title"]?.jsonPrimitive?.content.orEmpty() }
+            .ifBlank { tagName }
+        val payload = buildJsonObject {
+            put("tag_name", tagName)
+            args["target_commitish"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }?.let { put("target_commitish", it) }
+            put("name", releaseName)
+            if (bodyText.isNotBlank()) put("body", bodyText)
+            put("draft", args["draft"]?.jsonPrimitive?.booleanOrNull ?: false)
+            put("prerelease", args["prerelease"]?.jsonPrimitive?.booleanOrNull ?: false)
+            put("generate_release_notes", args["generate_release_notes"]?.jsonPrimitive?.booleanOrNull ?: bodyText.isBlank())
+            args["make_latest"]?.jsonPrimitive?.content?.takeIf { it in setOf("true", "false", "legacy") }?.let { put("make_latest", it) }
+        }
+        val created = request("$root/releases", HttpMethod.Post, payload).jsonObject
+        responseCache.clear()
+        return compactRelease(created)
+    }
+
+    private suspend fun updateRelease(root: String, args: JsonObject): JsonObject {
+        require(token.isNotBlank()) { "Connect a GitHub account before updating a release." }
+        val releaseId = args["release_id"]?.jsonPrimitive?.content?.toLongOrNull()?.takeIf { it > 0 }
+            ?: error("A positive release_id is required.")
+        val payload = buildJsonObject {
+            args["tag_name"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }?.let { put("tag_name", it) }
+            args["target_commitish"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }?.let { put("target_commitish", it) }
+            val releaseName = args["release_name"]?.jsonPrimitive?.content
+                ?: args["title"]?.jsonPrimitive?.content
+            releaseName?.let { put("name", it) }
+            args["body"]?.jsonPrimitive?.content?.let { put("body", it) }
+            args["draft"]?.jsonPrimitive?.booleanOrNull?.let { put("draft", it) }
+            args["prerelease"]?.jsonPrimitive?.booleanOrNull?.let { put("prerelease", it) }
+            args["make_latest"]?.jsonPrimitive?.content?.takeIf { it in setOf("true", "false", "legacy") }?.let { put("make_latest", it) }
+        }
+        require(payload.isNotEmpty()) { "Provide at least one release field to update." }
+        val updated = request("$root/releases/$releaseId", HttpMethod.Patch, payload).jsonObject
+        responseCache.clear()
+        return compactRelease(updated)
+    }
+
+    private suspend fun publishRelease(root: String, args: JsonObject): JsonObject {
+        require(token.isNotBlank()) { "Connect a GitHub account before publishing a release." }
+        val tagName = args["tag_name"]?.jsonPrimitive?.content.orEmpty()
+        require(tagName.isNotBlank()) { "tag_name is required for publish_release." }
+        val strategy = args["release_strategy"]?.jsonPrimitive?.content.orEmpty().ifBlank { "auto" }
+        require(strategy in setOf("auto", "workflow", "direct")) {
+            "release_strategy must be auto, workflow, or direct."
+        }
+        val existing = findReleaseByTag(root, tagName)
+        if (existing != null) {
+            val isDraft = existing["draft"]?.jsonPrimitive?.booleanOrNull == true
+            val wantsDraft = args["draft"]?.jsonPrimitive?.booleanOrNull ?: false
+            if (isDraft && !wantsDraft) {
+                val id = existing["id"]?.jsonPrimitive?.content?.toLongOrNull() ?: error("Existing draft release has no id.")
+                val published = request("$root/releases/$id", HttpMethod.Patch, buildJsonObject { put("draft", false) }).jsonObject
+                responseCache.clear()
+                return buildJsonObject {
+                    put("status", "published_existing_draft")
+                    put("strategy", "release_api")
+                    put("release", compactRelease(published))
+                }
+            }
+            return buildJsonObject {
+                put("status", if (isDraft) "draft_exists" else "already_published")
+                put("strategy", "existing_release")
+                put("release", compactRelease(existing))
+            }
+        }
+        if (strategy != "direct") {
+            val workflow = findReleaseWorkflow(root, args["workflow_id"]?.jsonPrimitive?.content.orEmpty())
+            if (workflow != null) {
+                val workflowId = workflow["id"]?.jsonPrimitive?.content ?: error("Release workflow has no id.")
+                val ref = args["ref"]?.jsonPrimitive?.content.orEmpty()
+                    .ifBlank { args["target_commitish"]?.jsonPrimitive?.content.orEmpty() }
+                    .ifBlank { request(root).jsonObject["default_branch"]?.jsonPrimitive?.content.orEmpty() }
+                require(ref.isNotBlank()) { "Could not resolve a ref for the release workflow." }
+                val versionPreflight = validateReleaseVersionHint(root, ref, tagName)
+                request(
+                    "$root/actions/workflows/${segment(workflowId)}/dispatches",
+                    HttpMethod.Post,
+                    buildJsonObject {
+                        put("ref", ref)
+                        args["inputs"]?.let {
+                            require(it is JsonObject) { "inputs must be an object." }
+                            put("inputs", it)
+                        }
+                    }
+                )
+                responseCache.clear()
+                return buildJsonObject {
+                    put("status", "workflow_dispatched")
+                    put("strategy", "workflow")
+                    put("tag_name", tagName)
+                    put("ref", ref)
+                    put("workflow", workflow)
+                    put("version_preflight", versionPreflight ?: JsonNull)
+                    put("verification_action", "release_status")
+                    put("message", "Release workflow accepted. Use release_status to verify publication and assets.")
+                }
+            }
+            if (strategy == "workflow") error("No active release workflow was found. Specify workflow_id or use release_strategy=direct.")
+        }
+        val created = createRelease(root, args)
+        return buildJsonObject {
+            put("status", "created")
+            put("strategy", "release_api")
+            put("release", created)
+        }
+    }
+
+    private suspend fun releaseStatus(root: String, args: JsonObject): JsonObject {
+        val tagName = args["tag_name"]?.jsonPrimitive?.content.orEmpty()
+        require(tagName.isNotBlank()) { "tag_name is required for release_status." }
+        val release = findReleaseByTag(root, tagName)
+        val workflowLookup = runCatching {
+            findReleaseWorkflow(root, args["workflow_id"]?.jsonPrimitive?.content.orEmpty())
+        }
+        val workflow = workflowLookup.getOrNull()
+        val latestRun = workflow?.get("id")?.jsonPrimitive?.content?.let { workflowId ->
+            val runs = request("$root/actions/workflows/${segment(workflowId)}/runs?per_page=10").jsonObject["workflow_runs"]?.jsonArray ?: JsonArray(emptyList())
+            val requestedRef = args["ref"]?.jsonPrimitive?.content.orEmpty()
+            val match = if (requestedRef.isBlank()) runs.firstOrNull() else runs.firstOrNull { it.jsonObject["head_branch"]?.jsonPrimitive?.content == requestedRef }
+            match?.jsonObject
+        }
+        return buildJsonObject {
+            put("tag_name", tagName)
+            put("published", release != null && release["draft"]?.jsonPrimitive?.booleanOrNull != true)
+            put("release", release?.let(::compactRelease) ?: JsonNull)
+            put("workflow", workflow ?: JsonNull)
+            workflowLookup.exceptionOrNull()?.message?.let { put("workflow_discovery_error", it) }
+            put("latest_workflow_run", latestRun?.let { project(it, "id", "name", "event", "status", "conclusion", "head_branch", "head_sha", "run_number", "run_attempt", "created_at", "updated_at", "html_url") } ?: JsonNull)
+        }
+    }
+
+    private suspend fun findReleaseByTag(root: String, tagName: String): JsonObject? {
+        for (page in 1..10) {
+            val releases = request("$root/releases?per_page=100&page=$page").jsonArray
+            releases.firstOrNull {
+                it.jsonObject["tag_name"]?.jsonPrimitive?.content == tagName
+            }?.jsonObject?.let { return it }
+            if (releases.size < 100) return null
+        }
+        error("Release history exceeds the safe lookup limit. Narrow the repository release history before publishing this tag.")
+    }
+
+    private suspend fun validateReleaseVersionHint(root: String, ref: String, tagName: String): JsonObject? {
+        val file = runCatching {
+            request("$root/contents/app/build.gradle.kts?ref=${segment(ref)}").jsonObject
+        }.getOrNull() ?: return null
+        if (file["encoding"]?.jsonPrimitive?.content != "base64") return null
+        val encoded = file["content"]?.jsonPrimitive?.content?.replace("\n", "").orEmpty()
+        if (encoded.isBlank()) return null
+        val text = runCatching { Base64.getDecoder().decode(encoded).decodeToString() }.getOrNull() ?: return null
+        val version = Regex("versionName\\s*=\\s*\\\"([^\\\"]+)\\\"").find(text)?.groupValues?.getOrNull(1) ?: return null
+        val expectedTag = "v$version"
+        require(tagName == expectedTag) {
+            "Requested release tag $tagName does not match app versionName $version ($expectedTag). Update versionName/versionCode before dispatching the release workflow."
+        }
+        return buildJsonObject {
+            put("source", "app/build.gradle.kts")
+            put("version_name", version)
+            put("expected_tag", expectedTag)
+            put("matched", true)
+        }
+    }
+
+    private suspend fun findReleaseWorkflow(root: String, preferred: String): JsonObject? {
+        if (preferred.isNotBlank()) {
+            val workflow = request("$root/actions/workflows/${segment(preferred)}").jsonObject
+            return project(workflow, "id", "name", "path", "state", "html_url")
+        }
+        val workflows = request("$root/actions/workflows?per_page=100").jsonObject["workflows"]?.jsonArray ?: JsonArray(emptyList())
+        return workflows.map { it.jsonObject }
+            .filter { it["state"]?.jsonPrimitive?.content == "active" }
+            .filter {
+                val haystack = listOf(it["name"]?.jsonPrimitive?.content.orEmpty(), it["path"]?.jsonPrimitive?.content.orEmpty()).joinToString(" ").lowercase()
+                "release" in haystack || "publish" in haystack
+            }
+            .maxByOrNull {
+                val name = it["name"]?.jsonPrimitive?.content.orEmpty().lowercase()
+                val workflowPath = it["path"]?.jsonPrimitive?.content.orEmpty().lowercase()
+                when {
+                    "publish signed release" in name -> 100
+                    workflowPath.endsWith("/release-build.yml") -> 90
+                    "publish" in name -> 80
+                    "release" in name -> 70
+                    "publish" in workflowPath -> 60
+                    else -> 50
+                }
+            }
+            ?.let { project(it, "id", "name", "path", "state", "html_url") }
+    }
+
+    private fun releasePageResult(value: JsonElement, page: Int): JsonObject = buildJsonObject {
+        val items = value.jsonArray
+        put("items", buildJsonArray { items.forEach { add(compactRelease(it.jsonObject)) } })
+        put("page", page)
+        put("has_more", items.size == 30)
+    }
+
+    private fun compactRelease(value: JsonObject): JsonObject = buildJsonObject {
+        listOf("id", "tag_name", "target_commitish", "name", "draft", "prerelease", "created_at", "published_at", "html_url").forEach { key -> value[key]?.let { put(key, it) } }
+        val assets = value["assets"]?.jsonArray ?: JsonArray(emptyList())
+        put("asset_count", assets.size)
+        put(
+            "assets",
+            buildJsonArray {
+                assets.take(30).forEach { asset ->
+                    add(project(asset.jsonObject, "id", "name", "content_type", "state", "size", "digest", "download_count", "created_at", "updated_at", "browser_download_url"))
+                }
+            }
+        )
     }
 
     private fun project(value: JsonObject, vararg keys: String): JsonObject = buildJsonObject {
