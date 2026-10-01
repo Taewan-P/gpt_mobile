@@ -318,7 +318,8 @@ class ChatRepositoryImpl(
         val firstText = mutableListOf<Long>()
         val decodeSpeeds = mutableListOf<Double>()
         var capViolations = 0
-        var speedUsesReportedTokens = false
+        var measuredSpeedRounds = 0
+        var reportedSpeedRounds = 0
         val benchmarkStarted = System.nanoTime() / 1_000_000
         val benchmarkEvents = mutableListOf<dev.chungjungsoo.gptmobile.data.benchmark.DelegationBenchmarkEvent>()
         fun benchmarkEvent(type: String, message: String, level: String = "INFO") {
@@ -352,13 +353,16 @@ class ChatRepositoryImpl(
                         workerMs += (System.nanoTime() / 1_000_000 - roundStarted).coerceAtLeast(0)
                         first?.let { firstText.add((it - roundStarted).coerceAtLeast(0)) }
                         val speedTokens = if (sawOutput && roundOutput > 0L) {
-                            speedUsesReportedTokens = true
                             roundOutput.toDouble()
                         } else {
                             ((roundChars + 3) / 4).toDouble()
                         }
                         val roundSpeed = if (chunks > 1 && first != null && last != null && last!! > first!!) {
-                            (speedTokens * 1000.0 / (last!! - first!!)).also(decodeSpeeds::add)
+                            (speedTokens * 1000.0 / (last!! - first!!)).also {
+                                decodeSpeeds.add(it)
+                                measuredSpeedRounds++
+                                if (sawOutput) reportedSpeedRounds++
+                            }
                         } else {
                             null
                         }
@@ -451,7 +455,7 @@ class ChatRepositoryImpl(
                     decodeSpeeds.sorted().let { it.getOrNull((it.size - 1).coerceAtLeast(0) / 2) },
                     estimated,
                     capViolations,
-                    speedUsesReportedTokens,
+                    measuredSpeedRounds > 0 && measuredSpeedRounds == reportedSpeedRounds,
                     benchmarkEvents.toList()
                 )
             }
