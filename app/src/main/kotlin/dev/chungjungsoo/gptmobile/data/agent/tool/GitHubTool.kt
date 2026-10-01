@@ -53,6 +53,8 @@ class GitHubTool(
     private val repositoryContext: GitHubRepositoryContext? = null
 ) : AgentTool {
 
+    private val workspaceClient by lazy { GitHubWorkspaceClient(apiToken, httpClient) }
+
     companion object {
         private const val BASE_URL = "https://api.github.com"
         private const val MAX_OUTPUT_CHARS = 32_000
@@ -75,7 +77,7 @@ class GitHubTool(
 
     override val definition: AgentToolDefinition = AgentToolDefinition(
         name = modelToolName,
-        description = "Work with GitHub repositories: search code/issues, read files and pull requests, inspect Actions workflows, create branches, update files, and open pull requests." + (accountName?.let { " Authenticated connection: $it. Use this tool for repositories available to this account." } ?: " Public read access; configure a GitHub API connection for private repositories and writes.") + (repositoryContext?.let { " Selected repository: ${it.fullName}, branch: ${it.ref}. Omitted owner/repo/ref use this selection. Read code in line ranges and include source paths. Read get_branch_head before commit_files; supply expected_head_sha. Commit only to a working branch and create a draft PR for review." } ?: ""),
+        description = "Work with GitHub repositories through one native integration. Prefer compact high-level actions: repo_status for an overview, repo_map before code reads, find_symbol/find_references/find_tests for discovery, pr_context for PR inspection, changed_since for compact diffs, and plan_change before multi-step writes. Use read_code line ranges instead of full files." + (accountName?.let { " Authenticated connection: $it. Use this tool for repositories available to this account." } ?: " Public read access; configure a GitHub API connection for private repositories and writes.") + (repositoryContext?.let { " Selected repository: ${it.fullName}, branch: ${it.ref}. Omitted owner/repo/ref use this selection. Read code in line ranges and include source paths. Read get_branch_head before commit_files; supply expected_head_sha. Commit only to a working branch and create a draft PR for review." } ?: ""),
         inputSchema = buildJsonObject {
             put("type", "object")
             put(
@@ -331,7 +333,7 @@ class GitHubTool(
 
         return try {
             if (action in GitHubWorkspaceClient.actions) {
-                val result = GitHubWorkspaceClient(apiToken, httpClient).execute(action, arguments)
+                val result = workspaceClient.execute(action, arguments)
                 return successResult(callId, result.toString())
             }
             when (action) {
@@ -802,6 +804,7 @@ class GitHubTool(
             contentType(ContentType.Application.Json)
             header(HttpHeaders.Accept, "application/vnd.github+json")
             header(HttpHeaders.UserAgent, "GPT-Mobile-App")
+            header("X-GitHub-Api-Version", GitHubWorkspaceClient.API_VERSION)
             header(HttpHeaders.Authorization, "Bearer $apiToken")
             setBody(body.toString())
         }
@@ -809,6 +812,7 @@ class GitHubTool(
     private suspend fun getGitHubApi(url: String): HttpResponse = httpClient.get(url) {
         header(HttpHeaders.Accept, "application/vnd.github.v3+json")
         header(HttpHeaders.UserAgent, "GPT-Mobile-App")
+        header("X-GitHub-Api-Version", GitHubWorkspaceClient.API_VERSION)
         if (apiToken.isNotBlank()) {
             header(HttpHeaders.Authorization, "Bearer $apiToken")
         }
