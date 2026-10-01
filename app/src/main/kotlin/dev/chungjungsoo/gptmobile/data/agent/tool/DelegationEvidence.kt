@@ -93,14 +93,19 @@ internal fun delegationHandoff(summary: String, sources: List<DelegationSource>,
     val maxBytes = tokenBudget.coerceIn(128, 4096) * 3
     val kept = mutableListOf<DelegationSource>()
     val sourceRows = mutableListOf<JsonObject>()
-    for (source in sources.sortedByDescending { it.pageRead }) {
+    val citedIds = Regex("\\bS\\d+\\b").findAll(summary).map { it.value }.toSet()
+    val prioritizedSources = sources.sortedWith(
+        compareByDescending<DelegationSource> { it.id in citedIds }
+            .thenByDescending { it.pageRead }
+    )
+    for (source in prioritizedSources) {
         val row = buildJsonObject {
             put("id", source.id)
             put("url", source.url)
             put("title", truncateUtf8(source.title, 120))
             put("evidence", source.evidenceType ?: if (source.pageRead) if (source.excerpted) "page excerpt" else "page read" else "search snippet")
         }
-        if ((sourceRows.sumOf { it.toString().toByteArray().size } + row.toString().toByteArray().size) <= maxBytes / 2) {
+        if ((sourceRows.sumOf { it.toString().toByteArray().size } + row.toString().toByteArray().size) <= maxBytes / 3) {
             kept += source
             sourceRows += row
         }
@@ -110,9 +115,16 @@ internal fun delegationHandoff(summary: String, sources: List<DelegationSource>,
         val unreadablePageWarning =
             note.startsWith("[") &&
                 note.contains("could not be read by enabled page readers")
+        val recoveredSearchWarning =
+            note.startsWith("Search ") &&
+                (
+                    note.contains("another enabled search provider was attempted") ||
+                        note.contains("remaining planned queries were still attempted")
+                    )
         return note == "Some search engines were unavailable." ||
             note.startsWith("The brief prioritizes read pages") ||
             unreadablePageWarning ||
+            recoveredSearchWarning ||
             note == "Some source references were omitted to fit the brief."
     }
 
@@ -125,11 +137,18 @@ internal fun delegationHandoff(summary: String, sources: List<DelegationSource>,
     findings = Regex("\\bS\\d+\\b").replace(findings) { if (it.value in knownIds) it.value else "source omitted" }
     var findingsTruncated = false
     fun render() = buildJsonObject {
+        val renderedLimitations = (
+            notes + if (findingsTruncated) {
+                listOf("Handoff findings were truncated to fit the configured evidence budget.")
+            } else {
+                emptyList()
+            }
+        ).distinct()
         put("kind", "local_evidence")
-        put("partial", notes.isNotEmpty() || findingsTruncated)
+        put("partial", renderedLimitations.isNotEmpty())
         put("findings", findings)
         put("sources", JsonArray(sourceRows))
-        put("limitations", JsonArray(notes.map(::JsonPrimitive)))
+        put("limitations", JsonArray(renderedLimitations.map(::JsonPrimitive)))
         put("warnings", JsonArray(warnings.map(::JsonPrimitive)))
     }.toString()
     while (render().toByteArray().size > maxBytes) {
