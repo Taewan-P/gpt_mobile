@@ -189,6 +189,7 @@ internal class LocalDelegationCoordinator(
                 candidate.uid != failedUid &&
                 candidate.enabled &&
                 !candidate.excludesMemory() &&
+                !(source.compatibleType == ClientType.LITERT_LM && candidate.compatibleType == ClientType.LITERT_LM) &&
                 candidate.uid !in quarantinedWorkerUids &&
                 (config.allowRemoteWorkers || candidate.isPrivateDestination())
         }.filter { candidate ->
@@ -635,7 +636,7 @@ internal class LocalDelegationCoordinator(
                     delegationCanceledByUser.set(true)
                     AppLogRecorder.record(
                         "Delegation",
-                        "User canceled delegation failover · failed=$failedUid · primary=${source.uid}",
+                        "Delegation failover canceled or timed out · failed=$failedUid · primary=${source.uid}",
                         "W"
                     )
                     return null
