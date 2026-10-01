@@ -718,6 +718,7 @@ internal class LocalDelegationCoordinator(
         workerText(target, task, maxTokens, requirePrivate = false, allowTools = true)
 
     suspend fun delegate(target: PlatformV2, task: String, maxTokens: Int, tools: List<ResolvedAgentTool>, callId: String): String {
+        if (delegationCanceledByUser.get()) return primaryOnlyHandoff()
         val config = settings().normalized()
         val effectiveCallLimit = config.effectiveLocalModelCalls()
         if (localCalls.get() >= effectiveCallLimit) {
@@ -726,6 +727,7 @@ internal class LocalDelegationCoordinator(
         }
         if (researchAvailable()) {
             val result = prepare(task, tools, callId)
+            if (delegationCanceledByUser.get()) return primaryOnlyHandoff()
             if (result.outcome == LocalResearchOutcome.SUCCESS && result.handoff.isNotBlank()) return result.handoff
             AppLogRecorder.record(
                 "Delegation",
@@ -740,8 +742,10 @@ internal class LocalDelegationCoordinator(
         val hardCap = minOf(config.effectiveLocalInputTokens(), MAX_DELEGATION_INPUT_TOKENS)
         val estimated = estimatedDelegateTokens(task)
         if (estimated <= hardCap) {
-            return workerText(target, task, maxTokens, requirePrivate = false, allowTools = true)
-                ?: error("CANCELED_NO_RESULT: delegated model was unavailable, stalled, or its compute budget was reached. Retry only the missing subtask with a smaller payload.")
+            val result = workerText(target, task, maxTokens, requirePrivate = false, allowTools = true)
+            if (result != null) return result
+            if (delegationCanceledByUser.get()) return primaryOnlyHandoff()
+            error("CANCELED_NO_RESULT: delegated model was unavailable, stalled, or its compute budget was reached. Retry only the missing subtask with a smaller payload.")
         }
 
         val chunkTokens = minOf(config.chunkSizeTokens, hardCap).coerceAtLeast(1000)
@@ -774,6 +778,7 @@ internal class LocalDelegationCoordinator(
                 }
             }
         }
+        if (delegationCanceledByUser.get()) return primaryOnlyHandoff(summaries)
         if (summaries.isEmpty()) {
             error("CANCELED_NO_RESULT: oversized delegation produced no usable chunk results. Do not replay the original payload.")
         }
