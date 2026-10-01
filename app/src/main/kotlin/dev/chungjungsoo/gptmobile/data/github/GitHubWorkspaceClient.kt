@@ -35,9 +35,21 @@ data class GitHubRepositoryContext(val owner: String, val repo: String, val ref:
     val fullName: String get() = "$owner/$repo"
 }
 
-/** Direct GitHub integration shared by the workspace UI and AI tools; no MCP server required. */
-class GitHubWorkspaceClient(private val token: String, private val client: HttpClient = sharedClient) {
+/**
+ * Direct GitHub integration shared by the workspace UI and AI tools.
+ *
+ * Agent-facing actions return compact task-shaped payloads. Raw REST and
+ * GraphQL responses stay inside this layer so they do not waste model context.
+ */
+class GitHubWorkspaceClient(
+    private val token: String,
+    private val client: HttpClient = sharedClient,
+    private val responseCache: GitHubResponseCache = GitHubResponseCache(),
+    private val rateLimits: GitHubRateLimitManager = GitHubRateLimitManager()
+) {
     companion object {
+        const val API_VERSION = "2026-03-10"
+
         private val sharedClient by lazy {
             HttpClient(OkHttp) {
                 followRedirects = false
@@ -51,7 +63,9 @@ class GitHubWorkspaceClient(private val token: String, private val client: HttpC
         private val json = Json { ignoreUnknownKeys = true }
         val readActions = setOf(
             "get_account", "list_repositories", "get_repository", "list_branches", "browse_files",
-            "read_code", "get_branch_head", "get_pull_request_files", "get_commit_checks", "compare_refs"
+            "read_code", "get_branch_head", "get_pull_request_files", "get_commit_checks", "compare_refs",
+            "repo_status", "repo_map", "find_symbol", "find_references", "find_tests", "related_files",
+            "changed_since", "pr_context", "rate_limit_status", "plan_change"
         )
         val actions = readActions + "commit_files"
 
@@ -68,70 +82,312 @@ class GitHubWorkspaceClient(private val token: String, private val client: HttpC
     suspend fun execute(action: String, args: JsonObject): JsonElement {
         fun field(name: String): String = args[name]?.jsonPrimitive?.content.orEmpty()
         fun required(name: String): String = field(name).also { require(it.isNotBlank()) { "$name is required." } }
+
+        if (action == "plan_change") return GitHubOperationPlanner.plan(field("query"))
+        if (action == "rate_limit_status") return rateLimitStatus()
+
         val page = field("page").ifBlank { "1" }.toInt()
         require(page in 1..1000) { "Page must be between 1 and 1000." }
         val pagination = "per_page=30&page=$page"
         if (action == "get_account") return request("/user", authenticated = true)
-        if (action == "list_repositories") return pageResult(request("/user/repos?sort=updated&$pagination", authenticated = true), page, "name", "full_name", "private", "owner", "default_branch", "permissions", "html_url")
+        if (action == "list_repositories") {
+            return pageResult(
+                request("/user/repos?sort=updated&$pagination", authenticated = true),
+                page,
+                "name", "full_name", "private", "owner", "default_branch", "permissions", "html_url"
+            )
+        }
+
         val owner = required("owner")
         val repo = required("repo")
-        require(Regex("[A-Za-z0-9_.-]+").matches(owner) && Regex("[A-Za-z0-9_.-]+").matches(repo)) { "Invalid repository owner or name." }
+        require(Regex("[A-Za-z0-9_.-]+").matches(owner) && Regex("[A-Za-z0-9_.-]+").matches(repo)) {
+            "Invalid repository owner or name."
+        }
         val root = "/repos/${segment(owner)}/${segment(repo)}"
         val ref = field("ref").ifBlank { field("branch") }
         val refQuery = ref.takeIf { it.isNotBlank() }?.let { "?ref=${segment(it)}" }.orEmpty()
+
         return when (action) {
             "get_repository" -> request(root)
+            "repo_status" -> repoStatus(owner, repo, root)
             "list_branches" -> pageResult(request("$root/branches?$pagination"), page)
             "get_branch_head" -> request("$root/git/ref/heads/${segment(required("branch"))}")
-            "browse_files" -> {
-                val path = field("path").takeIf { it.isNotBlank() }?.let { "/${filePath(it)}" }.orEmpty()
-                val result = request("$root/contents$path$refQuery")
-                require(result is JsonArray) { "This path is a file. Use read_code to open it." }
-                buildJsonObject {
-                    put(
-                        "entries",
-                        buildJsonArray {
-                            result.drop((page - 1) * 30).take(30).forEach { item -> add(project(item.jsonObject, "name", "path", "type", "sha", "size", "html_url")) }
-                        }
-                    )
-                    put("directory_limit_reached", result.size >= 1000)
-                    put("page", page)
-                    put("has_more", page * 30 < result.size)
-                }
-            }
-            "read_code" -> {
-                val result = request("$root/contents/${filePath(required("path"))}$refQuery").jsonObject
-                require(result["type"]?.jsonPrimitive?.content == "file") { "Only regular text files can be opened." }
-                require(result["encoding"]?.jsonPrimitive?.content == "base64") { "File is too large for this workspace. Read a smaller file." }
-                val bytes = Base64.getMimeDecoder().decode(result["content"]?.jsonPrimitive?.content.orEmpty())
-                require(bytes.size <= 256_000 && bytes.none { it == 0.toByte() }) { "Workspace supports text files up to 256 KB." }
-                val content = bytes.decodeToString(throwOnInvalidSequence = true)
-                val lines = content.split('\n')
-                val start = field("start_line").ifBlank { "1" }.toInt()
-                val end = field("end_line").ifBlank { (start + 299).toString() }.toInt()
-                require(start >= 1 && end >= start && end - start < 2000) { "Use a valid range of at most 2,000 lines." }
-                val selected = lines.drop(start - 1).take(end - start + 1).joinToString("\n")
-                require(selected.length <= 256_000) { "Selected lines exceed the text budget." }
-                buildJsonObject {
-                    put("path", result["path"] ?: JsonPrimitive(required("path")))
-                    put("sha", result["sha"] ?: JsonNull)
-                    put("ref", ref)
-                    put("html_url", result["html_url"] ?: JsonNull)
-                    put("start_line", start)
-                    put("end_line", minOf(end, lines.size))
-                    put("total_lines", lines.size)
-                    put("has_more", end < lines.size)
-                    put("content", selected)
-                }
-            }
+            "browse_files" -> browseFiles(root, refQuery, field("path"), page)
+            "read_code" -> readCode(root, refQuery, ref, required("path"), field("start_line"), field("end_line"))
+            "repo_map" -> repoMap(root, ref, page)
+            "find_symbol" -> codeSearch(owner, repo, required("query"), testsOnly = false)
+            "find_references" -> codeSearch(owner, repo, required("query"), testsOnly = false)
+            "find_tests" -> codeSearch(owner, repo, required("query"), testsOnly = true)
+            "related_files" -> relatedFiles(root, ref, required("path"))
             "get_pull_request_files" -> {
                 val number = required("pull_number").toInt().also { require(it > 0) }
-                pageResult(request("$root/pulls/$number/files?$pagination"), page)
+                pageResult(request("$root/pulls/$number/files?$pagination"), page, "filename", "status", "additions", "deletions", "changes", "sha", "previous_filename")
             }
-            "get_commit_checks" -> request("$root/commits/${segment(required("ref"))}/check-runs?$pagination")
-            "compare_refs" -> request("$root/compare/${segment(required("base"))}...${segment(required("head"))}?$pagination")
+            "pr_context" -> prContext(root, required("pull_number").toInt().also { require(it > 0) })
+            "get_commit_checks" -> compactChecks(request("$root/commits/${segment(required("ref"))}/check-runs?$pagination").jsonObject)
+            "compare_refs" -> compactCompare(request("$root/compare/${segment(required("base"))}...${segment(required("head"))}?$pagination").jsonObject)
+            "changed_since" -> {
+                val head = field("head").ifBlank { ref.ifBlank { "HEAD" } }
+                compactCompare(request("$root/compare/${segment(required("base"))}...${segment(head)}?per_page=100").jsonObject)
+            }
             "commit_files" -> commitFiles(root, args)
             else -> error("Unsupported workspace action: $action")
+        }
+    }
+
+    private suspend fun browseFiles(root: String, refQuery: String, rawPath: String, page: Int): JsonObject {
+        val path = rawPath.takeIf { it.isNotBlank() }?.let { "/${filePath(it)}" }.orEmpty()
+        val result = request("$root/contents$path$refQuery")
+        require(result is JsonArray) { "This path is a file. Use read_code to open it." }
+        return buildJsonObject {
+            put("entries", buildJsonArray {
+                result.drop((page - 1) * 30).take(30).forEach { item ->
+                    add(project(item.jsonObject, "name", "path", "type", "sha", "size", "html_url"))
+                }
+            })
+            put("directory_limit_reached", result.size >= 1000)
+            put("page", page)
+            put("has_more", page * 30 < result.size)
+        }
+    }
+
+    private suspend fun readCode(
+        root: String,
+        refQuery: String,
+        ref: String,
+        path: String,
+        startField: String,
+        endField: String
+    ): JsonObject {
+        val result = request("$root/contents/${filePath(path)}$refQuery").jsonObject
+        require(result["type"]?.jsonPrimitive?.content == "file") { "Only regular text files can be opened." }
+        require(result["encoding"]?.jsonPrimitive?.content == "base64") { "File is too large for this workspace. Read a smaller file." }
+        val sha = result["sha"]?.jsonPrimitive?.content.orEmpty()
+        val content = responseCache.getDecodedBlob(sha) ?: run {
+            val bytes = Base64.getMimeDecoder().decode(result["content"]?.jsonPrimitive?.content.orEmpty())
+            require(bytes.size <= 256_000 && bytes.none { it == 0.toByte() }) { "Workspace supports text files up to 256 KB." }
+            bytes.decodeToString(throwOnInvalidSequence = true).also { responseCache.putDecodedBlob(sha, it) }
+        }
+        val lines = content.split('\n')
+        val start = startField.ifBlank { "1" }.toInt()
+        val end = endField.ifBlank { (start + 299).toString() }.toInt()
+        require(start >= 1 && end >= start && end - start < 2000) { "Use a valid range of at most 2,000 lines." }
+        val selected = lines.drop(start - 1).take(end - start + 1).joinToString("\n")
+        require(selected.length <= 256_000) { "Selected lines exceed the text budget." }
+        return buildJsonObject {
+            put("path", result["path"] ?: JsonPrimitive(path))
+            put("sha", result["sha"] ?: JsonNull)
+            put("ref", ref)
+            put("html_url", result["html_url"] ?: JsonNull)
+            put("start_line", start)
+            put("end_line", minOf(end, lines.size))
+            put("total_lines", lines.size)
+            put("has_more", end < lines.size)
+            put("cache_key", sha)
+            put("content", selected)
+        }
+    }
+
+    private suspend fun repoStatus(owner: String, repo: String, root: String): JsonObject {
+        val graphql = if (token.isNotBlank()) runCatching { repoStatusGraphQl(owner, repo) }.getOrNull() else null
+        val latestRun = runCatching { request("$root/actions/runs?per_page=1").jsonObject }.getOrNull()
+        val workflow = latestRun?.get("workflow_runs")?.jsonArray?.firstOrNull()?.jsonObject
+        if (graphql != null) {
+            return buildJsonObject {
+                graphql.forEach { (key, value) -> put(key, value) }
+                workflow?.let {
+                    put("latest_workflow", project(it, "id", "name", "event", "status", "conclusion", "head_branch", "head_sha", "html_url", "created_at", "updated_at"))
+                }
+            }
+        }
+
+        val metadata = request(root).jsonObject
+        val pulls = request("$root/pulls?state=open&per_page=5").jsonArray
+        val issueQuery = segment("repo:$owner/$repo is:issue is:open")
+        val issues = runCatching { request("/search/issues?q=$issueQuery&per_page=1").jsonObject }.getOrNull()
+        return buildJsonObject {
+            put("repository", project(metadata, "full_name", "default_branch", "private", "visibility", "pushed_at", "html_url"))
+            put("open_issue_count", issues?.get("total_count") ?: JsonNull)
+            put("open_pull_requests", compactPullRequests(pulls))
+            workflow?.let {
+                put("latest_workflow", project(it, "id", "name", "event", "status", "conclusion", "head_branch", "head_sha", "html_url", "created_at", "updated_at"))
+            }
+        }
+    }
+
+    private suspend fun repoStatusGraphQl(owner: String, repo: String): JsonObject {
+        val query = """
+            query RepositoryStatus($owner: String!, $name: String!) {
+              repository(owner: $owner, name: $name) {
+                nameWithOwner
+                url
+                isPrivate
+                defaultBranchRef {
+                  name
+                  target {
+                    ... on Commit {
+                      oid
+                      committedDate
+                      messageHeadline
+                    }
+                  }
+                }
+                issues(states: OPEN) { totalCount }
+                pullRequests(states: OPEN, first: 5, orderBy: {field: UPDATED_AT, direction: DESC}) {
+                  totalCount
+                  nodes {
+                    number
+                    title
+                    isDraft
+                    updatedAt
+                    headRefName
+                    baseRefName
+                    url
+                  }
+                }
+              }
+              rateLimit { cost remaining resetAt }
+            }
+        """.trimIndent()
+        val result = graphQl(query, buildJsonObject {
+            put("owner", owner)
+            put("name", repo)
+        })
+        val errors = result["errors"]?.jsonArray
+        require(errors.isNullOrEmpty()) { "GitHub GraphQL returned an error." }
+        val data = result["data"]?.jsonObject ?: error("GitHub GraphQL returned no data.")
+        val repository = data["repository"]?.jsonObject ?: error("Repository was not returned by GitHub.")
+        val defaultRef = repository["defaultBranchRef"]?.jsonObject
+        val commit = defaultRef?.get("target")?.jsonObject
+        val pulls = repository["pullRequests"]?.jsonObject
+        return buildJsonObject {
+            put("repository", buildJsonObject {
+                put("full_name", repository["nameWithOwner"] ?: JsonPrimitive("$owner/$repo"))
+                put("url", repository["url"] ?: JsonNull)
+                put("private", repository["isPrivate"] ?: JsonNull)
+                put("default_branch", defaultRef?.get("name") ?: JsonNull)
+                put("head", buildJsonObject {
+                    put("sha", commit?.get("oid") ?: JsonNull)
+                    put("committed_at", commit?.get("committedDate") ?: JsonNull)
+                    put("message", commit?.get("messageHeadline") ?: JsonNull)
+                })
+            })
+            put("open_issue_count", repository["issues"]?.jsonObject?.get("totalCount") ?: JsonPrimitive(0))
+            put("open_pull_request_count", pulls?.get("totalCount") ?: JsonPrimitive(0))
+            put("open_pull_requests", pulls?.get("nodes") ?: JsonArray(emptyList()))
+            data["rateLimit"]?.let { put("graphql_rate_limit", it) }
+        }
+    }
+
+    private suspend fun repoMap(root: String, ref: String, page: Int): JsonObject {
+        val target = ref.ifBlank {
+            request(root).jsonObject["default_branch"]?.jsonPrimitive?.content ?: "HEAD"
+        }
+        return GitHubRepositoryIndex.compact(request("$root/git/trees/${segment(target)}?recursive=1").jsonObject, page)
+    }
+
+    private suspend fun relatedFiles(root: String, ref: String, path: String): JsonObject {
+        filePath(path)
+        val target = ref.ifBlank {
+            request(root).jsonObject["default_branch"]?.jsonPrimitive?.content ?: "HEAD"
+        }
+        val tree = request("$root/git/trees/${segment(target)}?recursive=1").jsonObject
+        return buildJsonObject {
+            put("path", path)
+            put("related", GitHubRepositoryIndex.related(tree, path))
+            put("truncated", tree["truncated"] ?: JsonPrimitive(false))
+        }
+    }
+
+    private suspend fun codeSearch(owner: String, repo: String, query: String, testsOnly: Boolean): JsonObject {
+        val scoped = "$query repo:$owner/$repo"
+        val result = request("/search/code?q=${segment(scoped)}&per_page=30").jsonObject
+        val items = result["items"]?.jsonArray.orEmpty()
+            .mapNotNull { it as? JsonObject }
+            .filter { item ->
+                if (!testsOnly) true else {
+                    val itemPath = item["path"]?.jsonPrimitive?.content.orEmpty().lowercase()
+                    "/test" in itemPath || "/androidtest" in itemPath || itemPath.endsWith("test.kt") || itemPath.endsWith("test.java")
+                }
+            }
+        return buildJsonObject {
+            put("query", query)
+            put("total_count", if (testsOnly) JsonPrimitive(items.size) else result["total_count"] ?: JsonPrimitive(items.size))
+            put("items", buildJsonArray {
+                items.take(30).forEach { item -> add(project(item, "name", "path", "sha", "html_url")) }
+            })
+        }
+    }
+
+    private suspend fun prContext(root: String, number: Int): JsonObject {
+        val pr = request("$root/pulls/$number").jsonObject
+        val files = request("$root/pulls/$number/files?per_page=100").jsonArray
+        val headSha = pr["head"]?.jsonObject?.get("sha")?.jsonPrimitive?.content.orEmpty()
+        val checks = if (headSha.isNotBlank()) {
+            runCatching { compactChecks(request("$root/commits/${segment(headSha)}/check-runs?per_page=100").jsonObject) }.getOrNull()
+        } else null
+        return buildJsonObject {
+            put("pull_request", buildJsonObject {
+                listOf("number", "title", "state", "draft", "merged", "mergeable", "mergeable_state", "html_url", "changed_files", "additions", "deletions").forEach { key ->
+                    pr[key]?.let { put(key, it) }
+                }
+                pr["head"]?.jsonObject?.let { put("head", project(it, "ref", "sha")) }
+                pr["base"]?.jsonObject?.let { put("base", project(it, "ref", "sha")) }
+            })
+            put("files", buildJsonArray {
+                files.take(100).forEach { item ->
+                    add(project(item.jsonObject, "filename", "status", "additions", "deletions", "changes", "sha", "previous_filename"))
+                }
+            })
+            checks?.let { put("checks", it) }
+        }
+    }
+
+    private fun compactChecks(result: JsonObject): JsonObject {
+        val runs = result["check_runs"]?.jsonArray.orEmpty()
+        return buildJsonObject {
+            put("total_count", result["total_count"] ?: JsonPrimitive(runs.size))
+            put("check_runs", buildJsonArray {
+                runs.take(50).forEach { run ->
+                    add(project(run.jsonObject, "id", "name", "status", "conclusion", "started_at", "completed_at", "html_url"))
+                }
+            })
+        }
+    }
+
+    private fun compactCompare(result: JsonObject): JsonObject = buildJsonObject {
+        listOf("status", "ahead_by", "behind_by", "total_commits", "html_url").forEach { key -> result[key]?.let { put(key, it) } }
+        val files = result["files"]?.jsonArray.orEmpty()
+        put("files", buildJsonArray {
+            files.take(100).forEach { file ->
+                add(project(file.jsonObject, "filename", "status", "additions", "deletions", "changes", "previous_filename", "sha"))
+            }
+        })
+        put("files_returned", minOf(files.size, 100))
+        put("files_truncated", files.size > 100)
+    }
+
+    private fun compactPullRequests(items: JsonArray): JsonArray = buildJsonArray {
+        items.take(5).forEach { item ->
+            val obj = item.jsonObject
+            add(buildJsonObject {
+                listOf("number", "title", "state", "draft", "updated_at", "html_url").forEach { key -> obj[key]?.let { put(key, it) } }
+                obj["head"]?.jsonObject?.let { put("head", project(it, "ref", "sha")) }
+                obj["base"]?.jsonObject?.let { put("base", project(it, "ref", "sha")) }
+            })
+        }
+    }
+
+    private suspend fun rateLimitStatus(): JsonObject {
+        val response = runCatching { request("/rate_limit") }.getOrNull()?.jsonObject
+        val resources = response?.get("resources")?.jsonObject
+        return buildJsonObject {
+            put("observed_headers", rateLimits.toJson())
+            resources?.let {
+                put("resources", buildJsonObject {
+                    listOf("core", "search", "graphql").forEach { key -> it[key]?.let { value -> put(key, value) } }
+                })
+            }
         }
     }
 
@@ -148,7 +404,9 @@ class GitHubWorkspaceClient(private val token: String, private val client: HttpC
         val paths = files.map { it.jsonObject["path"]?.jsonPrimitive?.content.orEmpty().also { filePath(it) } }
         require(paths.distinct().size == paths.size) { "Duplicate file paths are not allowed." }
         val contents = files.map { it.jsonObject["content"]?.jsonPrimitive?.content ?: error("Every file needs UTF-8 content.") }
-        require(contents.all { it.toByteArray().size <= 256_000 && '\u0000' !in it } && contents.sumOf { it.toByteArray().size } <= 1_000_000) { "Text change set exceeds the workspace budget." }
+        require(contents.all { it.toByteArray().size <= 256_000 && '\u0000' !in it } && contents.sumOf { it.toByteArray().size } <= 1_000_000) {
+            "Text change set exceeds the workspace budget."
+        }
         val metadata = request(root).jsonObject
         require(branch != metadata["default_branch"]?.jsonPrimitive?.content) { "Create a working branch before committing changes." }
         val refPath = "$root/git/ref/heads/${segment(branch)}"
@@ -161,29 +419,24 @@ class GitHubWorkspaceClient(private val token: String, private val client: HttpC
         val entries = existingTree["tree"]?.jsonArray.orEmpty().associate { it.jsonObject["path"]?.jsonPrimitive?.content to it.jsonObject }
         val tree = buildJsonObject {
             put("base_tree", baseTree)
-            put(
-                "tree",
-                buildJsonArray {
-                    paths.forEachIndexed { index, path ->
-                        val existing = entries[path]
-                        val mode = existing?.get("mode")?.jsonPrimitive?.content ?: "100644"
-                        require(mode in setOf("100644", "100755")) { "Cannot replace a directory, symlink or submodule: $path" }
-                        require(
-                            path.split('/').dropLast(1).indices.all { depth ->
-                                entries[path.split('/').take(depth + 1).joinToString("/")]?.get("type")?.jsonPrimitive?.content.let { it == null || it == "tree" }
-                            }
-                        ) { "A parent path is not a directory: $path" }
-                        add(
-                            buildJsonObject {
-                                put("path", path)
-                                put("mode", mode)
-                                put("type", "blob")
-                                put("content", contents[index])
-                            }
-                        )
-                    }
+            put("tree", buildJsonArray {
+                paths.forEachIndexed { index, file ->
+                    val existing = entries[file]
+                    val mode = existing?.get("mode")?.jsonPrimitive?.content ?: "100644"
+                    require(mode in setOf("100644", "100755")) { "Cannot replace a directory, symlink or submodule: $file" }
+                    require(
+                        file.split('/').dropLast(1).indices.all { depth ->
+                            entries[file.split('/').take(depth + 1).joinToString("/")]?.get("type")?.jsonPrimitive?.content.let { it == null || it == "tree" }
+                        }
+                    ) { "A parent path is not a directory: $file" }
+                    add(buildJsonObject {
+                        put("path", file)
+                        put("mode", mode)
+                        put("type", "blob")
+                        put("content", contents[index])
+                    })
                 }
-            )
+            })
         }
         val treeSha = request("$root/git/trees", HttpMethod.Post, tree).jsonObject["sha"] ?: error("Missing new tree SHA.")
         val commit = request(
@@ -196,7 +449,6 @@ class GitHubWorkspaceClient(private val token: String, private val client: HttpC
             }
         ).jsonObject
         val sha = commit["sha"] ?: error("Missing commit SHA.")
-        // Never force: a concurrent writer causes a non-fast-forward failure, preserving their work.
         request(
             "$root/git/refs/heads/${segment(branch)}",
             HttpMethod.Patch,
@@ -205,6 +457,7 @@ class GitHubWorkspaceClient(private val token: String, private val client: HttpC
                 put("force", false)
             }
         )
+        responseCache.clear()
         return buildJsonObject {
             put("sha", sha)
             put("branch", branch)
@@ -227,30 +480,66 @@ class GitHubWorkspaceClient(private val token: String, private val client: HttpC
         put("has_more", items.size == 30)
     }
 
-    private suspend fun request(path: String, method: HttpMethod = HttpMethod.Get, body: JsonObject? = null, authenticated: Boolean = false): JsonElement {
+    private suspend fun graphQl(query: String, variables: JsonObject): JsonObject {
+        require(token.isNotBlank()) { "A GitHub credential is required for GraphQL." }
+        val response = client.request("https://api.github.com/graphql") {
+            method = HttpMethod.Post
+            header(HttpHeaders.Accept, "application/vnd.github+json")
+            header(HttpHeaders.UserAgent, "GPT-Mobile-App")
+            header("X-GitHub-Api-Version", API_VERSION)
+            header(HttpHeaders.Authorization, "Bearer $token")
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject {
+                put("query", query)
+                put("variables", variables)
+            }.toString())
+        }
+        rateLimits.record(response.headers)
+        val text = response.bodyAsText()
+        if (!response.status.isSuccess()) {
+            error("GitHub GraphQL HTTP ${response.status.value}. ${requestHint(response.status.value, response.headers["Retry-After"], response.headers["X-RateLimit-Reset"])}")
+        }
+        return json.parseToJsonElement(text).jsonObject
+    }
+
+    private suspend fun request(
+        path: String,
+        method: HttpMethod = HttpMethod.Get,
+        body: JsonObject? = null,
+        authenticated: Boolean = false
+    ): JsonElement {
         if (authenticated || method != HttpMethod.Get) require(token.isNotBlank()) { "A GitHub credential is required." }
+        val cacheKey = "${method.value}:$path"
+        val cached = if (method == HttpMethod.Get) responseCache.get(cacheKey) else null
         val response = client.request("https://api.github.com$path") {
             this.method = method
             header(HttpHeaders.Accept, "application/vnd.github+json")
             header(HttpHeaders.UserAgent, "GPT-Mobile-App")
-            header("X-GitHub-Api-Version", "2022-11-28")
+            header("X-GitHub-Api-Version", API_VERSION)
             if (token.isNotBlank()) header(HttpHeaders.Authorization, "Bearer $token")
+            cached?.etag?.let { header(HttpHeaders.IfNoneMatch, it) }
             if (body != null) {
                 contentType(ContentType.Application.Json)
                 setBody(body.toString())
             }
         }
+        rateLimits.record(response.headers)
+        if (response.status.value == 304 && cached != null) return cached.value
+
         val text = response.bodyAsText()
         if (!response.status.isSuccess()) {
-            val hint = when (response.status.value) {
-                401 -> "Reconnect your GitHub account."
-                403, 429 -> "Check token permissions or GitHub rate limits. Retry after: ${response.headers["Retry-After"] ?: response.headers["X-RateLimit-Reset"] ?: "not supplied"}."
-                404 -> "Check repository access, branch and path."
-                409, 422 -> "Refresh the branch and review the change before retrying."
-                else -> "Try again later."
-            }
-            error("GitHub HTTP ${response.status.value}. $hint")
+            error("GitHub HTTP ${response.status.value}. ${requestHint(response.status.value, response.headers["Retry-After"], response.headers["X-RateLimit-Reset"])}")
         }
-        return json.parseToJsonElement(text)
+        val parsed = if (text.isBlank()) JsonObject(emptyMap()) else json.parseToJsonElement(text)
+        if (method == HttpMethod.Get) responseCache.put(cacheKey, response.headers[HttpHeaders.ETag], parsed)
+        return parsed
+    }
+
+    private fun requestHint(status: Int, retryAfter: String?, reset: String?): String = when (status) {
+        401 -> "Reconnect your GitHub account."
+        403, 429 -> "Check token permissions or GitHub rate limits. Retry after: ${retryAfter ?: reset ?: "not supplied"}."
+        404 -> "Check repository access, branch and path."
+        409, 422 -> "Refresh the branch and review the change before retrying."
+        else -> "Try again later."
     }
 }
