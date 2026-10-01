@@ -143,6 +143,11 @@ internal class DelegationBenchmarkRunner(
                                     fixtureCalls++
                                     val result = fixture.execute(callId, arguments)
                                     if (!result.isError) successfulCalls++
+                                    event(
+                                        "RESEARCH_FIXTURE_TOOL",
+                                        "tool=${fixture.definition.name} success=${!result.isError}",
+                                        if (result.isError) "WARN" else "INFO"
+                                    )
                                     return result
                                 }
                             }
