@@ -320,6 +320,25 @@ class LocalDelegationCoordinatorTest {
         assertFalse(coordinator.researchAvailable())
     }
 
+    @Test fun `socket timeout quarantines worker immediately and uses fallback`() = runTest {
+        val fallback = target.copy(uid = "fallback")
+        val dispatched = mutableListOf<String>()
+        val coordinator = LocalDelegationCoordinator(
+            source,
+            { config.copy(researchEnabled = false, maxLocalModelCalls = 4) },
+            { listOf(target, fallback) },
+            { profile, _, _ ->
+                dispatched += profile.uid
+                if (profile.uid == target.uid) throw java.net.SocketTimeoutException("Read timed out")
+                "recovered"
+            }
+        )
+
+        assertEquals("recovered", coordinator.executeTask(target, "first", 128))
+        assertEquals("recovered", coordinator.executeTask(target, "second", 128))
+        assertEquals(listOf("local", "fallback", "fallback"), dispatched)
+    }
+
     @Test fun `stale configured target falls back to an eligible helper`() = runTest {
         val stale = config.copy(targetProfileUid = "missing", researchEnabled = true)
         val coordinator = LocalDelegationCoordinator(
