@@ -156,8 +156,9 @@ fun ChatScreen(
     onBackAction: () -> Unit,
     onNavigateToLocalModels: () -> Unit = {}
 ) {
+    val chatRoom by chatViewModel.chatRoom.collectAsStateWithLifecycle()
     val delegationRecoveryRequests by chatViewModel.pendingDelegationRecovery.collectAsStateWithLifecycle()
-    delegationRecoveryRequests.firstOrNull()?.let { request ->
+    delegationRecoveryRequests.firstOrNull { it.chatId == chatRoom.id }?.let { request ->
         DelegationRecoveryDialog(
             request = request,
             onSwitch = { profileUid -> chatViewModel.respondDelegationRecovery(request.id, profileUid) },
@@ -191,7 +192,6 @@ fun ChatScreen(
     val systemChatMargin = 16.dp
     val maximumUserChatBubbleWidth = (screenWidthDp - systemChatMargin) * 0.8F
     val maximumOpponentChatBubbleWidth = screenWidthDp - systemChatMargin
-    val chatRoom by chatViewModel.chatRoom.collectAsStateWithLifecycle()
     val hasOlderHistory by chatViewModel.olderHistoryAvailable.collectAsStateWithLifecycle()
     val groupedMessages by chatViewModel.groupedMessages.collectAsStateWithLifecycle()
     val featureSettings by chatViewModel.featureSettings.collectAsStateWithLifecycle()
