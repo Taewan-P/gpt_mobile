@@ -551,7 +551,7 @@ class LocalDelegationCoordinatorTest {
         var recoveryPrompts = 0
         val coordinator = LocalDelegationCoordinator(
             source,
-            { config.copy(researchEnabled = false, maxLocalModelCalls = 4) },
+            { config.copy(researchEnabled = false, maxLocalModelCalls = 4, fallbackToAnotherProfile = false) },
             { listOf(target, fallback) },
             { profile, _, _ ->
                 dispatched += profile.uid
