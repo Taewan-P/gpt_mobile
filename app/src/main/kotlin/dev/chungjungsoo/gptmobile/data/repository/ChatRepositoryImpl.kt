@@ -53,6 +53,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.diagnostics.AppLogRecorder
+import dev.chungjungsoo.gptmobile.data.security.DiagnosticRedactor
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.GatewayProgress
 import dev.chungjungsoo.gptmobile.data.localmodel.resolveLocalModelSelection
