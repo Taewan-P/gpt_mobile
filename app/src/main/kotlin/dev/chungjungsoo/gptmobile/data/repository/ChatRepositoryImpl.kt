@@ -329,7 +329,12 @@ class ChatRepositoryImpl(
                 level = level,
                 message = DiagnosticRedactor.redact(message).take(400)
             )
-            AppLogRecorder.record("DelegationBenchmark", "$type · $message", if (level == "ERROR") "E" else if (level == "WARN") "W" else "I")
+            val logLevel = when (level) {
+                "ERROR" -> "E"
+                "WARN" -> "W"
+                else -> "I"
+            }
+            AppLogRecorder.record("DelegationBenchmark", "$type · $message", logLevel)
         }
         benchmarkEvent("BENCHMARK_START", "primary=${platform.uid} worker=${target.uid} model=${target.model} case=${test.id}")
         val features = settingRepository.getFeatureSettings()
