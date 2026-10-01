@@ -600,5 +600,4 @@ class LocalDelegationCoordinatorTest {
         assertEquals(1, recoveryPrompts)
         assertFalse(coordinator.researchAvailable())
     }
-
 }
