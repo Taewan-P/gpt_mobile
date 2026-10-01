@@ -116,11 +116,12 @@ internal fun delegationHandoff(summary: String, sources: List<DelegationSource>,
             note.startsWith("[") &&
                 note.contains("could not be read by enabled page readers")
         val recoveredSearchWarning =
-            note.startsWith("Search ") &&
-                (
-                    note.contains("another enabled search provider was attempted") ||
-                        note.contains("remaining planned queries were still attempted")
-                )
+            if (note.startsWith("Search ")) {
+                note.contains("another enabled search provider was attempted") ||
+                    note.contains("remaining planned queries were still attempted")
+            } else {
+                false
+            }
         return note == "Some search engines were unavailable." ||
             note.startsWith("The brief prioritizes read pages") ||
             unreadablePageWarning ||
