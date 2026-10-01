@@ -217,8 +217,8 @@ class GitHubWorkspaceClient(
 
     private suspend fun repoStatusGraphQl(owner: String, repo: String): JsonObject {
         val query = """
-            query RepositoryStatus($owner: String!, $name: String!) {
-              repository(owner: $owner, name: $name) {
+            query RepositoryStatus(${'$'}owner: String!, ${'$'}name: String!) {
+              repository(owner: ${'$'}owner, name: ${'$'}name) {
                 nameWithOwner
                 url
                 isPrivate
