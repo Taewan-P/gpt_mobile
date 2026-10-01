@@ -106,14 +106,15 @@ internal fun delegationHandoff(summary: String, sources: List<DelegationSource>,
         }
     }
     val allNotes = (limitations + if (kept.size < sources.size) listOf("Some source references were omitted to fit the brief.") else emptyList()).distinct()
-    fun isWarningOnly(note: String): Boolean =
-        note == "Some search engines were unavailable." ||
+    fun isWarningOnly(note: String): Boolean {
+        val unreadablePageWarning =
+            note.startsWith("[") &&
+                note.contains("could not be read by enabled page readers")
+        return note == "Some search engines were unavailable." ||
             note.startsWith("The brief prioritizes read pages") ||
-            (
-                note.startsWith("[") &&
-                    note.contains("could not be read by enabled page readers")
-            ) ||
+            unreadablePageWarning ||
             note == "Some source references were omitted to fit the brief."
+    }
 
     var warnings = allNotes.filter(::isWarningOnly).take(6).map { truncateUtf8(it, 160) }
     var notes = allNotes.filterNot(::isWarningOnly).take(6).map { truncateUtf8(it, 160) }
