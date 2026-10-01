@@ -223,6 +223,86 @@ class LocalDelegationCoordinatorTest {
         assertFalse(coordinator.researchAvailable())
     }
 
+    @Test fun `two watchdog timeouts stop further dispatches to the same worker`() = runTest {
+        var calls = 0
+        val coordinator = LocalDelegationCoordinator(
+            source,
+            { config.copy(researchEnabled = true, maxLocalModelCalls = 6, timeoutSeconds = 5, maxDelegateRuntimeSeconds = 5) },
+            { listOf(target) },
+            { _, _, _ ->
+                calls++
+                delay(60_000)
+                "too late"
+            }
+        )
+
+        repeat(3) {
+            val failure = runCatching { coordinator.delegate(target, "task", 128, emptyList(), "timeout-$it") }.exceptionOrNull()
+            assertTrue(failure?.message.orEmpty().contains("CANCELED_NO_RESULT"))
+        }
+        assertEquals(2, calls)
+        assertFalse(coordinator.researchAvailable())
+    }
+
+    @Test fun `watchdog timeout circuit fails over within the same request`() = runTest {
+        val fallback = target.copy(uid = "fallback")
+        val dispatched = mutableListOf<String>()
+        val coordinator = LocalDelegationCoordinator(
+            source,
+            { config.copy(researchEnabled = false, maxLocalModelCalls = 6, timeoutSeconds = 5, maxDelegateRuntimeSeconds = 5) },
+            { listOf(target, fallback) },
+            { profile, _, _ ->
+                dispatched += profile.uid
+                if (profile.uid == target.uid) delay(60_000)
+                "recovered"
+            }
+        )
+
+        assertTrue(runCatching { coordinator.delegate(target, "first", 128, emptyList(), "first") }.isFailure)
+        assertEquals("recovered", coordinator.delegate(target, "second", 128, emptyList(), "second"))
+        assertEquals("recovered", coordinator.delegate(target, "third", 128, emptyList(), "third"))
+        assertEquals(listOf("local", "local", "fallback", "fallback"), dispatched)
+    }
+
+    @Test fun `successful response resets consecutive timeout circuit`() = runTest {
+        var calls = 0
+        val coordinator = LocalDelegationCoordinator(
+            source,
+            { config.copy(researchEnabled = true, maxLocalModelCalls = 6, timeoutSeconds = 5) },
+            { listOf(target) },
+            { _, _, _ ->
+                calls++
+                if (calls % 2 == 1) delay(60_000)
+                "done"
+            }
+        )
+
+        assertTrue(runCatching { coordinator.delegate(target, "first", 128, emptyList(), "first") }.isFailure)
+        assertEquals("done", coordinator.delegate(target, "second", 128, emptyList(), "second"))
+        assertTrue(runCatching { coordinator.delegate(target, "third", 128, emptyList(), "third") }.isFailure)
+        assertEquals("done", coordinator.delegate(target, "fourth", 128, emptyList(), "fourth"))
+        assertEquals(4, calls)
+    }
+
+    @Test fun `connection abort quarantines worker immediately`() = runTest {
+        var calls = 0
+        val coordinator = LocalDelegationCoordinator(
+            source,
+            { config.copy(researchEnabled = true, maxLocalModelCalls = 6) },
+            { listOf(target) },
+            { _, _, _ ->
+                calls++
+                error("DELEGATION_FAILED: Software caused connection abort")
+            }
+        )
+
+        repeat(2) {
+            assertTrue(runCatching { coordinator.delegate(target, "task", 128, emptyList(), "abort-$it") }.isFailure)
+        }
+        assertEquals(1, calls)
+        assertFalse(coordinator.researchAvailable())
+    }
+
     @Test fun `stale configured target falls back to an eligible helper`() = runTest {
         val stale = config.copy(targetProfileUid = "missing", researchEnabled = true)
         val coordinator = LocalDelegationCoordinator(
