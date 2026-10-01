@@ -140,11 +140,14 @@ class GitHubWorkspaceClient(
         val result = request("$root/contents$path$refQuery")
         require(result is JsonArray) { "This path is a file. Use read_code to open it." }
         return buildJsonObject {
-            put("entries", buildJsonArray {
-                result.drop((page - 1) * 30).take(30).forEach { item ->
-                    add(project(item.jsonObject, "name", "path", "type", "sha", "size", "html_url"))
+            put(
+                "entries",
+                buildJsonArray {
+                    result.drop((page - 1) * 30).take(30).forEach { item ->
+                        add(project(item.jsonObject, "name", "path", "type", "sha", "size", "html_url"))
+                    }
                 }
-            })
+            )
             put("directory_limit_reached", result.size >= 1000)
             put("page", page)
             put("has_more", page * 30 < result.size)
@@ -249,10 +252,13 @@ class GitHubWorkspaceClient(
               rateLimit { cost remaining resetAt }
             }
         """.trimIndent()
-        val result = graphQl(query, buildJsonObject {
-            put("owner", owner)
-            put("name", repo)
-        })
+        val result = graphQl(
+            query,
+            buildJsonObject {
+                put("owner", owner)
+                put("name", repo)
+            }
+        )
         val errors = result["errors"]?.jsonArray
         require(errors.isNullOrEmpty()) { "GitHub GraphQL returned an error." }
         val data = result["data"]?.jsonObject ?: error("GitHub GraphQL returned no data.")
@@ -261,17 +267,23 @@ class GitHubWorkspaceClient(
         val commit = defaultRef?.get("target")?.jsonObject
         val pulls = repository["pullRequests"]?.jsonObject
         return buildJsonObject {
-            put("repository", buildJsonObject {
-                put("full_name", repository["nameWithOwner"] ?: JsonPrimitive("$owner/$repo"))
-                put("url", repository["url"] ?: JsonNull)
-                put("private", repository["isPrivate"] ?: JsonNull)
-                put("default_branch", defaultRef?.get("name") ?: JsonNull)
-                put("head", buildJsonObject {
-                    put("sha", commit?.get("oid") ?: JsonNull)
-                    put("committed_at", commit?.get("committedDate") ?: JsonNull)
-                    put("message", commit?.get("messageHeadline") ?: JsonNull)
-                })
-            })
+            put(
+                "repository",
+                buildJsonObject {
+                    put("full_name", repository["nameWithOwner"] ?: JsonPrimitive("$owner/$repo"))
+                    put("url", repository["url"] ?: JsonNull)
+                    put("private", repository["isPrivate"] ?: JsonNull)
+                    put("default_branch", defaultRef?.get("name") ?: JsonNull)
+                    put(
+                        "head",
+                        buildJsonObject {
+                            put("sha", commit?.get("oid") ?: JsonNull)
+                            put("committed_at", commit?.get("committedDate") ?: JsonNull)
+                            put("message", commit?.get("messageHeadline") ?: JsonNull)
+                        }
+                    )
+                }
+            )
             put("open_issue_count", repository["issues"]?.jsonObject?.get("totalCount") ?: JsonPrimitive(0))
             put("open_pull_request_count", pulls?.get("totalCount") ?: JsonPrimitive(0))
             put("open_pull_requests", pulls?.get("nodes") ?: JsonArray(emptyList()))
@@ -305,7 +317,9 @@ class GitHubWorkspaceClient(
         val items = result["items"]?.jsonArray.orEmpty()
             .mapNotNull { it as? JsonObject }
             .filter { item ->
-                if (!testsOnly) true else {
+                if (!testsOnly) {
+                    true
+                } else {
                     val itemPath = item["path"]?.jsonPrimitive?.content.orEmpty().lowercase()
                     "/test" in itemPath || "/androidtest" in itemPath || itemPath.endsWith("test.kt") || itemPath.endsWith("test.java")
                 }
@@ -313,9 +327,12 @@ class GitHubWorkspaceClient(
         return buildJsonObject {
             put("query", query)
             put("total_count", if (testsOnly) JsonPrimitive(items.size) else result["total_count"] ?: JsonPrimitive(items.size))
-            put("items", buildJsonArray {
-                items.take(30).forEach { item -> add(project(item, "name", "path", "sha", "html_url")) }
-            })
+            put(
+                "items",
+                buildJsonArray {
+                    items.take(30).forEach { item -> add(project(item, "name", "path", "sha", "html_url")) }
+                }
+            )
         }
     }
 
@@ -327,18 +344,24 @@ class GitHubWorkspaceClient(
             runCatching { compactChecks(request("$root/commits/${segment(headSha)}/check-runs?per_page=100").jsonObject) }.getOrNull()
         } else null
         return buildJsonObject {
-            put("pull_request", buildJsonObject {
-                listOf("number", "title", "state", "draft", "merged", "mergeable", "mergeable_state", "html_url", "changed_files", "additions", "deletions").forEach { key ->
-                    pr[key]?.let { put(key, it) }
+            put(
+                "pull_request",
+                buildJsonObject {
+                    listOf("number", "title", "state", "draft", "merged", "mergeable", "mergeable_state", "html_url", "changed_files", "additions", "deletions").forEach { key ->
+                        pr[key]?.let { put(key, it) }
+                    }
+                    pr["head"]?.jsonObject?.let { put("head", project(it, "ref", "sha")) }
+                    pr["base"]?.jsonObject?.let { put("base", project(it, "ref", "sha")) }
                 }
-                pr["head"]?.jsonObject?.let { put("head", project(it, "ref", "sha")) }
-                pr["base"]?.jsonObject?.let { put("base", project(it, "ref", "sha")) }
-            })
-            put("files", buildJsonArray {
-                files.take(100).forEach { item ->
-                    add(project(item.jsonObject, "filename", "status", "additions", "deletions", "changes", "sha", "previous_filename"))
+            )
+            put(
+                "files",
+                buildJsonArray {
+                    files.take(100).forEach { item ->
+                        add(project(item.jsonObject, "filename", "status", "additions", "deletions", "changes", "sha", "previous_filename"))
+                    }
                 }
-            })
+            )
             checks?.let { put("checks", it) }
         }
     }
@@ -347,22 +370,28 @@ class GitHubWorkspaceClient(
         val runs = result["check_runs"]?.jsonArray.orEmpty()
         return buildJsonObject {
             put("total_count", result["total_count"] ?: JsonPrimitive(runs.size))
-            put("check_runs", buildJsonArray {
-                runs.take(50).forEach { run ->
-                    add(project(run.jsonObject, "id", "name", "status", "conclusion", "started_at", "completed_at", "html_url"))
+            put(
+                "check_runs",
+                buildJsonArray {
+                    runs.take(50).forEach { run ->
+                        add(project(run.jsonObject, "id", "name", "status", "conclusion", "started_at", "completed_at", "html_url"))
+                    }
                 }
-            })
+            )
         }
     }
 
     private fun compactCompare(result: JsonObject): JsonObject = buildJsonObject {
         listOf("status", "ahead_by", "behind_by", "total_commits", "html_url").forEach { key -> result[key]?.let { put(key, it) } }
         val files = result["files"]?.jsonArray.orEmpty()
-        put("files", buildJsonArray {
-            files.take(100).forEach { file ->
-                add(project(file.jsonObject, "filename", "status", "additions", "deletions", "changes", "previous_filename", "sha"))
+        put(
+            "files",
+            buildJsonArray {
+                files.take(100).forEach { file ->
+                    add(project(file.jsonObject, "filename", "status", "additions", "deletions", "changes", "previous_filename", "sha"))
+                }
             }
-        })
+        )
         put("files_returned", minOf(files.size, 100))
         put("files_truncated", files.size > 100)
     }
@@ -370,11 +399,13 @@ class GitHubWorkspaceClient(
     private fun compactPullRequests(items: JsonArray): JsonArray = buildJsonArray {
         items.take(5).forEach { item ->
             val obj = item.jsonObject
-            add(buildJsonObject {
-                listOf("number", "title", "state", "draft", "updated_at", "html_url").forEach { key -> obj[key]?.let { put(key, it) } }
-                obj["head"]?.jsonObject?.let { put("head", project(it, "ref", "sha")) }
-                obj["base"]?.jsonObject?.let { put("base", project(it, "ref", "sha")) }
-            })
+            add(
+                buildJsonObject {
+                    listOf("number", "title", "state", "draft", "updated_at", "html_url").forEach { key -> obj[key]?.let { put(key, it) } }
+                    obj["head"]?.jsonObject?.let { put("head", project(it, "ref", "sha")) }
+                    obj["base"]?.jsonObject?.let { put("base", project(it, "ref", "sha")) }
+                }
+            )
         }
     }
 
@@ -384,9 +415,12 @@ class GitHubWorkspaceClient(
         return buildJsonObject {
             put("observed_headers", rateLimits.toJson())
             resources?.let {
-                put("resources", buildJsonObject {
-                    listOf("core", "search", "graphql").forEach { key -> it[key]?.let { value -> put(key, value) } }
-                })
+                put(
+                    "resources",
+                    buildJsonObject {
+                        listOf("core", "search", "graphql").forEach { key -> it[key]?.let { value -> put(key, value) } }
+                    }
+                )
             }
         }
     }
@@ -489,10 +523,12 @@ class GitHubWorkspaceClient(
             header("X-GitHub-Api-Version", API_VERSION)
             header(HttpHeaders.Authorization, "Bearer $token")
             contentType(ContentType.Application.Json)
-            setBody(buildJsonObject {
-                put("query", query)
-                put("variables", variables)
-            }.toString())
+            setBody(
+                buildJsonObject {
+                    put("query", query)
+                    put("variables", variables)
+                }.toString()
+            )
         }
         rateLimits.record(response.headers)
         val text = response.bodyAsText()
