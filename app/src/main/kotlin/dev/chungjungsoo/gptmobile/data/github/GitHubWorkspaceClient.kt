@@ -510,7 +510,8 @@ class GitHubWorkspaceClient(
     ): JsonElement {
         if (authenticated || method != HttpMethod.Get) require(token.isNotBlank()) { "A GitHub credential is required." }
         val cacheKey = "${method.value}:$path"
-        val cached = if (method == HttpMethod.Get) responseCache.get(cacheKey) else null
+        val cacheable = method == HttpMethod.Get && path != "/rate_limit"
+        val cached = if (cacheable) responseCache.get(cacheKey) else null
         val response = client.request("https://api.github.com$path") {
             this.method = method
             header(HttpHeaders.Accept, "application/vnd.github+json")
@@ -531,7 +532,7 @@ class GitHubWorkspaceClient(
             error("GitHub HTTP ${response.status.value}. ${requestHint(response.status.value, response.headers["Retry-After"], response.headers["X-RateLimit-Reset"])}")
         }
         val parsed = if (text.isBlank()) JsonObject(emptyMap()) else json.parseToJsonElement(text)
-        if (method == HttpMethod.Get) responseCache.put(cacheKey, response.headers[HttpHeaders.ETag], parsed)
+        if (cacheable) responseCache.put(cacheKey, response.headers[HttpHeaders.ETag], parsed)
         return parsed
     }
 
