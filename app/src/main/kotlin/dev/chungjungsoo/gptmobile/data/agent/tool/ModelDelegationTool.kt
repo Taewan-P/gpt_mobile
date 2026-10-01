@@ -10,6 +10,7 @@ import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.model.ModelDelegationSettings
 import dev.chungjungsoo.gptmobile.data.model.excludesMemory
 import dev.chungjungsoo.gptmobile.data.model.isPrivateDestination
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
@@ -26,6 +27,7 @@ class ModelDelegationTool(
     private val generate: suspend (PlatformV2, String, Int) -> String
 ) : AgentTool {
     private val calls = AtomicInteger(0)
+    private val unavailableForTurn = AtomicBoolean(false)
 
     private companion object {
         const val OUTER_TIMEOUT_GRACE_SECONDS = 20
@@ -46,6 +48,11 @@ class ModelDelegationTool(
         val config = settings().normalized()
         AppLogRecorder.record("Delegation", "Tool requested · call=$callId · source=${source.uid} · enabled=${config.enabled} · localOnly=${config.localPlatformsOnly} · remoteWorkers=${config.allowRemoteWorkers}")
         if (!config.enabled) return error("Model delegation is disabled in Settings → Model Delegation.")
+        if (unavailableForTurn.get()) {
+            return error("Delegation is unavailable for the remainder of this turn. Continue with the evidence already available; do not retry delegation until the next turn.").also {
+                AppLogRecorder.record("Delegation", "Rejected · terminal circuit open · call=$callId · source=${source.uid}", "W")
+            }
+        }
         val task = (arguments["task"] as? JsonPrimitive)?.takeIf { it.isString }?.content.orEmpty()
         if (task.isBlank() || task.length > config.maxInputCharacters) return error("Task must contain 1–${config.maxInputCharacters} characters.")
         val availableProfiles = profiles()
@@ -106,14 +113,14 @@ class ModelDelegationTool(
             val response = withTimeoutOrNull(timeoutMs) { generate(target, task, config.maxOutputTokens) }
             val elapsedMs = System.currentTimeMillis() - startedAtMs
             if (response == null) {
-                AppLogRecorder.record("Delegation", "Timed out · call=$callId · target=${target.uid} · elapsedMs=$elapsedMs · timeoutMs=$timeoutMs · requestedOutputCap=${config.maxOutputTokens} · taskChars=${task.length}", "E")
-                calls.decrementAndGet()
-                return error("The delegated task timed out before the orchestration deadline.")
+                unavailableForTurn.set(true)
+                AppLogRecorder.record("Delegation", "Timed out · call=$callId · target=${target.uid} · elapsedMs=$elapsedMs · timeoutMs=$timeoutMs · requestedOutputCap=${config.maxOutputTokens} · taskChars=${task.length} · terminalCircuit=true", "E")
+                return error("The delegated task timed out and delegation has been paused for the remainder of this turn. Continue without retrying it.")
             }
             if (response.isBlank()) {
-                calls.decrementAndGet()
-                return error("The target model returned no text.").also {
-                    AppLogRecorder.record("Delegation", "Empty response · call=$callId · target=${target.uid} · elapsedMs=$elapsedMs · callBudgetRestored=true", "W")
+                unavailableForTurn.set(true)
+                return error("The target model returned no usable text, so delegation has been paused for the remainder of this turn.").also {
+                    AppLogRecorder.record("Delegation", "Empty response · call=$callId · target=${target.uid} · elapsedMs=$elapsedMs · terminalCircuit=true", "W")
                 }
             }
             AppLogRecorder.record("Delegation", "Completed · call=$callId · target=${target.uid} · elapsedMs=$elapsedMs · outputChars=${response.length} · approxOutputTokens=${(response.length + 3) / 4} · requestedOutputCap=${config.maxOutputTokens}")
@@ -128,9 +135,27 @@ class ModelDelegationTool(
             AppLogRecorder.record("Delegation", "Cancelled · call=$callId · target=${target.uid} · elapsedMs=${System.currentTimeMillis() - startedAtMs} · timeoutMs=$timeoutMs · cancellation=${cancellation.javaClass.simpleName} · reason=${cancellation.message.orEmpty()}", "W")
             throw cancellation
         } catch (failure: Exception) {
-            calls.decrementAndGet()
-            AppLogRecorder.record("Delegation", "Failed · call=$callId · target=${target.uid} · elapsedMs=${System.currentTimeMillis() - startedAtMs} · requestedOutputCap=${config.maxOutputTokens} · callBudgetRestored=true · ${failure.javaClass.simpleName}: ${failure.message.orEmpty()}", "E")
-            error("Delegation failed. Check the target profile, credentials and model availability.")
+            val message = failure.message.orEmpty()
+            val terminalUnavailable = message.contains("CANCELED_NO_RESULT", ignoreCase = true) ||
+                message.contains("no eligible target", ignoreCase = true) ||
+                message.contains("no eligible worker", ignoreCase = true) ||
+                message.contains("not downloaded", ignoreCase = true)
+            if (terminalUnavailable) {
+                unavailableForTurn.set(true)
+            } else {
+                // Preserve the existing explicit retry behavior for one-off provider failures.
+                calls.decrementAndGet()
+            }
+            AppLogRecorder.record(
+                "Delegation",
+                "Failed · call=$callId · target=${target.uid} · elapsedMs=${System.currentTimeMillis() - startedAtMs} · requestedOutputCap=${config.maxOutputTokens} · callBudgetRestored=${!terminalUnavailable} · terminalCircuit=$terminalUnavailable · ${failure.javaClass.simpleName}: $message",
+                "E"
+            )
+            if (terminalUnavailable) {
+                error("Delegation is unavailable for the remainder of this turn. Continue without retrying it; it will be eligible again on the next turn.")
+            } else {
+                error("Delegation failed. Check the target profile, credentials and model availability.")
+            }
         }
     }
 }
