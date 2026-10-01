@@ -11,6 +11,15 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DelegationEvidenceTest {
+    @Test fun `compaction restores omitted exact identifiers and quantities before summary`() {
+        val result = preserveDelegationFacts("Parcel PKG-a1b2c3d4 weighs 42 kg [S1].", "Parcel found.", 256)
+        assertTrue(result.contains("PKG-a1b2c3d4"))
+        assertTrue(result.contains("42"))
+        assertTrue(result.contains("S1"))
+        assertTrue(result.indexOf("PKG-a1b2c3d4") < result.indexOf("Parcel found."))
+        assertEquals("Code PKG-a1b2c3d4", preserveDelegationFacts("PKG-a1b2c3d4", "Code PKG-a1b2c3d4", 128))
+    }
+
     @Test fun `handoff enforces UTF8 budget and only retains observed citations`() {
         val sources = (1..20).map { DelegationSource("S$it", "https://example.org/$it?q=a%20b", "Source $it", pageRead = it == 1) }
         val summary = "Result 42 ms [S1]. Invalid [S99] https://invented.example/a. " + "東京 😀 ".repeat(2000)

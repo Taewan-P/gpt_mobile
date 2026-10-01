@@ -54,7 +54,6 @@ import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.diagnostics.AppLogRecorder
-import dev.chungjungsoo.gptmobile.data.security.DiagnosticRedactor
 import dev.chungjungsoo.gptmobile.data.dto.ApiState
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.GatewayProgress
 import dev.chungjungsoo.gptmobile.data.localmodel.resolveLocalModelSelection
@@ -71,6 +70,7 @@ import dev.chungjungsoo.gptmobile.data.network.OpenAIAPI
 import dev.chungjungsoo.gptmobile.data.network.error.ErrorClassification
 import dev.chungjungsoo.gptmobile.data.rag.FactRecall
 import dev.chungjungsoo.gptmobile.data.rag.FactVaultRepository
+import dev.chungjungsoo.gptmobile.data.security.DiagnosticRedactor
 import dev.chungjungsoo.gptmobile.util.DocumentTextExtractor
 import dev.chungjungsoo.gptmobile.util.FileUtils
 import dev.chungjungsoo.gptmobile.util.stripAssistantErrorNote
@@ -95,7 +95,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 
-private const val MIN_DELEGATED_USEFUL_CHARS = 8
+private const val MIN_DELEGATED_USEFUL_CHARS = 1
 
 internal enum class DelegatedChildStatus {
     COMPLETED,
@@ -357,6 +357,7 @@ class ChatRepositoryImpl(
                     var chunks = 0
                     var sawInput = false
                     var sawOutput = false
+                    var backendSpeed: Double? = null
                     fun finishRound() {
                         workerMs += (System.nanoTime() / 1_000_000 - roundStarted).coerceAtLeast(0)
                         first?.let { firstText.add((it - roundStarted).coerceAtLeast(0)) }
@@ -365,23 +366,37 @@ class ChatRepositoryImpl(
                         } else {
                             ((roundChars + 3) / 4).toDouble()
                         }
-                        val roundSpeed = if (chunks > 1 && first != null && last != null && last!! > first!!) {
-                            (speedTokens * 1000.0 / (last!! - first!!)).also {
-                                decodeSpeeds.add(it)
-                                measuredSpeedRounds++
-                                if (sawOutput) reportedSpeedRounds++
-                            }
+                        val elapsed = (System.nanoTime() / 1_000_000 - roundStarted).coerceAtLeast(1)
+                        val streamedSpeed = if (chunks > 1 && first != null && last != null && last!! > first!!) {
+                            speedTokens * 1000.0 / (last!! - first!!)
                         } else {
                             null
+                        }
+                        // Buffered providers have one text chunk. Prefer backend decode timing;
+                        // otherwise expose a clearly estimated end-to-end rate, never -1.
+                        val roundSpeed = backendSpeed ?: streamedSpeed ?: speedTokens.takeIf { it > 0 }?.let {
+                            estimated = true
+                            it * 1000.0 / elapsed
+                        }
+                        roundSpeed?.let {
+                            decodeSpeeds.add(it)
+                            measuredSpeedRounds++
+                            if (backendSpeed != null || (streamedSpeed != null && sawOutput)) reportedSpeedRounds++
                         }
                         if (!sawInput || !sawOutput) estimated = true
                         val chargedInput = if (sawInput) roundInput else dev.chungjungsoo.gptmobile.data.context.ContextBudgetService.estimate(task).toLong()
                         val chargedOutput = if (sawOutput) roundOutput else ((roundChars + 3) / 4).toLong()
                         input += chargedInput
                         output += chargedOutput
+                        val speedSource = when {
+                            backendSpeed != null -> "backend_decode"
+                            streamedSpeed != null -> "stream_decode"
+                            roundSpeed != null -> "estimated_end_to_end"
+                            else -> "unavailable"
+                        }
                         benchmarkEvent(
                             "WORKER_ROUND",
-                            "input=$chargedInput output=$chargedOutput durationMs=${(System.nanoTime() / 1_000_000 - roundStarted).coerceAtLeast(0)} firstTextMs=${first?.let { (it - roundStarted).coerceAtLeast(0) } ?: -1} tokPerSec=${roundSpeed ?: -1.0} tokenSource=${if (sawOutput) "provider" else "estimated"}"
+                            "input=$chargedInput output=$chargedOutput durationMs=${(System.nanoTime() / 1_000_000 - roundStarted).coerceAtLeast(0)} firstTextMs=${first?.let { (it - roundStarted).coerceAtLeast(0) } ?: -1} tokPerSec=${roundSpeed ?: "unavailable"} tokenSource=${if (sawOutput) "provider" else "estimated"} speedSource=$speedSource"
                         )
                         if (roundOutput > cap) {
                             capViolations++
@@ -406,6 +421,7 @@ class ChatRepositoryImpl(
                                 chunks = 0
                                 sawInput = false
                                 sawOutput = false
+                                backendSpeed = null
                             }
                             if (event.inputTokens != null) sawInput = true
                             if (event.outputTokens != null) sawOutput = true
@@ -422,6 +438,7 @@ class ChatRepositoryImpl(
                             if (event.kind == DelegateProgressKind.TOOL_ACTIVITY) {
                                 benchmarkEvent("TOOL_ACTIVITY", "worker=${targetProfile.uid}")
                             }
+                            event.decodeTokensPerSecond?.takeIf { it.isFinite() && it > 0 }?.let { backendSpeed = it }
                             event.inputTokens?.let { roundInput = maxOf(roundInput, it) }
                             event.outputTokens?.let { roundOutput = maxOf(roundOutput, it) }
                             progress(event)
@@ -696,6 +713,11 @@ class ChatRepositoryImpl(
                             "Child provider request started · parentRun=$parentRunId · target=${target.uid} · configuredProfileCap=${provider.configuredProfileOutputTokens} · calculatedDelegationCap=${provider.requestedOutputTokens} · effectiveProviderCap=${provider.effectiveOutputTokens}"
                         )
                     }
+                    is ProviderEvent.LocalMetrics -> {
+                        provider.metrics.native?.takeIf { it.isValid }?.let { native ->
+                            onProgress(DelegateProgress(DelegateProgressKind.USAGE, decodeTokensPerSecond = native.decodeTokensPerSecond))
+                        }
+                    }
                     is ProviderEvent.ToolCall -> {
                         childTrace?.start(provider)?.let { onToolTrace?.invoke(ApiState.ToolCall(it.sequence, delegated = true)) }
                     }
@@ -742,7 +764,7 @@ class ChatRepositoryImpl(
                             roundUsageTotal = next
                         }
                         sawUsage = true
-                        onProgress(DelegateProgress(DelegateProgressKind.USAGE, roundUsageInput.takeIf { provider.inputTokens != null }, roundUsageOutput.takeIf { provider.outputTokens != null }, roundUsageTotal.takeIf { provider.totalTokens != null }))
+                        onProgress(DelegateProgress(DelegateProgressKind.USAGE, roundUsageInput.takeIf { provider.inputTokens != null }, roundUsageOutput.takeIf { provider.outputTokens != null }, roundUsageTotal.takeIf { provider.totalTokens != null }, decodeTokensPerSecond = provider.decodeTokensPerSecond))
                     }
                     else -> Unit
                 }

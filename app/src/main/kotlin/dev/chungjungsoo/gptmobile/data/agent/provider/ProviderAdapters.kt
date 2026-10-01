@@ -538,9 +538,15 @@ class OpenAICompatibleAdapter @Inject constructor(
                                                 ProviderEvent.Usage(
                                                     inputTokens = usage.promptTokens,
                                                     outputTokens = usage.completionTokens,
-                                                    totalTokens = usage.totalTokens
+                                                    totalTokens = usage.totalTokens,
+                                                    decodeTokensPerSecond = chunk.timings?.decodeTokensPerSecond
                                                 )
                                             )
+                                        }
+                                        if (chunk.usage == null) {
+                                            chunk.timings?.decodeTokensPerSecond?.let {
+                                                emit(ProviderEvent.Usage(decodeTokensPerSecond = it))
+                                            }
                                         }
                                         chunk.gatewayMetadata?.let { metadata ->
                                             if (metadata.jobId != null) {
@@ -651,9 +657,15 @@ class OpenAICompatibleAdapter @Inject constructor(
                                         ProviderEvent.Usage(
                                             inputTokens = usage.promptTokens,
                                             outputTokens = usage.completionTokens,
-                                            totalTokens = usage.totalTokens
+                                            totalTokens = usage.totalTokens,
+                                            decodeTokensPerSecond = chunk.timings?.decodeTokensPerSecond
                                         )
                                     )
+                                }
+                                if (chunk.usage == null) {
+                                    chunk.timings?.decodeTokensPerSecond?.let {
+                                        emit(ProviderEvent.Usage(decodeTokensPerSecond = it))
+                                    }
                                 }
                                 chunk.gatewayMetadata?.let { metadata ->
                                     if (metadata.jobId != null) {

@@ -29,6 +29,18 @@ class DelegationBenchmarkRatingTest {
         }
     )
 
+    @Test fun `transport errors reduce reliability without reporting tool incapability`() {
+        val complete = run("helper")
+        val interrupted = complete.copy(
+            samples = complete.samples.map { sample ->
+                if (sample.testId == "delegation-tools") sample.copy(outcome = BenchmarkOutcome.ERROR) else sample
+            }
+        )
+        val rating = delegationBenchmarkRating(listOf(interrupted))
+        assertEquals(null, rating.toolTaskSuccessPercent)
+        assertTrue(rating.score!! <= 67)
+    }
+
     @Test fun `correct slower helper ranks above fast helper without tool usage`() {
         val rows = delegateRankings(listOf(run("fast", false, 1000.0), run("reliable", true, 40.0, 4000)), "primary-config")
         assertEquals("reliable", rows.first().run.id)

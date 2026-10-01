@@ -125,16 +125,18 @@ class AgentRunner(
             var hasRoundInputUsage = false
             var hasRoundOutputUsage = false
             var hasRoundTotalUsage = false
+            var roundDecodeSpeed: Double? = null
 
             suspend fun emitRoundUsage() {
-                if (!hasRoundInputUsage && !hasRoundOutputUsage && !hasRoundTotalUsage) return
+                if (!hasRoundInputUsage && !hasRoundOutputUsage && !hasRoundTotalUsage && roundDecodeSpeed == null) return
                 emit(
                     AgentRunEvent.Provider(
                         ProviderEvent.Usage(
                             inputTokens = roundInputTokens.takeIf { hasRoundInputUsage }?.coerceAtMost(Int.MAX_VALUE.toLong())?.toInt(),
                             outputTokens = roundOutputTokens.takeIf { hasRoundOutputUsage }?.coerceAtMost(Int.MAX_VALUE.toLong())?.toInt(),
                             totalTokens = roundTotalTokens.takeIf { hasRoundTotalUsage }?.coerceAtMost(Int.MAX_VALUE.toLong())?.toInt(),
-                            cumulative = false
+                            cumulative = false,
+                            decodeTokensPerSecond = roundDecodeSpeed
                         )
                     )
                 )
@@ -182,6 +184,7 @@ class AgentRunner(
                             is ProviderEvent.Notice -> emit(AgentRunEvent.Notice(event.message, event.persistent))
 
                             is ProviderEvent.Usage -> {
+                                event.decodeTokensPerSecond?.let { roundDecodeSpeed = it }
                                 event.inputTokens?.let { tokens ->
                                     roundInputTokens = if (event.cumulative) {
                                         maxOf(roundInputTokens, tokens.toLong())

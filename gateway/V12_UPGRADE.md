@@ -30,3 +30,7 @@ python -m unittest discover -s gateway/tests -v
 ```
 
 Contract tests run without starting models or MCP processes. Live Windows installation, llama.cpp token enforcement, provider-specific reasoning behavior and Android rendering require testing against the user's running services. Separate reasoning/final allocation is constrained by backend support; this gateway bounds explicit budget fields but cannot guarantee separate token pools on every model. The script retains v11's existing input-context guard and worker recovery; it does not replace the Android delegation planner or benchmark ranking UI.
+
+## 12.1.1 delegation repair
+
+Delegated child requests preserve the app's tool schemas and bypass domain filtering and local-first tool routing. Buffered SSE retains backend decode timing. Child dispatch is bounded by a 10-second queue wait, a 45-second upstream read timeout, and a 60-second stream ceiling; configured smaller Android progress deadlines still apply. Child timeouts are not replayed inside the gateway. See [the diagnostics repair notes](../docs/delegation-diagnostics-repair.md) for client changes and regression coverage.

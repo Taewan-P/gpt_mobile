@@ -1,9 +1,9 @@
 package dev.chungjungsoo.gptmobile.data.network
 
-import kotlinx.coroutines.delay
 import java.io.IOException
 import kotlin.math.min
-import kotlin.math.pow
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 
 /**
  * Resilient retry policy and backoff utility for SSE and streaming HTTP LLM endpoints.
@@ -30,6 +30,7 @@ object ResilientStreamingClient {
     suspend fun <T> executeWithRetry(
         config: RetryConfig = RetryConfig(),
         onRetry: ((attempt: Int, delayMs: Long, reason: Throwable) -> Unit)? = null,
+        shouldRetry: () -> Boolean = { true },
         block: suspend () -> T
     ): T {
         var currentAttempt = 0
@@ -40,7 +41,7 @@ object ResilientStreamingClient {
                 return block()
             } catch (e: Throwable) {
                 currentAttempt++
-                if (currentAttempt >= config.maxAttempts || !isRetryable(e)) {
+                if (currentAttempt >= config.maxAttempts || !shouldRetry() || !isRetryable(e)) {
                     throw e
                 }
 
@@ -60,27 +61,29 @@ object ResilientStreamingClient {
      * Determine if an exception represents a transient network or server fault suitable for automatic retry.
      */
     fun isRetryable(throwable: Throwable): Boolean {
-        val message = throwable.message?.lowercase() ?: ""
-
-        // Network IO disconnects
-        if (throwable is IOException) {
-            return true
+        if (throwable is CancellationException) return false
+        var current: Throwable? = throwable
+        repeat(8) {
+            val value = current ?: return false
+            if (value is CancellationException) return false
+            val message = value.message?.lowercase().orEmpty()
+            if (value is IOException ||
+                message.contains("429") ||
+                message.contains("rate limit") ||
+                message.contains("503") ||
+                message.contains("502") ||
+                message.contains("504") ||
+                message.contains("timeout") ||
+                message.contains("timed out") ||
+                message.contains("unable to resolve host") ||
+                message.contains("connection abort") ||
+                message.contains("connection closed") ||
+                isPrematureConnectionClose(value)
+            ) {
+                return true
+            }
+            current = value.cause
         }
-
-        // Standard rate limits or transient cloud gateway dropouts
-        if (message.contains("429") ||
-            message.contains("rate limit") ||
-            message.contains("503") ||
-            message.contains("502") ||
-            message.contains("504") ||
-            message.contains("stream reset") ||
-            message.contains("timeout") ||
-            message.contains("connection closed") ||
-            isPrematureConnectionClose(throwable)
-        ) {
-            return true
-        }
-
         return false
     }
 
@@ -89,8 +92,8 @@ object ResilientStreamingClient {
      * streaming response without a clean protocol terminator. Walks the cause
      * chain because engines frequently wrap the underlying IOException.
      */
-    fun shouldTreatPrematureCloseAsStreamEnd(receivedPayload: Boolean, throwable: Throwable): Boolean =
-        receivedPayload && isPrematureConnectionClose(throwable)
+    fun shouldTreatPrematureCloseAsStreamEnd(receivedPayload: Boolean, throwable: Throwable, completed: Boolean = false): Boolean =
+        receivedPayload && completed && isPrematureConnectionClose(throwable)
 
     fun isPrematureConnectionClose(throwable: Throwable): Boolean {
         var current: Throwable? = throwable

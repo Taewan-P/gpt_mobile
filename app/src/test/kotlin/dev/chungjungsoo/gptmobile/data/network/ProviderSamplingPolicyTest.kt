@@ -19,6 +19,24 @@ class ProviderSamplingPolicyTest {
     )
 
     @Test
+    fun `reasoning model capabilities apply with the reasoning toggle off`() {
+        for (model in listOf("o1", "o3-mini", "o4-mini", "gpt-5", "gpt-5.2", "openai/gpt-5-mini")) {
+            val normalized = request.copy(model = model).withEndpointSamplingPolicy("https://api.openai.com/v1")
+            assertEquals(null, normalized.temperature)
+            assertEquals(null, normalized.topP)
+        }
+        assertFalse(openAIModelOmitsSampling("gpt-5-chat-latest"))
+        assertFalse(openAIModelOmitsSampling("gpt-4.1"))
+    }
+
+    @Test
+    fun `only explicit unsupported sampling errors qualify for sanitization`() {
+        assertEquals("temperature", rejectedSamplingParameter("Unsupported parameter: 'temperature' is not supported with this model"))
+        assertEquals(null, rejectedSamplingParameter("Invalid temperature value"))
+        assertEquals(null, rejectedSamplingParameter("Unsupported parameter: 'tools'"))
+    }
+
+    @Test
     fun `NVIDIA Kimi K3 wire request omits immutable sampling fields`() {
         val normalized = request.withEndpointSamplingPolicy("https://integrate.api.nvidia.com/v1")
         val json = NetworkClient.openAIJson.parseToJsonElement(NetworkClient.openAIJson.encodeToString(normalized)).jsonObject
