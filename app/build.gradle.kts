@@ -24,8 +24,8 @@ extensions.configure<ApplicationExtension> {
         applicationId = "dev.melo.gptmobile.improved"
         minSdk = 31
         targetSdk = 36
-        versionCode = 92
-        versionName = "0.9.23.0" // delegation resilience and worker failover
+        versionCode = 93
+        versionName = "0.9.24.0" // interactive delegation recovery and benchmarking
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
