@@ -43,7 +43,8 @@ internal class LocalDelegationCoordinator(
     private val generateWithProgress: (suspend (PlatformV2, String, Int, Int, (DelegateProgress) -> Unit) -> String)? = null,
     private val inputBudget: suspend (PlatformV2, Int) -> Int = { _, _ -> Int.MAX_VALUE },
     private val batteryPercent: suspend () -> Int? = { null },
-    private val generateTextWithProgress: (suspend (PlatformV2, String, Int, Int, (DelegateProgress) -> Unit) -> String)? = null
+    private val generateTextWithProgress: (suspend (PlatformV2, String, Int, Int, (DelegateProgress) -> Unit) -> String)? = null,
+    private val useWorkloadRuntimeLimit: Boolean = true
 ) {
     private companion object {
         // Absolute emergency ceiling in addition to the user-configurable token budget.
@@ -66,6 +67,7 @@ internal class LocalDelegationCoordinator(
     private val canceledLocalTokens = AtomicLong()
     private val wastedLocalMs = AtomicLong()
     private val failuresByWorker = ConcurrentHashMap<String, AtomicInteger>()
+    private val timeoutsByWorker = ConcurrentHashMap<String, AtomicInteger>()
     private val emptyResponsesByWorker = ConcurrentHashMap<String, AtomicInteger>()
     private val quarantinedWorkerUids = ConcurrentHashMap.newKeySet<String>()
     private val observedRequestOverheadTokens = AtomicLong()
@@ -172,7 +174,7 @@ internal class LocalDelegationCoordinator(
             inputTokens <= 6_000 -> 90
             else -> 120
         }
-        return minOf(config.timeoutSeconds, config.maxDelegateRuntimeSeconds, workloadLimit).coerceAtLeast(5)
+        return minOf(config.timeoutSeconds, config.maxDelegateRuntimeSeconds, if (useWorkloadRuntimeLimit) workloadLimit else Int.MAX_VALUE).coerceAtLeast(5)
     }
 
     private suspend fun awaitWorkerSlot(limit: Int) {
@@ -262,6 +264,7 @@ internal class LocalDelegationCoordinator(
         var observedForFailure = 0L
         var resolvedProfileUid: String? = null
         var failoverTarget: PlatformV2? = null
+        var dispatchedAtMs: Long? = null
         val result = worker.withPermit {
             val latest = settings().normalized()
             awaitWorkerSlot(latest.maxConcurrentDelegates)
@@ -348,6 +351,7 @@ internal class LocalDelegationCoordinator(
                 }
                 val idleSeconds = minOf(latest.idleTokenTimeoutSeconds, runtimeSeconds)
                 val startedAtMs = System.currentTimeMillis()
+                dispatchedAtMs = startedAtMs
                 var observedInputTokens = 0L
                 AppLogRecorder.record(
                     "Delegation",
@@ -383,11 +387,19 @@ internal class LocalDelegationCoordinator(
                 if (response == null) {
                     canceledLocalTokens.addAndGet(chargedInput)
                     wastedLocalMs.addAndGet(elapsedMs)
+                    val timeouts = timeoutsByWorker.getOrPut(profile.uid, ::AtomicInteger).incrementAndGet()
+                    val quarantined = timeouts >= 2
+                    if (quarantined) {
+                        quarantinedWorkerUids += profile.uid
+                        failoverTarget = localTarget(latest)
+                    }
                     AppLogRecorder.record("Delegation", "CANCELED_NO_RESULT · target=${profile.uid} · call=$callNumber/$effectiveCallLimit · elapsedMs=$elapsedMs · estimatedInputTokens=$estimatedInput · observedInputTokens=$observedInputTokens · requestedOutputCap=$requestedOutputCap", "E")
+                    AppLogRecorder.record("Delegation", "Worker timeout circuit · target=${profile.uid} · timeouts=$timeouts/2 · quarantined=$quarantined · fallback=${failoverTarget?.uid}", "W")
                     logComputeTotals()
                     return@withPermit null
                 }
                 return@withPermit response.takeIf { it.isNotBlank() }?.also {
+                    timeoutsByWorker[profile.uid]?.set(0)
                     emptyResponsesByWorker[profile.uid]?.set(0)
                     successfulLocalTokens.addAndGet(chargedInput + estimatedDelegateTokens(it))
                     AppLogRecorder.record("Delegation", "Worker completed · target=${profile.uid} · call=$callNumber/$effectiveCallLimit · elapsedMs=$elapsedMs · outputChars=${it.length} · requestedOutputCap=$requestedOutputCap · approxOutputTokens=${estimatedDelegateTokens(it)}")
@@ -413,6 +425,7 @@ internal class LocalDelegationCoordinator(
                 AppLogRecorder.record("Delegation", "Worker cancelled by parent · target=${target.uid} · calls=${localCalls.get()} · reason=${cancelled.message.orEmpty()}", "W")
                 throw cancelled
             } catch (failure: Exception) {
+                dispatchedAtMs?.let { wastedLocalMs.addAndGet((System.currentTimeMillis() - it).coerceAtLeast(0L)) }
                 val estimated = maxOf(estimatedDelegateTokens(prompt).toLong(), observedForFailure)
                 failedLocalTokens.addAndGet(estimated)
                 val message = failure.message.orEmpty()
@@ -439,18 +452,24 @@ internal class LocalDelegationCoordinator(
                 val reasoningOnly = message.contains("REASONING_ONLY_RESPONSE", ignoreCase = true)
                 val malformedTool = message.contains("Tool arguments were not valid JSON", ignoreCase = true) ||
                     message.contains("incomplete function call", ignoreCase = true)
+                val connectionUnavailable = message.contains("Unable to resolve host", ignoreCase = true) ||
+                    message.contains("UnknownHostException", ignoreCase = true) ||
+                    message.contains("connection abort", ignoreCase = true) ||
+                    message.contains("connection refused", ignoreCase = true) ||
+                    message.contains("No route to host", ignoreCase = true) ||
+                    message.contains("Connect timeout", ignoreCase = true)
                 val softEmpty = emptyResponse || reasoningOnly || malformedTool
                 val counter = emptyResponsesByWorker.getOrPut(failedUid, ::AtomicInteger)
                 val emptyCount = if (softEmpty) counter.incrementAndGet() else counter.get()
                 val failures = failuresByWorker.getOrPut(failedUid, ::AtomicInteger).incrementAndGet()
-                val shouldQuarantine = authBlocked || permanentlyUnavailable || failures >= 3 || (softEmpty && emptyCount >= MAX_CONSECUTIVE_EMPTY_RESPONSES)
+                val shouldQuarantine = authBlocked || permanentlyUnavailable || connectionUnavailable || failures >= 3 || (softEmpty && emptyCount >= MAX_CONSECUTIVE_EMPTY_RESPONSES)
                 if (shouldQuarantine) {
                     quarantinedWorkerUids += failedUid
                     failoverTarget = localTarget(latest)
                 }
                 AppLogRecorder.record(
                     "Delegation",
-                    "Worker failed · target=$failedUid · calls=${localCalls.get()} · ${failure.javaClass.simpleName}: $message · observedInputTokens=$observedForFailure · emptyResponse=$emptyResponse · consecutiveEmpty=$emptyCount/$MAX_CONSECUTIVE_EMPTY_RESPONSES · failedCalls=$failures · reasoningOnly=$reasoningOnly · authBlocked=$authBlocked · permanentlyUnavailable=$permanentlyUnavailable · quarantined=$shouldQuarantine · fallback=${failoverTarget?.uid}",
+                    "Worker failed · target=$failedUid · calls=${localCalls.get()} · ${failure.javaClass.simpleName}: $message · observedInputTokens=$observedForFailure · emptyResponse=$emptyResponse · consecutiveEmpty=$emptyCount/$MAX_CONSECUTIVE_EMPTY_RESPONSES · failedCalls=$failures · reasoningOnly=$reasoningOnly · authBlocked=$authBlocked · permanentlyUnavailable=$permanentlyUnavailable · connectionUnavailable=$connectionUnavailable · quarantined=$shouldQuarantine · fallback=${failoverTarget?.uid}",
                     "E"
                 )
                 logComputeTotals()

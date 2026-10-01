@@ -59,14 +59,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import dev.chungjungsoo.gptmobile.R
-import dev.chungjungsoo.gptmobile.data.model.DynamicTheme
-import dev.chungjungsoo.gptmobile.data.model.ThemeMode
-import dev.chungjungsoo.gptmobile.presentation.common.LocalDynamicTheme
-import dev.chungjungsoo.gptmobile.presentation.common.LocalThemeMode
-import dev.chungjungsoo.gptmobile.presentation.common.LocalThemeViewModel
-import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
-import dev.chungjungsoo.gptmobile.util.getDynamicThemeTitle
-import dev.chungjungsoo.gptmobile.util.getThemeModeTitle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -415,44 +407,5 @@ private fun SettingsDestination(
 
 @Composable
 fun ThemeSettingDialog(settingViewModel: SettingViewModelV2) {
-    val themeViewModel = LocalThemeViewModel.current
-    AlertDialog(
-        text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                Text(stringResource(R.string.dynamic_theme), style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.fillMaxWidth().height(16.dp))
-                DynamicTheme.entries.forEach { theme ->
-                    RadioItem(
-                        title = getDynamicThemeTitle(theme),
-                        description = null,
-                        value = theme.name,
-                        selected = LocalDynamicTheme.current == theme
-                    ) {
-                        themeViewModel.updateDynamicTheme(theme)
-                    }
-                }
-                Spacer(Modifier.fillMaxWidth().height(24.dp))
-                CustomPaletteEditor()
-                Spacer(Modifier.height(24.dp))
-                Text(stringResource(R.string.dark_mode), style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.fillMaxWidth().height(16.dp))
-                ThemeMode.entries.forEach { theme ->
-                    RadioItem(
-                        title = getThemeModeTitle(theme),
-                        description = null,
-                        value = theme.name,
-                        selected = LocalThemeMode.current == theme
-                    ) {
-                        themeViewModel.updateThemeMode(theme)
-                    }
-                }
-            }
-        },
-        onDismissRequest = settingViewModel::closeThemeDialog,
-        confirmButton = {
-            TextButton(onClick = settingViewModel::closeThemeDialog) {
-                Text(stringResource(R.string.confirm))
-            }
-        }
-    )
+    ThemeSettingsScreen(onDismiss = settingViewModel::closeThemeDialog)
 }

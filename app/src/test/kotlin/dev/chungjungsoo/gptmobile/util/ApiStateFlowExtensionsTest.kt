@@ -18,6 +18,25 @@ import org.junit.Test
 
 class ApiStateFlowExtensionsTest {
     @Test
+    fun `delegate tool origin is retained across start and completion updates`() = runBlocking {
+        var saved = emptyList<AssistantTimelineItem>()
+        val metrics = dev.chungjungsoo.gptmobile.data.agent.ToolPayloadMetrics(10, 10)
+        flowOf(
+            ApiState.ToolCall(0),
+            ApiState.ToolCall(1, delegated = true),
+            ApiState.ToolCall(1, metrics),
+            ApiState.Success("Answer"),
+            ApiState.Done
+        ).collectApiStateUpdates(onUpdate = { _, _, timeline -> saved = timeline })
+
+        val tools = saved.filter { it.type == AssistantTimelineItemType.TOOL }
+        assertEquals(2, tools.size)
+        assertEquals(false, tools[0].delegatedTool)
+        assertEquals(true, tools[1].delegatedTool)
+        assertEquals(metrics, tools[1].toolMetrics)
+    }
+
+    @Test
     fun `loading summaries update one entry without splitting streamed Markdown`() = runBlocking {
         var saved = emptyList<AssistantTimelineItem>()
         flowOf(

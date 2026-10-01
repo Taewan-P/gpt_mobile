@@ -85,6 +85,8 @@ class SettingDataSourceImpl @Inject constructor(
 
     private val json = Json { ignoreUnknownKeys = true }
 
+    override fun observePreferences(): Flow<Preferences> = dataStore.data
+
     override suspend fun getPreferencesSnapshot(): Preferences = dataStore.data.first()
 
     override suspend fun updateDynamicTheme(theme: DynamicTheme) {

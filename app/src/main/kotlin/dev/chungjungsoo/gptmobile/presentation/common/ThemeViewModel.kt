@@ -10,7 +10,6 @@ import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -29,7 +28,9 @@ class ThemeViewModel @Inject constructor(private val settingRepository: SettingR
 
     private fun fetchThemes() {
         viewModelScope.launch {
-            _themeSetting.update { settingRepository.fetchThemes() }
+            settingRepository.observeThemes().collect {
+                themeMutex.withLock { _themeSetting.value = settingRepository.fetchThemes() }
+            }
         }
     }
 
@@ -53,7 +54,7 @@ class ThemeViewModel @Inject constructor(private val settingRepository: SettingR
 
     fun updateCustomPalette(palette: dev.chungjungsoo.gptmobile.data.dto.CustomThemePalette?) {
         viewModelScope.launch {
-            persistTheme { it.copy(customPalette = palette, customPrimaryArgb = palette?.primary) }
+            persistTheme { it.copy(dynamicTheme = DynamicTheme.OFF, customPalette = palette, customPrimaryArgb = palette?.primary) }
         }
     }
 
@@ -67,7 +68,7 @@ class ThemeViewModel @Inject constructor(private val settingRepository: SettingR
         viewModelScope.launch {
             persistTheme { current ->
                 val profile = dev.chungjungsoo.gptmobile.data.dto.SavedThemeProfile(label, palette, current.themeMode)
-                current.copy(customPalette = palette, customPrimaryArgb = palette.primary, savedProfiles = current.savedProfiles.filterNot { it.name.equals(label, true) } + profile)
+                current.copy(dynamicTheme = DynamicTheme.OFF, customPalette = palette, customPrimaryArgb = palette.primary, savedProfiles = current.savedProfiles.filterNot { it.name.equals(label, true) } + profile)
             }
         }
     }

@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -12,8 +13,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -63,20 +67,60 @@ fun CustomPaletteEditor() {
         values = values.toMutableList().apply { set(selected, "#%06X".format(color.toArgb() and 0xFFFFFF)) }
     }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Theme profiles", style = MaterialTheme.typography.titleMedium)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            dev.chungjungsoo.gptmobile.data.dto.ThemePresets.profiles.forEach { preset ->
-                FilterChip(selected = current == preset.palette, onClick = { theme.applyProfile(preset) }, label = { Text(preset.name) }, leadingIcon = {
-                    Surface(color = Color(preset.palette.primary), shape = MaterialTheme.shapes.small, modifier = Modifier.size(16.dp)) {}
+        var menuOpen by remember { mutableStateOf(false) }
+        val selectedProfile = saved.savedProfiles.firstOrNull { it.palette == current }
+            ?: dev.chungjungsoo.gptmobile.data.dto.ThemePresets.profiles.firstOrNull { it.palette == current }
+        Text("Choose your theme", style = MaterialTheme.typography.titleMedium)
+        Box {
+            OutlinedButton(onClick = { menuOpen = true }, modifier = Modifier.fillMaxWidth()) {
+                Text(selectedProfile?.name ?: if (current == null) "Default" else "Custom palette", modifier = Modifier.weight(1f))
+                Text("▾")
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(text = { Text("Default") }, onClick = {
+                    theme.updateCustomPalette(null)
+                    menuOpen = false
                 })
+                Text("Presets", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.labelMedium)
+                dev.chungjungsoo.gptmobile.data.dto.ThemePresets.profiles.forEach { preset ->
+                    DropdownMenuItem(text = { Text(preset.name) }, leadingIcon = {
+                        Surface(color = Color(preset.palette.primary), shape = MaterialTheme.shapes.small, modifier = Modifier.size(18.dp)) {}
+                    }, onClick = {
+                        theme.applyProfile(preset)
+                        menuOpen = false
+                    })
+                }
+                if (saved.savedProfiles.isNotEmpty()) {
+                    Text("Saved themes", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.labelMedium)
+                    saved.savedProfiles.forEach { profile ->
+                        DropdownMenuItem(text = { Text(profile.name) }, leadingIcon = {
+                            Surface(color = Color(profile.palette.primary), shape = MaterialTheme.shapes.small, modifier = Modifier.size(18.dp)) {}
+                        }, onClick = {
+                            theme.applyProfile(profile)
+                            menuOpen = false
+                        })
+                    }
+                }
             }
         }
-        saved.savedProfiles.forEach { profile ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                FilterChip(selected = current == profile.palette, onClick = { theme.applyProfile(profile) }, label = { Text(profile.name) }, modifier = Modifier.weight(1f))
-                TextButton(onClick = { theme.deleteProfile(profile.name) }) { Text("Delete") }
+        Surface(shape = MaterialTheme.shapes.large, color = scheme.surfaceContainerHigh) {
+            Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("A theme that feels like you", style = MaterialTheme.typography.titleMedium)
+                Text("Preview your chat colours, cards and accents.", color = scheme.onSurfaceVariant)
+                Surface(color = scheme.primaryContainer, shape = MaterialTheme.shapes.medium) {
+                    Text("Your next idea starts here", Modifier.padding(12.dp), color = scheme.onPrimaryContainer)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(scheme.primary, scheme.secondary, scheme.background, scheme.surface).forEach { color ->
+                        Surface(color = color, shape = MaterialTheme.shapes.small, modifier = Modifier.size(28.dp)) {}
+                    }
+                }
             }
         }
+        selectedProfile?.takeIf { it in saved.savedProfiles }?.let { profile ->
+            TextButton(onClick = { theme.deleteProfile(profile.name) }) { Text("Delete saved theme ${profile.name}") }
+        }
+        Text("Saved themes are included in Backup and restored with your settings.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
         TextButton(onClick = { customizing = !customizing }) { Text(if (customizing) "Hide custom colours" else "Create a theme") }
         if (customizing) {
             Text("Your palette", style = MaterialTheme.typography.titleMedium)
@@ -111,11 +155,11 @@ fun CustomPaletteEditor() {
                 }
             }
             Button(onClick = { theme.updateCustomPalette(CustomThemePalette(colors[0]!!, colors[1]!!, colors[2]!!, colors[3]!!)) }, enabled = colors.all { it != null }, modifier = Modifier.fillMaxWidth()) { Text("Apply palette") }
-            OutlinedTextField(value = profileName, onValueChange = { profileName = it.take(40) }, label = { Text("Profile name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = profileName, onValueChange = { profileName = it.take(40) }, label = { Text("Theme name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             Button(onClick = {
                 theme.saveProfile(profileName, CustomThemePalette(colors[0]!!, colors[1]!!, colors[2]!!, colors[3]!!))
                 profileName = ""
-            }, enabled = profileName.isNotBlank() && colors.all { it != null }, modifier = Modifier.fillMaxWidth()) { Text("Save theme profile") }
+            }, enabled = profileName.isNotBlank() && colors.all { it != null }, modifier = Modifier.fillMaxWidth()) { Text("Save and apply theme") }
         }
         TextButton(onClick = { theme.updateCustomPalette(null) }, modifier = Modifier.fillMaxWidth()) { Text("Restore default palette") }
     }

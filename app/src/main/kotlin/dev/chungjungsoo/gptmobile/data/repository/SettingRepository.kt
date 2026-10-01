@@ -16,6 +16,7 @@ interface SettingRepository {
     suspend fun fetchPlatformV2s(): List<PlatformV2>
     fun observePlatformV2s(): Flow<List<PlatformV2>>
     fun observePlatformV2ByUid(uid: String): Flow<PlatformV2?>
+    fun observeThemes(): Flow<ThemeSetting> = kotlinx.coroutines.flow.flow { emit(fetchThemes()) }
     suspend fun fetchThemes(): ThemeSetting
     suspend fun getLocalRuntimeBackend(): LocalRuntimeBackend
     suspend fun updateLocalRuntimeBackend(backend: LocalRuntimeBackend)

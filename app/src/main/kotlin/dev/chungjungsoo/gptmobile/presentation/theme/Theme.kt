@@ -160,6 +160,7 @@ fun GPTMobileTheme(
     }
     fun foreground(color: Color): Color = if (androidx.core.graphics.ColorUtils.calculateLuminance(color.toArgb()) > 0.179) Color.Black else Color.White
     val colorScheme = when {
+        dynamicTheme == DynamicTheme.ON -> baseScheme
         customPalette != null -> {
             val primary = Color(customPalette.primary)
             val secondary = Color(customPalette.secondary)

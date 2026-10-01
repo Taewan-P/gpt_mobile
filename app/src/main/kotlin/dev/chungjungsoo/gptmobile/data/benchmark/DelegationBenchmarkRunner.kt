@@ -43,6 +43,7 @@ internal class DelegationBenchmarkRunner(
     suspend fun run(test: BenchmarkCase): BenchmarkSample {
         val started = now()
         val code = "PKG-${UUID.randomUUID().toString().take(8)}"
+        val requestId = UUID.randomUUID().toString()
         var answer = ""
         var searches = 0
         var pages = 0
@@ -101,12 +102,12 @@ internal class DelegationBenchmarkRunner(
                         rawBytes = evidence.toByteArray().size
                         answer = coordinator.processText("Extract the parcel code from the supplied evidence. Reply with only the code.\n$evidence", config.handoffTokens).orEmpty()
                         handoffChars = answer.length
-                        check(answer.trim() == code) { "Compaction lost the fixture's parcel code or returned no usable answer." }
+                        check(hasExpectedParcelCode(answer, code)) { "Compaction lost the fixture's parcel code or returned no usable answer." }
                     }
                     "delegation-tools" -> {
                         // Direct delegation uses the same watchdog and worker gate as chat.
-                        answer = coordinator.executeTask(target, "Call benchmark_lookup with key=\"parcel\" and reply with only the returned code. Do not guess.", config.maxOutputTokens).orEmpty()
-                        check(answer.trim() == code && fixtureCalls > 0 && fixtureCalls == successfulCalls) { "Worker did not return the code from its isolated fixture tool." }
+                        answer = coordinator.executeTask(target, "Benchmark request $requestId. Call benchmark_lookup with key=\"parcel\" and reply with only the returned code. Do not guess.", config.maxOutputTokens).orEmpty()
+                        check(hasExpectedParcelCode(answer, code) && fixtureCalls > 0 && fixtureCalls == successfulCalls) { "Worker did not return the code from its isolated fixture tool." }
                     }
                     "delegation-research" -> {
                         val fixtures = listOf(
@@ -178,3 +179,7 @@ internal class DelegationBenchmarkRunner(
         }
     }
 }
+
+/** Formatting around the random code is harmless; a wrong or extra code is not. */
+internal fun hasExpectedParcelCode(answer: String, expected: String): Boolean =
+    Regex("\\bPKG-[a-f0-9]{8}\\b").findAll(answer).map { it.value }.toList().let { it.isNotEmpty() && it.all { code -> code == expected } }
