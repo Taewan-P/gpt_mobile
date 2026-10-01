@@ -75,6 +75,34 @@ class GatewayV12Tests(unittest.TestCase):
         self.assertIn('delegated_worker_request = bool(', source)
         self.assertIn('"delegated worker"', source)
 
+    def test_llama_model_dispatch_is_bounded_and_cancel_aware(self):
+        source = SOURCE.read_text()
+        self.assertIn('llama_model_gate = threading.BoundedSemaphore(LLAMA_SLOT_COUNT)', source)
+        self.assertIn('LLAMA_MODEL_QUEUE_TIMEOUT_SECONDS', source)
+        self.assertIn('LLAMA_MODEL_READ_TIMEOUT_SECONDS', source)
+        self.assertIn('_gateway_cancel_event=cancel_event', source)
+        self.assertIn('_gateway_hard_cancel_event=hard_cancel_event', source)
+        self.assertIn('cancelled_before_dispatch', source)
+
+    def test_llama_model_round_does_not_use_hour_long_generic_timeout(self):
+        source = SOURCE.read_text()
+        start = source.index('def post_llama_model_round(')
+        end = source.index('\ndef process_chat_payload(', start)
+        model_round = source[start:end]
+        self.assertNotIn('timeout=HTTP_TIMEOUT', model_round)
+        self.assertIn('LLAMA_MODEL_TIMEOUT_RETRIES', model_round)
+        self.assertIn('reset_http_session()', model_round)
+        self.assertIn('except TimeoutError:', model_round)
+
+    def test_long_model_work_yields_to_interactive_waiters(self):
+        source = SOURCE.read_text()
+        start = source.index('def _acquire_llama_model_gate(')
+        end = source.index('\ndef _release_llama_model_gate(', start)
+        gate = source[start:end]
+        self.assertIn('interactive_waiters', gate)
+        self.assertIn('if is_long or is_background:', gate)
+        self.assertIn('time.sleep(LLAMA_MODEL_GATE_POLL_SECONDS)', gate)
+
 
 if __name__ == '__main__':
     unittest.main()
