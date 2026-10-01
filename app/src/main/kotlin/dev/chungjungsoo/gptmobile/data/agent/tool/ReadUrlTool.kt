@@ -343,7 +343,7 @@ private fun androidHtmlToText(html: String): String {
             .replace("\\n", " ")
             .replace("\\r", " ")
             .replace("\\t", " ")
-            .replace("\\"", """)
+            .replace("\\\"", "\"")
             .replace("\\/", "/")
     }.filter { it.isNotBlank() }.take(3).toList()
     val removable = Regex(
