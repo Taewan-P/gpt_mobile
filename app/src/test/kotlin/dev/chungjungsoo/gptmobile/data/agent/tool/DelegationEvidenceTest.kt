@@ -30,13 +30,19 @@ class DelegationEvidenceTest {
         val handoff = delegationHandoff(
             "Verified fact [S1].",
             listOf(DelegationSource("S1", "https://example.org/article", "Article", text = "Verified fact", pageRead = true)),
-            listOf("Some search engines were unavailable."),
+            listOf(
+                "Some search engines were unavailable.",
+                "Search 1 failed on one provider; another enabled search provider was attempted.",
+                "Search 2 did not return usable evidence; remaining planned queries were still attempted."
+            ),
             512
         )
         val payload = Json.parseToJsonElement(handoff).jsonObject
         assertEquals("false", payload.getValue("partial").jsonPrimitive.content)
         assertTrue((payload.getValue("limitations") as JsonArray).isEmpty())
-        assertEquals("Some search engines were unavailable.", (payload.getValue("warnings") as JsonArray).single().jsonPrimitive.content)
+        val warnings = payload.getValue("warnings") as JsonArray
+        assertEquals(3, warnings.size)
+        assertTrue(warnings.any { it.jsonPrimitive.content.contains("another enabled search provider") })
     }
 
     @Test fun `worker prompt is valid bounded JSON and preserves a relevant late passage`() {
