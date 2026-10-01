@@ -465,12 +465,25 @@ internal class LocalDelegationCoordinator(
                 val reasoningOnly = message.contains("REASONING_ONLY_RESPONSE", ignoreCase = true)
                 val malformedTool = message.contains("Tool arguments were not valid JSON", ignoreCase = true) ||
                     message.contains("incomplete function call", ignoreCase = true)
-                val connectionUnavailable = message.contains("Unable to resolve host", ignoreCase = true) ||
+                val failureType = failure.javaClass.simpleName
+                val connectionUnavailable = failureType in setOf(
+                    "ConnectException",
+                    "SocketTimeoutException",
+                    "UnknownHostException",
+                    "NoRouteToHostException",
+                    "SocketException",
+                    "EOFException"
+                ) ||
+                    message.contains("Unable to resolve host", ignoreCase = true) ||
                     message.contains("UnknownHostException", ignoreCase = true) ||
                     message.contains("connection abort", ignoreCase = true) ||
                     message.contains("connection refused", ignoreCase = true) ||
+                    message.contains("connection reset", ignoreCase = true) ||
+                    message.contains("broken pipe", ignoreCase = true) ||
                     message.contains("No route to host", ignoreCase = true) ||
-                    message.contains("Connect timeout", ignoreCase = true)
+                    message.contains("Connect timeout", ignoreCase = true) ||
+                    message.contains("read timed out", ignoreCase = true) ||
+                    message.contains("timeout has expired", ignoreCase = true)
                 val softEmpty = emptyResponse || reasoningOnly || malformedTool
                 val counter = emptyResponsesByWorker.getOrPut(failedUid, ::AtomicInteger)
                 val emptyCount = if (softEmpty) counter.incrementAndGet() else counter.get()
