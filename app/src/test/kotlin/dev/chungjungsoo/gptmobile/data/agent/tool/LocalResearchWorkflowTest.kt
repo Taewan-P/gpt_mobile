@@ -126,6 +126,84 @@ class LocalResearchWorkflowTest {
         assertEquals(LocalResearchOutcome.SUCCESS, result.outcome)
     }
 
+    @Test fun `planned searches are not skipped merely because early search results cross the old URL threshold`() = runTest {
+        var searches = 0
+        val search = tool("web_search") { id, _ ->
+            searches++
+            response(
+                id,
+                """{"results":[{"title":"A","url":"https://example.org/$searches-a","snippet":"A"},{"title":"B","url":"https://example.org/$searches-b","snippet":"B"},{"title":"C","url":"https://example.org/$searches-c","snippet":"C"}]}"""
+            )
+        }
+        val result = LocalResearchWorkflow(
+            config.copy(maxSearchQueries = 3, maxPages = 0),
+            listOf(search),
+            { prompt, _ ->
+                if (prompt.startsWith("Plan")) """{"queries":["one","two","three"],"urls":[]}""" else "Evidence [S1]."
+            }
+        ).run("Research all three query angles", "threshold")
+
+        assertEquals(3, searches)
+        assertEquals(3, result.searches)
+        assertFalse(result.handoff.contains("remaining searches were skipped"))
+    }
+
+    @Test fun `unreadable first source falls through to another candidate without consuming verified page target`() = runTest {
+        val reads = mutableListOf<String>()
+        val search = tool("web_search") { id, _ ->
+            response(
+                id,
+                """{"results":[{"title":"Blocked","url":"https://example.org/blocked","snippet":"blocked snippet"},{"title":"Readable","url":"https://example.org/readable","snippet":"readable snippet"}]}"""
+            )
+        }
+        val reader = tool("read_url") { id, args ->
+            val url = args.getValue("url").jsonPrimitive.content
+            reads += url
+            if (url.endsWith("/blocked")) {
+                AgentToolResult(id, ToolResultContent.Text("Read URL failed: consent wall."), true)
+            } else {
+                response(id, """{"content":"Verified article says latency is 42 ms.","links":[]}""")
+            }
+        }
+        val result = LocalResearchWorkflow(
+            config.copy(maxPages = 1, crawlDepth = 0),
+            listOf(search, reader),
+            { prompt, _ ->
+                when {
+                    prompt.startsWith("Plan") -> """{"queries":["latency"],"urls":[]}"""
+                    prompt.startsWith("Choose up to") -> """{"ids":["S1"]}"""
+                    else -> "Latency is 42 ms [S2]."
+                }
+            }
+        ).run("Research latency", "fallback-source")
+
+        assertEquals(listOf("https://example.org/blocked", "https://example.org/readable"), reads)
+        assertEquals(1, result.pagesRead)
+        assertTrue(result.handoff.contains("42 ms"))
+    }
+
+    @Test fun `research authorized at start is not aborted when live settings change mid run`() = runTest {
+        var enabledChecks = 0
+        var searches = 0
+        val search = tool("web_search") { id, _ ->
+            searches++
+            response(id, """{"results":[{"title":"One","url":"https://example.org/one","snippet":"Verified snippet"}]}""")
+        }
+        val result = LocalResearchWorkflow(
+            config.copy(maxPages = 0),
+            listOf(search),
+            { prompt, _ -> if (prompt.startsWith("Plan")) """{"queries":["one"],"urls":[]}""" else "Verified [S1]." },
+            stillEnabled = {
+                enabledChecks++
+                enabledChecks == 1
+            }
+        ).run("Research one", "settings-race")
+
+        assertEquals(1, searches)
+        assertEquals(LocalResearchOutcome.SUCCESS, result.outcome)
+        assertFalse(result.handoff.contains("disabled before research completed"))
+    }
+
     @Test fun `unusable search providers stop early without claiming successful research`() = runTest {
         for (isError in listOf(true, false)) {
             var searches = 0
