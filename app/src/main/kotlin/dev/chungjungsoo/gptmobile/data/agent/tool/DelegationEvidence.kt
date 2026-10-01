@@ -109,7 +109,10 @@ internal fun delegationHandoff(summary: String, sources: List<DelegationSource>,
     fun isWarningOnly(note: String): Boolean =
         note == "Some search engines were unavailable." ||
             note.startsWith("The brief prioritizes read pages") ||
-            note.startsWith("[") && note.contains("could not be read by enabled page readers") ||
+            (
+                note.startsWith("[") &&
+                    note.contains("could not be read by enabled page readers")
+            ) ||
             note == "Some source references were omitted to fit the brief."
 
     var warnings = allNotes.filter(::isWarningOnly).take(6).map { truncateUtf8(it, 160) }
