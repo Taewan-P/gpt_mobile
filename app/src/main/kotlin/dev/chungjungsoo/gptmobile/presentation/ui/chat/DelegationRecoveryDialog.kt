@@ -84,6 +84,7 @@ fun DelegationRecoveryDialog(
                                         Text(option.profileName)
                                         Text(
                                             buildString {
+                                                append(option.provider.lowercase().replaceFirstChar { it.uppercase() } + " · ")
                                                 if (option.model.isNotBlank()) append(option.model + " · ")
                                                 append("Delegation score ")
                                                 append(option.delegationScore?.toString() ?: "Not benchmarked")
