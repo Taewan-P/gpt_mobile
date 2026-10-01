@@ -160,6 +160,23 @@ class ModelDelegationToolTest {
     }
 
     @Test
+    fun terminalNoResultOpensPerTurnCircuitAndStopsRetryStorms() = runTest {
+        var attempts = 0
+        val tool = ModelDelegationTool(
+            source,
+            { enabled.copy(maxCallsPerTurn = 4) },
+            { listOf(target) }
+        ) { _, _, _ ->
+            attempts++
+            error("CANCELED_NO_RESULT: delegated model was unavailable, stalled, or its compute budget was reached.")
+        }
+
+        assertTrue(tool.execute("first", task).isError)
+        assertTrue(tool.execute("second", task).isError)
+        assertEquals(1, attempts)
+    }
+
+    @Test
     fun localFirstOwnershipRaisesExplicitDelegationAllowance() = runTest {
         var attempts = 0
         val localFirst = enabled.copy(processingOwnership = 0, maxCallsPerTurn = 1)

@@ -320,6 +320,25 @@ class LocalDelegationCoordinatorTest {
         assertFalse(coordinator.researchAvailable())
     }
 
+    @Test fun `socket timeout quarantines worker immediately and uses fallback`() = runTest {
+        val fallback = target.copy(uid = "fallback")
+        val dispatched = mutableListOf<String>()
+        val coordinator = LocalDelegationCoordinator(
+            source,
+            { config.copy(researchEnabled = false, maxLocalModelCalls = 4) },
+            { listOf(target, fallback) },
+            { profile, _, _ ->
+                dispatched += profile.uid
+                if (profile.uid == target.uid) throw java.net.SocketTimeoutException("Read timed out")
+                "recovered"
+            }
+        )
+
+        assertEquals("recovered", coordinator.executeTask(target, "first", 128))
+        assertEquals("recovered", coordinator.executeTask(target, "second", 128))
+        assertEquals(listOf("local", "fallback", "fallback"), dispatched)
+    }
+
     @Test fun `stale configured target falls back to an eligible helper`() = runTest {
         val stale = config.copy(targetProfileUid = "missing", researchEnabled = true)
         val coordinator = LocalDelegationCoordinator(
@@ -449,6 +468,59 @@ class LocalDelegationCoordinatorTest {
         assertEquals("usable fallback answer", coordinator.executeTask(target, "Read a page", 256))
         assertEquals(1, failedCalls)
         assertFalse(coordinator.researchAvailable())
+    }
+
+    @Test fun `not downloaded local model is quarantined before repeated fallback attempts`() = runTest {
+        var missingGenerations = 0
+        var fallbackGenerations = 0
+        val missing = target.copy(uid = "missing-local", compatibleType = ClientType.LITERT_LM, model = "missing-model")
+        val fallback = target.copy(uid = "working-local", model = "available-model")
+        val coordinator = LocalDelegationCoordinator(
+            source,
+            { config.copy(targetProfileUid = missing.uid, researchEnabled = false, maxLocalModelCalls = 4) },
+            { listOf(missing, fallback) },
+            { profile, _, _ ->
+                if (profile.uid == missing.uid) {
+                    missingGenerations++
+                    error("Missing worker must never reach generation")
+                }
+                fallbackGenerations++
+                "usable fallback answer"
+            },
+            inputBudget = { profile, _ ->
+                if (profile.uid == missing.uid) {
+                    error("This Local Model is not downloaded. Download it from Settings → Local Models.")
+                }
+                Int.MAX_VALUE
+            }
+        )
+
+        assertEquals("usable fallback answer", coordinator.executeTask(missing, "Read a page", 256))
+        assertEquals("usable fallback answer", coordinator.executeTask(missing, "Read another page", 256))
+        assertEquals(0, missingGenerations)
+        assertEquals(2, fallbackGenerations)
+    }
+
+    @Test fun `reasoning only recovery expands the next output cap`() = runTest {
+        val caps = mutableListOf<Int>()
+        val coordinator = LocalDelegationCoordinator(
+            source,
+            { config.copy(researchEnabled = false, maxLocalModelCalls = 4, maxOutputTokens = 768) },
+            { listOf(target) },
+            { _, _, _ -> error("progressive path expected") },
+            generateWithProgress = { _, _, cap, _, progress ->
+                caps += cap
+                progress(DelegateProgress(DelegateProgressKind.USAGE, inputTokens = 3_900, outputTokens = cap.toLong(), totalTokens = 3_900L + cap))
+                if (caps.size == 1) {
+                    error("REASONING_ONLY_RESPONSE: delegated provider produced reasoning tokens but no usable final answer.")
+                }
+                "recovered"
+            }
+        )
+
+        assertTrue(runCatching { coordinator.delegate(target, "first", 128, emptyList(), "first") }.isFailure)
+        assertEquals("recovered", coordinator.delegate(target, "second", 128, emptyList(), "second"))
+        assertEquals(listOf(128, 768), caps)
     }
 
     @Test fun `Google missing identity quarantines worker immediately`() = runTest {

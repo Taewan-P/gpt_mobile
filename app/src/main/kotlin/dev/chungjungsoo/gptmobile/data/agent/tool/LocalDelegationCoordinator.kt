@@ -334,10 +334,18 @@ internal class LocalDelegationCoordinator(
                     logComputeTotals()
                     return@withPermit null
                 }
+                val priorSoftFailures = emptyResponsesByWorker[profile.uid]?.get() ?: 0
                 val requestedOutputCap = minOf(tokens, latest.maxOutputTokens).let { requested ->
-                    // Large prompts paired with tiny output caps are especially prone to
-                    // reasoning-only completions. Keep enough room for a short final answer.
-                    if (estimatedInput >= 3_000) maxOf(requested, minOf(768, latest.maxOutputTokens)) else requested
+                    // Large effective requests (including provider/system overhead) paired with
+                    // tiny output caps are especially prone to reasoning-only completions.
+                    // After one empty/reasoning-only result, also enlarge the next attempt so the
+                    // worker has room to emit a short final answer instead of burning the cap on
+                    // hidden reasoning again.
+                    if (estimatedEffectiveInput >= 3_000 || priorSoftFailures > 0) {
+                        maxOf(requested, minOf(768, latest.maxOutputTokens))
+                    } else {
+                        requested
+                    }
                 }
                 val runtimeSeconds = adaptiveRuntimeSeconds(estimatedInput, latest)
                 // llama.cpp/gateway workers can spend a substantial period evaluating the
@@ -427,7 +435,8 @@ internal class LocalDelegationCoordinator(
             } catch (failure: Exception) {
                 dispatchedAtMs?.let { wastedLocalMs.addAndGet((System.currentTimeMillis() - it).coerceAtLeast(0L)) }
                 val estimated = maxOf(estimatedDelegateTokens(prompt).toLong(), observedForFailure)
-                failedLocalTokens.addAndGet(estimated)
+                val chargedFailureTokens = if (dispatchedAtMs != null || observedForFailure > 0L) estimated else 0L
+                if (chargedFailureTokens > 0L) failedLocalTokens.addAndGet(chargedFailureTokens)
                 val message = failure.message.orEmpty()
                 val failedUid = resolvedProfileUid ?: target.uid
                 val authBlocked = message.contains("HTTP 401", ignoreCase = true) ||
@@ -443,6 +452,10 @@ internal class LocalDelegationCoordinator(
                     Regex("model\\s+.+?\\s+not found", RegexOption.IGNORE_CASE).containsMatchIn(message) ||
                     message.contains("model unavailable", ignoreCase = true) ||
                     message.contains("model is unavailable", ignoreCase = true) ||
+                    message.contains("not downloaded", ignoreCase = true) ||
+                    message.contains("download it from Settings", ignoreCase = true) ||
+                    message.contains("no installed local model", ignoreCase = true) ||
+                    message.contains("local model file is missing", ignoreCase = true) ||
                     message.contains("no longer available", ignoreCase = true) ||
                     message.contains("retired", ignoreCase = true) ||
                     message.contains("deprecated", ignoreCase = true) ||
@@ -452,12 +465,25 @@ internal class LocalDelegationCoordinator(
                 val reasoningOnly = message.contains("REASONING_ONLY_RESPONSE", ignoreCase = true)
                 val malformedTool = message.contains("Tool arguments were not valid JSON", ignoreCase = true) ||
                     message.contains("incomplete function call", ignoreCase = true)
-                val connectionUnavailable = message.contains("Unable to resolve host", ignoreCase = true) ||
+                val failureType = failure.javaClass.simpleName
+                val connectionUnavailable = failureType in setOf(
+                    "ConnectException",
+                    "SocketTimeoutException",
+                    "UnknownHostException",
+                    "NoRouteToHostException",
+                    "SocketException",
+                    "EOFException"
+                ) ||
+                    message.contains("Unable to resolve host", ignoreCase = true) ||
                     message.contains("UnknownHostException", ignoreCase = true) ||
                     message.contains("connection abort", ignoreCase = true) ||
                     message.contains("connection refused", ignoreCase = true) ||
+                    message.contains("connection reset", ignoreCase = true) ||
+                    message.contains("broken pipe", ignoreCase = true) ||
                     message.contains("No route to host", ignoreCase = true) ||
-                    message.contains("Connect timeout", ignoreCase = true)
+                    message.contains("Connect timeout", ignoreCase = true) ||
+                    message.contains("read timed out", ignoreCase = true) ||
+                    message.contains("timeout has expired", ignoreCase = true)
                 val softEmpty = emptyResponse || reasoningOnly || malformedTool
                 val counter = emptyResponsesByWorker.getOrPut(failedUid, ::AtomicInteger)
                 val emptyCount = if (softEmpty) counter.incrementAndGet() else counter.get()
