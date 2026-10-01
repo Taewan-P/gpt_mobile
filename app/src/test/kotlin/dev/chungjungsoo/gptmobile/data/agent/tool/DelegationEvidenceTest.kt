@@ -26,6 +26,19 @@ class DelegationEvidenceTest {
         }
     }
 
+    @Test fun `warning only search degradation does not force partial evidence`() {
+        val handoff = delegationHandoff(
+            "Verified fact [S1].",
+            listOf(DelegationSource("S1", "https://example.org/article", "Article", text = "Verified fact", pageRead = true)),
+            listOf("Some search engines were unavailable."),
+            512
+        )
+        val payload = Json.parseToJsonElement(handoff).jsonObject
+        assertEquals("false", payload.getValue("partial").jsonPrimitive.content)
+        assertTrue((payload.getValue("limitations") as JsonArray).isEmpty())
+        assertEquals("Some search engines were unavailable.", (payload.getValue("warnings") as JsonArray).single().jsonPrimitive.content)
+    }
+
     @Test fun `worker prompt is valid bounded JSON and preserves a relevant late passage`() {
         val page = "Unrelated introduction. ".repeat(200) + "The latency is exactly 42 ms after optimization. " + "Other material. ".repeat(200)
         val excerpt = relevantEvidence(page, "latency optimization", 1000)
