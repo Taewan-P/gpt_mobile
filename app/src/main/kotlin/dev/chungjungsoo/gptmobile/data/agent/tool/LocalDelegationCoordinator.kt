@@ -103,12 +103,46 @@ internal class LocalDelegationCoordinator(
         val battery = batteryPercent()
         if (battery != null && battery <= config.lowBatteryThresholdPercent && config.processingOwnership < 65) return null
         val availableProfiles = profiles()
-        val eligible = availableProfiles.filter {
-            it.uid != source.uid &&
-                it.enabled &&
-                !it.excludesMemory() &&
-                it.uid !in quarantinedWorkerUids &&
-                (config.allowRemoteWorkers || it.isPrivateDestination())
+        val eligible = mutableListOf<PlatformV2>()
+        for (candidate in availableProfiles) {
+            val metadataEligible =
+                candidate.uid != source.uid &&
+                    candidate.enabled &&
+                    !candidate.excludesMemory() &&
+                    candidate.uid !in quarantinedWorkerUids &&
+                    (config.allowRemoteWorkers || candidate.isPrivateDestination())
+            if (!metadataEligible) continue
+
+            // A LiteRT profile can remain enabled after its model package has been
+            // removed. Do not select such a profile as a fallback and then discover
+            // at dispatch time that there is nothing to run. Preflight only the
+            // on-device runtime here; network-backed helpers keep their existing
+            // lazy connection/error handling.
+            if (candidate.compatibleType == ClientType.LITERT_LM) {
+                val available = try {
+                    inputBudget(candidate, config.maxOutputTokens)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (failure: Exception) {
+                    quarantinedWorkerUids += candidate.uid
+                    AppLogRecorder.record(
+                        "Delegation",
+                        "Worker candidate skipped · target=${candidate.uid} · type=${candidate.compatibleType} · reason=RUNTIME_NOT_READY · ${failure.javaClass.simpleName}: ${failure.message.orEmpty()}",
+                        "W"
+                    )
+                    continue
+                }
+                if (available < 600) {
+                    quarantinedWorkerUids += candidate.uid
+                    AppLogRecorder.record(
+                        "Delegation",
+                        "Worker candidate skipped · target=${candidate.uid} · type=${candidate.compatibleType} · reason=RUNTIME_NOT_READY · inputBudget=$available",
+                        "W"
+                    )
+                    continue
+                }
+            }
+            eligible += candidate
         }
         val selected = eligible.firstOrNull { it.uid == config.targetProfileUid }
         if (selected != null) return selected
@@ -258,15 +292,22 @@ internal class LocalDelegationCoordinator(
         }
     }
 
-    private suspend fun workerText(target: PlatformV2, prompt: String, tokens: Int, requirePrivate: Boolean = true, allowTools: Boolean = false): String? {
-        val config = settings().normalized()
+    private suspend fun workerText(
+        target: PlatformV2,
+        prompt: String,
+        tokens: Int,
+        requirePrivate: Boolean = true,
+        allowTools: Boolean = false,
+        pinnedConfig: ModelDelegationSettings? = null
+    ): String? {
+        val config = (pinnedConfig ?: settings()).normalized()
         if (!config.enabled) return null
         var observedForFailure = 0L
         var resolvedProfileUid: String? = null
         var failoverTarget: PlatformV2? = null
         var dispatchedAtMs: Long? = null
         val result = worker.withPermit {
-            val latest = settings().normalized()
+            val latest = (pinnedConfig ?: settings()).normalized()
             awaitWorkerSlot(latest.maxConcurrentDelegates)
             try {
                 val availableProfiles = profiles()
@@ -512,7 +553,7 @@ internal class LocalDelegationCoordinator(
                 "Worker failover · failed=${resolvedProfileUid ?: target.uid} · fallback=${fallback.uid} · type=${fallback.compatibleType}",
                 "W"
             )
-            return workerText(fallback, prompt, tokens, requirePrivate, allowTools)
+            return workerText(fallback, prompt, tokens, requirePrivate, allowTools, pinnedConfig)
         }
         return null
     }
@@ -534,14 +575,22 @@ internal class LocalDelegationCoordinator(
             return LocalResearchResult("", 0, 0, 0, LocalResearchOutcome.NO_USEFUL_OUTPUT)
         }
         val result = try {
+            // Freeze the normalized settings used to authorize this research pass. Every
+            // planner/extractor/synthesis worker call receives the same snapshot so a UI/settings
+            // reload cannot disable an already-running job halfway through its evidence handoff.
+            val researchConfig = boundedConfig(target, config)
+            AppLogRecorder.record(
+                "Delegation",
+                "Research settings pinned · call=$callId · request=$requestIndex · target=${target.uid} · ownership=${researchConfig.processingOwnership}"
+            )
             LocalResearchWorkflow(
-                boundedConfig(target, config),
+                researchConfig,
                 tools,
-                generate = { prompt, tokens -> workerText(target, prompt, tokens) },
-                stillEnabled = {
-                    val latest = settings().normalized()
-                    latest.researchEnabled && localTarget(latest) != null
-                }
+                generate = { prompt, tokens ->
+                    workerText(target, prompt, tokens, pinnedConfig = researchConfig)
+                },
+                // Authorization is pinned above; live settings only apply to the next research run.
+                stillEnabled = { true }
             ).run(task, "$callId:$requestIndex", automatic)
         } catch (cancelled: CancellationException) {
             throw cancelled

@@ -29,6 +29,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -87,6 +88,7 @@ fun ProfileBenchmarkScreen(onBack: () -> Unit, onUsage: () -> Unit, viewModel: P
     val delegationSettings by viewModel.delegationSettings.collectAsStateWithLifecycle()
     val delegates by viewModel.delegates.collectAsStateWithLifecycle()
     val delegate by viewModel.delegate.collectAsStateWithLifecycle()
+    val selectedDelegates by viewModel.selectedDelegates.collectAsStateWithLifecycle()
     val progress by viewModel.progress.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val ready by viewModel.ready.collectAsStateWithLifecycle()
@@ -171,25 +173,43 @@ fun ProfileBenchmarkScreen(onBack: () -> Unit, onUsage: () -> Unit, viewModel: P
                         item {
                             BenchmarkPanel("Delegation pipeline") {
                                 Text("Primary: ${selected.name}")
-                                Text("Delegate to test", style = MaterialTheme.typography.labelLarge)
-                                BenchmarkProfilePicker(delegates, delegate, progress == null, viewModel::selectDelegate)
-                                Text("The chosen delegate stays fixed for every case. No automatic fallback.", style = MaterialTheme.typography.bodySmall)
+                                Text("Delegates to test", style = MaterialTheme.typography.labelLarge)
+                                Text("Select one or more helpers. Each model is benchmarked sequentially with the same primary and settings.", style = MaterialTheme.typography.bodySmall)
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    TextButton(onClick = viewModel::selectAllDelegates, enabled = progress == null) { Text("Select all") }
+                                    TextButton(onClick = viewModel::clearDelegates, enabled = progress == null) { Text("Clear") }
+                                }
+                                delegates.forEach { helper ->
+                                    val checked = selectedDelegates.any { it.uid == helper.uid }
+                                    Row(
+                                        Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Checkbox(checked = checked, onCheckedChange = { viewModel.toggleDelegate(helper) }, enabled = progress == null)
+                                        Column(Modifier.weight(1f)) {
+                                            Text(helper.name, fontWeight = FontWeight.SemiBold)
+                                            Text("${helper.compatibleType.name} · ${helper.model}", style = MaterialTheme.typography.labelSmall)
+                                        }
+                                    }
+                                }
+                                Text("${selectedDelegates.size} selected · no automatic fallback between benchmarked helpers.", style = MaterialTheme.typography.bodySmall)
                                 Text("Ownership ${delegationSettings.processingOwnership}/100 · Worker output ${delegationSettings.maxOutputTokens} tokens · Brief ${delegationSettings.handoffTokens} tokens")
                                 Text("${delegationSettings.effectiveLocalModelCalls()} worker calls per turn · ${delegationSettings.maxDelegateRuntimeSeconds}s runtime · ${delegationSettings.timeToFirstTokenTimeoutSeconds}s first progress · ${delegationSettings.idleTokenTimeoutSeconds}s idle")
-                                Text("Tests evidence compaction, a worker tool call, and research through final synthesis using the current delegation settings. Search and page tools return temporary fixtures. Model requests use the selected profiles and may incur normal provider charges. Each test has a 180-second ceiling.", style = MaterialTheme.typography.bodySmall)
+                                Text("Each helper runs evidence compaction, a tool-call usability test, and research → handoff → synthesis. The benchmark records token throughput, first-text latency, end-to-end latency, tool success, token usage, and diagnostic events. Each case has a 180-second ceiling.", style = MaterialTheme.typography.bodySmall)
                                 Button(
                                     onClick = { viewModel.start(BenchmarkMode.DELEGATION) },
-                                    enabled = ready && progress == null && !activeRequests && delegationSettings.enabled && delegate != null,
+                                    enabled = ready && progress == null && !activeRequests && delegationSettings.enabled && selectedDelegates.isNotEmpty(),
                                     modifier = Modifier.fillMaxWidth()
-                                ) { Text("Benchmark delegation settings") }
+                                ) { Text("Benchmark ${selectedDelegates.size} selected delegate${if (selectedDelegates.size == 1) "" else "s"}") }
                                 if (!delegationSettings.enabled) Text("Enable delegation in Settings first.")
                             }
                         }
-                        val rankings = delegateRankings(profileHistory, benchmarkConfigKey(selected, localEnvironment))
+                        val rankings = delegateRankings(profileHistory, benchmarkConfigKey(selected, localEnvironment), delegationSettings)
                         item {
                             BenchmarkPanel("Delegation scoreboard · best score") {
-                                Text("Same primary · latest five runs per helper and tested settings. Settings are scored separately. Success 30%, tools 30%, evidence 10%, handoff 10%, latency 10%, generation 10%. Overall score cannot exceed task success.", style = MaterialTheme.typography.bodySmall)
-                                Text("Generation speed estimates text tokens from characters over the observed first-to-last text interval. One text chunk has no measured decode speed. Fixtures validate tool wiring, not live MCP availability.", style = MaterialTheme.typography.bodySmall)
+                                Text("Same primary and current delegation settings · latest five runs per helper. Delegation score: reliability 20%, tool usability 25%, token throughput 20%, first-response latency 15%, end-to-end latency 10%, evidence accuracy 5%, research/handoff 5%. Overall score is capped by task reliability.", style = MaterialTheme.typography.bodySmall)
+                                Text("Throughput prefers provider-reported output tokens; character estimates are used only when token usage is unavailable. Diagnostic events are saved with each run to expose stalls, failures, tool activity, cap violations, and handoff behavior.", style = MaterialTheme.typography.bodySmall)
                                 if (rankings.isEmpty()) Text("Benchmark delegates to build the scoreboard.")
                                 rankings.take(10).forEachIndexed { index, row ->
                                     val worker = row.run.samples.mapNotNull { it.delegation }.first()
@@ -198,7 +218,7 @@ fun ProfileBenchmarkScreen(onBack: () -> Unit, onUsage: () -> Unit, viewModel: P
                                         Text("#${index + 1}", fontWeight = FontWeight.Bold)
                                         Column(Modifier.weight(1f)) {
                                             Text(worker.workerName, fontWeight = FontWeight.SemiBold)
-                                            Text("${row.rating.passed}/${row.rating.attempts} passed · ${row.runs} runs", style = MaterialTheme.typography.labelSmall)
+                                            Text("${row.rating.passed}/${row.rating.attempts} passed · ${row.runs} runs · ${row.rating.medianDecodeSpeed?.let { "%.1f tok/s".format(it) } ?: "speed —"} · tools ${percent(row.rating.toolTaskSuccessPercent)} · first ${formatLatency(row.rating.medianFirstTextMs)}", style = MaterialTheme.typography.labelSmall)
                                         }
                                         Text(row.rating.score?.let { "$it / 100" } ?: "Unrated", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                                     }
@@ -212,13 +232,15 @@ fun ProfileBenchmarkScreen(onBack: () -> Unit, onUsage: () -> Unit, viewModel: P
                                 Text("${worker.workerProvider} · ${worker.workerModel}", style = MaterialTheme.typography.bodySmall)
                                 MetricLine("Successful tasks", "${result.passed} / ${result.attempts} · ${row.runs} runs")
                                 MetricLine("Tool task success", percent(result.toolTaskSuccessPercent))
+                                MetricLine("Tool call success", percent(result.toolCallSuccessPercent))
                                 MetricLine("Valid fixture calls", "${result.successfulToolCalls} / ${result.toolCalls}")
                                 MetricLine("Median / p95 case latency", "${formatLatency(result.medianLatencyMs)} / ${formatLatency(result.p95LatencyMs)}")
                                 MetricLine("Worker first text", formatLatency(result.medianFirstTextMs))
-                                MetricLine("Estimated decode speed", result.medianDecodeSpeed?.let { "≈ %.1f tok/s".format(it) } ?: "Not observed")
+                                MetricLine("Median token throughput", result.medianDecodeSpeed?.let { "%.1f tok/s".format(it) } ?: "Not observed")
                                 MetricLine("Worker input / output tokens", "${result.workerInputTokens} / ${result.workerOutputTokens}")
                                 MetricLine("Primary input / output tokens", "${result.primaryInputTokens} / ${result.primaryOutputTokens}")
                                 MetricLine("Output cap violations", result.outputCapViolations.toString())
+                                MetricLine("Diagnostic events", "${result.diagnosticEvents} total · ${result.warningEvents} warnings · ${result.errorEvents} errors")
                                 if (result.estimated) Text("Token totals include estimates.", style = MaterialTheme.typography.labelSmall)
                                 result.dimensions.forEach { dimension ->
                                     MetricLine(dimension.label, dimension.score?.let { "${it.roundToInt()} / 100" } ?: "Not measured")
@@ -241,11 +263,17 @@ fun ProfileBenchmarkScreen(onBack: () -> Unit, onUsage: () -> Unit, viewModel: P
                                             Text("${metrics.workerName} (${metrics.workerProvider}) · ${metrics.workerCalls} worker calls")
                                             Text("Worker tokens: ${metrics.workerInputTokens} input / ${metrics.workerOutputTokens} output${if (metrics.workerEstimated) " (estimated)" else ""}")
                                             MetricLine("Worker time / first text", "${formatLatency(metrics.workerDurationMs)} / ${formatLatency(metrics.workerFirstTextMs)}")
-                                            MetricLine("Estimated worker decode", metrics.workerDecodeTokensPerSecond?.let { "≈ %.1f tok/s".format(it) } ?: "Not observed")
+                                            MetricLine("Worker token throughput", metrics.workerDecodeTokensPerSecond?.let { "${if (metrics.workerSpeedUsesReportedTokens) "" else "≈ "}%.1f tok/s".format(it) } ?: "Not observed")
                                             MetricLine("Output cap violations", metrics.outputCapViolations.toString())
                                             Text("Primary tokens: ${metrics.primaryInputTokens} input / ${metrics.primaryOutputTokens} output${if (metrics.primaryEstimated) " (output estimated)" else ""}")
                                             Text("${metrics.searches} searches · ${metrics.pagesRead} pages · ${metrics.rawEvidenceBytes} evidence bytes → ${metrics.handoffCharacters} brief characters")
                                             if (metrics.fixtureCalls > 0) Text("Fixture calls: ${metrics.successfulFixtureCalls}/${metrics.fixtureCalls} successful")
+                                            if (metrics.diagnosticEvents.isNotEmpty()) {
+                                                Text("Diagnostic events", fontWeight = FontWeight.SemiBold)
+                                                metrics.diagnosticEvents.takeLast(12).forEach { event ->
+                                                    Text("[+${event.elapsedMs} ms] ${event.level} · ${event.type} · ${event.message}", style = MaterialTheme.typography.labelSmall, color = if (event.level == "ERROR") MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                                                }
+                                            }
                                         }
                                     }
                                 }

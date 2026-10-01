@@ -2541,6 +2541,10 @@ def resolve_mobile_performance(headers):
         "cache_prompt": _header_bool(headers.get("x-gateway-cache-prompt"), LLAMA_CACHE_PROMPT),
         "cache_reuse": _header_int(headers.get("x-gateway-cache-reuse"), preset["cache_reuse"], 0, 8192),
         "reasoning": reasoning,
+        "delegated_worker": _header_bool(
+            headers.get("x-gateway-delegated-worker"),
+            False,
+        ),
         "tool_optimization": _header_bool(headers.get("x-gateway-tool-optimization"), True),
         "tool_limit": _header_int(headers.get("x-gateway-tool-surface-limit"), preset["tool_limit"], 0, 128),
         "stable_tool_surface": _header_bool(
@@ -13900,52 +13904,72 @@ def configure_llama_model_round(
 
     client_reasoning = runtime_perf.get("client_reasoning_effort")
     client_budget = runtime_perf.get("client_thinking_budget_tokens")
+    requested_reasoning = runtime_perf.get("reasoning", "auto")
+    explicit_reasoning = (
+        client_reasoning
+        if client_reasoning is not None
+        else (
+            requested_reasoning
+            if requested_reasoning != "auto"
+            else None
+        )
+    )
+
+    def apply_explicit_reasoning():
+        if explicit_reasoning is None:
+            return False
+        payload["reasoning_effort"] = explicit_reasoning
+        if explicit_reasoning == "none":
+            template_kwargs = payload.get("chat_template_kwargs")
+            template_kwargs = (
+                dict(template_kwargs)
+                if isinstance(template_kwargs, dict)
+                else {}
+            )
+            template_kwargs["enable_thinking"] = False
+            payload["chat_template_kwargs"] = template_kwargs
+            payload.pop("thinking_budget_tokens", None)
+        _v11_metric("client_reasoning_passthrough")
+        return True
 
     if force_synthesis_active or not LLAMA_ADAPTIVE_REASONING:
-        if client_reasoning is not None:
-            payload["reasoning_effort"] = client_reasoning
-        else:
+        if not apply_explicit_reasoning():
             payload.pop("reasoning_effort", None)
-        if client_budget is not None:
-            payload["thinking_budget_tokens"] = client_budget
-        else:
-            payload.pop("thinking_budget_tokens", None)
+            if client_budget is not None:
+                payload["thinking_budget_tokens"] = client_budget
+            else:
+                payload.pop("thinking_budget_tokens", None)
         return
 
     with adaptive_llama_lock:
         unsupported = bool(adaptive_llama_metrics.get("unsupported"))
 
-    if unsupported:
+    if unsupported and explicit_reasoning != "none":
         payload.pop("reasoning_effort", None)
         payload.pop("thinking_budget_tokens", None)
         return
 
-    # Explicit mobile performance settings apply to any tool-using llama round,
-    # including a task that the workflow classifier has conservatively left as
-    # "general". This prevents a misclassification from enabling huge reasoning
-    # bursts.
-    requested_reasoning = runtime_perf.get("reasoning", "auto")
-    if client_reasoning is not None:
-        payload["reasoning_effort"] = client_reasoning
-        _v11_metric("client_reasoning_passthrough")
-    elif requested_reasoning != "auto" and payload.get("tools"):
-        payload["reasoning_effort"] = requested_reasoning
-    elif workflow_profile in REPO_MODEL_WORKFLOWS:
-        early = useful_tool_call_count < 3
-        payload["reasoning_effort"] = (
-            LLAMA_REPO_EARLY_REASONING_EFFORT
-            if early
-            else LLAMA_REPO_LATE_REASONING_EFFORT
-        )
-    else:
-        payload.pop("reasoning_effort", None)
+    # Apply explicit request-scoped settings to every llama round, including
+    # zero-tool delegated workers. Without this, thinking-capable Qwen models
+    # can consume a small delegation cap entirely in hidden reasoning.
+    if not apply_explicit_reasoning():
+        if workflow_profile in REPO_MODEL_WORKFLOWS:
+            early = useful_tool_call_count < 3
+            payload["reasoning_effort"] = (
+                LLAMA_REPO_EARLY_REASONING_EFFORT
+                if early
+                else LLAMA_REPO_LATE_REASONING_EFFORT
+            )
+        else:
+            payload.pop("reasoning_effort", None)
 
-    if client_budget is not None:
-        payload["thinking_budget_tokens"] = client_budget
-    elif LLAMA_OPTIONAL_THINKING_BUDGET_TOKENS >= 0:
-        payload["thinking_budget_tokens"] = LLAMA_OPTIONAL_THINKING_BUDGET_TOKENS
-    else:
-        payload.pop("thinking_budget_tokens", None)
+    if explicit_reasoning != "none":
+        if client_budget is not None:
+            payload["thinking_budget_tokens"] = client_budget
+        elif LLAMA_OPTIONAL_THINKING_BUDGET_TOKENS >= 0:
+            payload["thinking_budget_tokens"] = LLAMA_OPTIONAL_THINKING_BUDGET_TOKENS
+        else:
+            payload.pop("thinking_budget_tokens", None)
 
     if (
         runtime_perf.get("client_tool_choice") != "none"
@@ -13970,6 +13994,7 @@ def adaptive_llama_request_error(error):
     parameter_markers = (
         "reasoning_effort",
         "thinking_budget_tokens",
+        "chat_template_kwargs",
         "n_cache_reuse",
         "tool_choice",
     )
@@ -13990,6 +14015,7 @@ def adaptive_llama_request_error(error):
 def disable_adaptive_llama_request_fields(payload):
     payload.pop("reasoning_effort", None)
     payload.pop("thinking_budget_tokens", None)
+    payload.pop("chat_template_kwargs", None)
     payload.pop("n_cache_reuse", None)
     if payload.get("tool_choice") == "required":
         payload["tool_choice"] = "auto"
@@ -14293,6 +14319,7 @@ def process_chat_payload(
     skip_memory_context = (
         use_live_client_context
         or request_domain == "trivial"
+        or bool(runtime_perf.get("delegated_worker", False))
     )
 
     if skip_memory_context:
@@ -14342,13 +14369,24 @@ def process_chat_payload(
             or parse_tool_routing_override(latest_user_text)
         ) != "local"
     )
+    delegated_worker_request = bool(
+        runtime_perf.get("delegated_worker", False)
+    )
+    strict_no_tool_request = (
+        str(runtime_perf.get("client_tool_choice") or "").strip().lower()
+        == "none"
+    )
     no_tool_fast_path = (
-        request_domain in V11_NO_TOOL_DOMAINS
-        and not client_continuation
-        and (
-            parse_tool_routing_override(latest_user_text_raw)
-            or parse_tool_routing_override(latest_user_text)
-        ) != "local"
+        delegated_worker_request
+        or strict_no_tool_request
+        or (
+            request_domain in V11_NO_TOOL_DOMAINS
+            and not client_continuation
+            and (
+                parse_tool_routing_override(latest_user_text_raw)
+                or parse_tool_routing_override(latest_user_text)
+            ) != "local"
+        )
     )
 
     if (
@@ -14373,7 +14411,15 @@ def process_chat_payload(
             reason = f"client-first {request_domain}"
         else:
             _v11_metric("no_tool_fast_paths")
-            reason = f"no-tool {request_domain}"
+            reason = (
+                "delegated worker"
+                if delegated_worker_request
+                else (
+                    "explicit tool_choice=none"
+                    if strict_no_tool_request
+                    else f"no-tool {request_domain}"
+                )
+            )
         _v11_metric("local_discovery_skipped")
         logger.info(
             "v11 fast path: skipping local MCP discovery; "
@@ -14391,8 +14437,9 @@ def process_chat_payload(
             )
             mcp_tools = []
 
-    # The incoming tools belong to the remote/client side.
-    client_tools = early_client_tools
+    # The incoming tools belong to the remote/client side. OpenAI semantics
+    # require tool_choice=none to suppress both client and gateway-local tools.
+    client_tools = [] if strict_no_tool_request else early_client_tools
 
     client_tool_names = tool_names(
         client_tools

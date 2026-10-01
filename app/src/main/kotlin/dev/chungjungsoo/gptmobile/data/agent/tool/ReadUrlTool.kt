@@ -334,7 +334,32 @@ private data class ReadUrlRequest(
     val response: HttpResponse
 )
 
-private fun androidHtmlToText(html: String): String = Html.fromHtml(html, Html.FROM_HTML_MODE_LEGACY).toString()
+private fun androidHtmlToText(html: String): String {
+    val articleBodies = Regex(
+        """"articleBody"\s*:\s*"((?:\\.|[^"\\])*)"""",
+        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+    ).findAll(html).map { match ->
+        match.groupValues[1]
+            .replace("\\n", " ")
+            .replace("\\r", " ")
+            .replace("\\t", " ")
+            .replace("\\\"", "\"")
+            .replace("\\/", "/")
+    }.filter { it.isNotBlank() }.take(3).toList()
+
+    // Strip non-visible blocks one tag at a time. A single regex with a numeric
+    // back-reference was fragile under the Android/JVM regex implementations and
+    // could leak consent-manager JavaScript into the extracted article text.
+    var visibleHtml = html
+    listOf("script", "style", "noscript", "template", "svg").forEach { tag ->
+        visibleHtml = Regex(
+            """<$tag\b[^>]*>.*?</$tag\s*>""",
+            setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+        ).replace(visibleHtml, " ")
+    }
+    val visible = Html.fromHtml(visibleHtml, Html.FROM_HTML_MODE_LEGACY).toString()
+    return (articleBodies + visible).filter { it.isNotBlank() }.distinct().joinToString("\n\n")
+}
 
 private fun isTextContent(contentType: String): Boolean {
     val type = contentType.substringBefore(";").trim().lowercase(Locale.US)

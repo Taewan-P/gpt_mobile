@@ -57,6 +57,29 @@ class DelegationBenchmarkRatingTest {
         assertTrue(delegateRankings(listOf(base), "primary-config", ModelDelegationSettings(maxOutputTokens = 2048)).isEmpty())
     }
 
+    @Test fun `delegation rating exposes tool call usability and diagnostic severity counts`() {
+        val base = run("helper")
+        val events = listOf(
+            DelegationBenchmarkEvent(10, "FIRST_TEXT", "INFO", "fast"),
+            DelegationBenchmarkEvent(20, "INSIGHT_LOW_THROUGHPUT", "WARN", "slow"),
+            DelegationBenchmarkEvent(30, "WORKER_FAILURE", "ERROR", "failed")
+        )
+        val enriched = base.copy(
+            samples = base.samples.map { sample ->
+                sample.copy(delegation = sample.delegation!!.copy(diagnosticEvents = events))
+            }
+        )
+        val result = delegationBenchmarkRating(listOf(enriched))
+        assertEquals(100.0, result.toolTaskSuccessPercent!!, .01)
+        assertEquals(100.0, result.toolCallSuccessPercent!!, .01)
+        assertEquals(9, result.diagnosticEvents)
+        assertEquals(3, result.warningEvents)
+        assertEquals(3, result.errorEvents)
+        assertTrue(result.dimensions.any { it.label == "Token throughput" })
+        assertTrue(result.dimensions.any { it.label == "First-response latency" })
+        assertTrue(result.dimensions.any { it.label == "End-to-end latency" })
+    }
+
     @Test fun `single chunk missing speed is not fabricated and tokens remain visible`() {
         val base = run("helper")
         val result = delegationBenchmarkRating(listOf(base.copy(samples = base.samples.map { it.copy(delegation = it.delegation!!.copy(workerDecodeTokensPerSecond = null, workerEstimated = true)) })))

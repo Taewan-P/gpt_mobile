@@ -49,6 +49,38 @@ class DelegationBenchmarkRunnerTest {
         assertEquals(2, prompts.distinct().size)
     }
 
+    @Test fun `delegation samples persist diagnostic events for troubleshooting`() = runTest {
+        val runner = DelegationBenchmarkRunner(
+            createCoordinator = { tools ->
+                LocalDelegationCoordinator(source, { config }, { listOf(helper) }, { _, _, _ ->
+                    val result = tools.single().execute("fixture", buildJsonObject { put("key", "parcel") })
+                    (result.content as ToolResultContent.Text).text
+                })
+            },
+            target = helper,
+            config = config,
+            openPrimary = { _, _ -> error("Tool test must not call primary") },
+            workerTokens = { 100L to 20L },
+            workerCalls = { 1 },
+            telemetry = {
+                WorkerBenchmarkTelemetry(
+                    durationMs = 250,
+                    firstTextMs = 80,
+                    decodeTokensPerSecond = 42.0,
+                    speedUsesReportedTokens = true,
+                    events = listOf(DelegationBenchmarkEvent(80, "FIRST_TEXT", message = "latencyMs=80"))
+                )
+            }
+        )
+        val sample = runner.run(delegationBenchmarkSuite()[1])
+        val metrics = sample.delegation!!
+        assertTrue(metrics.workerSpeedUsesReportedTokens)
+        assertTrue(metrics.diagnosticEvents.any { it.type == "CASE_START" })
+        assertTrue(metrics.diagnosticEvents.any { it.type == "FIXTURE_TOOL" })
+        assertTrue(metrics.diagnosticEvents.any { it.type == "FIRST_TEXT" })
+        assertTrue(metrics.diagnosticEvents.any { it.type == "CASE_COMPLETE" })
+    }
+
     private val source = PlatformV2(uid = "primary", name = "Primary", compatibleType = ClientType.OPENAI)
     private val helper = PlatformV2(uid = "helper", name = "Helper", compatibleType = ClientType.LLAMA, apiUrl = "http://192.168.1.2:8080")
     private val config = ModelDelegationSettings(enabled = true, targetProfileUid = "helper", maxPages = 1, crawlDepth = 0, maxLocalModelCalls = 10)

@@ -126,7 +126,119 @@ class LocalResearchWorkflowTest {
         assertEquals(LocalResearchOutcome.SUCCESS, result.outcome)
     }
 
-    @Test fun `unusable search providers stop early without claiming successful research`() = runTest {
+    @Test fun `planned searches are not skipped merely because early search results cross the old URL threshold`() = runTest {
+        var searches = 0
+        val search = tool("web_search") { id, _ ->
+            searches++
+            response(
+                id,
+                """{"results":[{"title":"A","url":"https://example.org/$searches-a","snippet":"A"},{"title":"B","url":"https://example.org/$searches-b","snippet":"B"},{"title":"C","url":"https://example.org/$searches-c","snippet":"C"}]}"""
+            )
+        }
+        val result = LocalResearchWorkflow(
+            config.copy(maxSearchQueries = 3, maxPages = 0),
+            listOf(search),
+            { prompt, _ ->
+                if (prompt.startsWith("Plan")) """{"queries":["one","two","three"],"urls":[]}""" else "Evidence [S1]."
+            }
+        ).run("Research all three query angles", "threshold")
+
+        assertEquals(3, searches)
+        assertEquals(3, result.searches)
+        assertFalse(result.handoff.contains("remaining searches were skipped"))
+    }
+
+    @Test fun `unreadable first source falls through to another candidate without consuming verified page target`() = runTest {
+        val reads = mutableListOf<String>()
+        val search = tool("web_search") { id, _ ->
+            response(
+                id,
+                """{"results":[{"title":"Blocked","url":"https://example.org/blocked","snippet":"blocked snippet"},{"title":"Readable","url":"https://example.org/readable","snippet":"readable snippet"}]}"""
+            )
+        }
+        val reader = tool("read_url") { id, args ->
+            val url = args.getValue("url").jsonPrimitive.content
+            reads += url
+            if (url.endsWith("/blocked")) {
+                AgentToolResult(id, ToolResultContent.Text("Read URL failed: consent wall."), true)
+            } else {
+                response(id, """{"content":"Verified article says latency is 42 ms.","links":[]}""")
+            }
+        }
+        val result = LocalResearchWorkflow(
+            config.copy(maxPages = 1, crawlDepth = 0),
+            listOf(search, reader),
+            { prompt, _ ->
+                when {
+                    prompt.startsWith("Plan") -> """{"queries":["latency"],"urls":[]}"""
+                    prompt.startsWith("Choose up to") -> """{"ids":["S1"]}"""
+                    else -> "Latency is 42 ms [S2]."
+                }
+            }
+        ).run("Research latency", "fallback-source")
+
+        assertEquals(listOf("https://example.org/blocked", "https://example.org/readable"), reads)
+        assertEquals(1, result.pagesRead)
+        assertTrue(result.handoff.contains("42 ms"))
+    }
+
+    @Test fun `research authorized at start is not aborted when live settings change mid run`() = runTest {
+        var enabledChecks = 0
+        var searches = 0
+        val search = tool("web_search") { id, _ ->
+            searches++
+            response(id, """{"results":[{"title":"One","url":"https://example.org/one","snippet":"Verified snippet"}]}""")
+        }
+        val result = LocalResearchWorkflow(
+            config.copy(maxPages = 0),
+            listOf(search),
+            { prompt, _ -> if (prompt.startsWith("Plan")) """{"queries":["one"],"urls":[]}""" else "Verified [S1]." },
+            stillEnabled = {
+                enabledChecks++
+                enabledChecks == 1
+            }
+        ).run("Research one", "settings-race")
+
+        assertEquals(1, searches)
+        assertEquals(LocalResearchOutcome.SUCCESS, result.outcome)
+        assertFalse(result.handoff.contains("disabled before research completed"))
+    }
+
+    @Test fun `consent shell page is rejected and another source is verified`() = runTest {
+        val reads = mutableListOf<String>()
+        val search = tool("web_search") { id, _ ->
+            response(
+                id,
+                """{"results":[{"title":"Consent","url":"https://example.org/consent","snippet":"snippet"},{"title":"Article","url":"https://example.org/article","snippet":"snippet"}]}"""
+            )
+        }
+        val reader = tool("read_url") { id, args ->
+            val url = args.getValue("url").jsonPrimitive.content
+            reads += url
+            if (url.endsWith("/consent")) {
+                response(id, """{"content":"Cookie preferences. Manage preferences. Accept all cookies. Privacy choices.","links":[]}""")
+            } else {
+                response(id, """{"content":"The verified article says the latency is 42 ms.","links":[]}""")
+            }
+        }
+        val result = LocalResearchWorkflow(
+            config.copy(maxPages = 1, crawlDepth = 0),
+            listOf(search, reader),
+            { prompt, _ ->
+                when {
+                    prompt.startsWith("Plan") -> """{"queries":["latency"],"urls":[]}"""
+                    prompt.startsWith("Choose up to") -> """{"ids":["S1"]}"""
+                    else -> "Latency is 42 ms [S2]."
+                }
+            }
+        ).run("Research latency", "consent-shell")
+
+        assertEquals(listOf("https://example.org/consent", "https://example.org/article"), reads)
+        assertEquals(1, result.pagesRead)
+        assertTrue(result.handoff.contains("42 ms"))
+    }
+
+    @Test fun `unusable search providers attempt every planned query without claiming successful research`() = runTest {
         for (isError in listOf(true, false)) {
             var searches = 0
             val search = tool("web_search") { id, _ ->
@@ -136,9 +248,39 @@ class LocalResearchWorkflowTest {
             val result = LocalResearchWorkflow(config.copy(maxSearchQueries = 12), listOf(search), { _, _ ->
                 """{"queries":["one","two","three","four"],"urls":[]}"""
             }).run("Research latency", "unavailable")
-            assertEquals(2, searches)
+            assertEquals(4, searches)
             assertEquals(LocalResearchOutcome.NO_USEFUL_OUTPUT, result.outcome)
-            assertTrue(result.handoff.contains("Search stopped"))
+            assertTrue(result.handoff.contains("remaining planned queries were still attempted"))
         }
+    }
+
+    @Test fun `failed search provider falls through to another enabled provider without forcing partial evidence`() = runTest {
+        val calls = mutableListOf<String>()
+        val first = tool("web_search") { id, _ ->
+            calls += "first"
+            AgentToolResult(id, ToolResultContent.Text("provider unavailable"), true)
+        }
+        val second = tool("web_search") { id, _ ->
+            calls += "second"
+            response(id, """{"results":[{"title":"Working source","url":"https://example.org/working","snippet":"Latency is 42 ms."}]}""")
+        }
+        val result = LocalResearchWorkflow(
+            config.copy(maxPages = 0),
+            listOf(first, second),
+            { prompt, _ ->
+                if (prompt.startsWith("Plan")) {
+                    """{"queries":["latency"],"urls":[]}"""
+                } else {
+                    "Latency is 42 ms [S1]."
+                }
+            }
+        ).run("Research latency", "search-provider-fallback")
+
+        assertEquals(listOf("first", "second"), calls)
+        assertEquals(1, result.searches)
+        assertEquals(LocalResearchOutcome.SUCCESS, result.outcome)
+        val payload = Json.parseToJsonElement(result.handoff).jsonObject
+        assertEquals("false", payload.getValue("partial").jsonPrimitive.content)
+        assertTrue(payload.getValue("warnings").toString().contains("another enabled search provider was attempted"))
     }
 }

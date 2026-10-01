@@ -93,39 +93,75 @@ internal fun delegationHandoff(summary: String, sources: List<DelegationSource>,
     val maxBytes = tokenBudget.coerceIn(128, 4096) * 3
     val kept = mutableListOf<DelegationSource>()
     val sourceRows = mutableListOf<JsonObject>()
-    for (source in sources.sortedByDescending { it.pageRead }) {
+    val citedIds = Regex("\\bS\\d+\\b").findAll(summary).map { it.value }.toSet()
+    val prioritizedSources = sources.sortedWith(
+        compareByDescending<DelegationSource> { it.id in citedIds }
+            .thenByDescending { it.pageRead }
+    )
+    for (source in prioritizedSources) {
         val row = buildJsonObject {
             put("id", source.id)
             put("url", source.url)
             put("title", truncateUtf8(source.title, 120))
             put("evidence", source.evidenceType ?: if (source.pageRead) if (source.excerpted) "page excerpt" else "page read" else "search snippet")
         }
-        if ((sourceRows.sumOf { it.toString().toByteArray().size } + row.toString().toByteArray().size) <= maxBytes / 2) {
+        if ((sourceRows.sumOf { it.toString().toByteArray().size } + row.toString().toByteArray().size) <= maxBytes / 3) {
             kept += source
             sourceRows += row
         }
     }
-    val issues = (limitations + if (kept.size < sources.size) listOf("Some source references were omitted to fit the brief.") else emptyList()).distinct()
-    var notes = issues.take(6).map { truncateUtf8(it, 160) }
+    val allNotes = (limitations + if (kept.size < sources.size) listOf("Some source references were omitted to fit the brief.") else emptyList()).distinct()
+    fun isWarningOnly(note: String): Boolean {
+        val unreadablePageWarning =
+            note.startsWith("[") &&
+                note.contains("could not be read by enabled page readers")
+        val recoveredSearchWarning =
+            if (note.startsWith("Search ")) {
+                note.contains("another enabled search provider was attempted") ||
+                    note.contains("remaining planned queries were still attempted")
+            } else {
+                false
+            }
+        return note == "Some search engines were unavailable." ||
+            note.startsWith("The brief prioritizes read pages") ||
+            unreadablePageWarning ||
+            recoveredSearchWarning ||
+            note == "Some source references were omitted to fit the brief."
+    }
+
+    var warnings = allNotes.filter(::isWarningOnly).take(6).map { truncateUtf8(it, 160) }
+    var notes = allNotes.filterNot(::isWarningOnly).take(6).map { truncateUtf8(it, 160) }
     val knownIds = kept.map { it.id }.toSet()
     var findings = Regex("https?://[^\\s<>\"')]+", RegexOption.IGNORE_CASE).replace(summary) { match ->
         kept.firstOrNull { canonicalSearchUrl(it.url) == canonicalSearchUrl(match.value.trimEnd('.', ',', ';')) }?.let { "[${it.id}]" } ?: "[unverified URL omitted]"
     }
     findings = Regex("\\bS\\d+\\b").replace(findings) { if (it.value in knownIds) it.value else "source omitted" }
+    var findingsTruncated = false
     fun render() = buildJsonObject {
+        val truncationLimitations =
+            if (findingsTruncated) {
+                listOf("Handoff findings were truncated to fit the configured evidence budget.")
+            } else {
+                emptyList()
+            }
+        val renderedLimitations = (notes + truncationLimitations).distinct()
         put("kind", "local_evidence")
-        put("partial", issues.isNotEmpty() || findings.length < summary.length)
+        put("partial", renderedLimitations.isNotEmpty())
         put("findings", findings)
         put("sources", JsonArray(sourceRows))
-        put("limitations", JsonArray(notes.map(::JsonPrimitive)))
+        put("limitations", JsonArray(renderedLimitations.map(::JsonPrimitive)))
+        put("warnings", JsonArray(warnings.map(::JsonPrimitive)))
     }.toString()
     while (render().toByteArray().size > maxBytes) {
-        if (findings.isNotEmpty()) {
-            findings = truncateUtf8(findings, (findings.toByteArray().size * 3 / 4))
-        } else if (notes.isNotEmpty()) {
-            notes = notes.dropLast(1)
-        } else {
-            break
+        when {
+            warnings.isNotEmpty() -> warnings = warnings.dropLast(1)
+            notes.size > 1 -> notes = notes.dropLast(1)
+            findings.isNotEmpty() -> {
+                val next = truncateUtf8(findings, (findings.toByteArray().size * 3 / 4))
+                findingsTruncated = findingsTruncated || next.length < findings.length
+                findings = next
+            }
+            else -> break
         }
     }
     return render()

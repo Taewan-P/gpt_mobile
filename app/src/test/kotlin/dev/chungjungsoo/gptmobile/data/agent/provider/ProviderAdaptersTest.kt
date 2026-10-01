@@ -1155,6 +1155,8 @@ class ProviderAdaptersTest {
                 assertEquals(cap, events.filterIsInstance<ProviderEvent.RequestConfigured>().single().effectiveOutputTokens)
                 if (type == ClientType.LLAMA) {
                     assertEquals(cap.toString(), api.configs.single().extraHeaders["X-Gateway-Intermediate-Max-Tokens"])
+                    assertEquals("none", api.configs.single().extraHeaders["X-Gateway-Reasoning-Effort"])
+                    assertEquals("true", api.configs.single().extraHeaders["X-Gateway-Delegated-Worker"])
                 }
                 assertEquals("none", request["tool_choice"]?.jsonPrimitive?.content)
                 assertTrue(api.chatRequests.single().tools.isNullOrEmpty())
