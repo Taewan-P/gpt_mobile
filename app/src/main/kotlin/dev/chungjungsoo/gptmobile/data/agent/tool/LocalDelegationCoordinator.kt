@@ -103,12 +103,46 @@ internal class LocalDelegationCoordinator(
         val battery = batteryPercent()
         if (battery != null && battery <= config.lowBatteryThresholdPercent && config.processingOwnership < 65) return null
         val availableProfiles = profiles()
-        val eligible = availableProfiles.filter {
-            it.uid != source.uid &&
-                it.enabled &&
-                !it.excludesMemory() &&
-                it.uid !in quarantinedWorkerUids &&
-                (config.allowRemoteWorkers || it.isPrivateDestination())
+        val eligible = mutableListOf<PlatformV2>()
+        for (candidate in availableProfiles) {
+            val metadataEligible =
+                candidate.uid != source.uid &&
+                    candidate.enabled &&
+                    !candidate.excludesMemory() &&
+                    candidate.uid !in quarantinedWorkerUids &&
+                    (config.allowRemoteWorkers || candidate.isPrivateDestination())
+            if (!metadataEligible) continue
+
+            // A LiteRT profile can remain enabled after its model package has been
+            // removed. Do not select such a profile as a fallback and then discover
+            // at dispatch time that there is nothing to run. Preflight only the
+            // on-device runtime here; network-backed helpers keep their existing
+            // lazy connection/error handling.
+            if (candidate.compatibleType == ClientType.LITERT_LM) {
+                val available = try {
+                    inputBudget(candidate, config.maxOutputTokens)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (failure: Exception) {
+                    quarantinedWorkerUids += candidate.uid
+                    AppLogRecorder.record(
+                        "Delegation",
+                        "Worker candidate skipped · target=${candidate.uid} · type=${candidate.compatibleType} · reason=RUNTIME_NOT_READY · ${failure.javaClass.simpleName}: ${failure.message.orEmpty()}",
+                        "W"
+                    )
+                    continue
+                }
+                if (available < 600) {
+                    quarantinedWorkerUids += candidate.uid
+                    AppLogRecorder.record(
+                        "Delegation",
+                        "Worker candidate skipped · target=${candidate.uid} · type=${candidate.compatibleType} · reason=RUNTIME_NOT_READY · inputBudget=$available",
+                        "W"
+                    )
+                    continue
+                }
+            }
+            eligible += candidate
         }
         val selected = eligible.firstOrNull { it.uid == config.targetProfileUid }
         if (selected != null) return selected
