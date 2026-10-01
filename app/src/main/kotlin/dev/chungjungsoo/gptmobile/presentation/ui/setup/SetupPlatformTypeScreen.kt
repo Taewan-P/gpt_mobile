@@ -46,6 +46,11 @@ private val platformTypes = listOf(
         descriptionResId = R.string.anthropic_description
     ),
     PlatformTypeInfo(
+        clientType = ClientType.MISTRAL,
+        titleResId = R.string.mistral,
+        descriptionResId = R.string.mistral_description
+    ),
+    PlatformTypeInfo(
         clientType = ClientType.GOOGLE,
         titleResId = R.string.google,
         descriptionResId = R.string.google_description

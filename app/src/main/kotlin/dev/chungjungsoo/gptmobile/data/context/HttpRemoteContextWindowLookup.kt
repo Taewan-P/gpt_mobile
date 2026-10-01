@@ -33,6 +33,7 @@ class HttpRemoteContextWindowLookup @Inject constructor(
             ClientType.OLLAMA -> fetchOllama(platform)
             ClientType.GROQ -> fetchGroq(platform)
             ClientType.ANTHROPIC -> fetchAnthropic(platform)
+            ClientType.MISTRAL -> fetchMistral(platform)
             else -> null
         }
     } catch (error: CancellationException) {
@@ -77,6 +78,13 @@ class HttpRemoteContextWindowLookup @Inject constructor(
             builder.header("anthropic-version", "2023-06-01")
         } ?: return null
         return RemoteContextWindowParser.anthropicMaxInputTokens(body, platform.model)
+    }
+
+    private suspend fun fetchMistral(platform: PlatformV2): Int? {
+        val body = get(modelsUrl(platform, platform.model)) { builder ->
+            platform.token?.let { builder.bearerAuth(it) }
+        } ?: return null
+        return RemoteContextWindowParser.mistralMaxContextLength(body, platform.model)
     }
 
     private suspend fun fetchOllama(platform: PlatformV2): Int? {

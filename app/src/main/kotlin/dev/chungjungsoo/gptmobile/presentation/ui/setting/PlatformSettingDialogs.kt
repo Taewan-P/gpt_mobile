@@ -34,13 +34,17 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.localruntime.AcceleratorOption
 import dev.chungjungsoo.gptmobile.data.localruntime.AcceleratorUnavailableReason
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators
+import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.model.GeminiSafetySettings
 import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
+import dev.chungjungsoo.gptmobile.presentation.common.isPlatformApiKeyValid
+import dev.chungjungsoo.gptmobile.presentation.common.isPlatformApiUrlValid
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.DownloadedLocalModelOption
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.LocalModelPicker
 import dev.chungjungsoo.gptmobile.util.isValidUrl
@@ -70,8 +74,10 @@ fun APIUrlDialog(
     settingViewModel: PlatformSettingViewModel
 ) {
     if (dialogState.isApiUrlDialogOpen) {
+        val platform by settingViewModel.platformState.collectAsStateWithLifecycle()
         APIUrlDialog(
             initialValue = initialValue,
+            clientType = platform?.compatibleType,
             onDismissRequest = settingViewModel::closeApiUrlDialog,
             onConfirmRequest = { apiUrl ->
                 settingViewModel.updateApiUrl(apiUrl)
@@ -86,7 +92,9 @@ fun APIKeyDialog(
     settingViewModel: PlatformSettingViewModel
 ) {
     if (dialogState.isApiTokenDialogOpen) {
+        val platform by settingViewModel.platformState.collectAsStateWithLifecycle()
         APIKeyDialog(
+            clientType = platform?.compatibleType,
             onDismissRequest = settingViewModel::closeApiTokenDialog
         ) { apiToken ->
             settingViewModel.updateApiToken(apiToken)
@@ -307,10 +315,16 @@ private fun PlatformNameDialog(
 @Composable
 private fun APIUrlDialog(
     initialValue: String,
+    clientType: ClientType?,
     onDismissRequest: () -> Unit,
     onConfirmRequest: (url: String) -> Unit
 ) {
     var apiUrl by remember { mutableStateOf(initialValue) }
+    val isValid = if (clientType == ClientType.MISTRAL) {
+        isPlatformApiUrlValid(clientType, apiUrl)
+    } else {
+        apiUrl.isNotBlank() && apiUrl.isValidUrl() && apiUrl.endsWith("/")
+    }
     val configuration = LocalWindowInfo.current
     val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
     val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
@@ -332,13 +346,15 @@ private fun APIUrlDialog(
                         .padding(vertical = 16.dp),
                     value = apiUrl,
                     singleLine = true,
-                    isError = apiUrl.isValidUrl().not(),
+                    isError = !isValid,
                     onValueChange = { apiUrl = it },
                     label = {
                         Text(stringResource(R.string.api_url))
                     },
                     supportingText = {
-                        if (apiUrl.isValidUrl().not()) {
+                        if (clientType == ClientType.MISTRAL) {
+                            Text(stringResource(R.string.mistral_api_url_requirement))
+                        } else if (!isValid) {
                             Text(text = stringResource(R.string.invalid_api_url))
                         }
                     }
@@ -348,7 +364,7 @@ private fun APIUrlDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = {
             TextButton(
-                enabled = apiUrl.isNotBlank() && apiUrl.isValidUrl() && apiUrl.endsWith("/"),
+                enabled = isValid,
                 onClick = { onConfirmRequest(apiUrl) }
             ) {
                 Text(stringResource(R.string.confirm))
@@ -364,10 +380,12 @@ private fun APIUrlDialog(
 
 @Composable
 private fun APIKeyDialog(
+    clientType: ClientType?,
     onDismissRequest: () -> Unit,
     onConfirmRequest: (token: String) -> Unit
 ) {
     var token by remember { mutableStateOf("") }
+    val isValid = isPlatformApiKeyValid(clientType, token)
     val configuration = LocalWindowInfo.current
     val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
     val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
@@ -385,12 +403,17 @@ private fun APIKeyDialog(
                 onValueChange = { token = it },
                 label = { Text(stringResource(R.string.api_key)) },
                 singleLine = true,
+                isError = !isValid,
+                supportingText = {
+                    if (!isValid) Text(stringResource(R.string.field_required))
+                },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
             )
         },
         onDismissRequest = onDismissRequest,
         confirmButton = {
             TextButton(
+                enabled = isValid,
                 onClick = { onConfirmRequest(token) }
             ) {
                 Text(stringResource(R.string.confirm))

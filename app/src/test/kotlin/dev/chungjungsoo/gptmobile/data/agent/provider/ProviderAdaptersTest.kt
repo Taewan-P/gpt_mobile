@@ -284,6 +284,71 @@ class ProviderAdaptersTest {
     }
 
     @Test
+    fun `mistral adapter streams the initial chat completions request`() = runBlocking {
+        val api = FakeOpenAIAPI(chatRounds = ArrayDeque(listOf(emptyFlow())))
+        val platform = platform(ClientType.MISTRAL)
+
+        MistralAdapter(api, attachmentEncoder())
+            .openSession(turns(), platform)
+            .streamRound(listOf(definition), emptyList())
+            .toList()
+
+        val request = api.chatRequests.single()
+        assertEquals("model-test", request.model)
+        assertTrue(request.stream)
+        assertEquals("weather", request.tools!!.single().function.name)
+        assertEquals(ProviderRequestConfig("https://provider.example/v1", "secret"), api.configs.single())
+    }
+
+    @Test
+    fun `mistral adapter replays exact tool call id on the next round`() = runBlocking {
+        val api = FakeOpenAIAPI(
+            chatRounds = ArrayDeque(
+                listOf(
+                    flowOf(
+                        ChatCompletionChunk(
+                            choices = listOf(
+                                Choice(
+                                    index = 0,
+                                    delta = Delta(
+                                        toolCalls = listOf(
+                                            ChatToolCallDelta(
+                                                index = 0,
+                                                id = "call_exact",
+                                                function = ChatFunctionDelta("weather", "{\"city\":\"Tokyo\"}")
+                                            )
+                                        )
+                                    ),
+                                    finishReason = "tool_calls"
+                                )
+                            )
+                        )
+                    ),
+                    flowOf(
+                        ChatCompletionChunk(
+                            choices = listOf(Choice(0, Delta(content = "done"), finishReason = "stop"))
+                        )
+                    )
+                )
+            )
+        )
+        val session = MistralAdapter(api, attachmentEncoder())
+            .openSession(turns(), platform(ClientType.MISTRAL))
+
+        assertEquals(listOf(call, ProviderEvent.Completed), session.streamRound(listOf(definition), emptyList()).toList())
+        assertEquals(
+            listOf(ProviderEvent.TextDelta("done"), ProviderEvent.Completed),
+            session.streamRound(
+                listOf(definition),
+                listOf(AgentToolExchange(listOf(call), listOf(result)))
+            ).toList()
+        )
+        val continuation = api.chatRequests.last().messages.takeLast(2)
+        assertEquals("call_exact", continuation[0].toolCalls!!.single().id)
+        assertEquals("call_exact", continuation[1].toolCallId)
+    }
+
+    @Test
     fun `groq adapter uses native tools and replays exact tool call id`() = runBlocking {
         val groq = FakeGroqAPI(
             ArrayDeque(
