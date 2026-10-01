@@ -31,9 +31,11 @@ import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
 
 class OpenAIAPIImpl @Inject constructor(
     private val networkClient: NetworkClient
@@ -92,9 +94,97 @@ class OpenAIAPIImpl @Inject constructor(
         timeoutSeconds: Int,
         config: ProviderRequestConfig
     ): Flow<ChatCompletionChunk> = flow {
-        try {
+        val apiUrl = config.apiUrl
+        val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}chat/completions" else "$apiUrl/chat/completions"
+
+        networkClient().preparePost(endpoint) {
+            retryGenerationRequest()
+            applyPlatformStreamingTimeout(timeoutSeconds)
+            contentType(ContentType.Application.Json)
+            setBody(NetworkClient.openAIJson.encodeToString(request))
+            accept(ContentType.Text.EventStream)
+            config.token?.let { bearerAuth(it) }
+        }.execute { response ->
+            if (!response.status.isSuccess()) {
+                val errorBody = response.body<String>()
+                throwIfToolDefinitionsRejected(response.status.value, !request.tools.isNullOrEmpty(), errorBody)
+
+                val errorMessage = try {
+                    val errorResponse = NetworkClient.openAIJson.decodeFromString<OpenAIErrorResponse>(errorBody)
+                    errorResponse.error.message
+                } catch (_: Exception) {
+                    "HTTP ${response.status.value}: $errorBody"
+                }
+
+                emit(
+                    ChatCompletionChunk(
+                        error = ErrorDetail(
+                            message = errorMessage,
+                            type = "http_error",
+                            code = response.status.value.toString()
+                        )
+                    )
+                )
+                return@execute
+            }
+
+            // Success - read SSE stream
+            val channel = response.bodyAsChannel()
+            while (!channel.isClosedForRead) {
+                val line = channel.readLine() ?: break
+
+                if (line.startsWith("data: ")) {
+                    val data = line.removePrefix("data: ").trim()
+                    // OpenAI sends "[DONE]" as final message
+                    if (data == "[DONE]") break
+
+                    val chunk = try {
+                        NetworkClient.openAIJson.decodeFromString<ChatCompletionChunk>(data)
+                    } catch (_: SerializationException) {
+                        // Skip malformed chunks.
+                        continue
+                    }
+                    emit(chunk)
+                }
+            }
+        }
+    }.catch { e ->
+        if (e !is Exception || e is CancellationException || e is dev.chungjungsoo.gptmobile.data.agent.ToolDefinitionsRejectedException) throw e
+        val errorMessage = when (e) {
+            is java.net.UnknownHostException -> "Network error: Unable to resolve host."
+            is java.nio.channels.UnresolvedAddressException -> "Network error: Unable to resolve address. Check your internet connection."
+            is java.net.ConnectException -> "Network error: Connection refused. Check the API URL."
+            is HttpRequestTimeoutException -> "Request timed out."
+            is java.net.SocketTimeoutException -> "Response timed out while waiting for the next chunk."
+            is javax.net.ssl.SSLException -> "Network error: SSL/TLS connection failed."
+            else -> e.message ?: "Unknown network error"
+        }
+        emit(
+            ChatCompletionChunk(
+                error = ErrorDetail(
+                    message = errorMessage,
+                    type = "network_error"
+                )
+            )
+        )
+    }.flowOn(Dispatchers.IO)
+
+    override fun streamResponses(
+        request: ResponsesRequest,
+        timeoutSeconds: Int,
+        config: ProviderRequestConfig
+    ): Flow<ResponsesStreamEvent> {
+        if (config.resumableReplies) {
+            return networkClient.streamResumableResponses(
+                request,
+                timeoutSeconds,
+                config,
+                config.onUnconfirmedRemoteCancellation
+            )
+        }
+        return flow {
             val apiUrl = config.apiUrl
-            val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}chat/completions" else "$apiUrl/chat/completions"
+            val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}responses" else "$apiUrl/responses"
 
             networkClient().preparePost(endpoint) {
                 retryGenerationRequest()
@@ -115,15 +205,7 @@ class OpenAIAPIImpl @Inject constructor(
                         "HTTP ${response.status.value}: $errorBody"
                     }
 
-                    emit(
-                        ChatCompletionChunk(
-                            error = ErrorDetail(
-                                message = errorMessage,
-                                type = "http_error",
-                                code = response.status.value.toString()
-                            )
-                        )
-                    )
+                    emit(ResponseErrorEvent(message = errorMessage, code = response.status.value.toString()))
                     return@execute
                 }
 
@@ -134,20 +216,19 @@ class OpenAIAPIImpl @Inject constructor(
 
                     if (line.startsWith("data: ")) {
                         val data = line.removePrefix("data: ").trim()
-                        // OpenAI sends "[DONE]" as final message
                         if (data == "[DONE]") break
 
-                        try {
-                            val chunk = NetworkClient.openAIJson.decodeFromString<ChatCompletionChunk>(data)
-                            emit(chunk)
-                        } catch (_: Exception) {
-                            // Skip malformed chunks
+                        val streamEvent = try {
+                            NetworkClient.openAIJson.decodeFromString<ResponsesStreamEvent>(data)
+                        } catch (_: SerializationException) {
+                            UnknownEvent
                         }
+                        emit(streamEvent)
                     }
                 }
             }
-        } catch (e: Exception) {
-            if (e is CancellationException || e is dev.chungjungsoo.gptmobile.data.agent.ToolDefinitionsRejectedException) throw e
+        }.catch { e ->
+            if (e !is Exception || e is CancellationException || e is dev.chungjungsoo.gptmobile.data.agent.ToolDefinitionsRejectedException) throw e
             val errorMessage = when (e) {
                 is java.net.UnknownHostException -> "Network error: Unable to resolve host."
                 is java.nio.channels.UnresolvedAddressException -> "Network error: Unable to resolve address. Check your internet connection."
@@ -158,93 +239,11 @@ class OpenAIAPIImpl @Inject constructor(
                 else -> e.message ?: "Unknown network error"
             }
             emit(
-                ChatCompletionChunk(
-                    error = ErrorDetail(
-                        message = errorMessage,
-                        type = "network_error"
-                    )
+                ResponseErrorEvent(
+                    message = errorMessage,
+                    code = "network_error"
                 )
             )
-        }
-    }.flowOn(Dispatchers.IO)
-
-    override fun streamResponses(
-        request: ResponsesRequest,
-        timeoutSeconds: Int,
-        config: ProviderRequestConfig
-    ): Flow<ResponsesStreamEvent> {
-        if (config.resumableReplies) {
-            return networkClient.streamResumableResponses(
-                request,
-                timeoutSeconds,
-                config,
-                config.onUnconfirmedRemoteCancellation
-            )
-        }
-        return flow {
-            try {
-                val apiUrl = config.apiUrl
-                val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}responses" else "$apiUrl/responses"
-
-                networkClient().preparePost(endpoint) {
-                    retryGenerationRequest()
-                    applyPlatformStreamingTimeout(timeoutSeconds)
-                    contentType(ContentType.Application.Json)
-                    setBody(NetworkClient.openAIJson.encodeToString(request))
-                    accept(ContentType.Text.EventStream)
-                    config.token?.let { bearerAuth(it) }
-                }.execute { response ->
-                    if (!response.status.isSuccess()) {
-                        val errorBody = response.body<String>()
-                        throwIfToolDefinitionsRejected(response.status.value, !request.tools.isNullOrEmpty(), errorBody)
-
-                        val errorMessage = try {
-                            val errorResponse = NetworkClient.openAIJson.decodeFromString<OpenAIErrorResponse>(errorBody)
-                            errorResponse.error.message
-                        } catch (_: Exception) {
-                            "HTTP ${response.status.value}: $errorBody"
-                        }
-
-                        emit(ResponseErrorEvent(message = errorMessage, code = response.status.value.toString()))
-                        return@execute
-                    }
-
-                    // Success - read SSE stream
-                    val channel = response.bodyAsChannel()
-                    while (!channel.isClosedForRead) {
-                        val line = channel.readLine() ?: break
-
-                        if (line.startsWith("data: ")) {
-                            val data = line.removePrefix("data: ").trim()
-                            if (data == "[DONE]") break
-
-                            try {
-                                val streamEvent = NetworkClient.openAIJson.decodeFromString<ResponsesStreamEvent>(data)
-                                emit(streamEvent)
-                            } catch (_: Exception) {
-                                emit(UnknownEvent)
-                            }
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                if (e is CancellationException || e is dev.chungjungsoo.gptmobile.data.agent.ToolDefinitionsRejectedException) throw e
-                val errorMessage = when (e) {
-                    is java.net.UnknownHostException -> "Network error: Unable to resolve host."
-                    is java.nio.channels.UnresolvedAddressException -> "Network error: Unable to resolve address. Check your internet connection."
-                    is java.net.ConnectException -> "Network error: Connection refused. Check the API URL."
-                    is HttpRequestTimeoutException -> "Request timed out."
-                    is java.net.SocketTimeoutException -> "Response timed out while waiting for the next chunk."
-                    is javax.net.ssl.SSLException -> "Network error: SSL/TLS connection failed."
-                    else -> e.message ?: "Unknown network error"
-                }
-                emit(
-                    ResponseErrorEvent(
-                        message = errorMessage,
-                        code = "network_error"
-                    )
-                )
-            }
         }.flowOn(Dispatchers.IO)
     }
 
