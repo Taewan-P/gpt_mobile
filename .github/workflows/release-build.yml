@@ -62,8 +62,13 @@ jobs:
           packages: 'platforms;android-37.0 build-tools;36.0.0'
       - name: Unit tests, compatibility, resources and lint
         run: |
+          set -euo pipefail
           python3 scripts/check_android_resources.py
-          ./gradlew :app:checkReleaseAarMetadata :app:testDebugUnitTest :app:lintDebug :app:lintRelease --no-daemon --max-workers=2
+          # Room/KSP exports schemas to a shared directory. Keep debug and release
+          # KSP work in separate Gradle invocations so variants cannot read a
+          # partially-written schema from each other.
+          ./gradlew :app:testDebugUnitTest :app:lintDebug --no-daemon --max-workers=2
+          ./gradlew :app:checkReleaseAarMetadata :app:lintRelease --no-daemon --max-workers=2
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
