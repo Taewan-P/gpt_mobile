@@ -92,6 +92,29 @@ class OpenAIRecoveryTransportTest {
         }
     }
 
+    @Test
+    fun `gateway transient error retries before output but never after gateway tool execution`() = runTest {
+        for (toolStarted in listOf(false, true)) {
+            var attempts = 0
+            withApi(
+                MockEngine {
+                    attempts++
+                    val body = if (attempts == 1) {
+                        val progress = if (toolStarted) "data: {\"gateway_progress\":{\"event\":\"tool_started\"}}\n\n" else ""
+                        progress + "data: {\"error\":{\"message\":\"Software caused connection abort\"}}\n\ndata: [DONE]\n\n"
+                    } else {
+                        "data: {\"choices\":[{\"delta\":{\"content\":\"recovered\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n"
+                    }
+                    respond(body, headers = headersOf(HttpHeaders.ContentType, "text/event-stream"))
+                }
+            ) { api ->
+                val chunks = api.streamChatCompletion(request, 5, config).toList()
+                assertEquals(if (toolStarted) 1 else 2, attempts)
+                assertEquals(toolStarted, chunks.any { it.error != null })
+            }
+        }
+    }
+
     private suspend fun withApi(engine: MockEngine, block: suspend (OpenAIAPI) -> Unit) {
         val client = HttpClient(engine) { install(HttpTimeout) }
         val wrapper = mockk<NetworkClient>()

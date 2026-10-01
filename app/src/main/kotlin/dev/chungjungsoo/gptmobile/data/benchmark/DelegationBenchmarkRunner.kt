@@ -169,7 +169,8 @@ internal class DelegationBenchmarkRunner(
                         primaryEstimated = primary.estimatedTokens
                         answer = primary.preview
                         event("PRIMARY_HANDOFF", "completed=${primary.completed} inputTokens=$primaryInput outputTokens=$primaryOutput estimated=$primaryEstimated")
-                        check(primary.completed && code in answer && "https://example.org/parcel" in answer) { primary.error ?: "The primary answer lost the code or source URL during handoff." }
+                        if (!primary.completed) throw java.io.IOException(primary.error ?: "Primary handoff failed before completing its response.")
+                        check(code in answer && "https://example.org/parcel" in answer) { "The primary answer lost the code or source URL during handoff." }
                     }
                     else -> error("Unknown delegation benchmark case")
                 }

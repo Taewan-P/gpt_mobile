@@ -257,7 +257,7 @@ class OpenAIAPIImpl @Inject constructor(
                         // OpenAI sends "[DONE]" as final message
                         if (data == "[DONE]") {
                             receivedTerminal = true
-                            emit(ChatCompletionChunk(streamFinished = true))
+                            if (receivedToolCalls) emit(ChatCompletionChunk(streamFinished = true))
                             break
                         }
 
@@ -294,10 +294,10 @@ class OpenAIAPIImpl @Inject constructor(
                         }
                     }
 
+                    if (!receivedTerminal) throw java.io.EOFException("STREAM_INTERRUPTED: provider closed SSE before a completion marker")
                     if (parseFailures > 0 && !receivedAssistantPayload && !receivedError) {
                         emit(ChatCompletionChunk(error = ErrorDetail("STREAM_PARSE_FAILURE: $parseFailures response chunks could not be decoded", "stream_parse_error")))
                     }
-                    if (!receivedTerminal) throw java.io.EOFException("STREAM_INTERRUPTED: provider closed SSE before a completion marker")
                     if (free != null) freeResponseOutcome(free, receivedAnswer, receivedToolCalls, receivedError, reachedOutputLimit)?.let { emit(it) }
                     // If no chunks were emitted but metadata was present, emit a metadata chunk
                     if (firstChunk && gatewayMetadata != null) {
