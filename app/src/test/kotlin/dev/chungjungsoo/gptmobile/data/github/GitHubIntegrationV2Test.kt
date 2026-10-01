@@ -214,6 +214,7 @@ class GitHubIntegrationV2Test {
             http.close()
         }
     }
+
     @Test
     fun pull_request_file_projection_keeps_patch_for_workspace() = runTest {
         val http = HttpClient(
@@ -274,5 +275,4 @@ class GitHubIntegrationV2Test {
             http.close()
         }
     }
-
 }
