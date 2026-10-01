@@ -572,10 +572,9 @@ internal class LocalDelegationCoordinator(
                 boundedConfig(target, config),
                 tools,
                 generate = { prompt, tokens -> workerText(target, prompt, tokens) },
-                stillEnabled = {
-                    val latest = settings().normalized()
-                    latest.researchEnabled && localTarget(latest) != null
-                }
+                // The run was authorized against the snapshot above. Do not abort an in-flight
+                // research pass merely because settings are reloaded/toggled while it is active.
+                stillEnabled = { true }
             ).run(task, "$callId:$requestIndex", automatic)
         } catch (cancelled: CancellationException) {
             throw cancelled
