@@ -3613,7 +3613,10 @@ def _acquire_llama_model_gate(
     progress_callback=None,
     round_number=None,
 ):
-    is_long = str(job_mode or "").lower() == "long"
+    normalized_job_mode = str(job_mode or "").lower()
+    is_long = normalized_job_mode == "long"
+    is_background = normalized_job_mode == "background"
+    is_priority = not (is_long or is_background)
     timeout_seconds = (
         LLAMA_LONG_MODEL_QUEUE_TIMEOUT_SECONDS
         if is_long
@@ -3624,7 +3627,7 @@ def _acquire_llama_model_gate(
     waiter_registered = False
     last_progress = started
 
-    if not is_long:
+    if is_priority:
         with llama_model_dispatch_lock:
             llama_model_dispatch_metrics["interactive_waiters"] += 1
         waiter_registered = True
@@ -3638,8 +3641,9 @@ def _acquire_llama_model_gate(
                     "llama.cpp request cancelled before model dispatch"
                 )
 
-            # Give connected interactive work priority over detached/long jobs.
-            if is_long:
+            # Give connected interactive work priority over detached/long
+            # jobs and background curator/synthesis helpers.
+            if is_long or is_background:
                 with llama_model_dispatch_lock:
                     interactive_waiters = int(
                         llama_model_dispatch_metrics.get("interactive_waiters", 0)
@@ -3720,7 +3724,7 @@ def _post_llama_model_http(
     *,
     cancel_event=None,
     hard_cancel_event=None,
-    job_mode="interactive",
+    job_mode="background",
     progress_callback=None,
     round_number=None,
     **kwargs,
@@ -3770,7 +3774,7 @@ def http_get(url, **kwargs):
 def http_post(url, **kwargs):
     cancel_event = kwargs.pop("_gateway_cancel_event", None)
     hard_cancel_event = kwargs.pop("_gateway_hard_cancel_event", None)
-    job_mode = kwargs.pop("_gateway_job_mode", "interactive")
+    job_mode = kwargs.pop("_gateway_job_mode", "background")
     progress_callback = kwargs.pop("_gateway_progress_callback", None)
     round_number = kwargs.pop("_gateway_round_number", None)
 
