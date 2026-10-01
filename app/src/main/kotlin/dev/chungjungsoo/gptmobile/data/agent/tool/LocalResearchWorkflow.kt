@@ -105,12 +105,7 @@ internal class LocalResearchWorkflow(
                 toolUnavailable = true
                 notes += "Web search is not enabled for this profile; live research is unavailable and no research was completed."
             }
-            var consecutiveUnusableSearches = 0
             for ((index, query) in queries.withIndex()) {
-                if (consecutiveUnusableSearches >= 2) {
-                    notes += "Search stopped after two requests returned no usable sources. Check the search provider connection before retrying."
-                    break
-                }
                 if (search == null || toolsExhausted) break
                 val result = execute(
                     search,
@@ -122,9 +117,8 @@ internal class LocalResearchWorkflow(
                 )
                 searches++
                 if (result == null || result.isError) {
-                    consecutiveUnusableSearches++
                     toolUnavailable = true
-                    notes += "Search ${index + 1} did not return usable evidence; no result from that search is trusted."
+                    notes += "Search ${index + 1} did not return usable evidence; remaining planned queries were still attempted."
                     continue
                 }
                 val sourcesBeforeSearch = sources.size
@@ -145,7 +139,9 @@ internal class LocalResearchWorkflow(
                         addSource(url, url, rawSearchText.take(600))
                     }
                 }
-                consecutiveUnusableSearches = if (sources.size == sourcesBeforeSearch && extractedSources.isEmpty()) consecutiveUnusableSearches + 1 else 0
+                if (sources.size == sourcesBeforeSearch && extractedSources.isEmpty()) {
+                    notes += "Search ${index + 1} returned no new public sources; remaining planned queries were still attempted."
+                }
                 AppLogRecorder.record(
                     "Delegation",
                     "Research search parsed · queryIndex=${index + 1} · structured=${extractedSources.size} · totalSources=${sources.size} · toolsExhausted=$toolsExhausted"
@@ -215,7 +211,7 @@ internal class LocalResearchWorkflow(
                                     if (response == null || response.isError) continue
                                     val payload = response.content.researchPayload()
                                     val text = pageText(payload).ifBlank { response.content.researchText() }
-                                    if (text.isBlank()) continue
+                                    if (text.isBlank() || looksLikeConsentOrScriptShell(text)) continue
                                     accepted = response
                                     acceptedText = text
                                     usedReader = reader
@@ -324,6 +320,22 @@ internal class LocalResearchWorkflow(
             outcome
         )
     }
+}
+
+private fun looksLikeConsentOrScriptShell(text: String): Boolean {
+    val normalized = text.lowercase()
+    val signals = listOf(
+        "onetrust",
+        "cookie preferences",
+        "privacy choices",
+        "consent manager",
+        "manage preferences",
+        "accept all cookies",
+        "do not sell",
+        "enable javascript",
+        "tag manager"
+    ).count { it in normalized }
+    return signals >= 2 || (signals >= 1 && normalized.length < 400)
 }
 
 private data class PageReadAttempt(
