@@ -120,7 +120,7 @@ internal fun delegationHandoff(summary: String, sources: List<DelegationSource>,
                 (
                     note.contains("another enabled search provider was attempted") ||
                         note.contains("remaining planned queries were still attempted")
-                    )
+                )
         return note == "Some search engines were unavailable." ||
             note.startsWith("The brief prioritizes read pages") ||
             unreadablePageWarning ||
