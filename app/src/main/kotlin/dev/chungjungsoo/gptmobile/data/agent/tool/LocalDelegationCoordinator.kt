@@ -411,7 +411,8 @@ internal class LocalDelegationCoordinator(
                     )
                     quarantinedWorkerUids += profile.uid
                     AppLogRecorder.record("Delegation", "Worker quarantined · target=${profile.uid} · reason=INPUT_OVERHEAD_EXHAUSTED", "W")
-                    failoverTarget = localTarget(latest)
+                    recoveryReason = "The delegate's provider overhead exhausted its available input budget."
+                    failoverTarget = recoveryCandidates(latest, profile.uid).firstOrNull()
                     return@withPermit null
                 }
                 // Reserve observed provider/system/tool overhead before sizing the user/task prompt.
@@ -492,7 +493,10 @@ internal class LocalDelegationCoordinator(
                     val quarantined = timeouts >= 2
                     if (quarantined) {
                         quarantinedWorkerUids += profile.uid
-                        failoverTarget = localTarget(latest)
+                    }
+                    recoveryReason = "The delegate stopped or timed out before returning a usable result."
+                    if (onRecoveryRequired != null || quarantined) {
+                        failoverTarget = recoveryCandidates(latest, profile.uid).firstOrNull()
                     }
                     AppLogRecorder.record("Delegation", "CANCELED_NO_RESULT · target=${profile.uid} · call=$callNumber/$effectiveCallLimit · elapsedMs=$elapsedMs · estimatedInputTokens=$estimatedInput · observedInputTokens=$observedInputTokens · requestedOutputCap=$requestedOutputCap", "E")
                     AppLogRecorder.record("Delegation", "Worker timeout circuit · target=${profile.uid} · timeouts=$timeouts/2 · quarantined=$quarantined · fallback=${failoverTarget?.uid}", "W")
@@ -512,7 +516,10 @@ internal class LocalDelegationCoordinator(
                     val quarantined = emptyCount >= MAX_CONSECUTIVE_EMPTY_RESPONSES
                     if (quarantined) {
                         quarantinedWorkerUids += profile.uid
-                        failoverTarget = localTarget(latest)
+                    }
+                    recoveryReason = "The delegate completed without returning usable content."
+                    if (onRecoveryRequired != null || quarantined) {
+                        failoverTarget = recoveryCandidates(latest, profile.uid).firstOrNull()
                     }
                     AppLogRecorder.record(
                         "Delegation",
@@ -584,7 +591,12 @@ internal class LocalDelegationCoordinator(
                 val shouldQuarantine = authBlocked || permanentlyUnavailable || connectionUnavailable || failures >= 3 || (softEmpty && emptyCount >= MAX_CONSECUTIVE_EMPTY_RESPONSES)
                 if (shouldQuarantine) {
                     quarantinedWorkerUids += failedUid
-                    failoverTarget = localTarget(latest)
+                }
+                recoveryReason = message.takeIf { it.isNotBlank() }
+                    ?.let { "The delegate failed: ${it.take(240)}" }
+                    ?: "The delegate failed before completing the task."
+                if (onRecoveryRequired != null || shouldQuarantine) {
+                    failoverTarget = recoveryCandidates(latest, failedUid).firstOrNull()
                 }
                 AppLogRecorder.record(
                     "Delegation",
@@ -598,11 +610,46 @@ internal class LocalDelegationCoordinator(
             }
         }
         if (result != null) return result
+        val failedUid = resolvedProfileUid ?: target.uid
+        val latest = (pinnedConfig ?: settings()).normalized()
+        if (onRecoveryRequired != null && recoveryReason != null) {
+            val failedProfile = profiles().firstOrNull { it.uid == failedUid } ?: target
+            val candidates = recoveryCandidates(latest, failedUid)
+            when (val decision = if (candidates.isEmpty()) {
+                DelegationRecoveryDecision.PrimaryOnly
+            } else {
+                onRecoveryRequired.invoke(failedProfile, candidates, recoveryReason.orEmpty())
+            }) {
+                DelegationRecoveryDecision.PrimaryOnly -> {
+                    delegationCanceledByUser.set(true)
+                    AppLogRecorder.record(
+                        "Delegation",
+                        "User canceled delegation failover · failed=$failedUid · primary=${source.uid}",
+                        "W"
+                    )
+                    return null
+                }
+
+                is DelegationRecoveryDecision.SwitchProfile -> {
+                    val selected = candidates.firstOrNull { it.uid == decision.profileUid }
+                    if (selected == null) {
+                        delegationCanceledByUser.set(true)
+                        return null
+                    }
+                    AppLogRecorder.record(
+                        "Delegation",
+                        "User selected delegation failover · failed=$failedUid · selected=${selected.uid}",
+                        "W"
+                    )
+                    return workerText(selected, prompt, tokens, requirePrivate, allowTools, pinnedConfig)
+                }
+            }
+        }
         val fallback = failoverTarget
         if (fallback != null && fallback.uid != target.uid) {
             AppLogRecorder.record(
                 "Delegation",
-                "Worker failover · failed=${resolvedProfileUid ?: target.uid} · fallback=${fallback.uid} · type=${fallback.compatibleType}",
+                "Worker failover · failed=$failedUid · fallback=${fallback.uid} · type=${fallback.compatibleType}",
                 "W"
             )
             return workerText(fallback, prompt, tokens, requirePrivate, allowTools, pinnedConfig)
