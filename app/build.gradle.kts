@@ -25,7 +25,7 @@ extensions.configure<ApplicationExtension> {
         minSdk = 31
         targetSdk = 36
         versionCode = 93
-        versionName = "0.9.24.0" // interactive delegation recovery and benchmarking
+        versionName = "0.9.24.0" // interactive delegation recovery, benchmarking, and release hardening
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
