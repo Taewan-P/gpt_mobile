@@ -14,6 +14,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -74,6 +75,7 @@ internal class LocalDelegationCoordinator(
     private val quarantinedWorkerUids = ConcurrentHashMap.newKeySet<String>()
     private val observedRequestOverheadTokens = AtomicLong()
     private val delegationCanceledByUser = AtomicBoolean(false)
+    private val userSelectedRecoveryProfile = AtomicReference<PlatformV2?>(null)
     private val worker = Semaphore(4)
 
     private fun automaticFallbackAllowed(config: ModelDelegationSettings): Boolean =
@@ -651,6 +653,7 @@ internal class LocalDelegationCoordinator(
                         delegationCanceledByUser.set(true)
                         return null
                     }
+                    userSelectedRecoveryProfile.set(selected)
                     AppLogRecorder.record(
                         "Delegation",
                         "User selected delegation failover · failed=$failedUid · selected=${selected.uid}",
