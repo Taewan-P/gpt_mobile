@@ -24,6 +24,7 @@ data class DelegationRecoveryOption(
 
 data class DelegationRecoveryRequest(
     val id: String,
+    val chatId: Int,
     val runId: String,
     val failedProfileUid: String,
     val failedProfileName: String,
@@ -49,6 +50,7 @@ class DelegationRecoveryInteractions @Inject constructor(
     val pending = _pending.asStateFlow()
 
     internal suspend fun request(
+        chatId: Int,
         runId: String,
         primaryProfileUid: String,
         failedProfile: PlatformV2,
@@ -81,6 +83,7 @@ class DelegationRecoveryInteractions @Inject constructor(
         _pending.update { requests ->
             requests + DelegationRecoveryRequest(
                 id = id,
+                chatId = chatId,
                 runId = runId,
                 failedProfileUid = failedProfile.uid,
                 failedProfileName = failedProfile.name,
