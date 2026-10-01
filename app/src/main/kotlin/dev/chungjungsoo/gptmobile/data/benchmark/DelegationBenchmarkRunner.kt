@@ -90,12 +90,20 @@ internal class DelegationBenchmarkRunner(
         fun sample(outcome: BenchmarkOutcome, error: String? = null): BenchmarkSample {
             val after = workerTokens()
             val timing = telemetry()
+            val workerInputDelta = after.first - before.first
+            val workerOutputDelta = after.second - before.second
+            if ((timing.firstTextMs ?: 0L) > 3_000L) event("INSIGHT_SLOW_FIRST_TEXT", "firstTextMs=${timing.firstTextMs}; investigate prompt evaluation, connection latency, model warmup, or context size", "WARN")
+            if ((timing.decodeTokensPerSecond ?: Double.MAX_VALUE) < 10.0) event("INSIGHT_LOW_THROUGHPUT", "tokPerSec=${timing.decodeTokensPerSecond}; consider a faster delegate/runtime or lower worker context", "WARN")
+            if (fixtureCalls > successfulCalls) event("INSIGHT_TOOL_USABILITY", "successfulFixtureCalls=$successfulCalls fixtureCalls=$fixtureCalls; inspect tool selection or argument generation", "WARN")
+            if (timing.outputCapViolations > 0) event("INSIGHT_OUTPUT_CAP", "violations=${timing.outputCapViolations}; provider/runtime may not be enforcing the requested delegation cap", "WARN")
+            if (workerInputDelta > 4_000 && test.id != "delegation-compact") event("INSIGHT_INPUT_OVERHEAD", "workerInputTokens=$workerInputDelta for ${test.id}; inspect system/tool/gateway prompt overhead", "WARN")
+            if (workerOutputDelta == 0L && outcome != BenchmarkOutcome.PASSED) event("INSIGHT_NO_OUTPUT", "worker produced no measured output tokens", "ERROR")
             return BenchmarkSample(
                 test.id, test.label, test.category, outcome, durationMs = (now() - started).coerceAtLeast(0),
                 outputCharacters = answer.length, preview = answer.take(1000), error = error,
                 delegation = DelegationBenchmarkMetrics(
                     target.uid, target.name, target.compatibleType.name, workerCalls() - callsBefore,
-                    after.first - before.first, after.second - before.second, primaryInput, primaryOutput,
+                    workerInputDelta, workerOutputDelta, primaryInput, primaryOutput,
                     searches, pages, rawBytes, handoffChars, fixtureCalls, successfulCalls, primaryEstimated,
                     target.model, workerConfigKey, timing.estimated, timing.durationMs,
                     timing.firstTextMs, timing.decodeTokensPerSecond, timing.outputCapViolations,
