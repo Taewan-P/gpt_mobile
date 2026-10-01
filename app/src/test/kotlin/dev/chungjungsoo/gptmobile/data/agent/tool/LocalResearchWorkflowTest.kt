@@ -283,5 +283,4 @@ class LocalResearchWorkflowTest {
         assertEquals("false", payload.getValue("partial").jsonPrimitive.content)
         assertTrue(payload.getValue("warnings").toString().contains("another enabled search provider was attempted"))
     }
-
 }
