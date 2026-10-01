@@ -335,11 +335,23 @@ private data class ReadUrlRequest(
 )
 
 private fun androidHtmlToText(html: String): String {
+    val articleBodies = Regex(
+        """["']articleBody["']\s*:\s*["']((?:\\.|[^"'\\])+)["']""",
+        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+    ).findAll(html).map { match ->
+        match.groupValues[1]
+            .replace("\\n", " ")
+            .replace("\\r", " ")
+            .replace("\\t", " ")
+            .replace("\\"", """)
+            .replace("\\/", "/")
+    }.filter { it.isNotBlank() }.take(3).toList()
     val removable = Regex(
         """<(script|style|noscript|template|svg)\b[^>]*>.*?</\1\s*>""",
         setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
     )
-    return Html.fromHtml(html.replace(removable, " "), Html.FROM_HTML_MODE_LEGACY).toString()
+    val visible = Html.fromHtml(html.replace(removable, " "), Html.FROM_HTML_MODE_LEGACY).toString()
+    return (articleBodies + visible).filter { it.isNotBlank() }.distinct().joinToString("\n\n")
 }
 
 private fun isTextContent(contentType: String): Boolean {
