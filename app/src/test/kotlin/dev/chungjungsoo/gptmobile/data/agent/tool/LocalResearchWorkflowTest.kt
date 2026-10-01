@@ -204,7 +204,41 @@ class LocalResearchWorkflowTest {
         assertFalse(result.handoff.contains("disabled before research completed"))
     }
 
-    @Test fun `unusable search providers stop early without claiming successful research`() = runTest {
+    @Test fun `consent shell page is rejected and another source is verified`() = runTest {
+        val reads = mutableListOf<String>()
+        val search = tool("web_search") { id, _ ->
+            response(
+                id,
+                """{"results":[{"title":"Consent","url":"https://example.org/consent","snippet":"snippet"},{"title":"Article","url":"https://example.org/article","snippet":"snippet"}]}"""
+            )
+        }
+        val reader = tool("read_url") { id, args ->
+            val url = args.getValue("url").jsonPrimitive.content
+            reads += url
+            if (url.endsWith("/consent")) {
+                response(id, """{"content":"Cookie preferences. Manage preferences. Accept all cookies. Privacy choices.","links":[]}""")
+            } else {
+                response(id, """{"content":"The verified article says the latency is 42 ms.","links":[]}""")
+            }
+        }
+        val result = LocalResearchWorkflow(
+            config.copy(maxPages = 1, crawlDepth = 0),
+            listOf(search, reader),
+            { prompt, _ ->
+                when {
+                    prompt.startsWith("Plan") -> """{"queries":["latency"],"urls":[]}"""
+                    prompt.startsWith("Choose up to") -> """{"ids":["S1"]}"""
+                    else -> "Latency is 42 ms [S2]."
+                }
+            }
+        ).run("Research latency", "consent-shell")
+
+        assertEquals(listOf("https://example.org/consent", "https://example.org/article"), reads)
+        assertEquals(1, result.pagesRead)
+        assertTrue(result.handoff.contains("42 ms"))
+    }
+
+    @Test fun `unusable search providers attempt every planned query without claiming successful research`() = runTest {
         for (isError in listOf(true, false)) {
             var searches = 0
             val search = tool("web_search") { id, _ ->
@@ -214,9 +248,9 @@ class LocalResearchWorkflowTest {
             val result = LocalResearchWorkflow(config.copy(maxSearchQueries = 12), listOf(search), { _, _ ->
                 """{"queries":["one","two","three","four"],"urls":[]}"""
             }).run("Research latency", "unavailable")
-            assertEquals(2, searches)
+            assertEquals(4, searches)
             assertEquals(LocalResearchOutcome.NO_USEFUL_OUTPUT, result.outcome)
-            assertTrue(result.handoff.contains("Search stopped"))
+            assertTrue(result.handoff.contains("remaining planned queries were still attempted"))
         }
     }
 }
