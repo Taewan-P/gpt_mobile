@@ -8,7 +8,9 @@ internal data class WorkerBenchmarkTelemetry(
     val firstTextMs: Long? = null,
     val decodeTokensPerSecond: Double? = null,
     val estimated: Boolean = false,
-    val outputCapViolations: Int = 0
+    val outputCapViolations: Int = 0,
+    val speedUsesReportedTokens: Boolean = false,
+    val events: List<DelegationBenchmarkEvent> = emptyList()
 )
 
 data class DelegationBenchmarkRating(
@@ -16,6 +18,7 @@ data class DelegationBenchmarkRating(
     val attempts: Int,
     val passed: Int,
     val toolTaskSuccessPercent: Double?,
+    val toolCallSuccessPercent: Double?,
     val successfulToolCalls: Int,
     val toolCalls: Int,
     val medianLatencyMs: Long?,
@@ -28,6 +31,9 @@ data class DelegationBenchmarkRating(
     val primaryOutputTokens: Long,
     val outputCapViolations: Int,
     val estimated: Boolean,
+    val diagnosticEvents: Int,
+    val warningEvents: Int,
+    val errorEvents: Int,
     val dimensions: List<BenchmarkDimension>
 )
 
@@ -41,35 +47,48 @@ fun delegationBenchmarkRating(runs: List<BenchmarkRun>): DelegationBenchmarkRati
     val metrics = samples.mapNotNull { it.delegation }
     val successful = samples.filter { it.outcome == BenchmarkOutcome.PASSED }
     val tools = samples.filter { it.testId == "delegation-tools" }
-    val toolSuccess = tools.takeIf { it.isNotEmpty() }?.let { 100.0 * it.count { sample -> sample.outcome == BenchmarkOutcome.PASSED && (sample.delegation?.successfulFixtureCalls ?: 0) > 0 } / it.size }
+    val toolTaskSuccess = tools.takeIf { it.isNotEmpty() }?.let {
+        100.0 * it.count { sample ->
+            sample.outcome == BenchmarkOutcome.PASSED && (sample.delegation?.successfulFixtureCalls ?: 0) > 0
+        } / it.size
+    }
+    val fixtureCalls = metrics.sumOf { it.fixtureCalls }
+    val successfulFixtureCalls = metrics.sumOf { it.successfulFixtureCalls }
+    val toolCallSuccess = if (fixtureCalls > 0) 100.0 * successfulFixtureCalls / fixtureCalls else tools.takeIf { it.isNotEmpty() }?.let { 0.0 }
+    val toolUsability = toolTaskSuccess?.let { taskRate ->
+        taskRate * 0.7 + (toolCallSuccess ?: 0.0) * 0.3
+    }
     val latency = median(successful.map { it.durationMs })
     val first = median(successful.mapNotNull { it.delegation?.workerFirstTextMs })
     val speed = median(successful.mapNotNull { it.delegation?.workerDecodeTokensPerSecond?.takeIf { value -> value > 0 && value.isFinite() } })
     fun accuracy(id: String) = samples.filter { it.testId == id }.takeIf { it.isNotEmpty() }
         ?.let { 100.0 * it.count { sample -> sample.outcome == BenchmarkOutcome.PASSED } / it.size }
+    val successRate = samples.takeIf { it.isNotEmpty() }?.let { 100.0 * passed / it.size }
     val dimensions = listOf(
-        BenchmarkDimension("Task success", samples.takeIf { it.isNotEmpty() }?.let { 100.0 * passed / it.size }, 30, "Passed tasks / attempted tasks; errors and timeouts fail"),
-        BenchmarkDimension("Successful tool usage", toolSuccess, 30, "Valid tool execution and exact final result; no invocation fails"),
-        BenchmarkDimension("Evidence accuracy", accuracy("delegation-compact"), 10, "Preserves the random evidence code"),
-        BenchmarkDimension("Research and handoff", accuracy("delegation-research"), 10, "Page read, preserved evidence, correct primary answer and source"),
-        BenchmarkDimension("Latency", latency?.let { (5000.0 / it.coerceAtLeast(1) * 100).coerceAtMost(100.0) }, 10, "100 at 5 seconds; successful end-to-end cases only"),
-        BenchmarkDimension("Generation speed", speed?.let { (100 * it / 40).coerceAtMost(100.0) }, 10, "100 at 40 estimated text tokens/s; observed decoding interval")
+        BenchmarkDimension("Task reliability", successRate, 20, "Passed delegation cases / attempted cases; errors and timeouts fail"),
+        BenchmarkDimension("Tool usability", toolUsability, 25, "70% tool-task success + 30% valid fixture-call success"),
+        BenchmarkDimension("Token throughput", speed?.let { (100.0 * it / 50.0).coerceIn(0.0, 100.0) }, 20, "100 at 50 output tok/s; reported provider tokens are preferred over character estimates"),
+        BenchmarkDimension("First-response latency", first?.let { (100.0 * 1000.0 / it.coerceAtLeast(1)).coerceIn(0.0, 100.0) }, 15, "100 at 1 second to first usable text"),
+        BenchmarkDimension("End-to-end latency", latency?.let { (100.0 * 5000.0 / it.coerceAtLeast(1)).coerceIn(0.0, 100.0) }, 10, "100 at 5 seconds per successful delegation case"),
+        BenchmarkDimension("Evidence accuracy", accuracy("delegation-compact"), 5, "Preserves the random evidence code"),
+        BenchmarkDimension("Research and handoff", accuracy("delegation-research"), 5, "Reads evidence, preserves the code and source, and survives primary synthesis")
     )
     val measured = dimensions.filter { it.score != null }
     val weight = measured.sumOf { it.weight }
-    val successRate = if (samples.isEmpty()) 0.0 else passed.toDouble() / samples.size
-    // Reliability also limits the entire score, so a fast helper failing tasks cannot rank first.
+    val reliabilityCap = successRate ?: 0.0
     val score = if (samples.size >= 3 && samples.map { it.testId }.containsAll(delegationBenchmarkSuite().map { it.id })) {
-        minOf(measured.sumOf { it.score!! * it.weight } / weight, 100 * successRate).roundToInt()
+        minOf(measured.sumOf { it.score!! * it.weight } / weight, reliabilityCap).roundToInt()
     } else {
         null
     }
+    val events = metrics.flatMap { it.diagnosticEvents }
     return DelegationBenchmarkRating(
-        score, samples.size, passed, toolSuccess, metrics.sumOf { it.successfulFixtureCalls }, metrics.sumOf { it.fixtureCalls },
+        score, samples.size, passed, toolTaskSuccess, toolCallSuccess, successfulFixtureCalls, fixtureCalls,
         latency, percentile(successful.map { it.durationMs }, .95), first, speed,
         metrics.sumOf { it.workerInputTokens }, metrics.sumOf { it.workerOutputTokens },
         metrics.sumOf { it.primaryInputTokens }, metrics.sumOf { it.primaryOutputTokens },
-        metrics.sumOf { it.outputCapViolations }, metrics.any { it.workerEstimated || it.primaryEstimated }, dimensions
+        metrics.sumOf { it.outputCapViolations }, metrics.any { it.workerEstimated || it.primaryEstimated },
+        events.size, events.count { it.level == "WARN" }, events.count { it.level == "ERROR" }, dimensions
     )
 }
 
