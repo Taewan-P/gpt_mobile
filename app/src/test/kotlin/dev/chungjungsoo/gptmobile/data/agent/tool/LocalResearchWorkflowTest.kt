@@ -253,4 +253,35 @@ class LocalResearchWorkflowTest {
             assertTrue(result.handoff.contains("remaining planned queries were still attempted"))
         }
     }
+
+    @Test fun `failed search provider falls through to another enabled provider without forcing partial evidence`() = runTest {
+        val calls = mutableListOf<String>()
+        val first = tool("web_search") { id, _ ->
+            calls += "first"
+            AgentToolResult(id, ToolResultContent.Text("provider unavailable"), true)
+        }
+        val second = tool("web_search") { id, _ ->
+            calls += "second"
+            response(id, """{"results":[{"title":"Working source","url":"https://example.org/working","snippet":"Latency is 42 ms."}]}""")
+        }
+        val result = LocalResearchWorkflow(
+            config.copy(maxPages = 0),
+            listOf(first, second),
+            { prompt, _ ->
+                if (prompt.startsWith("Plan")) {
+                    """{"queries":["latency"],"urls":[]}"""
+                } else {
+                    "Latency is 42 ms [S1]."
+                }
+            }
+        ).run("Research latency", "search-provider-fallback")
+
+        assertEquals(listOf("first", "second"), calls)
+        assertEquals(1, result.searches)
+        assertEquals(LocalResearchOutcome.SUCCESS, result.outcome)
+        val payload = Json.parseToJsonElement(result.handoff).jsonObject
+        assertEquals("false", payload.getValue("partial").jsonPrimitive.content)
+        assertTrue(payload.getValue("warnings").toString().contains("another enabled search provider was attempted"))
+    }
+
 }
