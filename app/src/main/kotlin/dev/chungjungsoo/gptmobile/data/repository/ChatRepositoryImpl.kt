@@ -24,6 +24,7 @@ import dev.chungjungsoo.gptmobile.data.agent.tool.AgentToolResolver
 import dev.chungjungsoo.gptmobile.data.agent.tool.ConnectedMemoryRecall
 import dev.chungjungsoo.gptmobile.data.agent.tool.DelegateProgress
 import dev.chungjungsoo.gptmobile.data.agent.tool.DelegateProgressKind
+import dev.chungjungsoo.gptmobile.data.agent.tool.DelegationRecoveryInteractions
 import dev.chungjungsoo.gptmobile.data.agent.tool.LocalDelegationCoordinator
 import dev.chungjungsoo.gptmobile.data.agent.tool.MeasuredAgentTool
 import dev.chungjungsoo.gptmobile.data.agent.tool.ResolvedAgentTool
@@ -179,7 +180,8 @@ class ChatRepositoryImpl(
     private val toolMetricsCollector: ToolMetricsCollector? = null,
     private val knowledge: dev.chungjungsoo.gptmobile.data.knowledge.MemoryDocumentRepository? = null,
     private val toolApprovals: dev.chungjungsoo.gptmobile.data.permissions.ToolApprovalManager? = null,
-    private val invocationLedger: dev.chungjungsoo.gptmobile.data.accounting.InvocationLedger? = null
+    private val invocationLedger: dev.chungjungsoo.gptmobile.data.accounting.InvocationLedger? = null,
+    private val delegationRecovery: DelegationRecoveryInteractions? = null
 ) : ChatRepository {
     private val providerAttachmentEncoder = ProviderAttachmentEncoder(context)
     private val openAIResponsesAdapter = OpenAIResponsesAdapter(openAIAPI, providerAttachmentEncoder)
@@ -944,6 +946,11 @@ class ChatRepositoryImpl(
                     val manager = context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
                     manager?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
                         ?.takeIf { it in 0..100 }
+                },
+                onRecoveryRequired = delegationRecovery?.let { recovery ->
+                    { failed, candidates, reason ->
+                        recovery.request(userMessages.lastOrNull()?.chatId ?: -1, runId, platform.uid, failed, candidates, reason)
+                    }
                 }
             )
             val unavailableConnections = mutableListOf<String>()

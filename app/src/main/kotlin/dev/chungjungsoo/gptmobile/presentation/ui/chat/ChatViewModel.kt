@@ -11,6 +11,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.agent.AgentRunCoordinator
 import dev.chungjungsoo.gptmobile.data.agent.AgentRunRequest
+import dev.chungjungsoo.gptmobile.data.agent.tool.DelegationRecoveryInteractions
 import dev.chungjungsoo.gptmobile.data.catalog.CatalogEntry
 import dev.chungjungsoo.gptmobile.data.database.entity.ACTIVE_REVISION_LATEST
 import dev.chungjungsoo.gptmobile.data.database.entity.AgentRun
@@ -85,6 +86,7 @@ class ChatViewModel @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val chatRepository: ChatRepository,
     private val settingRepository: SettingRepository,
+    private val delegationRecoveryInteractions: DelegationRecoveryInteractions,
     private val attachmentUploadCoordinator: AttachmentUploadCoordinator,
     private val agentRunCoordinator: AgentRunCoordinator,
     private val toolConnectionRepository: ToolConnectionRepository,
@@ -106,6 +108,11 @@ class ChatViewModel @Inject constructor(
     private suspend fun completeWindowMessages(grouped: GroupedMessages): List<MessageV2> {
         val older = if (windowStartId > 0) chatRepository.fetchMessagesV2(_chatRoom.value.id).filter { it.id < windowStartId } else emptyList()
         return older + persistableMessages(grouped)
+    }
+
+    val pendingDelegationRecovery get() = delegationRecoveryInteractions.pending
+    fun respondDelegationRecovery(id: String, profileUid: String?) {
+        delegationRecoveryInteractions.respond(id, profileUid)
     }
 
     val pendingMcpInput get() = mcpInteractions?.pending ?: MutableStateFlow(emptyList())

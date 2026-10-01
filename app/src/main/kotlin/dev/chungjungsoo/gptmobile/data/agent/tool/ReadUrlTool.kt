@@ -357,7 +357,22 @@ private fun androidHtmlToText(html: String): String {
             setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
         ).replace(visibleHtml, " ")
     }
-    val visible = Html.fromHtml(visibleHtml, Html.FROM_HTML_MODE_LEGACY).toString()
+    val visible = runCatching {
+        Html.fromHtml(visibleHtml, Html.FROM_HTML_MODE_LEGACY).toString()
+    }.getOrElse {
+        // Local JVM tests and non-Android execution paths do not provide the
+        // android.text.Html logging/runtime stack. Keep URL reading functional
+        // with a conservative tag-strip fallback after active blocks are removed.
+        visibleHtml
+            .replace(Regex("""<!--.*?-->""", setOf(RegexOption.DOT_MATCHES_ALL)), " ")
+            .replace(Regex("""<[^>]+>"""), " ")
+            .replace("&nbsp;", " ", ignoreCase = true)
+            .replace("&amp;", "&", ignoreCase = true)
+            .replace("&lt;", "<", ignoreCase = true)
+            .replace("&gt;", ">", ignoreCase = true)
+            .replace("&quot;", "\"", ignoreCase = true)
+            .replace("&#39;", "'", ignoreCase = true)
+    }
     return (articleBodies + visible).filter { it.isNotBlank() }.distinct().joinToString("\n\n")
 }
 

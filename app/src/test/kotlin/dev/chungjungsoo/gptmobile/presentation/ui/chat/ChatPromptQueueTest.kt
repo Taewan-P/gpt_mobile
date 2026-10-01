@@ -369,15 +369,22 @@ class ChatPromptQueueTest {
             AgentToolBinding("binding", "profile-2", "profile-2-tools", "search")
         )
         return ChatViewModel(
-            SavedStateHandle(mapOf("chatRoomId" to 7, "enabledPlatforms" to members.joinToString(",") { it.uid })),
-            ApplicationProvider.getApplicationContext(), repository, settings, mockk(relaxed = true), coordinator,
-            tools,
-            localModels,
-            catalog,
-            dev.chungjungsoo.gptmobile.data.permissions.FreeModelToolConsentStore(
+            savedStateHandle = SavedStateHandle(
+                mapOf("chatRoomId" to 7, "enabledPlatforms" to members.joinToString(",") { it.uid })
+            ),
+            context = ApplicationProvider.getApplicationContext(),
+            chatRepository = repository,
+            settingRepository = settings,
+            delegationRecoveryInteractions = mockk(relaxed = true),
+            attachmentUploadCoordinator = mockk(relaxed = true),
+            agentRunCoordinator = coordinator,
+            toolConnectionRepository = tools,
+            localModelRepository = localModels,
+            modelCatalogRepository = catalog,
+            freeModelToolConsentStore = dev.chungjungsoo.gptmobile.data.permissions.FreeModelToolConsentStore(
                 ApplicationProvider.getApplicationContext()
             ),
-            dev.chungjungsoo.gptmobile.data.chat.ConversationReadStateStore(
+            conversationReadStateStore = dev.chungjungsoo.gptmobile.data.chat.ConversationReadStateStore(
                 ApplicationProvider.getApplicationContext()
             )
         ).also { store.put("chat", it) }

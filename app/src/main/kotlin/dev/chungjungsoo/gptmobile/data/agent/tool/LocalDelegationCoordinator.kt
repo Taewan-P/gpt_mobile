@@ -11,8 +11,10 @@ import dev.chungjungsoo.gptmobile.data.model.ModelDelegationSettings
 import dev.chungjungsoo.gptmobile.data.model.excludesMemory
 import dev.chungjungsoo.gptmobile.data.model.isPrivateDestination
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -44,7 +46,8 @@ internal class LocalDelegationCoordinator(
     private val inputBudget: suspend (PlatformV2, Int) -> Int = { _, _ -> Int.MAX_VALUE },
     private val batteryPercent: suspend () -> Int? = { null },
     private val generateTextWithProgress: (suspend (PlatformV2, String, Int, Int, (DelegateProgress) -> Unit) -> String)? = null,
-    private val useWorkloadRuntimeLimit: Boolean = true
+    private val useWorkloadRuntimeLimit: Boolean = true,
+    private val onRecoveryRequired: (suspend (PlatformV2, List<PlatformV2>, String) -> DelegationRecoveryDecision)? = null
 ) {
     private companion object {
         // Absolute emergency ceiling in addition to the user-configurable token budget.
@@ -71,9 +74,23 @@ internal class LocalDelegationCoordinator(
     private val emptyResponsesByWorker = ConcurrentHashMap<String, AtomicInteger>()
     private val quarantinedWorkerUids = ConcurrentHashMap.newKeySet<String>()
     private val observedRequestOverheadTokens = AtomicLong()
+    private val delegationCanceledByUser = AtomicBoolean(false)
+    private val userSelectedRecoveryProfile = AtomicReference<PlatformV2?>(null)
     private val worker = Semaphore(4)
 
+    private fun automaticFallbackAllowed(config: ModelDelegationSettings): Boolean =
+        config.targetProfileUid.isBlank() || config.fallbackToAnotherProfile
+
+    private fun primaryOnlyHandoff(partialNotes: List<String> = emptyList()): String = buildString {
+        append("Delegation was canceled. Continue this turn with the primary model only and do not call delegate_to_model again.")
+        if (partialNotes.isNotEmpty()) {
+            append("\n\nPartial helper notes completed before cancellation:\n")
+            append(partialNotes.joinToString("\n\n"))
+        }
+    }
+
     suspend fun researchAvailable(): Boolean {
+        if (delegationCanceledByUser.get()) return false
         return try {
             val config = settings().normalized()
             val target = localTarget(config) ?: run {
@@ -165,6 +182,34 @@ internal class LocalDelegationCoordinator(
         return fallback
     }
 
+    private suspend fun recoveryCandidates(config: ModelDelegationSettings, failedUid: String): List<PlatformV2> {
+        if (!config.enabled || config.processingOwnership >= 100 || source.disableAllTools || source.disableLocalTools || source.excludesMemory()) return emptyList()
+        if (localCalls.get() >= config.effectiveLocalModelCalls()) return emptyList()
+        if (failedLocalTokens.get() + canceledLocalTokens.get() >= config.effectiveWastedLocalTokens()) return emptyList()
+        val battery = batteryPercent()
+        if (battery != null && battery <= config.lowBatteryThresholdPercent && config.processingOwnership < 65) return emptyList()
+        return profiles().filter { candidate ->
+            candidate.uid != source.uid &&
+                candidate.uid != failedUid &&
+                candidate.enabled &&
+                !candidate.excludesMemory() &&
+                !(source.compatibleType == ClientType.LITERT_LM && candidate.compatibleType == ClientType.LITERT_LM) &&
+                candidate.uid !in quarantinedWorkerUids &&
+                (config.allowRemoteWorkers || candidate.isPrivateDestination())
+        }.filter { candidate ->
+            if (candidate.compatibleType != ClientType.LITERT_LM) {
+                true
+            } else {
+                try {
+                    inputBudget(candidate, config.maxOutputTokens) >= 600
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    false
+                }
+            }
+        }
+    }
     private suspend fun boundedConfig(target: PlatformV2, config: ModelDelegationSettings): ModelDelegationSettings {
         val available = try {
             inputBudget(target, config.maxOutputTokens)
@@ -298,13 +343,15 @@ internal class LocalDelegationCoordinator(
         tokens: Int,
         requirePrivate: Boolean = true,
         allowTools: Boolean = false,
-        pinnedConfig: ModelDelegationSettings? = null
+        pinnedConfig: ModelDelegationSettings? = null,
+        interactiveRecovery: Boolean = false
     ): String? {
         val config = (pinnedConfig ?: settings()).normalized()
-        if (!config.enabled) return null
+        if (!config.enabled || delegationCanceledByUser.get()) return null
         var observedForFailure = 0L
         var resolvedProfileUid: String? = null
         var failoverTarget: PlatformV2? = null
+        var recoveryReason: String? = null
         var dispatchedAtMs: Long? = null
         val result = worker.withPermit {
             val latest = (pinnedConfig ?: settings()).normalized()
@@ -318,25 +365,45 @@ internal class LocalDelegationCoordinator(
                         it.uid != source.uid &&
                         it.uid !in quarantinedWorkerUids &&
                         (latest.allowRemoteWorkers || it.isPrivateDestination())
-                } ?: localTarget(latest)
-                resolvedProfileUid = profile?.uid
+                }
+                if (profile == null) {
+                    resolvedProfileUid = target.uid
+                    recoveryReason = "The selected delegate is unavailable or no longer eligible."
+                    if ((interactiveRecovery && onRecoveryRequired != null) || automaticFallbackAllowed(latest)) {
+                        failoverTarget = recoveryCandidates(latest, target.uid).firstOrNull()
+                    }
+                    AppLogRecorder.record(
+                        "Delegation",
+                        "Worker requires recovery · requested=${target.uid} · reason=TARGET_UNAVAILABLE · fallback=${failoverTarget?.uid}",
+                        "W"
+                    )
+                    return@withPermit null
+                }
+                resolvedProfileUid = profile.uid
                 val effectiveCallLimit = latest.effectiveLocalModelCalls()
                 val effectiveWasteLimit = latest.effectiveWastedLocalTokens()
                 AppLogRecorder.record("Delegation", "Worker gate · requested=${target.uid} · resolved=${profile?.uid} · profileFound=${profile != null} · private=${profile?.isPrivateDestination()} · calls=${localCalls.get()}/$effectiveCallLimit · configuredCalls=${latest.maxLocalModelCalls} · ownership=${latest.processingOwnership}")
-                if (!latest.enabled ||
-                    profile == null ||
-                    profile.excludesMemory() ||
+                if (!latest.enabled) return@withPermit null
+                if (profile.excludesMemory() ||
                     profile.uid == source.uid ||
                     (latest.localPlatformsOnly && !profile.isPrivateDestination() && !latest.allowRemoteWorkers) ||
                     (requirePrivate && !profile.isPrivateDestination() && !latest.allowRemoteWorkers) ||
                     (source.compatibleType == ClientType.LITERT_LM && profile.compatibleType == ClientType.LITERT_LM)
                 ) {
-                    AppLogRecorder.record("Delegation", "Worker rejected by gate · target=${target.uid}", "W")
+                    recoveryReason = "The selected delegate was rejected by the active delegation rules."
+                    if (interactiveRecovery && onRecoveryRequired != null) {
+                        failoverTarget = recoveryCandidates(latest, profile.uid).firstOrNull()
+                    }
+                    AppLogRecorder.record("Delegation", "Worker rejected by gate · target=${target.uid} · fallback=${failoverTarget?.uid}", "W")
                     return@withPermit null
                 }
                 val budget = inputBudget(profile, tokens).coerceAtLeast(0)
                 if (budget < 600) {
-                    AppLogRecorder.record("Delegation", "Worker rejected · input budget too small · target=${profile.uid} · inputBudget=$budget", "W")
+                    recoveryReason = "The delegate does not have enough input capacity for this task."
+                    if (interactiveRecovery && onRecoveryRequired != null) {
+                        failoverTarget = recoveryCandidates(latest, profile.uid).firstOrNull()
+                    }
+                    AppLogRecorder.record("Delegation", "Worker rejected · input budget too small · target=${profile.uid} · inputBudget=$budget · fallback=${failoverTarget?.uid}", "W")
                     return@withPermit null
                 }
                 if (failedLocalTokens.get() + canceledLocalTokens.get() >= effectiveWasteLimit) {
@@ -359,7 +426,10 @@ internal class LocalDelegationCoordinator(
                     )
                     quarantinedWorkerUids += profile.uid
                     AppLogRecorder.record("Delegation", "Worker quarantined · target=${profile.uid} · reason=INPUT_OVERHEAD_EXHAUSTED", "W")
-                    failoverTarget = localTarget(latest)
+                    recoveryReason = "The delegate's provider overhead exhausted its available input budget."
+                    if ((interactiveRecovery && onRecoveryRequired != null) || automaticFallbackAllowed(latest)) {
+                        failoverTarget = recoveryCandidates(latest, profile.uid).firstOrNull()
+                    }
                     return@withPermit null
                 }
                 // Reserve observed provider/system/tool overhead before sizing the user/task prompt.
@@ -440,7 +510,10 @@ internal class LocalDelegationCoordinator(
                     val quarantined = timeouts >= 2
                     if (quarantined) {
                         quarantinedWorkerUids += profile.uid
-                        failoverTarget = localTarget(latest)
+                    }
+                    recoveryReason = "The delegate stopped or timed out before returning a usable result."
+                    if ((interactiveRecovery && onRecoveryRequired != null) || (quarantined && automaticFallbackAllowed(latest))) {
+                        failoverTarget = recoveryCandidates(latest, profile.uid).firstOrNull()
                     }
                     AppLogRecorder.record("Delegation", "CANCELED_NO_RESULT · target=${profile.uid} · call=$callNumber/$effectiveCallLimit · elapsedMs=$elapsedMs · estimatedInputTokens=$estimatedInput · observedInputTokens=$observedInputTokens · requestedOutputCap=$requestedOutputCap", "E")
                     AppLogRecorder.record("Delegation", "Worker timeout circuit · target=${profile.uid} · timeouts=$timeouts/2 · quarantined=$quarantined · fallback=${failoverTarget?.uid}", "W")
@@ -460,7 +533,10 @@ internal class LocalDelegationCoordinator(
                     val quarantined = emptyCount >= MAX_CONSECUTIVE_EMPTY_RESPONSES
                     if (quarantined) {
                         quarantinedWorkerUids += profile.uid
-                        failoverTarget = localTarget(latest)
+                    }
+                    recoveryReason = "The delegate completed without returning usable content."
+                    if ((interactiveRecovery && onRecoveryRequired != null) || (quarantined && automaticFallbackAllowed(latest))) {
+                        failoverTarget = recoveryCandidates(latest, profile.uid).firstOrNull()
                     }
                     AppLogRecorder.record(
                         "Delegation",
@@ -532,7 +608,12 @@ internal class LocalDelegationCoordinator(
                 val shouldQuarantine = authBlocked || permanentlyUnavailable || connectionUnavailable || failures >= 3 || (softEmpty && emptyCount >= MAX_CONSECUTIVE_EMPTY_RESPONSES)
                 if (shouldQuarantine) {
                     quarantinedWorkerUids += failedUid
-                    failoverTarget = localTarget(latest)
+                }
+                recoveryReason = message.takeIf { it.isNotBlank() }
+                    ?.let { "The delegate failed: ${it.take(240)}" }
+                    ?: "The delegate failed before completing the task."
+                if ((interactiveRecovery && onRecoveryRequired != null) || (shouldQuarantine && automaticFallbackAllowed(latest))) {
+                    failoverTarget = recoveryCandidates(latest, failedUid).firstOrNull()
                 }
                 AppLogRecorder.record(
                     "Delegation",
@@ -546,25 +627,68 @@ internal class LocalDelegationCoordinator(
             }
         }
         if (result != null) return result
+        val failedUid = resolvedProfileUid ?: target.uid
+        val latest = (pinnedConfig ?: settings()).normalized()
+        if (interactiveRecovery && onRecoveryRequired != null && recoveryReason != null) {
+            val failedProfile = profiles().firstOrNull { it.uid == failedUid } ?: target
+            val candidates = recoveryCandidates(latest, failedUid)
+            val decision = if (candidates.isEmpty()) {
+                DelegationRecoveryDecision.PrimaryOnly
+            } else {
+                onRecoveryRequired.invoke(failedProfile, candidates, recoveryReason.orEmpty())
+            }
+            when (decision) {
+                DelegationRecoveryDecision.PrimaryOnly -> {
+                    delegationCanceledByUser.set(true)
+                    AppLogRecorder.record(
+                        "Delegation",
+                        "Delegation failover canceled or timed out · failed=$failedUid · primary=${source.uid}",
+                        "W"
+                    )
+                    return null
+                }
+
+                is DelegationRecoveryDecision.SwitchProfile -> {
+                    val selected = candidates.firstOrNull { it.uid == decision.profileUid }
+                    if (selected == null) {
+                        delegationCanceledByUser.set(true)
+                        return null
+                    }
+                    userSelectedRecoveryProfile.set(selected)
+                    AppLogRecorder.record(
+                        "Delegation",
+                        "User selected delegation failover · failed=$failedUid · selected=${selected.uid}",
+                        "W"
+                    )
+                    return workerText(selected, prompt, tokens, requirePrivate, allowTools, pinnedConfig, interactiveRecovery)
+                }
+            }
+        }
         val fallback = failoverTarget
         if (fallback != null && fallback.uid != target.uid) {
             AppLogRecorder.record(
                 "Delegation",
-                "Worker failover · failed=${resolvedProfileUid ?: target.uid} · fallback=${fallback.uid} · type=${fallback.compatibleType}",
+                "Worker failover · failed=$failedUid · fallback=${fallback.uid} · type=${fallback.compatibleType}",
                 "W"
             )
-            return workerText(fallback, prompt, tokens, requirePrivate, allowTools, pinnedConfig)
+            return workerText(fallback, prompt, tokens, requirePrivate, allowTools, pinnedConfig, interactiveRecovery)
         }
         return null
     }
 
-    suspend fun prepare(task: String, tools: List<ResolvedAgentTool>, callId: String, automatic: Boolean = false): LocalResearchResult {
+    suspend fun prepare(
+        task: String,
+        tools: List<ResolvedAgentTool>,
+        callId: String,
+        automatic: Boolean = false,
+        targetOverride: PlatformV2? = null
+    ): LocalResearchResult {
         val config = settings().normalized()
         if (!config.researchEnabled || (automatic && !config.automaticResearch)) {
             AppLogRecorder.record("Delegation", "Research skipped · automatic=$automatic · enabled=${config.researchEnabled} · target=null")
             return LocalResearchResult("", 0, 0, 0, LocalResearchOutcome.NO_RESEARCH_NEEDED)
         }
-        val target = localTarget(config) ?: run {
+        val target = targetOverride ?: localTarget(config) ?: run {
             AppLogRecorder.record("Delegation", "Research skipped · automatic=$automatic · enabled=${config.researchEnabled} · target=null")
             return LocalResearchResult("", 0, 0, 0, LocalResearchOutcome.NO_USEFUL_OUTPUT)
         }
@@ -587,7 +711,7 @@ internal class LocalDelegationCoordinator(
                 researchConfig,
                 tools,
                 generate = { prompt, tokens ->
-                    workerText(target, prompt, tokens, pinnedConfig = researchConfig)
+                    workerText(target, prompt, tokens, pinnedConfig = researchConfig, interactiveRecovery = true)
                 },
                 // Authorization is pinned above; live settings only apply to the next research run.
                 stillEnabled = { true }
@@ -615,18 +739,23 @@ internal class LocalDelegationCoordinator(
         return workerText(target, task, maxTokens)
     }
 
-    suspend fun executeTask(target: PlatformV2, task: String, maxTokens: Int): String? =
-        workerText(target, task, maxTokens, requirePrivate = false, allowTools = true)
+    suspend fun executeTask(target: PlatformV2, task: String, maxTokens: Int): String? {
+        val turnTarget = userSelectedRecoveryProfile.get() ?: target
+        return workerText(turnTarget, task, maxTokens, requirePrivate = false, allowTools = true, interactiveRecovery = true)
+    }
 
     suspend fun delegate(target: PlatformV2, task: String, maxTokens: Int, tools: List<ResolvedAgentTool>, callId: String): String {
+        if (delegationCanceledByUser.get()) return primaryOnlyHandoff()
         val config = settings().normalized()
+        val turnTarget = userSelectedRecoveryProfile.get() ?: target
         val effectiveCallLimit = config.effectiveLocalModelCalls()
         if (localCalls.get() >= effectiveCallLimit) {
             AppLogRecorder.record("Delegation", "Delegation skipped · worker budget exhausted · call=$callId · calls=${localCalls.get()}/$effectiveCallLimit · configured=${config.maxLocalModelCalls} · ownership=${config.processingOwnership}", "W")
             return "The local delegation allowance for this turn is exhausted. Use evidence already available; do not retry this delegation in the same turn."
         }
         if (researchAvailable()) {
-            val result = prepare(task, tools, callId)
+            val result = prepare(task, tools, callId, targetOverride = turnTarget)
+            if (delegationCanceledByUser.get()) return primaryOnlyHandoff()
             if (result.outcome == LocalResearchOutcome.SUCCESS && result.handoff.isNotBlank()) return result.handoff
             AppLogRecorder.record(
                 "Delegation",
@@ -641,8 +770,10 @@ internal class LocalDelegationCoordinator(
         val hardCap = minOf(config.effectiveLocalInputTokens(), MAX_DELEGATION_INPUT_TOKENS)
         val estimated = estimatedDelegateTokens(task)
         if (estimated <= hardCap) {
-            return workerText(target, task, maxTokens, requirePrivate = false, allowTools = true)
-                ?: error("CANCELED_NO_RESULT: delegated model was unavailable, stalled, or its compute budget was reached. Retry only the missing subtask with a smaller payload.")
+            val result = workerText(turnTarget, task, maxTokens, requirePrivate = false, allowTools = true, interactiveRecovery = true)
+            if (result != null) return result
+            if (delegationCanceledByUser.get()) return primaryOnlyHandoff()
+            error("CANCELED_NO_RESULT: delegated model was unavailable, stalled, or its compute budget was reached. Retry only the missing subtask with a smaller payload.")
         }
 
         val chunkTokens = minOf(config.chunkSizeTokens, hardCap).coerceAtLeast(1000)
@@ -657,7 +788,7 @@ internal class LocalDelegationCoordinator(
         for ((index, chunk) in chunks.withIndex()) {
             if (failedLocalTokens.get() + canceledLocalTokens.get() >= config.effectiveWastedLocalTokens()) break
             val prompt = "Process chunk ${index + 1}/${chunks.size} for the delegated task. Extract only facts/details needed to answer it. Preserve identifiers, numbers and source markers.\n\n$chunk"
-            val summary = workerText(target, prompt, minOf(maxTokens, 512), requirePrivate = false)
+            val summary = workerText(turnTarget, prompt, minOf(maxTokens, 512), requirePrivate = false, interactiveRecovery = true)
             if (summary != null) {
                 summaries += "[Chunk ${index + 1}] $summary"
             } else {
@@ -667,23 +798,26 @@ internal class LocalDelegationCoordinator(
                 for ((retryIndex, retry) in retryPieces.withIndex()) {
                     if (failedLocalTokens.get() + canceledLocalTokens.get() >= config.effectiveWastedLocalTokens()) break
                     workerText(
-                        target,
+                        turnTarget,
                         "Process retry chunk ${index + 1}.${retryIndex + 1}. Extract only relevant facts and preserve exact details.\n\n$retry",
                         minOf(maxTokens, 256),
-                        requirePrivate = false
+                        requirePrivate = false,
+                        interactiveRecovery = true
                     )?.let { summaries += "[Chunk ${index + 1}.${retryIndex + 1}] $it" }
                 }
             }
         }
+        if (delegationCanceledByUser.get()) return primaryOnlyHandoff(summaries)
         if (summaries.isEmpty()) {
             error("CANCELED_NO_RESULT: oversized delegation produced no usable chunk results. Do not replay the original payload.")
         }
         if (summaries.size == 1) return summaries.single()
         val synthesis = workerText(
-            target,
+            turnTarget,
             "Synthesize the chunk summaries into one concise answer to the delegated task. Keep exact facts and note missing chunks. Do not invent details.\n\n" + summaries.joinToString("\n\n"),
             minOf(maxTokens, config.maxOutputTokens),
-            requirePrivate = false
+            requirePrivate = false,
+            interactiveRecovery = true
         )
         return synthesis ?: summaries.joinToString("\n\n")
     }

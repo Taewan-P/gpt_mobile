@@ -544,4 +544,60 @@ class LocalDelegationCoordinatorTest {
         assertNull(coordinator.executeTask(target, "task", 256))
         assertEquals(0, calls)
     }
+
+    @Test fun `interactive recovery switches to the user selected delegate`() = runTest {
+        val fallback = target.copy(uid = "fallback", name = "Fallback", apiUrl = "http://192.168.1.3:8080")
+        val dispatched = mutableListOf<String>()
+        var recoveryPrompts = 0
+        val coordinator = LocalDelegationCoordinator(
+            source,
+            { config.copy(researchEnabled = false, maxLocalModelCalls = 4, fallbackToAnotherProfile = false) },
+            { listOf(target, fallback) },
+            { profile, _, _ ->
+                dispatched += profile.uid
+                if (profile.uid == target.uid) error("HTTP 410 Gone: model retired")
+                "recovered"
+            },
+            onRecoveryRequired = { failed, candidates, reason ->
+                recoveryPrompts++
+                assertEquals(target.uid, failed.uid)
+                assertTrue(reason.contains("failed", ignoreCase = true))
+                assertEquals(listOf(fallback.uid), candidates.map { it.uid })
+                DelegationRecoveryDecision.SwitchProfile(fallback.uid)
+            }
+        )
+
+        assertEquals("recovered", coordinator.delegate(target, "task", 256, emptyList(), "interactive"))
+        assertEquals("recovered", coordinator.delegate(target, "follow-up", 256, emptyList(), "interactive-follow-up"))
+        assertEquals(listOf(target.uid, fallback.uid, fallback.uid), dispatched)
+        assertEquals(1, recoveryPrompts)
+    }
+
+    @Test fun `canceling interactive recovery disables delegation for the rest of the turn`() = runTest {
+        val fallback = target.copy(uid = "fallback", name = "Fallback", apiUrl = "http://192.168.1.3:8080")
+        var generations = 0
+        var recoveryPrompts = 0
+        val coordinator = LocalDelegationCoordinator(
+            source,
+            { config.copy(researchEnabled = false, maxLocalModelCalls = 4) },
+            { listOf(target, fallback) },
+            { _, _, _ ->
+                generations++
+                error("HTTP 410 Gone: model retired")
+            },
+            onRecoveryRequired = { _, _, _ ->
+                recoveryPrompts++
+                DelegationRecoveryDecision.PrimaryOnly
+            }
+        )
+
+        val first = coordinator.delegate(target, "task", 256, emptyList(), "cancel")
+        val second = coordinator.delegate(target, "another task", 256, emptyList(), "cancel-again")
+
+        assertTrue(first.contains("primary model only"))
+        assertTrue(second.contains("primary model only"))
+        assertEquals(1, generations)
+        assertEquals(1, recoveryPrompts)
+        assertFalse(coordinator.researchAvailable())
+    }
 }

@@ -8,6 +8,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.chungjungsoo.gptmobile.data.agent.tool.AgentToolResolver
+import dev.chungjungsoo.gptmobile.data.agent.tool.DelegationRecoveryInteractions
 import dev.chungjungsoo.gptmobile.data.context.ContextBuilder
 import dev.chungjungsoo.gptmobile.data.conversation.ConversationTitleSummarizer
 import dev.chungjungsoo.gptmobile.data.database.dao.AgentPersistenceDao
@@ -73,7 +74,8 @@ object ChatRepositoryModule {
         toolMetricsCollector: ToolMetricsCollector,
         knowledge: dev.chungjungsoo.gptmobile.data.knowledge.MemoryDocumentRepository,
         toolApprovals: dev.chungjungsoo.gptmobile.data.permissions.ToolApprovalManager,
-        invocationLedger: dev.chungjungsoo.gptmobile.data.accounting.InvocationLedger
+        invocationLedger: dev.chungjungsoo.gptmobile.data.accounting.InvocationLedger,
+        delegationRecovery: DelegationRecoveryInteractions
     ): ChatRepository = ChatRepositoryImpl(
         context = context,
         chatRoomV2Dao = chatRoomV2Dao,
@@ -99,6 +101,7 @@ object ChatRepositoryModule {
         toolMetricsCollector = toolMetricsCollector,
         knowledge = knowledge,
         toolApprovals = toolApprovals,
-        invocationLedger = invocationLedger
+        invocationLedger = invocationLedger,
+        delegationRecovery = delegationRecovery
     )
 }
