@@ -342,6 +342,7 @@ internal class LocalDelegationCoordinator(
         var observedForFailure = 0L
         var resolvedProfileUid: String? = null
         var failoverTarget: PlatformV2? = null
+        var recoveryReason: String? = null
         var dispatchedAtMs: Long? = null
         val result = worker.withPermit {
             val latest = (pinnedConfig ?: settings()).normalized()
@@ -355,25 +356,39 @@ internal class LocalDelegationCoordinator(
                         it.uid != source.uid &&
                         it.uid !in quarantinedWorkerUids &&
                         (latest.allowRemoteWorkers || it.isPrivateDestination())
-                } ?: localTarget(latest)
-                resolvedProfileUid = profile?.uid
+                }
+                if (profile == null) {
+                    resolvedProfileUid = target.uid
+                    recoveryReason = "The selected delegate is unavailable or no longer eligible."
+                    failoverTarget = recoveryCandidates(latest, target.uid).firstOrNull()
+                    AppLogRecorder.record(
+                        "Delegation",
+                        "Worker requires recovery · requested=${target.uid} · reason=TARGET_UNAVAILABLE · fallback=${failoverTarget?.uid}",
+                        "W"
+                    )
+                    return@withPermit null
+                }
+                resolvedProfileUid = profile.uid
                 val effectiveCallLimit = latest.effectiveLocalModelCalls()
                 val effectiveWasteLimit = latest.effectiveWastedLocalTokens()
                 AppLogRecorder.record("Delegation", "Worker gate · requested=${target.uid} · resolved=${profile?.uid} · profileFound=${profile != null} · private=${profile?.isPrivateDestination()} · calls=${localCalls.get()}/$effectiveCallLimit · configuredCalls=${latest.maxLocalModelCalls} · ownership=${latest.processingOwnership}")
-                if (!latest.enabled ||
-                    profile == null ||
-                    profile.excludesMemory() ||
+                if (!latest.enabled) return@withPermit null
+                if (profile.excludesMemory() ||
                     profile.uid == source.uid ||
                     (latest.localPlatformsOnly && !profile.isPrivateDestination() && !latest.allowRemoteWorkers) ||
                     (requirePrivate && !profile.isPrivateDestination() && !latest.allowRemoteWorkers) ||
                     (source.compatibleType == ClientType.LITERT_LM && profile.compatibleType == ClientType.LITERT_LM)
                 ) {
-                    AppLogRecorder.record("Delegation", "Worker rejected by gate · target=${target.uid}", "W")
+                    recoveryReason = "The selected delegate was rejected by the active delegation rules."
+                    failoverTarget = recoveryCandidates(latest, profile.uid).firstOrNull()
+                    AppLogRecorder.record("Delegation", "Worker rejected by gate · target=${target.uid} · fallback=${failoverTarget?.uid}", "W")
                     return@withPermit null
                 }
                 val budget = inputBudget(profile, tokens).coerceAtLeast(0)
                 if (budget < 600) {
-                    AppLogRecorder.record("Delegation", "Worker rejected · input budget too small · target=${profile.uid} · inputBudget=$budget", "W")
+                    recoveryReason = "The delegate does not have enough input capacity for this task."
+                    failoverTarget = recoveryCandidates(latest, profile.uid).firstOrNull()
+                    AppLogRecorder.record("Delegation", "Worker rejected · input budget too small · target=${profile.uid} · inputBudget=$budget · fallback=${failoverTarget?.uid}", "W")
                     return@withPermit null
                 }
                 if (failedLocalTokens.get() + canceledLocalTokens.get() >= effectiveWasteLimit) {
