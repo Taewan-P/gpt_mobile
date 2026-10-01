@@ -948,7 +948,9 @@ class ChatRepositoryImpl(
                         ?.takeIf { it in 0..100 }
                 },
                 onRecoveryRequired = delegationRecovery?.let { recovery ->
-                    { failed, candidates, reason -> recovery.request(runId, platform.uid, failed, candidates, reason) }
+                    { failed, candidates, reason ->
+                        recovery.request(userMessages.lastOrNull()?.chatId ?: -1, runId, platform.uid, failed, candidates, reason)
+                    }
                 }
             )
             val unavailableConnections = mutableListOf<String>()
