@@ -52,8 +52,8 @@ object GitHubRepositoryIndex {
                 val lower = path.lowercase()
                 val score =
                     (if (directory.isNotBlank() && path.startsWith("$directory/")) 4 else 0) +
-                    tokens.count(lower::contains) * 2 +
-                    (if ("/test" in lower || "/androidtest" in lower) 1 else 0)
+                        tokens.count(lower::contains) * 2 +
+                        (if ("/test" in lower || "/androidtest" in lower) 1 else 0)
                 score to item
             }
             .filter { it.first > 0 && it.second["path"]?.jsonPrimitive?.content != targetPath }
