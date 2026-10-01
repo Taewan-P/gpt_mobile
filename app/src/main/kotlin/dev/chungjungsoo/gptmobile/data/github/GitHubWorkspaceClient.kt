@@ -121,7 +121,7 @@ class GitHubWorkspaceClient(
             "related_files" -> relatedFiles(root, ref, required("path"))
             "get_pull_request_files" -> {
                 val number = required("pull_number").toInt().also { require(it > 0) }
-                pageResult(request("$root/pulls/$number/files?$pagination"), page, "filename", "status", "additions", "deletions", "changes", "sha", "previous_filename")
+                pageResult(request("$root/pulls/$number/files?$pagination"), page, "filename", "status", "additions", "deletions", "changes", "sha", "previous_filename", "patch")
             }
             "pr_context" -> prContext(root, required("pull_number").toInt().also { require(it > 0) })
             "get_commit_checks" -> compactChecks(request("$root/commits/${segment(required("ref"))}/check-runs?$pagination").jsonObject)
