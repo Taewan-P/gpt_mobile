@@ -188,6 +188,14 @@ class ProfileBenchmarkViewModel @Inject constructor(
         job = viewModelScope.launch {
             try {
                 chats.validateBenchmarkProfile(profile)
+                if (mode == BenchmarkMode.DELEGATION) {
+                    check(config.enabled && config.processingOwnership < 100) { "Enable delegation and give the helper a share of the work before testing." }
+                    check(config.researchEnabled && config.maxPages > 0) { "Enable delegate research and allow at least one page for the research test." }
+                    check(!profile.disableAllTools && !profile.disableLocalTools && !profile.excludesMemory()) { "Enable tools on the primary profile before testing delegation." }
+                    val worker = checkNotNull(helper) { "Choose a delegate before testing." }
+                    chats.validateBenchmarkProfile(worker)
+                    check(!worker.disableAllTools && chats.supportsBenchmarkTools(worker)) { "The delegate needs tool calling enabled and a model that supports tools." }
+                }
             } catch (error: Exception) {
                 mutableProgress.value = null
                 if (error is CancellationException) throw error

@@ -20,6 +20,23 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LocalDelegationCoordinatorTest {
+    @Test fun `benchmark runtime honors configured allowance while chat keeps workload limit`() = runTest {
+        for (benchmark in listOf(false, true)) {
+            val coordinator = LocalDelegationCoordinator(
+                source,
+                { config.copy(researchEnabled = false, timeoutSeconds = 75, maxDelegateRuntimeSeconds = 120) },
+                { listOf(target) },
+                { _, _, _ ->
+                    delay(50_000)
+                    "done"
+                },
+                useWorkloadRuntimeLimit = !benchmark
+            )
+            val result = runCatching { coordinator.delegate(target, "small task", 128, emptyList(), "runtime") }
+            if (benchmark) assertEquals("done", result.getOrNull()) else assertTrue(result.isFailure)
+        }
+    }
+
     private val source = PlatformV2(uid = "remote", name = "Remote", compatibleType = ClientType.OPENAI, apiUrl = "https://api.example.com")
     private val target = PlatformV2(uid = "local", name = "Local", compatibleType = ClientType.LLAMA, apiUrl = "http://192.168.1.2:8080")
     private val config = ModelDelegationSettings(enabled = true, processingOwnership = 50, targetProfileUid = "local", maxLocalModelCalls = 2)

@@ -43,7 +43,8 @@ internal class LocalDelegationCoordinator(
     private val generateWithProgress: (suspend (PlatformV2, String, Int, Int, (DelegateProgress) -> Unit) -> String)? = null,
     private val inputBudget: suspend (PlatformV2, Int) -> Int = { _, _ -> Int.MAX_VALUE },
     private val batteryPercent: suspend () -> Int? = { null },
-    private val generateTextWithProgress: (suspend (PlatformV2, String, Int, Int, (DelegateProgress) -> Unit) -> String)? = null
+    private val generateTextWithProgress: (suspend (PlatformV2, String, Int, Int, (DelegateProgress) -> Unit) -> String)? = null,
+    private val useWorkloadRuntimeLimit: Boolean = true
 ) {
     private companion object {
         // Absolute emergency ceiling in addition to the user-configurable token budget.
@@ -173,7 +174,7 @@ internal class LocalDelegationCoordinator(
             inputTokens <= 6_000 -> 90
             else -> 120
         }
-        return minOf(config.timeoutSeconds, config.maxDelegateRuntimeSeconds, workloadLimit).coerceAtLeast(5)
+        return minOf(config.timeoutSeconds, config.maxDelegateRuntimeSeconds, if (useWorkloadRuntimeLimit) workloadLimit else Int.MAX_VALUE).coerceAtLeast(5)
     }
 
     private suspend fun awaitWorkerSlot(limit: Int) {

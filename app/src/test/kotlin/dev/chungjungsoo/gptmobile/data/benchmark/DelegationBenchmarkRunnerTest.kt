@@ -18,6 +18,37 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DelegationBenchmarkRunnerTest {
+    @Test fun `parcel validation accepts formatting but rejects missing wrong and extra codes`() {
+        val code = "PKG-a1b2c3d4"
+        assertTrue(hasExpectedParcelCode("The code is **$code**.", code))
+        assertEquals(false, hasExpectedParcelCode("No result", code))
+        assertEquals(false, hasExpectedParcelCode("PKG-00000000", code))
+        assertEquals(false, hasExpectedParcelCode("$code or PKG-00000000", code))
+        assertEquals(false, hasExpectedParcelCode("${code}00", code))
+    }
+
+    @Test fun `tool benchmark requests are unique and accept formatted tool results`() = runTest {
+        val prompts = mutableListOf<String>()
+        repeat(2) {
+            val runner = DelegationBenchmarkRunner(
+                createCoordinator = { tools ->
+                    LocalDelegationCoordinator(source, { config }, { listOf(helper) }, { _, prompt, _ ->
+                        prompts += prompt
+                        val result = tools.single().execute("fixture", buildJsonObject { put("key", "parcel") })
+                        "Code: **${(result.content as ToolResultContent.Text).text}**"
+                    })
+                },
+                target = helper,
+                config = config,
+                openPrimary = { _, _ -> error("Tool test must not call primary") },
+                workerTokens = { 0L to 0L },
+                workerCalls = { 0 }
+            )
+            assertEquals(BenchmarkOutcome.PASSED, runner.run(delegationBenchmarkSuite()[1]).outcome)
+        }
+        assertEquals(2, prompts.distinct().size)
+    }
+
     private val source = PlatformV2(uid = "primary", name = "Primary", compatibleType = ClientType.OPENAI)
     private val helper = PlatformV2(uid = "helper", name = "Helper", compatibleType = ClientType.LLAMA, apiUrl = "http://192.168.1.2:8080")
     private val config = ModelDelegationSettings(enabled = true, targetProfileUid = "helper", maxPages = 1, crawlDepth = 0, maxLocalModelCalls = 10)

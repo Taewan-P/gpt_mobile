@@ -185,12 +185,24 @@ fun ProfileBenchmarkScreen(onBack: () -> Unit, onUsage: () -> Unit, viewModel: P
                                 if (!delegationSettings.enabled) Text("Enable delegation in Settings first.")
                             }
                         }
-                        val rankings = delegateRankings(profileHistory, benchmarkConfigKey(selected, localEnvironment), delegationSettings)
+                        val rankings = delegateRankings(profileHistory, benchmarkConfigKey(selected, localEnvironment))
                         item {
-                            BenchmarkPanel("Best delegates") {
-                                Text("Same primary and settings · latest five runs per helper configuration. Success 30%, tools 30%, evidence 10%, handoff 10%, latency 10%, generation 10%. Overall score cannot exceed task success.", style = MaterialTheme.typography.bodySmall)
+                            BenchmarkPanel("Delegation scoreboard · best score") {
+                                Text("Same primary · latest five runs per helper and tested settings. Settings are scored separately. Success 30%, tools 30%, evidence 10%, handoff 10%, latency 10%, generation 10%. Overall score cannot exceed task success.", style = MaterialTheme.typography.bodySmall)
                                 Text("Generation speed estimates text tokens from characters over the observed first-to-last text interval. One text chunk has no measured decode speed. Fixtures validate tool wiring, not live MCP availability.", style = MaterialTheme.typography.bodySmall)
-                                if (rankings.isEmpty()) Text("Benchmark delegates to build the ranking.")
+                                if (rankings.isEmpty()) Text("Benchmark delegates to build the scoreboard.")
+                                rankings.take(10).forEachIndexed { index, row ->
+                                    val worker = row.run.samples.mapNotNull { it.delegation }.first()
+                                    HorizontalDivider()
+                                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        Text("#${index + 1}", fontWeight = FontWeight.Bold)
+                                        Column(Modifier.weight(1f)) {
+                                            Text(worker.workerName, fontWeight = FontWeight.SemiBold)
+                                            Text("${row.rating.passed}/${row.rating.attempts} passed · ${row.runs} runs", style = MaterialTheme.typography.labelSmall)
+                                        }
+                                        Text(row.rating.score?.let { "$it / 100" } ?: "Unrated", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                    }
+                                }
                             }
                         }
                         items(rankings) { row ->

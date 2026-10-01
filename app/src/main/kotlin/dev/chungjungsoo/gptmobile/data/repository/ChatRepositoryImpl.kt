@@ -391,7 +391,10 @@ class ChatRepositoryImpl(
                     inputBudget = ::delegationInputBudget,
                     batteryPercent = {
                         context.getSystemService(BatteryManager::class.java)?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)?.takeIf { it in 0..100 }
-                    }
+                    },
+                    // Cold benchmark requests need the configured runtime allowance;
+                    // chat's small-prompt 45-second cap can discard valid warmup runs.
+                    useWorkloadRuntimeLimit = false
                 )
             },
             target = target,
