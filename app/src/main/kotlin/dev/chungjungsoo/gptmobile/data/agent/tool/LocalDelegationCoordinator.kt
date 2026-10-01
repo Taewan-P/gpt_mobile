@@ -632,11 +632,12 @@ internal class LocalDelegationCoordinator(
         if (interactiveRecovery && onRecoveryRequired != null && recoveryReason != null) {
             val failedProfile = profiles().firstOrNull { it.uid == failedUid } ?: target
             val candidates = recoveryCandidates(latest, failedUid)
-            when (val decision = if (candidates.isEmpty()) {
+            val decision = if (candidates.isEmpty()) {
                 DelegationRecoveryDecision.PrimaryOnly
             } else {
                 onRecoveryRequired.invoke(failedProfile, candidates, recoveryReason.orEmpty())
-            }) {
+            }
+            when (decision) {
                 DelegationRecoveryDecision.PrimaryOnly -> {
                     delegationCanceledByUser.set(true)
                     AppLogRecorder.record(
