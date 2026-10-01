@@ -100,7 +100,7 @@ class GatewayV12Tests(unittest.TestCase):
         end = source.index('\ndef _release_llama_model_gate(', start)
         gate = source[start:end]
         self.assertIn('interactive_waiters', gate)
-        self.assertIn('if is_long:', gate)
+        self.assertIn('if is_long or is_background:', gate)
         self.assertIn('time.sleep(LLAMA_MODEL_GATE_POLL_SECONDS)', gate)
 
 
