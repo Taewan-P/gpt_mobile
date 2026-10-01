@@ -340,9 +340,12 @@ class GitHubWorkspaceClient(
         val pr = request("$root/pulls/$number").jsonObject
         val files = request("$root/pulls/$number/files?per_page=100").jsonArray
         val headSha = pr["head"]?.jsonObject?.get("sha")?.jsonPrimitive?.content.orEmpty()
-        val checks = if (headSha.isNotBlank()) {
-            runCatching { compactChecks(request("$root/commits/${segment(headSha)}/check-runs?per_page=100").jsonObject) }.getOrNull()
-        } else null
+        val checks =
+            if (headSha.isNotBlank()) {
+                runCatching { compactChecks(request("$root/commits/${segment(headSha)}/check-runs?per_page=100").jsonObject) }.getOrNull()
+            } else {
+                null
+            }
         return buildJsonObject {
             put(
                 "pull_request",
@@ -453,24 +456,29 @@ class GitHubWorkspaceClient(
         val entries = existingTree["tree"]?.jsonArray.orEmpty().associate { it.jsonObject["path"]?.jsonPrimitive?.content to it.jsonObject }
         val tree = buildJsonObject {
             put("base_tree", baseTree)
-            put("tree", buildJsonArray {
-                paths.forEachIndexed { index, file ->
-                    val existing = entries[file]
-                    val mode = existing?.get("mode")?.jsonPrimitive?.content ?: "100644"
-                    require(mode in setOf("100644", "100755")) { "Cannot replace a directory, symlink or submodule: $file" }
-                    require(
-                        file.split('/').dropLast(1).indices.all { depth ->
-                            entries[file.split('/').take(depth + 1).joinToString("/")]?.get("type")?.jsonPrimitive?.content.let { it == null || it == "tree" }
-                        }
-                    ) { "A parent path is not a directory: $file" }
-                    add(buildJsonObject {
-                        put("path", file)
-                        put("mode", mode)
-                        put("type", "blob")
-                        put("content", contents[index])
-                    })
+            put(
+                "tree",
+                buildJsonArray {
+                    paths.forEachIndexed { index, file ->
+                        val existing = entries[file]
+                        val mode = existing?.get("mode")?.jsonPrimitive?.content ?: "100644"
+                        require(mode in setOf("100644", "100755")) { "Cannot replace a directory, symlink or submodule: $file" }
+                        require(
+                            file.split('/').dropLast(1).indices.all { depth ->
+                                entries[file.split('/').take(depth + 1).joinToString("/")]?.get("type")?.jsonPrimitive?.content.let { it == null || it == "tree" }
+                            }
+                        ) { "A parent path is not a directory: $file" }
+                        add(
+                            buildJsonObject {
+                                put("path", file)
+                                put("mode", mode)
+                                put("type", "blob")
+                                put("content", contents[index])
+                            }
+                        )
+                    }
                 }
-            })
+            )
         }
         val treeSha = request("$root/git/trees", HttpMethod.Post, tree).jsonObject["sha"] ?: error("Missing new tree SHA.")
         val commit = request(
