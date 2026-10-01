@@ -205,10 +205,10 @@ fun ProfileBenchmarkScreen(onBack: () -> Unit, onUsage: () -> Unit, viewModel: P
                                 if (!delegationSettings.enabled) Text("Enable delegation in Settings first.")
                             }
                         }
-                        val rankings = delegateRankings(profileHistory, benchmarkConfigKey(selected, localEnvironment))
+                        val rankings = delegateRankings(profileHistory, benchmarkConfigKey(selected, localEnvironment), delegationSettings)
                         item {
                             BenchmarkPanel("Delegation scoreboard · best score") {
-                                Text("Same primary · latest five runs per helper and tested settings. Delegation score: reliability 20%, tool usability 25%, token throughput 20%, first-response latency 15%, end-to-end latency 10%, evidence accuracy 5%, research/handoff 5%. Overall score is capped by task reliability.", style = MaterialTheme.typography.bodySmall)
+                                Text("Same primary and current delegation settings · latest five runs per helper. Delegation score: reliability 20%, tool usability 25%, token throughput 20%, first-response latency 15%, end-to-end latency 10%, evidence accuracy 5%, research/handoff 5%. Overall score is capped by task reliability.", style = MaterialTheme.typography.bodySmall)
                                 Text("Throughput prefers provider-reported output tokens; character estimates are used only when token usage is unavailable. Diagnostic events are saved with each run to expose stalls, failures, tool activity, cap violations, and handoff behavior.", style = MaterialTheme.typography.bodySmall)
                                 if (rankings.isEmpty()) Text("Benchmark delegates to build the scoreboard.")
                                 rankings.take(10).forEachIndexed { index, row ->
