@@ -298,6 +298,7 @@ class ProfileBenchmarkViewModel @Inject constructor(
         val profile = selected.value ?: return
         val helpers = selectedDelegates.value
         if (job?.isActive == true || !mutableReady.value) return
+        if (profile.compatibleType == ClientType.LITERT_LM && localEnvironment.value.isBlank()) return
         if (activeRequests.value) {
             mutableError.value = "Wait for active model requests to finish before benchmarking."
             return
