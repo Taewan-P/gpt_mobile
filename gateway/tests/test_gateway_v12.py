@@ -68,6 +68,13 @@ class GatewayV12Tests(unittest.TestCase):
         self.assertIn('client_tools = [] if strict_no_tool_request else early_client_tools', source)
         self.assertIn('"explicit tool_choice=none"', source)
 
+    def test_delegated_worker_skips_gateway_memory_and_local_mcp(self):
+        source = SOURCE.read_text()
+        self.assertIn('headers.get("x-gateway-delegated-worker")', source)
+        self.assertIn('or bool(runtime_perf.get("delegated_worker", False))', source)
+        self.assertIn('delegated_worker_request = bool(', source)
+        self.assertIn('"delegated worker"', source)
+
 
 if __name__ == '__main__':
     unittest.main()
