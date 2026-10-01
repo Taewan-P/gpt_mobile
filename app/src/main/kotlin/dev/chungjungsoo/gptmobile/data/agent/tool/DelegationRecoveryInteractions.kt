@@ -50,6 +50,7 @@ class DelegationRecoveryInteractions @Inject constructor(
 
     internal suspend fun request(
         runId: String,
+        primaryProfileUid: String,
         failedProfile: PlatformV2,
         candidates: List<PlatformV2>,
         reason: String
@@ -60,7 +61,7 @@ class DelegationRecoveryInteractions @Inject constructor(
         if (distinctCandidates.isEmpty()) return DelegationRecoveryDecision.PrimaryOnly
 
         runCatching { benchmarkStore.load() }
-        val scores = delegationScoresByWorker(benchmarkStore.history.value)
+        val scores = delegationScoresByWorker(benchmarkStore.history.value, primaryProfileUid)
         val options = distinctCandidates.map { profile ->
             DelegationRecoveryOption(
                 profileUid = profile.uid,
@@ -108,10 +109,12 @@ class DelegationRecoveryInteractions @Inject constructor(
     }
 
     private fun delegationScoresByWorker(
-        history: List<dev.chungjungsoo.gptmobile.data.benchmark.BenchmarkRun>
+        history: List<dev.chungjungsoo.gptmobile.data.benchmark.BenchmarkRun>,
+        primaryProfileUid: String
     ): Map<String, Int?> = history
         .filter {
             it.mode == BenchmarkMode.DELEGATION &&
+                it.profileUid == primaryProfileUid &&
                 it.suiteVersion == 2 &&
                 it.finished &&
                 !it.canceled
