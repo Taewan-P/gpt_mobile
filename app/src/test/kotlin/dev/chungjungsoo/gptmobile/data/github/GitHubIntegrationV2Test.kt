@@ -214,4 +214,65 @@ class GitHubIntegrationV2Test {
             http.close()
         }
     }
+    @Test
+    fun pull_request_file_projection_keeps_patch_for_workspace() = runTest {
+        val http = HttpClient(
+            MockEngine {
+                respond(
+                    """
+                    [
+                      {
+                        "filename": "src/App.kt",
+                        "status": "modified",
+                        "additions": 3,
+                        "deletions": 1,
+                        "changes": 4,
+                        "sha": "abc",
+                        "patch": "@@ -1 +1 @@"
+                      }
+                    ]
+                    """.trimIndent()
+                )
+            }
+        )
+        try {
+            val result = GitHubWorkspaceClient("token", http).execute(
+                "get_pull_request_files",
+                buildJsonObject {
+                    put("owner", "owner")
+                    put("repo", "repo")
+                    put("pull_number", 7)
+                }
+            ).jsonObject
+            val file = result["items"]!!.jsonArray.single().jsonObject
+            assertEquals("@@ -1 +1 @@", file["patch"]!!.jsonPrimitive.content)
+        } finally {
+            http.close()
+        }
+    }
+
+    @Test
+    fun rate_limit_status_does_not_reuse_cached_body() = runTest {
+        var requests = 0
+        val http = HttpClient(
+            MockEngine {
+                requests++
+                respond(
+                    """{"resources":{"core":{"limit":5000,"remaining":${5000 - requests}}}}""",
+                    HttpStatusCode.OK,
+                    headersOf(HttpHeaders.ETag, "\"quota\"")
+                )
+            }
+        )
+        try {
+            val client = GitHubWorkspaceClient("token", http)
+            val first = client.execute("rate_limit_status", buildJsonObject {}).jsonObject
+            val second = client.execute("rate_limit_status", buildJsonObject {}).jsonObject
+            assertEquals(2, requests)
+            assertFalse(first == second)
+        } finally {
+            http.close()
+        }
+    }
+
 }
