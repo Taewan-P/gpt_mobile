@@ -42,6 +42,13 @@ internal class DelegationBenchmarkRunner(
 ) {
     suspend fun run(test: BenchmarkCase): BenchmarkSample {
         val started = now()
+        val diagnosticEvents = mutableListOf<DelegationBenchmarkEvent>()
+        fun event(type: String, message: String, level: String = "INFO") {
+            val item = DelegationBenchmarkEvent((now() - started).coerceAtLeast(0), type, level, DiagnosticRedactor.redact(message).take(400))
+            diagnosticEvents += item
+            dev.chungjungsoo.gptmobile.data.diagnostics.AppLogRecorder.record("DelegationBenchmark", "$type · ${item.message}", if (level == "ERROR") "E" else if (level == "WARN") "W" else "I")
+        }
+        event("CASE_START", "case=${test.id} worker=${target.uid} model=${target.model}")
         val code = "PKG-${UUID.randomUUID().toString().take(8)}"
         val requestId = UUID.randomUUID().toString()
         var answer = ""
@@ -73,6 +80,7 @@ internal class DelegationBenchmarkRunner(
                 fixtureCalls++
                 val valid = arguments == buildJsonObject { put("key", JsonPrimitive("parcel")) }
                 if (valid) successfulCalls++
+                event("FIXTURE_TOOL", "tool=benchmark_lookup valid=$valid call=$fixtureCalls", if (valid) "INFO" else "WARN")
                 return AgentToolResult(callId, ToolResultContent.Text(if (valid) code else "Expected key=parcel"), !valid)
             }
         }
@@ -90,7 +98,9 @@ internal class DelegationBenchmarkRunner(
                     after.first - before.first, after.second - before.second, primaryInput, primaryOutput,
                     searches, pages, rawBytes, handoffChars, fixtureCalls, successfulCalls, primaryEstimated,
                     target.model, workerConfigKey, timing.estimated, timing.durationMs,
-                    timing.firstTextMs, timing.decodeTokensPerSecond, timing.outputCapViolations
+                    timing.firstTextMs, timing.decodeTokensPerSecond, timing.outputCapViolations,
+                    timing.speedUsesReportedTokens,
+                    (diagnosticEvents + timing.events).sortedBy { it.elapsedMs }.takeLast(80)
                 )
             )
         }
@@ -130,6 +140,7 @@ internal class DelegationBenchmarkRunner(
                         pages = result.pagesRead
                         rawBytes = result.rawBytes
                         handoffChars = result.handoff.length
+                        event("RESEARCH_RESULT", "outcome=${result.outcome} searches=$searches pages=$pages rawBytes=$rawBytes handoffChars=$handoffChars")
                         check(result.outcome == LocalResearchOutcome.SUCCESS && pages > 0 && code in result.handoff) { "Research did not read and preserve the fixture evidence. Check helper settings and output limits." }
                         val primary = BenchmarkRunner(openPrimary, now).run(
                             BenchmarkCase("handoff", "Primary handoff", "speed", "Using only this reference evidence, report the parcel code and its source URL in one sentence.\n${result.handoff}"),
@@ -139,18 +150,27 @@ internal class DelegationBenchmarkRunner(
                         primaryOutput = primary.outputTokens.toLong()
                         primaryEstimated = primary.estimatedTokens
                         answer = primary.preview
+                        event("PRIMARY_HANDOFF", "completed=${primary.completed} inputTokens=$primaryInput outputTokens=$primaryOutput estimated=$primaryEstimated")
                         check(primary.completed && code in answer && "https://example.org/parcel" in answer) { primary.error ?: "The primary answer lost the code or source URL during handoff." }
                     }
                     else -> error("Unknown delegation benchmark case")
                 }
                 true
             }
-            return if (finished == true) sample(BenchmarkOutcome.PASSED) else sample(BenchmarkOutcome.TIMED_OUT, "Delegation benchmark exceeded its 180-second case limit.")
+            return if (finished == true) {
+                event("CASE_COMPLETE", "case=${test.id} outcome=PASSED durationMs=${(now() - started).coerceAtLeast(0)}")
+                sample(BenchmarkOutcome.PASSED)
+            } else {
+                event("CASE_TIMEOUT", "case=${test.id} limitMs=180000", "ERROR")
+                sample(BenchmarkOutcome.TIMED_OUT, "Delegation benchmark exceeded its 180-second case limit.")
+            }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: IllegalStateException) {
+            event("CASE_FAILED", "${failure.javaClass.simpleName}: ${failure.message.orEmpty()}", "WARN")
             return sample(BenchmarkOutcome.FAILED, DiagnosticRedactor.redact(failure.message ?: "Fixture validation failed").take(500))
         } catch (failure: Exception) {
+            event("CASE_ERROR", "${failure.javaClass.simpleName}: ${failure.message.orEmpty()}", "ERROR")
             return sample(BenchmarkOutcome.ERROR, DiagnosticRedactor.redact(failure.message ?: "Delegation benchmark failed").take(500))
         }
     }
