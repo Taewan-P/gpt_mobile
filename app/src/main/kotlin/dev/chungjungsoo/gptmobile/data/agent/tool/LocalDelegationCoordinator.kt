@@ -334,10 +334,18 @@ internal class LocalDelegationCoordinator(
                     logComputeTotals()
                     return@withPermit null
                 }
+                val priorSoftFailures = emptyResponsesByWorker[profile.uid]?.get() ?: 0
                 val requestedOutputCap = minOf(tokens, latest.maxOutputTokens).let { requested ->
-                    // Large prompts paired with tiny output caps are especially prone to
-                    // reasoning-only completions. Keep enough room for a short final answer.
-                    if (estimatedInput >= 3_000) maxOf(requested, minOf(768, latest.maxOutputTokens)) else requested
+                    // Large effective requests (including provider/system overhead) paired with
+                    // tiny output caps are especially prone to reasoning-only completions.
+                    // After one empty/reasoning-only result, also enlarge the next attempt so the
+                    // worker has room to emit a short final answer instead of burning the cap on
+                    // hidden reasoning again.
+                    if (estimatedEffectiveInput >= 3_000 || priorSoftFailures > 0) {
+                        maxOf(requested, minOf(768, latest.maxOutputTokens))
+                    } else {
+                        requested
+                    }
                 }
                 val runtimeSeconds = adaptiveRuntimeSeconds(estimatedInput, latest)
                 // llama.cpp/gateway workers can spend a substantial period evaluating the
@@ -443,6 +451,10 @@ internal class LocalDelegationCoordinator(
                     Regex("model\\s+.+?\\s+not found", RegexOption.IGNORE_CASE).containsMatchIn(message) ||
                     message.contains("model unavailable", ignoreCase = true) ||
                     message.contains("model is unavailable", ignoreCase = true) ||
+                    message.contains("not downloaded", ignoreCase = true) ||
+                    message.contains("download it from Settings", ignoreCase = true) ||
+                    message.contains("no installed local model", ignoreCase = true) ||
+                    message.contains("local model file is missing", ignoreCase = true) ||
                     message.contains("no longer available", ignoreCase = true) ||
                     message.contains("retired", ignoreCase = true) ||
                     message.contains("deprecated", ignoreCase = true) ||
