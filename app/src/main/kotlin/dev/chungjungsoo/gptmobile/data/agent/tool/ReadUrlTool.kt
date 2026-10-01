@@ -334,7 +334,13 @@ private data class ReadUrlRequest(
     val response: HttpResponse
 )
 
-private fun androidHtmlToText(html: String): String = Html.fromHtml(html, Html.FROM_HTML_MODE_LEGACY).toString()
+private fun androidHtmlToText(html: String): String {
+    val removable = Regex(
+        """<(script|style|noscript|template|svg)\b[^>]*>.*?</\1\s*>""",
+        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+    )
+    return Html.fromHtml(html.replace(removable, " "), Html.FROM_HTML_MODE_LEGACY).toString()
+}
 
 private fun isTextContent(contentType: String): Boolean {
     val type = contentType.substringBefore(";").trim().lowercase(Locale.US)
