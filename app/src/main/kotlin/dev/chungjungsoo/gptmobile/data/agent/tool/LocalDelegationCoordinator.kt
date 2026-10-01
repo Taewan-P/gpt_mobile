@@ -76,6 +76,9 @@ internal class LocalDelegationCoordinator(
     private val delegationCanceledByUser = AtomicBoolean(false)
     private val worker = Semaphore(4)
 
+    private fun automaticFallbackAllowed(config: ModelDelegationSettings): Boolean =
+        config.targetProfileUid.isBlank() || config.fallbackToAnotherProfile
+
     private fun primaryOnlyHandoff(partialNotes: List<String> = emptyList()): String = buildString {
         append("Delegation was canceled. Continue this turn with the primary model only and do not call delegate_to_model again.")
         if (partialNotes.isNotEmpty()) {
@@ -338,7 +341,7 @@ internal class LocalDelegationCoordinator(
         pinnedConfig: ModelDelegationSettings? = null
     ): String? {
         val config = (pinnedConfig ?: settings()).normalized()
-        if (!config.enabled) return null
+        if (!config.enabled || delegationCanceledByUser.get()) return null
         var observedForFailure = 0L
         var resolvedProfileUid: String? = null
         var failoverTarget: PlatformV2? = null
@@ -360,7 +363,9 @@ internal class LocalDelegationCoordinator(
                 if (profile == null) {
                     resolvedProfileUid = target.uid
                     recoveryReason = "The selected delegate is unavailable or no longer eligible."
-                    failoverTarget = recoveryCandidates(latest, target.uid).firstOrNull()
+                    if (onRecoveryRequired != null || automaticFallbackAllowed(latest)) {
+                        failoverTarget = recoveryCandidates(latest, target.uid).firstOrNull()
+                    }
                     AppLogRecorder.record(
                         "Delegation",
                         "Worker requires recovery · requested=${target.uid} · reason=TARGET_UNAVAILABLE · fallback=${failoverTarget?.uid}",
@@ -380,14 +385,18 @@ internal class LocalDelegationCoordinator(
                     (source.compatibleType == ClientType.LITERT_LM && profile.compatibleType == ClientType.LITERT_LM)
                 ) {
                     recoveryReason = "The selected delegate was rejected by the active delegation rules."
-                    failoverTarget = recoveryCandidates(latest, profile.uid).firstOrNull()
+                    if (onRecoveryRequired != null) {
+                        failoverTarget = recoveryCandidates(latest, profile.uid).firstOrNull()
+                    }
                     AppLogRecorder.record("Delegation", "Worker rejected by gate · target=${target.uid} · fallback=${failoverTarget?.uid}", "W")
                     return@withPermit null
                 }
                 val budget = inputBudget(profile, tokens).coerceAtLeast(0)
                 if (budget < 600) {
                     recoveryReason = "The delegate does not have enough input capacity for this task."
-                    failoverTarget = recoveryCandidates(latest, profile.uid).firstOrNull()
+                    if (onRecoveryRequired != null) {
+                        failoverTarget = recoveryCandidates(latest, profile.uid).firstOrNull()
+                    }
                     AppLogRecorder.record("Delegation", "Worker rejected · input budget too small · target=${profile.uid} · inputBudget=$budget · fallback=${failoverTarget?.uid}", "W")
                     return@withPermit null
                 }
@@ -412,7 +421,9 @@ internal class LocalDelegationCoordinator(
                     quarantinedWorkerUids += profile.uid
                     AppLogRecorder.record("Delegation", "Worker quarantined · target=${profile.uid} · reason=INPUT_OVERHEAD_EXHAUSTED", "W")
                     recoveryReason = "The delegate's provider overhead exhausted its available input budget."
-                    failoverTarget = recoveryCandidates(latest, profile.uid).firstOrNull()
+                    if (onRecoveryRequired != null || automaticFallbackAllowed(latest)) {
+                        failoverTarget = recoveryCandidates(latest, profile.uid).firstOrNull()
+                    }
                     return@withPermit null
                 }
                 // Reserve observed provider/system/tool overhead before sizing the user/task prompt.
@@ -495,7 +506,7 @@ internal class LocalDelegationCoordinator(
                         quarantinedWorkerUids += profile.uid
                     }
                     recoveryReason = "The delegate stopped or timed out before returning a usable result."
-                    if (onRecoveryRequired != null || quarantined) {
+                    if (onRecoveryRequired != null || (quarantined && automaticFallbackAllowed(latest))) {
                         failoverTarget = recoveryCandidates(latest, profile.uid).firstOrNull()
                     }
                     AppLogRecorder.record("Delegation", "CANCELED_NO_RESULT · target=${profile.uid} · call=$callNumber/$effectiveCallLimit · elapsedMs=$elapsedMs · estimatedInputTokens=$estimatedInput · observedInputTokens=$observedInputTokens · requestedOutputCap=$requestedOutputCap", "E")
@@ -518,7 +529,7 @@ internal class LocalDelegationCoordinator(
                         quarantinedWorkerUids += profile.uid
                     }
                     recoveryReason = "The delegate completed without returning usable content."
-                    if (onRecoveryRequired != null || quarantined) {
+                    if (onRecoveryRequired != null || (quarantined && automaticFallbackAllowed(latest))) {
                         failoverTarget = recoveryCandidates(latest, profile.uid).firstOrNull()
                     }
                     AppLogRecorder.record(
@@ -595,7 +606,7 @@ internal class LocalDelegationCoordinator(
                 recoveryReason = message.takeIf { it.isNotBlank() }
                     ?.let { "The delegate failed: ${it.take(240)}" }
                     ?: "The delegate failed before completing the task."
-                if (onRecoveryRequired != null || shouldQuarantine) {
+                if (onRecoveryRequired != null || (shouldQuarantine && automaticFallbackAllowed(latest))) {
                     failoverTarget = recoveryCandidates(latest, failedUid).firstOrNull()
                 }
                 AppLogRecorder.record(
