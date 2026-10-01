@@ -568,7 +568,8 @@ class LocalDelegationCoordinatorTest {
         )
 
         assertEquals("recovered", coordinator.delegate(target, "task", 256, emptyList(), "interactive"))
-        assertEquals(listOf(target.uid, fallback.uid), dispatched)
+        assertEquals("recovered", coordinator.delegate(target, "follow-up", 256, emptyList(), "interactive-follow-up"))
+        assertEquals(listOf(target.uid, fallback.uid, fallback.uid), dispatched)
         assertEquals(1, recoveryPrompts)
     }
 
