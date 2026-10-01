@@ -2541,6 +2541,10 @@ def resolve_mobile_performance(headers):
         "cache_prompt": _header_bool(headers.get("x-gateway-cache-prompt"), LLAMA_CACHE_PROMPT),
         "cache_reuse": _header_int(headers.get("x-gateway-cache-reuse"), preset["cache_reuse"], 0, 8192),
         "reasoning": reasoning,
+        "delegated_worker": _header_bool(
+            headers.get("x-gateway-delegated-worker"),
+            False,
+        ),
         "tool_optimization": _header_bool(headers.get("x-gateway-tool-optimization"), True),
         "tool_limit": _header_int(headers.get("x-gateway-tool-surface-limit"), preset["tool_limit"], 0, 128),
         "stable_tool_surface": _header_bool(
@@ -14315,6 +14319,7 @@ def process_chat_payload(
     skip_memory_context = (
         use_live_client_context
         or request_domain == "trivial"
+        or bool(runtime_perf.get("delegated_worker", False))
     )
 
     if skip_memory_context:
@@ -14364,12 +14369,16 @@ def process_chat_payload(
             or parse_tool_routing_override(latest_user_text)
         ) != "local"
     )
+    delegated_worker_request = bool(
+        runtime_perf.get("delegated_worker", False)
+    )
     strict_no_tool_request = (
         str(runtime_perf.get("client_tool_choice") or "").strip().lower()
         == "none"
     )
     no_tool_fast_path = (
-        strict_no_tool_request
+        delegated_worker_request
+        or strict_no_tool_request
         or (
             request_domain in V11_NO_TOOL_DOMAINS
             and not client_continuation
@@ -14403,9 +14412,13 @@ def process_chat_payload(
         else:
             _v11_metric("no_tool_fast_paths")
             reason = (
-                "explicit tool_choice=none"
-                if strict_no_tool_request
-                else f"no-tool {request_domain}"
+                "delegated worker"
+                if delegated_worker_request
+                else (
+                    "explicit tool_choice=none"
+                    if strict_no_tool_request
+                    else f"no-tool {request_domain}"
+                )
             )
         _v11_metric("local_discovery_skipped")
         logger.info(
