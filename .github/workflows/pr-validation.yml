@@ -21,6 +21,11 @@ jobs:
       - name: Check Android regex compatibility
         run: python3 scripts/check_android_regex.py
 
+      - name: Validate gateway Python and contract tests
+        run: |
+          python3 -m py_compile gateway/gateway_v12.py
+          python3 gateway/tests/test_gateway_v12.py
+
       - name: Setup JDK 21
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
