@@ -137,13 +137,13 @@ internal fun delegationHandoff(summary: String, sources: List<DelegationSource>,
     findings = Regex("\\bS\\d+\\b").replace(findings) { if (it.value in knownIds) it.value else "source omitted" }
     var findingsTruncated = false
     fun render() = buildJsonObject {
-        val renderedLimitations = (
-            notes + if (findingsTruncated) {
+        val truncationLimitations =
+            if (findingsTruncated) {
                 listOf("Handoff findings were truncated to fit the configured evidence budget.")
             } else {
                 emptyList()
             }
-        ).distinct()
+        val renderedLimitations = (notes + truncationLimitations).distinct()
         put("kind", "local_evidence")
         put("partial", renderedLimitations.isNotEmpty())
         put("findings", findings)
