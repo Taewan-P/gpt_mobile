@@ -46,7 +46,12 @@ internal class DelegationBenchmarkRunner(
         fun event(type: String, message: String, level: String = "INFO") {
             val item = DelegationBenchmarkEvent((now() - started).coerceAtLeast(0), type, level, DiagnosticRedactor.redact(message).take(400))
             diagnosticEvents += item
-            dev.chungjungsoo.gptmobile.data.diagnostics.AppLogRecorder.record("DelegationBenchmark", "$type · ${item.message}", if (level == "ERROR") "E" else if (level == "WARN") "W" else "I")
+            val logLevel = when (level) {
+                "ERROR" -> "E"
+                "WARN" -> "W"
+                else -> "I"
+            }
+            dev.chungjungsoo.gptmobile.data.diagnostics.AppLogRecorder.record("DelegationBenchmark", "$type · ${item.message}", logLevel)
         }
         event("CASE_START", "case=${test.id} worker=${target.uid} model=${target.model}")
         val code = "PKG-${UUID.randomUUID().toString().take(8)}"
