@@ -93,7 +93,7 @@ internal class LocalDelegationCoordinator(
         if (delegationCanceledByUser.get()) return false
         return try {
             val config = settings().normalized()
-            val target = localTarget(config) ?: run {
+            val target = targetOverride ?: localTarget(config) ?: run {
                 AppLogRecorder.record("Delegation", "Research unavailable · no eligible target · source=${source.uid}", "W")
                 return false
             }
@@ -675,7 +675,13 @@ internal class LocalDelegationCoordinator(
         return null
     }
 
-    suspend fun prepare(task: String, tools: List<ResolvedAgentTool>, callId: String, automatic: Boolean = false): LocalResearchResult {
+    suspend fun prepare(
+        task: String,
+        tools: List<ResolvedAgentTool>,
+        callId: String,
+        automatic: Boolean = false,
+        targetOverride: PlatformV2? = null
+    ): LocalResearchResult {
         val config = settings().normalized()
         if (!config.researchEnabled || (automatic && !config.automaticResearch)) {
             AppLogRecorder.record("Delegation", "Research skipped · automatic=$automatic · enabled=${config.researchEnabled} · target=null")
@@ -732,19 +738,22 @@ internal class LocalDelegationCoordinator(
         return workerText(target, task, maxTokens)
     }
 
-    suspend fun executeTask(target: PlatformV2, task: String, maxTokens: Int): String? =
-        workerText(target, task, maxTokens, requirePrivate = false, allowTools = true, interactiveRecovery = true)
+    suspend fun executeTask(target: PlatformV2, task: String, maxTokens: Int): String? {
+        val turnTarget = userSelectedRecoveryProfile.get() ?: target
+        return workerText(turnTarget, task, maxTokens, requirePrivate = false, allowTools = true, interactiveRecovery = true)
+    }
 
     suspend fun delegate(target: PlatformV2, task: String, maxTokens: Int, tools: List<ResolvedAgentTool>, callId: String): String {
         if (delegationCanceledByUser.get()) return primaryOnlyHandoff()
         val config = settings().normalized()
+        val turnTarget = userSelectedRecoveryProfile.get() ?: target
         val effectiveCallLimit = config.effectiveLocalModelCalls()
         if (localCalls.get() >= effectiveCallLimit) {
             AppLogRecorder.record("Delegation", "Delegation skipped · worker budget exhausted · call=$callId · calls=${localCalls.get()}/$effectiveCallLimit · configured=${config.maxLocalModelCalls} · ownership=${config.processingOwnership}", "W")
             return "The local delegation allowance for this turn is exhausted. Use evidence already available; do not retry this delegation in the same turn."
         }
         if (researchAvailable()) {
-            val result = prepare(task, tools, callId)
+            val result = prepare(task, tools, callId, targetOverride = turnTarget)
             if (delegationCanceledByUser.get()) return primaryOnlyHandoff()
             if (result.outcome == LocalResearchOutcome.SUCCESS && result.handoff.isNotBlank()) return result.handoff
             AppLogRecorder.record(
@@ -760,7 +769,7 @@ internal class LocalDelegationCoordinator(
         val hardCap = minOf(config.effectiveLocalInputTokens(), MAX_DELEGATION_INPUT_TOKENS)
         val estimated = estimatedDelegateTokens(task)
         if (estimated <= hardCap) {
-            val result = workerText(target, task, maxTokens, requirePrivate = false, allowTools = true, interactiveRecovery = true)
+            val result = workerText(turnTarget, task, maxTokens, requirePrivate = false, allowTools = true, interactiveRecovery = true)
             if (result != null) return result
             if (delegationCanceledByUser.get()) return primaryOnlyHandoff()
             error("CANCELED_NO_RESULT: delegated model was unavailable, stalled, or its compute budget was reached. Retry only the missing subtask with a smaller payload.")
@@ -778,7 +787,7 @@ internal class LocalDelegationCoordinator(
         for ((index, chunk) in chunks.withIndex()) {
             if (failedLocalTokens.get() + canceledLocalTokens.get() >= config.effectiveWastedLocalTokens()) break
             val prompt = "Process chunk ${index + 1}/${chunks.size} for the delegated task. Extract only facts/details needed to answer it. Preserve identifiers, numbers and source markers.\n\n$chunk"
-            val summary = workerText(target, prompt, minOf(maxTokens, 512), requirePrivate = false, interactiveRecovery = true)
+            val summary = workerText(turnTarget, prompt, minOf(maxTokens, 512), requirePrivate = false, interactiveRecovery = true)
             if (summary != null) {
                 summaries += "[Chunk ${index + 1}] $summary"
             } else {
@@ -788,7 +797,7 @@ internal class LocalDelegationCoordinator(
                 for ((retryIndex, retry) in retryPieces.withIndex()) {
                     if (failedLocalTokens.get() + canceledLocalTokens.get() >= config.effectiveWastedLocalTokens()) break
                     workerText(
-                        target,
+                        turnTarget,
                         "Process retry chunk ${index + 1}.${retryIndex + 1}. Extract only relevant facts and preserve exact details.\n\n$retry",
                         minOf(maxTokens, 256),
                         requirePrivate = false,
@@ -803,7 +812,7 @@ internal class LocalDelegationCoordinator(
         }
         if (summaries.size == 1) return summaries.single()
         val synthesis = workerText(
-            target,
+            turnTarget,
             "Synthesize the chunk summaries into one concise answer to the delegated task. Keep exact facts and note missing chunks. Do not invent details.\n\n" + summaries.joinToString("\n\n"),
             minOf(maxTokens, config.maxOutputTokens),
             requirePrivate = false,
