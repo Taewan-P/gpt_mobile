@@ -13,7 +13,7 @@ sealed class ApiState {
     data class DelegationText(val invocationId: String, val profileName: String, val text: String, val remote: Boolean) : ApiState()
     data class Thinking(val thinkingChunk: String) : ApiState()
     data class Success(val textChunk: String) : ApiState()
-    data class ToolCall(val toolSequence: Int, val metrics: ToolPayloadMetrics? = null) : ApiState()
+    data class ToolCall(val toolSequence: Int, val metrics: ToolPayloadMetrics? = null, val delegated: Boolean = false) : ApiState()
     data class MemoryRecalled(val facts: List<RecalledFactRef>) : ApiState()
     data class Notice(val message: String, val persistent: Boolean = false) : ApiState()
     data class PhaseChanged(val phase: LocalInferencePhase) : ApiState()

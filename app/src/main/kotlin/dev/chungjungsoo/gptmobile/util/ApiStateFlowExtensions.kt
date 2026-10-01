@@ -114,7 +114,7 @@ internal suspend fun Flow<ApiState>.collectApiStateUpdates(
                 }
 
                 is ApiState.ToolCall -> {
-                    buffer.appendTool(chunk.toolSequence, chunk.metrics)
+                    buffer.appendTool(chunk.toolSequence, chunk.metrics, chunk.delegated)
                     buffer.publishNow(onUpdate)
                 }
 
@@ -221,16 +221,17 @@ private class StreamingMessageBuffer(
         }
     }
 
-    fun appendTool(toolSequence: Int, metrics: ToolPayloadMetrics?) {
+    fun appendTool(toolSequence: Int, metrics: ToolPayloadMetrics?, delegated: Boolean) {
         val existing = timeline.indexOfFirst { it.type == AssistantTimelineItemType.TOOL && it.toolSequence == toolSequence }
         if (existing >= 0) {
             if (metrics == null) return
-            timeline[existing] = timeline[existing].copy(toolMetrics = metrics)
+            timeline[existing] = timeline[existing].copy(toolMetrics = metrics, delegatedTool = delegated || timeline[existing].delegatedTool)
         } else {
             timeline += AssistantTimelineItem(
                 type = AssistantTimelineItemType.TOOL,
                 toolSequence = toolSequence,
-                toolMetrics = metrics
+                toolMetrics = metrics,
+                delegatedTool = delegated
             )
         }
         timelineVersion += 1

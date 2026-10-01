@@ -64,7 +64,9 @@ fun InlineExecutionTrace(events: List<ToolEvent>, timeline: List<AssistantTimeli
             }
         }
         events.sortedBy { it.sequence }.forEach { event ->
-            val metrics = timeline.firstOrNull { it.toolSequence == event.sequence }?.toolMetrics
+            val toolItem = timeline.firstOrNull { it.toolSequence == event.sequence }
+            val metrics = toolItem?.toolMetrics
+            val delegatedTool = debugMode && toolItem?.delegatedTool == true
             var expanded by rememberSaveable(contentIdentity.toString(), event.eventId) { mutableStateOf(false) }
             val status = if (event.isError) {
                 "Failed"
@@ -103,6 +105,7 @@ fun InlineExecutionTrace(events: List<ToolEvent>, timeline: List<AssistantTimeli
                 onClick = { expanded = !expanded },
                 shape = RoundedCornerShape(18.dp),
                 color = when {
+                    delegatedTool -> androidx.compose.ui.graphics.Color(0xFF4CAF50).copy(alpha = 0.18f)
                     failed -> MaterialTheme.colorScheme.errorContainer
                     isDelegation -> androidx.compose.ui.graphics.Color(0xFFFFD54F).copy(alpha = 0.10f)
                     else -> MaterialTheme.colorScheme.surfaceContainerHigh

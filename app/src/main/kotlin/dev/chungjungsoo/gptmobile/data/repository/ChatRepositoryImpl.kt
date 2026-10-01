@@ -515,7 +515,7 @@ class ChatRepositoryImpl(
             }
     }
 
-    private suspend fun delegateToProfile(target: PlatformV2, task: String, maxTokens: Int, parentRunId: String, turnKey: String, maxInputTokens: Int = Int.MAX_VALUE, onProgress: (DelegateProgress) -> Unit = {}, allowTools: Boolean = true, fixtureTools: List<AgentTool>? = null, chatToolConfig: ChatMcpToolConfig = ChatMcpToolConfig()): String {
+    private suspend fun delegateToProfile(target: PlatformV2, task: String, maxTokens: Int, parentRunId: String, turnKey: String, maxInputTokens: Int = Int.MAX_VALUE, onProgress: (DelegateProgress) -> Unit = {}, allowTools: Boolean = true, fixtureTools: List<AgentTool>? = null, chatToolConfig: ChatMcpToolConfig = ChatMcpToolConfig(), traceSequences: java.util.concurrent.atomic.AtomicInteger? = null, onToolTrace: (suspend (ApiState.ToolCall) -> Unit)? = null): String {
         // Delegated runs are real child agent runs: they receive the target profile's
         // authorized tools, but never receive delegate_to_model itself. This enables
         // local -> remote tool use and remote -> local tool use without recursion.
@@ -616,6 +616,11 @@ class ChatRepositoryImpl(
             "Delegation",
             "Child dispatched · parentRun=$parentRunId · target=${target.uid} · calculatedDelegationCap=$maxTokens"
         )
+        val childTrace = if (onToolTrace != null && traceSequences != null) {
+            ToolTraceSession(parentRunId, emptyList(), toolEventRecorder, traceSequences)
+        } else {
+            null
+        }
         childRunner.run(accounted, childTools).collect { event ->
             when (event) {
                 is AgentRunEvent.Provider -> when (val provider = event.event) {
@@ -631,6 +636,12 @@ class ChatRepositoryImpl(
                             "Delegation",
                             "Child provider request started · parentRun=$parentRunId · target=${target.uid} · configuredProfileCap=${provider.configuredProfileOutputTokens} · calculatedDelegationCap=${provider.requestedOutputTokens} · effectiveProviderCap=${provider.effectiveOutputTokens}"
                         )
+                    }
+                    is ProviderEvent.ToolCall -> {
+                        childTrace?.start(provider)?.let { onToolTrace?.invoke(ApiState.ToolCall(it.sequence, delegated = true)) }
+                    }
+                    is ProviderEvent.GatewayProgressUpdate -> {
+                        childTrace?.gateway(provider.progress)?.let { onToolTrace?.invoke(it.copy(delegated = true)) }
                     }
                     is ProviderEvent.ThinkingDelta -> {
                         reasoningChars += provider.text.length
@@ -678,6 +689,7 @@ class ChatRepositoryImpl(
                 }
                 is AgentRunEvent.ToolStarted -> onProgress(DelegateProgress(DelegateProgressKind.TOOL_ACTIVITY))
                 is AgentRunEvent.ToolFinished -> {
+                    childTrace?.finish(event.call, event.result)?.let { onToolTrace?.invoke(it.copy(delegated = true)) }
                     onProgress(DelegateProgress(DelegateProgressKind.TOOL_ACTIVITY))
                     try {
                         usableDelegatedToolResult(event.result)?.let(toolFallbacks::add)
@@ -736,6 +748,7 @@ class ChatRepositoryImpl(
     ): Flow<ApiState> = channelFlow {
         suspend fun emit(state: ApiState) = send(state)
         val activity = AtomicReference("Preparing response")
+        val traceSequences = java.util.concurrent.atomic.AtomicInteger()
         suspend fun emitAll(states: Flow<ApiState>) = states.collect { state ->
             when (state) {
                 is ApiState.Success -> activity.set("Writing response")
@@ -797,7 +810,7 @@ class ChatRepositoryImpl(
                         delegateText.append(it)
                         trySend(ApiState.DelegationText(invocation, target.name, delegateText.toString(), !target.isPrivateDestination()))
                     }
-                }, allowTools, chatToolConfig = chatToolConfig ?: ChatMcpToolConfig())
+                }, allowTools, chatToolConfig = chatToolConfig ?: ChatMcpToolConfig(), traceSequences = traceSequences, onToolTrace = { send(it) })
             } finally {
                 // A final suspending snapshot recovers any intermediate UI update
                 // skipped while the channel was busy. It is never the primary answer.
@@ -1047,7 +1060,7 @@ class ChatRepositoryImpl(
             // The model calls the aggregate name, while local workers can call individual
             // engines. Preserve both snapshots, preferring aggregate metadata on a name collision.
             val traceTools = (aggregatedTools + boundedTools).distinctBy { it.modelToolName }
-            val trace = ToolTraceSession(runId, traceTools, toolEventRecorder)
+            val trace = ToolTraceSession(runId, traceTools, toolEventRecorder, traceSequences)
             // Local research has already extracted the current task and relevant evidence.
             // Avoid replaying the entire historical transcript to the remote synthesizer.
             // Keep the first user goal plus the most recent turns for continuity.
@@ -1715,7 +1728,8 @@ internal fun validateResponseInputPartsOrThrow(messageContent: String, partCount
 private class ToolTraceSession(
     private val runId: String,
     tools: List<ResolvedAgentTool>,
-    private val recorder: ToolEventRecorder
+    private val recorder: ToolEventRecorder,
+    private val sequence: java.util.concurrent.atomic.AtomicInteger
 ) {
     private val toolsByName = tools.associateBy { it.modelToolName }
     private val pendingEventIds = mutableMapOf<String, ArrayDeque<String>>()
@@ -1723,13 +1737,11 @@ private class ToolTraceSession(
     private val gatewayEventIds = mutableMapOf<String, ToolEvent>()
     private val sequences = mutableMapOf<String, Int>()
 
-    private var sequence = 0
-
     suspend fun start(call: ProviderEvent.ToolCall): ToolEvent {
         val resolved = toolsByName[call.name]
         val event = recorder.startTool(
             runId = runId,
-            sequence = sequence++,
+            sequence = sequence.getAndIncrement(),
             callId = call.callId,
             toolName = resolved?.realToolName ?: call.name,
             modelToolName = call.name,
@@ -1762,7 +1774,7 @@ private class ToolTraceSession(
 
                 val event = recorder.startTool(
                     runId = runId,
-                    sequence = sequence++,
+                    sequence = sequence.getAndIncrement(),
                     callId = callId,
                     toolName = toolName,
                     modelToolName = toolName,
