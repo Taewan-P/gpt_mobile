@@ -285,7 +285,7 @@ class LocalDelegationCoordinatorTest {
         var calls = 0
         val coordinator = LocalDelegationCoordinator(
             source,
-            { config.copy(researchEnabled = true, maxLocalModelCalls = 6, timeoutSeconds = 5) },
+            { config.copy(researchEnabled = false, maxLocalModelCalls = 6, timeoutSeconds = 5) },
             { listOf(target) },
             { _, _, _ ->
                 calls++

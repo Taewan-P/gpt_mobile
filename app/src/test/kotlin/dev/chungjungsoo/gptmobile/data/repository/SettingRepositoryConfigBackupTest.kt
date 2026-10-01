@@ -48,12 +48,20 @@ class SettingRepositoryConfigBackupTest {
         val json = repository.exportConfigurationJson()
         assertTrue(json.contains("OpenAI Production"))
 
+        val palette = dev.chungjungsoo.gptmobile.data.dto.CustomThemePalette(0xFF77CCFF, 0xFFAA88DD, 0xFF101820, 0xFF202830)
+        val saved = dev.chungjungsoo.gptmobile.data.dto.SavedThemeProfile("My ocean", palette, ThemeMode.DARK)
+        repository.updateThemes(repository.fetchThemes().copy(customPalette = palette, customPrimaryArgb = palette.primary, savedProfiles = listOf(saved)))
+        val themeJson = repository.exportConfigurationJson()
+
         // Clear state
         platformDao.platforms.clear()
         settingDataSource.themeMode = ThemeMode.LIGHT
+        settingDataSource.palette = null
+        settingDataSource.savedThemes = emptyList()
+        settingDataSource.primaryArgb = null
 
         // Import
-        val result = repository.importConfigurationJson(json)
+        val result = repository.importConfigurationJson(themeJson)
         assertTrue(result.isSuccess)
         assertEquals(1, result.getOrNull())
 
@@ -61,6 +69,9 @@ class SettingRepositoryConfigBackupTest {
         assertEquals(1, platforms.size)
         assertEquals("OpenAI Production", platforms.first().name)
         assertEquals(ThemeMode.DARK, settingDataSource.themeMode)
+        assertEquals(palette, repository.fetchThemes().customPalette)
+        assertEquals(listOf(saved), repository.fetchThemes().savedProfiles)
+        assertEquals(palette.primary, repository.fetchThemes().customPrimaryArgb)
     }
 
     @Test
@@ -185,6 +196,22 @@ private class BackupFakeSettingDataSource(
     var favoriteGroups: List<String> = emptyList(),
     var favoriteMessageGroups: Map<Int, String> = emptyMap()
 ) : SettingDataSource {
+    var palette: dev.chungjungsoo.gptmobile.data.dto.CustomThemePalette? = null
+    var savedThemes: List<dev.chungjungsoo.gptmobile.data.dto.SavedThemeProfile> = emptyList()
+    var primaryArgb: Long? = null
+    override suspend fun getCustomPalette() = palette
+    override suspend fun updateCustomPalette(palette: dev.chungjungsoo.gptmobile.data.dto.CustomThemePalette?) {
+        this.palette = palette
+    }
+    override suspend fun getSavedThemeProfiles() = savedThemes
+    override suspend fun updateSavedThemeProfiles(profiles: List<dev.chungjungsoo.gptmobile.data.dto.SavedThemeProfile>) {
+        savedThemes = profiles
+    }
+    override suspend fun getCustomPrimaryArgb() = primaryArgb
+    override suspend fun updateCustomPrimaryArgb(argb: Long?) {
+        primaryArgb = argb
+    }
+
     override suspend fun getPreferencesSnapshot(): androidx.datastore.preferences.core.Preferences =
         androidx.datastore.preferences.core.emptyPreferences()
 

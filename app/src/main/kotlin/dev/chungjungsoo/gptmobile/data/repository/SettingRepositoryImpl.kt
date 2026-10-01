@@ -147,6 +147,8 @@ class SettingRepositoryImpl @Inject constructor(
         platform?.let { resolvePlatformToken(it, connections.associateBy(ProviderConnection::uid)) }
     }
 
+    override fun observeThemes(): Flow<ThemeSetting> = settingDataSource.observePreferences().map { fetchThemes() }
+
     override suspend fun fetchThemes(): ThemeSetting = ThemeSetting(
         dynamicTheme = settingDataSource.getDynamicTheme() ?: DynamicTheme.OFF,
         themeMode = settingDataSource.getThemeMode() ?: ThemeMode.SYSTEM,

@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 
 interface SettingDataSource {
+    fun observePreferences(): Flow<Preferences> = kotlinx.coroutines.flow.flow { emit(getPreferencesSnapshot()) }
     suspend fun getPreferencesSnapshot(): Preferences
     suspend fun updateDynamicTheme(theme: DynamicTheme)
     suspend fun updateThemeMode(themeMode: ThemeMode)
