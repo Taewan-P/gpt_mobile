@@ -93,7 +93,7 @@ internal class LocalDelegationCoordinator(
         if (delegationCanceledByUser.get()) return false
         return try {
             val config = settings().normalized()
-            val target = targetOverride ?: localTarget(config) ?: run {
+            val target = localTarget(config) ?: run {
                 AppLogRecorder.record("Delegation", "Research unavailable · no eligible target · source=${source.uid}", "W")
                 return false
             }
