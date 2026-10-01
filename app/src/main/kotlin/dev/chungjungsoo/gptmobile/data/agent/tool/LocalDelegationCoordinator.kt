@@ -11,6 +11,7 @@ import dev.chungjungsoo.gptmobile.data.model.ModelDelegationSettings
 import dev.chungjungsoo.gptmobile.data.model.excludesMemory
 import dev.chungjungsoo.gptmobile.data.model.isPrivateDestination
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CancellationException
@@ -44,7 +45,8 @@ internal class LocalDelegationCoordinator(
     private val inputBudget: suspend (PlatformV2, Int) -> Int = { _, _ -> Int.MAX_VALUE },
     private val batteryPercent: suspend () -> Int? = { null },
     private val generateTextWithProgress: (suspend (PlatformV2, String, Int, Int, (DelegateProgress) -> Unit) -> String)? = null,
-    private val useWorkloadRuntimeLimit: Boolean = true
+    private val useWorkloadRuntimeLimit: Boolean = true,
+    private val onRecoveryRequired: (suspend (PlatformV2, List<PlatformV2>, String) -> DelegationRecoveryDecision)? = null
 ) {
     private companion object {
         // Absolute emergency ceiling in addition to the user-configurable token budget.
@@ -71,9 +73,19 @@ internal class LocalDelegationCoordinator(
     private val emptyResponsesByWorker = ConcurrentHashMap<String, AtomicInteger>()
     private val quarantinedWorkerUids = ConcurrentHashMap.newKeySet<String>()
     private val observedRequestOverheadTokens = AtomicLong()
+    private val delegationCanceledByUser = AtomicBoolean(false)
     private val worker = Semaphore(4)
 
+    private fun primaryOnlyHandoff(partialNotes: List<String> = emptyList()): String = buildString {
+        append("Delegation was canceled. Continue this turn with the primary model only and do not call delegate_to_model again.")
+        if (partialNotes.isNotEmpty()) {
+            append("\n\nPartial helper notes completed before cancellation:\n")
+            append(partialNotes.joinToString("\n\n"))
+        }
+    }
+
     suspend fun researchAvailable(): Boolean {
+        if (delegationCanceledByUser.get()) return false
         return try {
             val config = settings().normalized()
             val target = localTarget(config) ?: run {
@@ -165,6 +177,31 @@ internal class LocalDelegationCoordinator(
         return fallback
     }
 
+    private suspend fun recoveryCandidates(config: ModelDelegationSettings, failedUid: String): List<PlatformV2> {
+        if (!config.enabled || config.processingOwnership >= 100 || source.disableAllTools || source.disableLocalTools || source.excludesMemory()) return emptyList()
+        val battery = batteryPercent()
+        if (battery != null && battery <= config.lowBatteryThresholdPercent && config.processingOwnership < 65) return emptyList()
+        return profiles().filter { candidate ->
+            candidate.uid != source.uid &&
+                candidate.uid != failedUid &&
+                candidate.enabled &&
+                !candidate.excludesMemory() &&
+                candidate.uid !in quarantinedWorkerUids &&
+                (config.allowRemoteWorkers || candidate.isPrivateDestination())
+        }.filter { candidate ->
+            if (candidate.compatibleType != ClientType.LITERT_LM) {
+                true
+            } else {
+                try {
+                    inputBudget(candidate, config.maxOutputTokens) >= 600
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    false
+                }
+            }
+        }
+    }
     private suspend fun boundedConfig(target: PlatformV2, config: ModelDelegationSettings): ModelDelegationSettings {
         val available = try {
             inputBudget(target, config.maxOutputTokens)
