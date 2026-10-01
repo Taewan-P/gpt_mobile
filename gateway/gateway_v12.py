@@ -2413,7 +2413,7 @@ SINGLEFLIGHT_MAX_REQUEST_KEYS = 256
 # v7.5 REMOTE-CLIENT CONTINUITY + RESUMABLE PROGRESS
 # ------------------------------------------------------------
 
-GATEWAY_VERSION = "12.0.0"
+GATEWAY_VERSION = "12.1.0"
 GATEWAY_PROGRESS_PROTOCOL = "gpt-mobile-gateway-progress/2"
 
 V9_0_1_PATCH_APPLIED = True
