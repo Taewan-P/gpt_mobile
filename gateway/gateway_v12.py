@@ -2457,6 +2457,55 @@ LLAMA_CACHE_PROMPT = True
 LLAMA_PROMPT_CACHE_OBSERVABILITY = True
 LLAMA_AUTO_SLOT_PINNING = _env_flag("GATEWAY_LLAMA_AUTO_SLOT_PINNING", False)
 LLAMA_SLOT_COUNT = max(1, int(os.getenv("GATEWAY_LLAMA_SLOT_COUNT", "1")))
+
+# v12.1 local-model dispatch watchdog. llama.cpp may expose one inference slot
+# while the gateway has many worker threads. Without a gateway-side gate,
+# disconnected/background requests can pile up inside llama-server for minutes
+# even though each request only needs a few seconds of actual inference.
+LLAMA_MODEL_CONNECT_TIMEOUT_SECONDS = max(
+    1,
+    int(os.getenv("GATEWAY_LLAMA_CONNECT_TIMEOUT_SECONDS", "5")),
+)
+LLAMA_MODEL_READ_TIMEOUT_SECONDS = max(
+    15,
+    int(os.getenv("GATEWAY_LLAMA_READ_TIMEOUT_SECONDS", "75")),
+)
+LLAMA_LONG_MODEL_READ_TIMEOUT_SECONDS = max(
+    LLAMA_MODEL_READ_TIMEOUT_SECONDS,
+    int(os.getenv("GATEWAY_LLAMA_LONG_READ_TIMEOUT_SECONDS", "120")),
+)
+LLAMA_MODEL_QUEUE_TIMEOUT_SECONDS = max(
+    5,
+    int(os.getenv("GATEWAY_LLAMA_QUEUE_TIMEOUT_SECONDS", "20")),
+)
+LLAMA_LONG_MODEL_QUEUE_TIMEOUT_SECONDS = max(
+    LLAMA_MODEL_QUEUE_TIMEOUT_SECONDS,
+    int(os.getenv("GATEWAY_LLAMA_LONG_QUEUE_TIMEOUT_SECONDS", "45")),
+)
+LLAMA_MODEL_GATE_POLL_SECONDS = max(
+    0.05,
+    float(os.getenv("GATEWAY_LLAMA_GATE_POLL_SECONDS", "0.25")),
+)
+LLAMA_MODEL_TIMEOUT_RETRIES = max(
+    0,
+    int(os.getenv("GATEWAY_LLAMA_TIMEOUT_RETRIES", "1")),
+)
+
+llama_model_gate = threading.BoundedSemaphore(LLAMA_SLOT_COUNT)
+llama_model_dispatch_lock = threading.RLock()
+llama_model_dispatch_metrics = {
+    "active": 0,
+    "interactive_waiters": 0,
+    "queue_timeouts": 0,
+    "request_timeouts": 0,
+    "cancelled_before_dispatch": 0,
+    "session_resets": 0,
+    "retries": 0,
+    "max_queue_wait_ms": 0,
+    "last_queue_wait_ms": 0,
+    "last_request_ms": 0,
+}
+
 LLAMA_AUTO_CACHE_REUSE = _env_flag("GATEWAY_LLAMA_AUTO_CACHE_REUSE", True)
 LLAMA_CACHE_REUSE_MIN = max(
     0,
@@ -3513,6 +3562,204 @@ def get_http_session():
     return session
 
 
+def reset_http_session():
+    session = getattr(
+        _http_thread_local,
+        "session",
+        None,
+    )
+    if session is not None:
+        try:
+            session.close()
+        except Exception:
+            pass
+        try:
+            delattr(
+                _http_thread_local,
+                "session",
+            )
+        except AttributeError:
+            pass
+
+    with llama_model_dispatch_lock:
+        llama_model_dispatch_metrics["session_resets"] += 1
+
+
+def _is_llama_model_endpoint(url):
+    value = str(url or "").rstrip("/")
+    return (
+        value.startswith(str(LLAMA_BASE).rstrip("/") + "/")
+        and value.endswith(("/chat/completions", "/completion", "/completions"))
+    )
+
+
+def _llama_dispatch_cancelled(cancel_event, hard_cancel_event):
+    return bool(
+        (
+            cancel_event is not None
+            and cancel_event.is_set()
+        )
+        or (
+            hard_cancel_event is not None
+            and hard_cancel_event.is_set()
+        )
+    )
+
+
+def _acquire_llama_model_gate(
+    job_mode,
+    cancel_event=None,
+    hard_cancel_event=None,
+    progress_callback=None,
+    round_number=None,
+):
+    is_long = str(job_mode or "").lower() == "long"
+    timeout_seconds = (
+        LLAMA_LONG_MODEL_QUEUE_TIMEOUT_SECONDS
+        if is_long
+        else LLAMA_MODEL_QUEUE_TIMEOUT_SECONDS
+    )
+    started = time.monotonic()
+    deadline = started + timeout_seconds
+    waiter_registered = False
+    last_progress = started
+
+    if not is_long:
+        with llama_model_dispatch_lock:
+            llama_model_dispatch_metrics["interactive_waiters"] += 1
+        waiter_registered = True
+
+    try:
+        while True:
+            if _llama_dispatch_cancelled(cancel_event, hard_cancel_event):
+                with llama_model_dispatch_lock:
+                    llama_model_dispatch_metrics["cancelled_before_dispatch"] += 1
+                raise InterruptedError(
+                    "llama.cpp request cancelled before model dispatch"
+                )
+
+            # Give connected interactive work priority over detached/long jobs.
+            if is_long:
+                with llama_model_dispatch_lock:
+                    interactive_waiters = int(
+                        llama_model_dispatch_metrics.get("interactive_waiters", 0)
+                        or 0
+                    )
+                if interactive_waiters > 0:
+                    if time.monotonic() >= deadline:
+                        with llama_model_dispatch_lock:
+                            llama_model_dispatch_metrics["queue_timeouts"] += 1
+                        raise TimeoutError(
+                            "llama.cpp gateway queue timeout while yielding to interactive work"
+                        )
+                    time.sleep(LLAMA_MODEL_GATE_POLL_SECONDS)
+                    continue
+
+            acquired = llama_model_gate.acquire(
+                timeout=LLAMA_MODEL_GATE_POLL_SECONDS
+            )
+            if acquired:
+                waited_ms = int((time.monotonic() - started) * 1000)
+                with llama_model_dispatch_lock:
+                    llama_model_dispatch_metrics["active"] += 1
+                    llama_model_dispatch_metrics["last_queue_wait_ms"] = waited_ms
+                    llama_model_dispatch_metrics["max_queue_wait_ms"] = max(
+                        int(llama_model_dispatch_metrics.get("max_queue_wait_ms", 0) or 0),
+                        waited_ms,
+                    )
+                return waited_ms
+
+            now = time.monotonic()
+            if now >= deadline:
+                with llama_model_dispatch_lock:
+                    llama_model_dispatch_metrics["queue_timeouts"] += 1
+                raise TimeoutError(
+                    f"llama.cpp gateway queue timeout after {timeout_seconds}s"
+                )
+
+            if (
+                progress_callback is not None
+                and now - last_progress >= 2.0
+            ):
+                emit_progress(
+                    progress_callback,
+                    "model_queue",
+                    f"Waiting for local model capacity ({int(now - started)}s)",
+                    event="model_queue_wait",
+                    status="running",
+                    stage="reasoning",
+                    round=round_number,
+                    elapsed_seconds=int(now - started),
+                )
+                last_progress = now
+    finally:
+        if waiter_registered:
+            with llama_model_dispatch_lock:
+                llama_model_dispatch_metrics["interactive_waiters"] = max(
+                    0,
+                    int(llama_model_dispatch_metrics.get("interactive_waiters", 0) or 0) - 1,
+                )
+
+
+def _release_llama_model_gate(request_started):
+    request_ms = int((time.monotonic() - request_started) * 1000)
+    with llama_model_dispatch_lock:
+        llama_model_dispatch_metrics["active"] = max(
+            0,
+            int(llama_model_dispatch_metrics.get("active", 0) or 0) - 1,
+        )
+        llama_model_dispatch_metrics["last_request_ms"] = request_ms
+    try:
+        llama_model_gate.release()
+    except ValueError:
+        logger.exception("llama.cpp model gate release imbalance")
+
+
+def _post_llama_model_http(
+    url,
+    *,
+    cancel_event=None,
+    hard_cancel_event=None,
+    job_mode="interactive",
+    progress_callback=None,
+    round_number=None,
+    **kwargs,
+):
+    _acquire_llama_model_gate(
+        job_mode,
+        cancel_event=cancel_event,
+        hard_cancel_event=hard_cancel_event,
+        progress_callback=progress_callback,
+        round_number=round_number,
+    )
+
+    request_started = time.monotonic()
+    timeout_seconds = (
+        LLAMA_LONG_MODEL_READ_TIMEOUT_SECONDS
+        if str(job_mode or "").lower() == "long"
+        else LLAMA_MODEL_READ_TIMEOUT_SECONDS
+    )
+    kwargs["timeout"] = (
+        LLAMA_MODEL_CONNECT_TIMEOUT_SECONDS,
+        timeout_seconds,
+    )
+
+    try:
+        return get_http_session().post(
+            url,
+            **kwargs,
+        )
+    except requests.exceptions.Timeout:
+        with llama_model_dispatch_lock:
+            llama_model_dispatch_metrics["request_timeouts"] += 1
+        reset_http_session()
+        raise
+    finally:
+        _release_llama_model_gate(
+            request_started
+        )
+
+
 def http_get(url, **kwargs):
     return get_http_session().get(
         url,
@@ -3521,10 +3768,28 @@ def http_get(url, **kwargs):
 
 
 def http_post(url, **kwargs):
+    cancel_event = kwargs.pop("_gateway_cancel_event", None)
+    hard_cancel_event = kwargs.pop("_gateway_hard_cancel_event", None)
+    job_mode = kwargs.pop("_gateway_job_mode", "interactive")
+    progress_callback = kwargs.pop("_gateway_progress_callback", None)
+    round_number = kwargs.pop("_gateway_round_number", None)
+
     if url.rstrip("/").endswith(("/chat/completions", "/completion", "/completions")):
         payload = kwargs.get("json")
         if isinstance(payload, dict):
             kwargs["json"] = v12_enforce_request_budget(payload)
+
+    if _is_llama_model_endpoint(url):
+        return _post_llama_model_http(
+            url,
+            cancel_event=cancel_event,
+            hard_cancel_event=hard_cancel_event,
+            job_mode=job_mode,
+            progress_callback=progress_callback,
+            round_number=round_number,
+            **kwargs,
+        )
+
     return get_http_session().post(
         url,
         **kwargs,
@@ -3556,6 +3821,16 @@ def llama_prompt_cache_status():
         "early_reasoning_effort": LLAMA_REPO_EARLY_REASONING_EFFORT,
         "late_reasoning_effort": LLAMA_REPO_LATE_REASONING_EFFORT,
         "optional_thinking_budget_tokens": LLAMA_OPTIONAL_THINKING_BUDGET_TOKENS,
+        "dispatch": {
+            "max_concurrency": LLAMA_SLOT_COUNT,
+            "connect_timeout_seconds": LLAMA_MODEL_CONNECT_TIMEOUT_SECONDS,
+            "read_timeout_seconds": LLAMA_MODEL_READ_TIMEOUT_SECONDS,
+            "long_read_timeout_seconds": LLAMA_LONG_MODEL_READ_TIMEOUT_SECONDS,
+            "queue_timeout_seconds": LLAMA_MODEL_QUEUE_TIMEOUT_SECONDS,
+            "long_queue_timeout_seconds": LLAMA_LONG_MODEL_QUEUE_TIMEOUT_SECONDS,
+            "timeout_retries": LLAMA_MODEL_TIMEOUT_RETRIES,
+            "metrics": dict(llama_model_dispatch_metrics),
+        },
         "metrics": metrics,
         "adaptive_metrics": adaptive,
     }
@@ -14030,6 +14305,9 @@ def post_llama_model_round(
     progress_callback,
     round_number,
     workflow_profile,
+    cancel_event=None,
+    hard_cancel_event=None,
+    job_mode="interactive",
 ):
     done = threading.Event()
     started = time.monotonic()
@@ -14061,12 +14339,57 @@ def post_llama_model_round(
         ).start()
 
     try:
-        response = http_post(
-            f"{LLAMA_BASE}/v1/chat/completions",
-            json=payload,
-            timeout=HTTP_TIMEOUT,
-        )
-        return response, int((time.monotonic() - started) * 1000)
+        for attempt in range(LLAMA_MODEL_TIMEOUT_RETRIES + 1):
+            if _llama_dispatch_cancelled(cancel_event, hard_cancel_event):
+                raise InterruptedError(
+                    "llama.cpp request cancelled before model round"
+                )
+
+            try:
+                response = http_post(
+                    f"{LLAMA_BASE}/v1/chat/completions",
+                    json=payload,
+                    _gateway_cancel_event=cancel_event,
+                    _gateway_hard_cancel_event=hard_cancel_event,
+                    _gateway_job_mode=job_mode,
+                    _gateway_progress_callback=progress_callback,
+                    _gateway_round_number=round_number,
+                )
+                return response, int((time.monotonic() - started) * 1000)
+
+            except requests.exceptions.Timeout as exc:
+                if (
+                    attempt >= LLAMA_MODEL_TIMEOUT_RETRIES
+                    or _llama_dispatch_cancelled(cancel_event, hard_cancel_event)
+                ):
+                    raise
+
+                with llama_model_dispatch_lock:
+                    llama_model_dispatch_metrics["retries"] += 1
+
+                logger.warning(
+                    "llama.cpp model request timed out; "
+                    f"retrying round {round_number} once with a fresh connection: {exc}"
+                )
+                emit_progress(
+                    progress_callback,
+                    "model_recovery",
+                    "Local model response stalled; retrying with a fresh connection",
+                    event="model_timeout_retry",
+                    status="running",
+                    stage="reasoning",
+                    round=round_number,
+                    attempt=attempt + 2,
+                )
+                reset_http_session()
+                reset_llama_cache_affinity_for_retry(payload)
+                time.sleep(0.25)
+
+            except TimeoutError:
+                # A gateway queue timeout means another local-model request has
+                # occupied all configured slots too long. Do not add another
+                # duplicate request behind it.
+                raise
     finally:
         done.set()
 
@@ -14901,6 +15224,9 @@ def process_chat_payload(
                 progress_callback,
                 round_number,
                 workflow_profile,
+                cancel_event=cancel_event,
+                hard_cancel_event=hard_cancel_event,
+                job_mode=job_mode,
             )
 
         except Exception as e:
@@ -20451,6 +20777,16 @@ if __name__ == "__main__":
         "HTTP connection pool: "
         f"{HTTP_POOL_CONNECTIONS}/"
         f"{HTTP_POOL_MAXSIZE}"
+    )
+
+    logger.info(
+        "llama.cpp dispatch watchdog: "
+        f"slots={LLAMA_SLOT_COUNT}; "
+        f"queue_timeout={LLAMA_MODEL_QUEUE_TIMEOUT_SECONDS}s/"
+        f"{LLAMA_LONG_MODEL_QUEUE_TIMEOUT_SECONDS}s; "
+        f"read_timeout={LLAMA_MODEL_READ_TIMEOUT_SECONDS}s/"
+        f"{LLAMA_LONG_MODEL_READ_TIMEOUT_SECONDS}s; "
+        f"retries={LLAMA_MODEL_TIMEOUT_RETRIES}"
     )
 
     logger.info(
