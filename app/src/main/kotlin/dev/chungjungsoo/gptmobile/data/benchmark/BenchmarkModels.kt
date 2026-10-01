@@ -15,6 +15,14 @@ enum class BenchmarkMode(val label: String) { QUICK("Quick"), FULL("Full"), DELE
 enum class BenchmarkOutcome { PASSED, FAILED, ERROR, TIMED_OUT, CANCELED, UNSUPPORTED }
 
 @Serializable
+data class DelegationBenchmarkEvent(
+    val elapsedMs: Long,
+    val type: String,
+    val level: String = "INFO",
+    val message: String
+)
+
+@Serializable
 data class DelegationBenchmarkMetrics(
     val workerUid: String,
     val workerName: String,
@@ -37,7 +45,9 @@ data class DelegationBenchmarkMetrics(
     val workerDurationMs: Long = 0,
     val workerFirstTextMs: Long? = null,
     val workerDecodeTokensPerSecond: Double? = null,
-    val outputCapViolations: Int = 0
+    val outputCapViolations: Int = 0,
+    val workerSpeedUsesReportedTokens: Boolean = false,
+    val diagnosticEvents: List<DelegationBenchmarkEvent> = emptyList()
 )
 
 @Serializable
