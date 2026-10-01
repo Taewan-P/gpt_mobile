@@ -6,7 +6,6 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
@@ -44,7 +43,10 @@ object GitHubRepositoryIndex {
         val tokens = stem.split(Regex("[^a-z0-9]+")).filter { it.length >= 3 }
         val candidates = treeResponse["tree"]?.jsonArray.orEmpty()
             .mapNotNull { it as? JsonObject }
-            .filter { it["type"]?.jsonPrimitive?.content == "blob" }
+            .filter {
+                it["type"]?.jsonPrimitive?.content == "blob" &&
+                    extension(it["path"]?.jsonPrimitive?.content.orEmpty()) in sourceExtensions
+            }
             .map { item ->
                 val path = item["path"]?.jsonPrimitive?.content.orEmpty()
                 val lower = path.lowercase()
