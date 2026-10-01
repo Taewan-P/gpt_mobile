@@ -5,6 +5,9 @@ import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatCompletionRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponsesRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseErrorEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.UnknownEvent
+import io.ktor.client.engine.HttpClientEngine
+import io.ktor.client.engine.HttpClientEngineConfig
+import io.ktor.client.engine.HttpClientEngineFactory
 import io.ktor.client.engine.cio.CIO
 import java.net.InetSocketAddress
 import java.net.ServerSocket
@@ -88,6 +91,25 @@ class OpenAIAPIImplTest {
 
         assertEquals("network_error", (responses.single() as ResponseErrorEvent).code)
         assertEquals("network_error", completions.single().error?.type)
+    }
+
+    @Test
+    fun `fatal upstream errors propagate unchanged in both streams`() = runBlocking(Dispatchers.IO) {
+        val failure = LinkageError("engine initialization failed")
+        val engine = object : HttpClientEngineFactory<HttpClientEngineConfig> {
+            override fun create(block: HttpClientEngineConfig.() -> Unit): HttpClientEngine = throw failure
+        }
+        val api = OpenAIAPIImpl(NetworkClient(engine))
+        val config = ProviderRequestConfig("http://127.0.0.1/", null)
+        val responses = runCatching {
+            api.streamResponses(ResponsesRequest("model", emptyList()), 5, config).toList()
+        }.exceptionOrNull()
+        val completions = runCatching {
+            api.streamChatCompletion(ChatCompletionRequest("model", emptyList()), 5, config).toList()
+        }.exceptionOrNull()
+
+        assertSame(failure, responses)
+        assertSame(failure, completions)
     }
 
     private fun withServer(

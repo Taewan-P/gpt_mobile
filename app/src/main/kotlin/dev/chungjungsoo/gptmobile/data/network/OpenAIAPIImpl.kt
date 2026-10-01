@@ -149,7 +149,7 @@ class OpenAIAPIImpl @Inject constructor(
             }
         }
     }.catch { e ->
-        if (e is CancellationException || e is dev.chungjungsoo.gptmobile.data.agent.ToolDefinitionsRejectedException) throw e
+        if (e !is Exception || e is CancellationException || e is dev.chungjungsoo.gptmobile.data.agent.ToolDefinitionsRejectedException) throw e
         val errorMessage = when (e) {
             is java.net.UnknownHostException -> "Network error: Unable to resolve host."
             is java.nio.channels.UnresolvedAddressException -> "Network error: Unable to resolve address. Check your internet connection."
@@ -228,7 +228,7 @@ class OpenAIAPIImpl @Inject constructor(
                 }
             }
         }.catch { e ->
-            if (e is CancellationException || e is dev.chungjungsoo.gptmobile.data.agent.ToolDefinitionsRejectedException) throw e
+            if (e !is Exception || e is CancellationException || e is dev.chungjungsoo.gptmobile.data.agent.ToolDefinitionsRejectedException) throw e
             val errorMessage = when (e) {
                 is java.net.UnknownHostException -> "Network error: Unable to resolve host."
                 is java.nio.channels.UnresolvedAddressException -> "Network error: Unable to resolve address. Check your internet connection."
