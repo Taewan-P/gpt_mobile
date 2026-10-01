@@ -3809,6 +3809,8 @@ def llama_prompt_cache_status():
         metrics = dict(llama_prompt_cache_metrics)
     with adaptive_llama_lock:
         adaptive = dict(adaptive_llama_metrics)
+    with llama_model_dispatch_lock:
+        dispatch_metrics = dict(llama_model_dispatch_metrics)
     return {
         "cache_prompt": LLAMA_CACHE_PROMPT,
         "observability": LLAMA_PROMPT_CACHE_OBSERVABILITY,
@@ -3829,7 +3831,7 @@ def llama_prompt_cache_status():
             "queue_timeout_seconds": LLAMA_MODEL_QUEUE_TIMEOUT_SECONDS,
             "long_queue_timeout_seconds": LLAMA_LONG_MODEL_QUEUE_TIMEOUT_SECONDS,
             "timeout_retries": LLAMA_MODEL_TIMEOUT_RETRIES,
-            "metrics": dict(llama_model_dispatch_metrics),
+            "metrics": dispatch_metrics,
         },
         "metrics": metrics,
         "adaptive_metrics": adaptive,
@@ -15260,6 +15262,9 @@ def process_chat_payload(
                         progress_callback,
                         round_number,
                         workflow_profile,
+                        cancel_event=cancel_event,
+                        hard_cancel_event=hard_cancel_event,
+                        job_mode=job_mode,
                     )
                 except Exception as e:
                     raise HTTPException(
@@ -15312,6 +15317,9 @@ def process_chat_payload(
                         progress_callback,
                         round_number,
                         workflow_profile,
+                        cancel_event=cancel_event,
+                        hard_cancel_event=hard_cancel_event,
+                        job_mode=job_mode,
                     )
                 except Exception as e:
                     raise HTTPException(
@@ -15380,6 +15388,9 @@ def process_chat_payload(
                         progress_callback,
                         round_number,
                         workflow_profile,
+                        cancel_event=cancel_event,
+                        hard_cancel_event=hard_cancel_event,
+                        job_mode=job_mode,
                     )
 
                 except Exception as e:
