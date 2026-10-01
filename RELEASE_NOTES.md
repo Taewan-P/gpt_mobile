@@ -1,31 +1,20 @@
-# GPT Mobile AI 0.9.22.0
+# GPT Mobile AI 0.9.23.0
 
-## Delegation and benchmarks
-- Rewire research delegation, preserve direct-tool fallback, and isolate helper output from the primary answer.
-- Add a dedicated delegation benchmark section with saved settings and repeatable fixtures. Recover valid benchmark history when an entry is damaged.
-- Show live helper text in green in debug mode, with yellow server traces and remote connection indicators.
-- Save comparable local model benchmark scores and display them on model cards; add MTP marketplace filtering.
+## Delegation reliability
+- Prevent terminal delegation failures from being retried repeatedly within the same turn.
+- Quarantine disconnected, unavailable, retired, or not-downloaded delegate workers immediately and fail over to another eligible helper.
+- Detect socket timeouts, DNS failures, connection resets, refused connections, broken pipes, no-route failures, and expired read/connect operations as worker transport failures.
+- Preserve retries for genuinely transient one-off provider failures while stopping retry storms after terminal `CANCELED_NO_RESULT` states.
+- Improve reasoning-only recovery by sizing output headroom from the effective request cost, including provider/system/tool overhead.
+- Expand the next delegate output allowance after an empty or reasoning-only completion so the worker has room to return a usable final answer.
+- Stop counting eligibility failures as wasted inference tokens when inference never actually started.
 
-## Tools and providers
-- Enable tools on free profiles with per-profile, per-MCP-tool tracking consent, a lock, and a slide-to-accept dialog. Grants persist and can be reset in Options.
-- Redesign approval dialogs with MCP branding and provider-wide approval controls.
-- Allow free profile renaming, preserve custom names, and use provider names by default.
-- Improve collapsible Remote, Local and Free provider categories and icon controls.
-- Connect Brave Search directly with the user's API key. Add a direct GitHub API connector for repository, pull-request and Actions workflow operations, with approval checks for authenticated actions.
+## Validation
+- Add regression tests for missing local models, socket-timeout failover, reasoning-only recovery, and per-turn terminal circuit breaking.
+- Keep completed work intact when a delegate becomes unavailable instead of replaying the job.
+- Preserve the existing worker call, token, runtime, and privacy limits.
 
-## Conversations
-- Keep table cells fully visible with horizontal scrolling and padding.
-- Align message action bars, fade idle controls, and animate streamed words over 1.5 seconds.
-- Always show a visible response or error at completion, including empty and reasoning-only completions.
-- Use themed loading icons and progress rings, activity summaries, animated dots and moving text gradients. Refresh activity every five seconds; an idle, already-loaded LiteRT/QNN engine can phrase a short summary without interrupting generation.
-- Retain the centered archive caret, transparent background outside the input bubble, and bold/filled unread conversation indicators.
-
-## Backup and restore
-- Open section selection when backup or restore is invoked; remember choices and provide Select all. Restore file selection comes first.
-- Include themes, Hugging Face credentials and selected settings in encrypted backups.
-- Passwordless backups use authenticated AES-256-GCM encryption and a separate recovery-key file. Keep that key private and separate from the backup; it is required after reinstall or on another device. No encryption can honestly be promised uncrackable.
-- Retain compatibility with legacy backups and optional password encryption.
-
-## Local runtime
-- Retain the current published Qualcomm QNN 2.50.0 packages, matching rebuilt dispatch libraries, strict device qualification, crash quarantine and fallback protection. Validate packaged native hashes and alignment during release.
-- Real NPU execution and visual/device acceptance still require supported hardware; host CI does not establish that a device used its NPU.
+## Build
+- Version: 0.9.23.0
+- Version code: 92
+- Signed Android release artifacts are built and verified by the repository release workflow.
