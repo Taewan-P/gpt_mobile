@@ -213,6 +213,43 @@ class FactVaultRepositoryTest {
         assertFalse(repository.state.value.facts.any { it.fact.target.name == "New York" && it.enabled })
     }
 
+    @Test
+    fun `native graph writes stay grounded in the current user message`() = runBlocking {
+        val repository = FactVaultRepository(MemoryVault(), KnowledgeGraphEngine())
+        repository.setEnabled(true)
+        val message = dev.chungjungsoo.gptmobile.data.database.entity.MessageV2(
+            id = 77,
+            chatId = 12,
+            content = "I own a Pixel 8 and prefer concise answers",
+            platformType = null
+        )
+
+        val relationId = repository.rememberGraphFact(
+            entityName = "User",
+            entityType = "PERSON",
+            relationType = "OWNS",
+            targetName = "Pixel 8",
+            targetType = "DEVICE",
+            message = message
+        )
+        val observationId = repository.rememberGraphFact(
+            entityName = "User",
+            entityType = "PERSON",
+            relationType = "OBSERVATION",
+            targetName = "prefer concise answers",
+            targetType = "OBSERVATION",
+            message = message
+        )
+
+        assertTrue(repository.state.value.facts.any { it.id == relationId && it.fact.relation.relationType == "OWNS" })
+        assertTrue(repository.state.value.facts.any { it.id == observationId && it.fact.target.name == "prefer concise answers" })
+        assertTrue(
+            runCatching {
+                repository.rememberGraphFact("User", "PERSON", "OWNS", "MacBook", "DEVICE", message)
+            }.isFailure
+        )
+    }
+
     private class MemoryVault : SecretVault {
         val values = mutableMapOf<String, ByteArray>()
         var failWrites = false
