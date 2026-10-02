@@ -46,6 +46,31 @@ object LocalModelPackages {
     fun isNpuFile(fileName: String): Boolean = npuSoc(fileName) != null ||
         Regex("(?i)(?:npu|qualcomm|mediatek|tensor[_-]?g[0-9])").containsMatchIn(fileName.substringAfterLast('/'))
 
+    /**
+     * Accept an installed Qualcomm package when either the current catalog proves
+     * an exact SoC variant or the artifact basename itself encodes this phone's
+     * supported Snapdragon SoC. Dynamic Hub entries are intentionally not assumed
+     * to remain in the in-memory catalog after download/app restart.
+     *
+     * Parent directory names never count as package evidence: an exact SoC token
+     * must be present in the artifact basename so generic/GPU files cannot be
+     * promoted to QNN accidentally.
+     */
+    fun isNpuPackageCompatible(
+        entry: CatalogEntry?,
+        installedFileName: String?,
+        deviceSocModel: String
+    ): Boolean {
+        if (QualcommSocSupport.htpVersion(deviceSocModel) == null) return false
+        if (entry != null &&
+            LocalAccelerators.isNpuEligible(entry.supportedAccelerators, entry.socToModelFiles, deviceSocModel)
+        ) {
+            return true
+        }
+        val packageSoc = installedFileName?.takeIf(String::isNotBlank)?.let(::npuSoc) ?: return false
+        return QualcommSocSupport.canonicalSoc(packageSoc) == QualcommSocSupport.canonicalSoc(deviceSocModel)
+    }
+
     fun forInstalledFile(entry: CatalogEntry, fileName: String): CatalogEntry {
         if (!isNpuFile(fileName)) {
             return entry.copy(

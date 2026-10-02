@@ -62,4 +62,17 @@ class LocalModelPackagesTest {
         assertFalse(LocalAccelerators.isNpuEligible(installed.supportedAccelerators, installed.socToModelFiles, "SM8750"))
         assertTrue(LocalAccelerators.isNpuEligible(installed.supportedAccelerators, installed.socToModelFiles, "SM8650"))
     }
+
+    @Test fun exactInstalledSocRemainsCompatibleWhenDynamicCatalogEntryIsMissing() {
+        val file = "qwen_qualcomm_sm8750_ctx1024.litertlm"
+        assertTrue(LocalModelPackages.isNpuPackageCompatible(null, file, "SM8750-AB"))
+        assertFalse(LocalModelPackages.isNpuPackageCompatible(null, file, "SM8650"))
+        assertFalse(
+            LocalModelPackages.isNpuPackageCompatible(
+                null,
+                "/models/hf_qualcomm_sm8750/generic.litertlm",
+                "SM8750"
+            )
+        )
+    }
 }
