@@ -89,7 +89,7 @@ class ChatDatabaseV2MigrationsTest {
         }
 
         assertEquals(10, ChatDatabaseV2Migrations.ALL_MIGRATIONS.first().startVersion)
-        assertEquals(31, ChatDatabaseV2Migrations.ALL_MIGRATIONS.last().endVersion)
+        assertEquals(32, ChatDatabaseV2Migrations.ALL_MIGRATIONS.last().endVersion)
 
         assertEquals(10, ChatDatabaseV2Migrations.MIGRATION_10_11.startVersion)
         assertEquals(11, ChatDatabaseV2Migrations.MIGRATION_10_11.endVersion)
@@ -141,6 +141,9 @@ class ChatDatabaseV2MigrationsTest {
 
         assertEquals(26, ChatDatabaseV2Migrations.MIGRATION_26_27.startVersion)
         assertEquals(27, ChatDatabaseV2Migrations.MIGRATION_26_27.endVersion)
+
+        assertEquals(31, ChatDatabaseV2Migrations.MIGRATION_31_32.startVersion)
+        assertEquals(32, ChatDatabaseV2Migrations.MIGRATION_31_32.endVersion)
     }
 
     @Test
