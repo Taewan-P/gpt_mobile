@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.rag
 
+import dev.chungjungsoo.gptmobile.data.memory.MemoryGraphRepository
 import dev.chungjungsoo.gptmobile.data.security.SecretVault
 import java.io.ByteArrayOutputStream
 import java.security.MessageDigest
@@ -89,7 +90,8 @@ data class FactRecall(val facts: List<VaultFact> = emptyList()) {
 class FactVaultRepository @Inject constructor(
     private val vault: SecretVault,
     private val graph: KnowledgeGraphEngine,
-    private val preferences: FactVaultPreferenceStore? = null
+    private val preferences: FactVaultPreferenceStore? = null,
+    private val persistentGraph: MemoryGraphRepository? = null
 ) {
     private val mutex = Mutex()
     private val enrichmentMutex = Mutex()
@@ -139,6 +141,7 @@ class FactVaultRepository @Inject constructor(
     suspend fun clear() = mutex.withLock {
         // Clearing must work even when the existing payload cannot be decoded.
         persist(FactVaultSnapshot(enabled = false), allowUnreadablePrevious = true)
+        persistentGraph?.clear()
         enrichedMessages.clear()
     }
 
@@ -290,6 +293,90 @@ class FactVaultRepository @Inject constructor(
         id
     }
 
+    suspend fun rememberGraphFact(
+        entityName: String,
+        entityType: String,
+        relationType: String,
+        targetName: String,
+        targetType: String,
+        message: dev.chungjungsoo.gptmobile.data.database.entity.MessageV2,
+        scope: String = "personal"
+    ): String = mutex.withLock {
+        loadLocked()
+        val current = _state.value
+        require(current.enabled && current.settings.learningEnabled) { "Memory learning is disabled." }
+        require(scope == "personal" || scope.startsWith("project:"))
+        val relation = relationType.trim().uppercase(Locale.ROOT)
+            .replace(Regex("[^A-Z0-9_]+"), "_")
+            .trim('_')
+            .take(64)
+        require(relation.isNotBlank()) { "Relation type is required." }
+        val sourceName = entityName.trim().take(120)
+        val target = targetName.trim().take(1000)
+        require(sourceName.isNotBlank() && target.isNotBlank()) { "Entity and target names are required." }
+
+        val firstPerson = sourceName.equals("User", true) ||
+            sourceName.lowercase(Locale.ROOT) in setOf("i", "me", "my", "mine")
+        require(
+            (firstPerson && Regex("(?i)\\b(i|me|my|mine)\\b").containsMatchIn(message.content)) ||
+                message.content.contains(sourceName, ignoreCase = true)
+        ) { "The source entity must be grounded in the current user message." }
+        require(message.content.contains(target, ignoreCase = true)) {
+            "The target or observation must quote the current user message."
+        }
+
+        val source = if (firstPerson) {
+            KnowledgeEntity("user", "User", "PERSON")
+        } else {
+            KnowledgeEntity(sourceName.lowercase(Locale.ROOT), sourceName, entityType.trim().uppercase(Locale.ROOT).ifBlank { "ENTITY" })
+        }
+        val targetEntity = KnowledgeEntity(
+            target.lowercase(Locale.ROOT),
+            target,
+            targetType.trim().uppercase(Locale.ROOT).ifBlank { "ENTITY" }
+        )
+        val fact = normalizeFact(
+            KnowledgeFact(
+                source,
+                KnowledgeRelation(source.id, relation, targetEntity.id, 1f, "$sourceName $relation $target"),
+                targetEntity
+            )
+        )
+        val id = scopedFactId(fact, scope)
+        if (current.facts.any { it.id == id }) return@withLock id
+
+        val isObservation = relation == "OBSERVATION" || targetEntity.type == "OBSERVATION"
+        val isPreference = relation in setOf("PREFERS", "AVOIDS", "RESPONSE_LANGUAGE")
+        if (isPreference) require(current.settings.learnPreferences) { "Preference learning is disabled." }
+        if (!isPreference && !isObservation) require(current.settings.learnRelationships) { "Relationship learning is disabled." }
+
+        val evidence = evidenceHash("$sourceName|$relation|$target")
+        require(
+            id !in current.suppressedIds &&
+                "$scope:$evidence" !in current.suppressedEvidence &&
+                "$scope:${sourceKey(message.chatId, message.id)}" !in current.suppressedMessages
+        ) { "This memory was deleted. Restore it manually in Memory settings." }
+        require(current.facts.size < current.settings.maxFacts) { "Memory capacity reached. Review saved memories." }
+
+        persist(
+            current.copy(
+                facts = current.facts + VaultFact(
+                    id = id,
+                    fact = fact,
+                    enabled = !current.settings.reviewBeforeRecall,
+                    sourceChatId = message.chatId,
+                    sourceMessageId = message.id,
+                    savedAtMillis = System.currentTimeMillis(),
+                    source = "native_graph_tool",
+                    confidence = 1f,
+                    scope = scope,
+                    evidenceHash = evidence
+                )
+            )
+        )
+        id
+    }
+
     suspend fun visibleFacts(chatId: Int, isLocal: Boolean): List<VaultFact> = mutex.withLock {
         loadLocked()
         val current = _state.value
@@ -413,14 +500,26 @@ class FactVaultRepository @Inject constructor(
         }
     }
 
-    private fun rebuildGraph(snapshot: FactVaultSnapshot) {
+    private suspend fun rebuildGraph(snapshot: FactVaultSnapshot) {
         graph.clear()
-        if (!snapshot.enabled) return
-        snapshot.facts.filter { it.enabled }.forEach {
+        if (!snapshot.enabled) {
+            persistentGraph?.replaceFromVault(emptyList())
+            return
+        }
+        val cutoff = if (snapshot.settings.retentionDays > 0) {
+            System.currentTimeMillis() - snapshot.settings.retentionDays * 86_400_000L
+        } else {
+            0L
+        }
+        val visible = snapshot.facts.filter {
+            it.enabled && (it.pinned || it.savedAtMillis == 0L || it.savedAtMillis >= cutoff)
+        }
+        visible.forEach {
             graph.addEntity(it.fact.entity)
             graph.addEntity(it.fact.target)
             graph.addRelation(it.fact.relation)
         }
+        persistentGraph?.replaceFromVault(visible)
     }
 
     private fun normalizeFact(fact: KnowledgeFact): KnowledgeFact {
