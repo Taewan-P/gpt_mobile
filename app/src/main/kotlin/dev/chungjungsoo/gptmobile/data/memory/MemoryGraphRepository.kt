@@ -225,25 +225,26 @@ class MemoryGraphRepository @Inject constructor(
 
     private suspend fun rebuildFtsLocked() {
         if (!ensureFtsLocked()) return
+        // Read through Room before taking the raw SQLite transaction. Suspending
+        // DAO calls inside a SupportSQLiteDatabase transaction can switch threads.
+        val entities = dao.entities("personal")
+        val observations = if (entities.isEmpty()) emptyList() else dao.observationsFor(entities.map { it.id })
         val db = database.openHelper.writableDatabase
         runCatching {
             db.beginTransaction()
             try {
                 db.execSQL("DELETE FROM memory_graph_fts")
-                val entities = dao.entities("personal")
                 entities.forEach { entity ->
                     db.execSQL(
                         "INSERT INTO memory_graph_fts(entity_id, scope, text) VALUES (?, ?, ?)",
                         arrayOf(entity.id, entity.scope, "${entity.name} ${entity.entityType}")
                     )
                 }
-                if (entities.isNotEmpty()) {
-                    dao.observationsFor(entities.map { it.id }).forEach { observation ->
-                        db.execSQL(
-                            "INSERT INTO memory_graph_fts(entity_id, scope, text) VALUES (?, ?, ?)",
-                            arrayOf(observation.entityId, observation.scope, observation.observation)
-                        )
-                    }
+                observations.forEach { observation ->
+                    db.execSQL(
+                        "INSERT INTO memory_graph_fts(entity_id, scope, text) VALUES (?, ?, ?)",
+                        arrayOf(observation.entityId, observation.scope, observation.observation)
+                    )
                 }
                 db.setTransactionSuccessful()
             } finally {
