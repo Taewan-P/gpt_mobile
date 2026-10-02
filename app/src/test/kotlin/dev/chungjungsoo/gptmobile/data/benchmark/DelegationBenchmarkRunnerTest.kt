@@ -81,6 +81,52 @@ class DelegationBenchmarkRunnerTest {
         assertTrue(metrics.diagnosticEvents.any { it.type == "CASE_COMPLETE" })
     }
 
+    @Test fun `transport failures retain the root cause instead of failing tool capability validation`() = runTest {
+        val runner = DelegationBenchmarkRunner(
+            createCoordinator = {
+                LocalDelegationCoordinator(source, { config.copy(fallbackToAnotherProfile = false) }, { listOf(helper) }, { _, _, _ ->
+                    error("DELEGATION_FAILED: Software caused connection abort")
+                })
+            },
+            target = helper,
+            config = config,
+            openPrimary = { _, _ -> error("Must not call primary") },
+            workerTokens = { 0L to 0L },
+            workerCalls = { 1 }
+        )
+        val result = runner.run(delegationBenchmarkSuite()[1])
+        assertEquals(BenchmarkOutcome.ERROR, result.outcome)
+        assertTrue(result.error.orEmpty().contains("Software caused connection abort"))
+        assertEquals(0, result.delegation!!.fixtureCalls)
+    }
+
+    @Test fun `primary DNS errors stay transport errors in the research handoff case`() = runTest {
+        val runner = DelegationBenchmarkRunner(
+            createCoordinator = {
+                LocalDelegationCoordinator(source, { config }, { listOf(helper) }, { _, prompt, _ ->
+                    when {
+                        prompt.startsWith("Plan public-web") -> """{"queries":[],"urls":["https://example.org/parcel"]}"""
+                        prompt.startsWith("Choose up to") -> """{"ids":["S1"]}"""
+                        else -> Regex("PKG-[a-f0-9]{8}").find(prompt)?.value?.let { "$it https://example.org/parcel" } ?: "No evidence"
+                    }
+                })
+            },
+            target = helper,
+            config = config,
+            openPrimary = { _, _ ->
+                object : AgentProviderSession {
+                    override fun streamRound(tools: List<AgentToolDefinition>, exchanges: List<AgentToolExchange>) =
+                        flowOf(ProviderEvent.Failed("Unable to resolve host openrouter.ai"))
+                }
+            },
+            workerTokens = { 0L to 0L },
+            workerCalls = { 0 }
+        )
+        val result = runner.run(delegationBenchmarkSuite().last())
+        assertEquals(BenchmarkOutcome.ERROR, result.outcome)
+        assertTrue(result.error.orEmpty().contains("Unable to resolve host"))
+    }
+
     private val source = PlatformV2(uid = "primary", name = "Primary", compatibleType = ClientType.OPENAI)
     private val helper = PlatformV2(uid = "helper", name = "Helper", compatibleType = ClientType.LLAMA, apiUrl = "http://192.168.1.2:8080")
     private val config = ModelDelegationSettings(enabled = true, targetProfileUid = "helper", maxPages = 1, crawlDepth = 0, maxLocalModelCalls = 10)

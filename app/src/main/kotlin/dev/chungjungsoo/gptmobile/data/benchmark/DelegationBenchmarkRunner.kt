@@ -169,7 +169,8 @@ internal class DelegationBenchmarkRunner(
                         primaryEstimated = primary.estimatedTokens
                         answer = primary.preview
                         event("PRIMARY_HANDOFF", "completed=${primary.completed} inputTokens=$primaryInput outputTokens=$primaryOutput estimated=$primaryEstimated")
-                        check(primary.completed && code in answer && "https://example.org/parcel" in answer) { primary.error ?: "The primary answer lost the code or source URL during handoff." }
+                        if (!primary.completed) throw java.io.IOException(primary.error ?: "Primary handoff failed before completing its response.")
+                        check(code in answer && "https://example.org/parcel" in answer) { "The primary answer lost the code or source URL during handoff." }
                     }
                     else -> error("Unknown delegation benchmark case")
                 }
@@ -185,8 +186,20 @@ internal class DelegationBenchmarkRunner(
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: IllegalStateException) {
-            event("CASE_FAILED", "${failure.javaClass.simpleName}: ${failure.message.orEmpty()}", "WARN")
-            return sample(BenchmarkOutcome.FAILED, DiagnosticRedactor.redact(failure.message ?: "Fixture validation failed").take(500))
+            val workerFailure = coordinator.failureReason()
+                ?: telemetry().events.lastOrNull { it.type == "WORKER_FAILURE" }?.message
+            val cause = workerFailure ?: failure.message ?: "Fixture validation failed"
+            val outcome = if (workerFailure != null) {
+                if (cause.contains("WATCHDOG", ignoreCase = true) || cause.contains("timed out", ignoreCase = true) || cause.contains("timeout", ignoreCase = true)) {
+                    BenchmarkOutcome.TIMED_OUT
+                } else {
+                    BenchmarkOutcome.ERROR
+                }
+            } else {
+                BenchmarkOutcome.FAILED
+            }
+            event("CASE_FAILED", "outcome=$outcome cause=$cause", if (workerFailure != null) "ERROR" else "WARN")
+            return sample(outcome, DiagnosticRedactor.redact(cause).take(500))
         } catch (failure: Exception) {
             event("CASE_ERROR", "${failure.javaClass.simpleName}: ${failure.message.orEmpty()}", "ERROR")
             return sample(BenchmarkOutcome.ERROR, DiagnosticRedactor.redact(failure.message ?: "Delegation benchmark failed").take(500))

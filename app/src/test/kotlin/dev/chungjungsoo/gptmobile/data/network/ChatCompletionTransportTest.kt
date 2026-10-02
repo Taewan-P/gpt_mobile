@@ -43,6 +43,7 @@ class ChatCompletionTransportTest {
             withResponse("text/event-stream", body + if (done) "data: [DONE]\n\n" else "") { api, config, _ ->
                 val chunks = runBlocking { api.streamChatCompletion(request(), 5, config).toList() }
                 assertEquals(done, chunks.any { it.streamFinished })
+                assertEquals(!done, chunks.any { it.error != null })
                 assertTrue(chunks.first().choices!!.single().effectiveDelta.toolCalls!!.isNotEmpty())
             }
         }
@@ -53,10 +54,20 @@ class ChatCompletionTransportTest {
         "text/event-stream",
         "data: {\"gateway_progress\":{\"event\":\"tool_completed\",\"tool_name\":\"device_location\",\"tool_args\":{}}}\n\ndata: [DONE]\n\n"
     ) { api, config, _ ->
-        val chunk = runBlocking { api.streamChatCompletion(request(), 5, config).toList().single() }
+        val chunk = runBlocking { api.streamChatCompletion(request(), 5, config).toList().single { it.gatewayProgress != null } }
         assertEquals("device_location", chunk.gatewayProgress?.toolName)
         assertEquals(null, chunk.choices)
         assertFalse(chunk.streamFinished)
+    }
+
+    @Test
+    fun `text block arrays and buffered timing data remain usable`() = withResponse(
+        "application/json",
+        """{"choices":[{"message":{"content":[{"type":"text","text":"PKG-"},{"type":"text","text":{"value":"a1b2c3d4"}}]}}],"timings":{"predicted_per_second":42.5}}"""
+    ) { api, config, _ ->
+        val chunk = runBlocking { api.streamChatCompletion(request(), 5, config).toList().single() }
+        assertEquals("PKG-a1b2c3d4", chunk.choices!!.single().effectiveDelta.content)
+        assertEquals(42.5, chunk.timings!!.decodeTokensPerSecond!!, .01)
     }
 
     private fun request(stream: Boolean = true) = ChatCompletionRequest(model = "llama", messages = emptyList(), stream = stream)

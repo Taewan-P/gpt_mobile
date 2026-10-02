@@ -46,7 +46,9 @@ fun delegationBenchmarkRating(runs: List<BenchmarkRun>): DelegationBenchmarkRati
     val passed = samples.count { it.outcome == BenchmarkOutcome.PASSED }
     val metrics = samples.mapNotNull { it.delegation }
     val successful = samples.filter { it.outcome == BenchmarkOutcome.PASSED }
-    val tools = samples.filter { it.testId == "delegation-tools" }
+    // Transport/runtime errors still reduce reliability, but are not evidence
+    // that a model cannot select a tool. Only completed fixture trials measure that.
+    val tools = samples.filter { it.testId == "delegation-tools" && it.outcome in setOf(BenchmarkOutcome.PASSED, BenchmarkOutcome.FAILED) }
     val toolTaskSuccess = tools.takeIf { it.isNotEmpty() }?.let {
         100.0 * it.count { sample ->
             sample.outcome == BenchmarkOutcome.PASSED && (sample.delegation?.successfulFixtureCalls ?: 0) > 0

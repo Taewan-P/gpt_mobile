@@ -99,12 +99,14 @@ class OpenAIAPIImpl @Inject constructor(
         config: ProviderRequestConfig
     ): Flow<ChatCompletionChunk> = flow {
         var receivedAssistantPayload = false
+        var receivedGatewayToolActivity = false
+        var receivedTerminal = false
         try {
             val free = config.freeProvider
             if (free != null) {
                 check(free.isAvailable) { "LLM7 is awaiting provider approval for use in this app. Choose another Free provider." }
             }
-            val preparedRequest = if (free == null) {
+            var preparedRequest = if (free == null) {
                 request.withEndpointSamplingPolicy(config.apiUrl)
             } else {
                 request.copy(
@@ -155,6 +157,21 @@ class OpenAIAPIImpl @Inject constructor(
                     }
                     if (!response.status.isSuccess()) {
                         val errorBody = response.body<String>()
+                        val parameter = rejectedSamplingParameter(errorBody)
+                        if (response.status.value == 400 && parameter != null) {
+                            val sanitized = when (parameter) {
+                                "temperature" -> preparedRequest.copy(temperature = null)
+                                "top_p" -> preparedRequest.copy(topP = null)
+                                else -> preparedRequest
+                            }
+                            if (sanitized != preparedRequest) {
+                                preparedRequest = sanitized
+                                throw java.io.IOException("Retrying without unsupported sampling parameter: $parameter")
+                            }
+                        }
+                        if (response.status.value in listOf(429, 502, 503, 504)) {
+                            throw java.io.IOException("HTTP ${response.status.value}: transient provider failure")
+                        }
                         throwIfToolDefinitionsRejected(response.status.value, !request.tools.isNullOrEmpty(), errorBody)
 
                         val errorMessage = try {
@@ -229,6 +246,7 @@ class OpenAIAPIImpl @Inject constructor(
                     var receivedAnswer = false
                     var receivedError = false
                     var reachedOutputLimit = false
+                    var parseFailures = 0
 
                     // Success - read SSE stream
                     val channel = response.bodyAsChannel()
@@ -238,6 +256,7 @@ class OpenAIAPIImpl @Inject constructor(
 
                         // OpenAI sends "[DONE]" as final message
                         if (data == "[DONE]") {
+                            receivedTerminal = true
                             if (receivedToolCalls) emit(ChatCompletionChunk(streamFinished = true))
                             break
                         }
@@ -245,12 +264,23 @@ class OpenAIAPIImpl @Inject constructor(
                         val decoded = try {
                             NetworkClient.openAIJson.decodeFromString<ChatCompletionChunk>(data)
                         } catch (_: kotlinx.serialization.SerializationException) {
-                            // Skip malformed data without swallowing collector failures or cancellation.
+                            parseFailures++
                             continue
+                        }
+                        if (!receivedAssistantPayload && !receivedGatewayToolActivity) {
+                            decoded.error?.let { error ->
+                                if (ResilientStreamingClient.isRetryable(IllegalStateException("${error.code.orEmpty()} ${error.message}"))) {
+                                    throw java.io.IOException("Gateway/provider transient error: ${error.message}")
+                                }
+                            }
+                        }
+                        if (decoded.gatewayProgress?.event in setOf("tool_started", "tool_completed", "tool_failed", "remote_tool_handoff")) {
+                            receivedGatewayToolActivity = true
                         }
                         val chunk = decoded.error?.let { error ->
                             decoded.copy(error = error.copy(message = config.readableProviderError(error.message, error.code)))
                         } ?: decoded
+                        receivedTerminal = receivedTerminal || chunk.error != null || chunk.choices.orEmpty().any { it.finishReason != null }
                         receivedAnswer = receivedAnswer || chunk.choices.orEmpty().any { !it.effectiveDelta.content.isNullOrBlank() }
                         receivedError = receivedError || chunk.error != null
                         reachedOutputLimit = reachedOutputLimit || chunk.choices.orEmpty().any { it.finishReason == "length" }
@@ -264,6 +294,10 @@ class OpenAIAPIImpl @Inject constructor(
                         }
                     }
 
+                    if (!receivedTerminal) throw java.io.EOFException("STREAM_INTERRUPTED: provider closed SSE before a completion marker")
+                    if (parseFailures > 0 && !receivedAssistantPayload && !receivedError) {
+                        emit(ChatCompletionChunk(error = ErrorDetail("STREAM_PARSE_FAILURE: $parseFailures response chunks could not be decoded", "stream_parse_error")))
+                    }
                     if (free != null) freeResponseOutcome(free, receivedAnswer, receivedToolCalls, receivedError, reachedOutputLimit)?.let { emit(it) }
                     // If no chunks were emitted but metadata was present, emit a metadata chunk
                     if (firstChunk && gatewayMetadata != null) {
@@ -271,12 +305,23 @@ class OpenAIAPIImpl @Inject constructor(
                     }
                 }
             }
-            if (free != null) FreeAiRequestLimiter.shared.withRequest(free, executeRequest) else executeRequest()
+            if (free != null) {
+                FreeAiRequestLimiter.shared.withRequest(free, executeRequest)
+            } else {
+                ResilientStreamingClient.executeWithRetry(
+                    config = ResilientStreamingClient.RetryConfig(maxAttempts = 3, initialDelayMs = 250, maxDelayMs = 1000),
+                    shouldRetry = { !receivedAssistantPayload && !receivedGatewayToolActivity },
+                    onRetry = { attempt, delay, failure ->
+                        dev.chungjungsoo.gptmobile.data.diagnostics.AppLogRecorder.record(
+                            "ProviderRetry",
+                            "CHAT_RETRY · attempt=$attempt delayMs=$delay · ${failure.javaClass.simpleName}: ${failure.message.orEmpty()}",
+                            "W"
+                        )
+                    }
+                ) { executeRequest() }
+            }
         } catch (e: Exception) {
             if (e is CancellationException || e is dev.chungjungsoo.gptmobile.data.agent.ToolDefinitionsRejectedException) throw e
-            if (ResilientStreamingClient.shouldTreatPrematureCloseAsStreamEnd(receivedAssistantPayload, e)) {
-                return@flow
-            }
             val errorMessage = when (e) {
                 is java.net.UnknownHostException -> "Network error: Unable to resolve host."
                 is java.nio.channels.UnresolvedAddressException -> "Network error: Unable to resolve address. Check your internet connection."
@@ -285,7 +330,7 @@ class OpenAIAPIImpl @Inject constructor(
                 is java.net.SocketTimeoutException -> "Response timed out while waiting for the next chunk."
                 is javax.net.ssl.SSLException -> "Network error: SSL/TLS connection failed."
                 else -> if (ResilientStreamingClient.isPrematureConnectionClose(e)) {
-                    "Connection closed before the response started. Please retry."
+                    if (receivedAssistantPayload) "STREAM_INTERRUPTED: connection closed during the response." else "Connection closed before the response started. Please retry."
                 } else {
                     e.message ?: "Unknown network error"
                 }
@@ -307,59 +352,93 @@ class OpenAIAPIImpl @Inject constructor(
         config: ProviderRequestConfig
     ): Flow<ResponsesStreamEvent> = flow {
         var receivedResponsePayload = false
+        var receivedTerminal = false
+        var preparedRequest = request.withModelSamplingPolicy()
         try {
             val endpoint = config.buildEndpoint("responses")
 
-            networkClient().preparePost(endpoint) {
-                applyPlatformStreamingTimeout(timeoutSeconds)
-                contentType(ContentType.Application.Json)
-                setBody(NetworkClient.openAIJson.encodeToString(request))
-                accept(ContentType.Text.EventStream)
-                config.token?.let { bearerAuth(it) }
-                config.extraHeaders.forEach { (key, value) -> header(key, value) }
-            }.execute { response ->
-                if (!response.status.isSuccess()) {
-                    val errorBody = response.body<String>()
-                    throwIfToolDefinitionsRejected(response.status.value, !request.tools.isNullOrEmpty(), errorBody)
+            ResilientStreamingClient.executeWithRetry(
+                config = ResilientStreamingClient.RetryConfig(maxAttempts = 3, initialDelayMs = 250, maxDelayMs = 1000),
+                shouldRetry = { !receivedResponsePayload },
+                onRetry = { attempt, delay, failure ->
+                    dev.chungjungsoo.gptmobile.data.diagnostics.AppLogRecorder.record(
+                        "ProviderRetry",
+                        "RESPONSES_RETRY · attempt=$attempt delayMs=$delay · ${failure.javaClass.simpleName}: ${failure.message.orEmpty()}",
+                        "W"
+                    )
+                }
+            ) {
+                networkClient().preparePost(endpoint) {
+                    applyPlatformStreamingTimeout(timeoutSeconds)
+                    contentType(ContentType.Application.Json)
+                    setBody(NetworkClient.openAIJson.encodeToString(preparedRequest))
+                    accept(ContentType.Text.EventStream)
+                    config.token?.let { bearerAuth(it) }
+                    config.extraHeaders.forEach { (key, value) -> header(key, value) }
+                }.execute { response ->
+                    if (!response.status.isSuccess()) {
+                        val errorBody = response.body<String>()
+                        val parameter = rejectedSamplingParameter(errorBody)
+                        if (response.status.value == 400 && parameter != null) {
+                            val sanitized = when (parameter) {
+                                "temperature" -> preparedRequest.copy(temperature = null)
+                                "top_p" -> preparedRequest.copy(topP = null)
+                                else -> preparedRequest
+                            }
+                            if (sanitized != preparedRequest) {
+                                preparedRequest = sanitized
+                                throw java.io.IOException("Retrying without unsupported sampling parameter: $parameter")
+                            }
+                        }
+                        if (response.status.value in listOf(429, 502, 503, 504)) {
+                            throw java.io.IOException("HTTP ${response.status.value}: transient provider failure")
+                        }
+                        throwIfToolDefinitionsRejected(response.status.value, !request.tools.isNullOrEmpty(), errorBody)
 
-                    val errorMessage = try {
-                        val errorResponse = NetworkClient.openAIJson.decodeFromString<OpenAIErrorResponse>(errorBody)
-                        errorResponse.error.message
-                    } catch (_: Exception) {
-                        "HTTP ${response.status.value}: $errorBody"
+                        val errorMessage = try {
+                            val errorResponse = NetworkClient.openAIJson.decodeFromString<OpenAIErrorResponse>(errorBody)
+                            errorResponse.error.message
+                        } catch (_: Exception) {
+                            "HTTP ${response.status.value}: $errorBody"
+                        }
+
+                        emit(ResponseErrorEvent(message = config.readableProviderError(errorMessage, response.status.value.toString()), code = response.status.value.toString()))
+                        return@execute
                     }
 
-                    emit(ResponseErrorEvent(message = config.readableProviderError(errorMessage, response.status.value.toString()), code = response.status.value.toString()))
-                    return@execute
-                }
+                    // Success - read SSE stream
+                    val channel = response.bodyAsChannel()
+                    while (!channel.isClosedForRead) {
+                        val line = channel.readLine() ?: break
+                        val data = SseUtils.extractSseData(line) ?: continue
 
-                // Success - read SSE stream
-                val channel = response.bodyAsChannel()
-                while (!channel.isClosedForRead) {
-                    val line = channel.readLine() ?: break
-                    val data = SseUtils.extractSseData(line) ?: continue
+                        if (data == "[DONE]") {
+                            receivedTerminal = true
+                            break
+                        }
 
-                    if (data == "[DONE]") break
-
-                    try {
-                        val decoded = NetworkClient.openAIJson.decodeFromString<ResponsesStreamEvent>(data)
+                        val decoded = try {
+                            NetworkClient.openAIJson.decodeFromString<ResponsesStreamEvent>(data)
+                        } catch (_: kotlinx.serialization.SerializationException) {
+                            continue
+                        }
                         val streamEvent = if (decoded is ResponseErrorEvent) {
                             decoded.copy(message = config.readableProviderError(decoded.message, decoded.code))
                         } else {
                             decoded
                         }
+                        receivedTerminal = receivedTerminal ||
+                            streamEvent is dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseCompletedEvent ||
+                            streamEvent is dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseFailedEvent ||
+                            streamEvent is ResponseErrorEvent
                         receivedResponsePayload = receivedResponsePayload || streamEvent.hasResponseStreamPayload()
                         emit(streamEvent)
-                    } catch (_: Exception) {
-                        emit(UnknownEvent)
                     }
+                    if (!receivedTerminal) throw java.io.EOFException("STREAM_INTERRUPTED: provider closed SSE before response.completed")
                 }
             }
         } catch (e: Exception) {
             if (e is CancellationException || e is dev.chungjungsoo.gptmobile.data.agent.ToolDefinitionsRejectedException) throw e
-            if (ResilientStreamingClient.shouldTreatPrematureCloseAsStreamEnd(receivedResponsePayload, e)) {
-                return@flow
-            }
             val errorMessage = when (e) {
                 is java.net.UnknownHostException -> "Network error: Unable to resolve host."
                 is java.nio.channels.UnresolvedAddressException -> "Network error: Unable to resolve address. Check your internet connection."
@@ -368,7 +447,7 @@ class OpenAIAPIImpl @Inject constructor(
                 is java.net.SocketTimeoutException -> "Response timed out while waiting for the next chunk."
                 is javax.net.ssl.SSLException -> "Network error: SSL/TLS connection failed."
                 else -> if (ResilientStreamingClient.isPrematureConnectionClose(e)) {
-                    "Connection closed before the response started. Please retry."
+                    if (receivedResponsePayload) "STREAM_INTERRUPTED: connection closed during the response." else "Connection closed before the response started. Please retry."
                 } else {
                     e.message ?: "Unknown network error"
                 }

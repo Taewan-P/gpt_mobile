@@ -2413,7 +2413,7 @@ SINGLEFLIGHT_MAX_REQUEST_KEYS = 256
 # v7.5 REMOTE-CLIENT CONTINUITY + RESUMABLE PROGRESS
 # ------------------------------------------------------------
 
-GATEWAY_VERSION = "12.1.0"
+GATEWAY_VERSION = "12.1.1"
 GATEWAY_PROGRESS_PROTOCOL = "gpt-mobile-gateway-progress/2"
 
 V9_0_1_PATCH_APPLIED = True
@@ -3620,7 +3620,8 @@ def _acquire_llama_model_gate(
     timeout_seconds = (
         LLAMA_LONG_MODEL_QUEUE_TIMEOUT_SECONDS
         if is_long
-        else LLAMA_MODEL_QUEUE_TIMEOUT_SECONDS
+        else (min(LLAMA_MODEL_QUEUE_TIMEOUT_SECONDS, 10)
+              if normalized_job_mode == "delegate" else LLAMA_MODEL_QUEUE_TIMEOUT_SECONDS)
     )
     started = time.monotonic()
     deadline = started + timeout_seconds
@@ -3741,7 +3742,8 @@ def _post_llama_model_http(
     timeout_seconds = (
         LLAMA_LONG_MODEL_READ_TIMEOUT_SECONDS
         if str(job_mode or "").lower() == "long"
-        else LLAMA_MODEL_READ_TIMEOUT_SECONDS
+        else (min(LLAMA_MODEL_READ_TIMEOUT_SECONDS, 45)
+              if str(job_mode or "").lower() == "delegate" else LLAMA_MODEL_READ_TIMEOUT_SECONDS)
     )
     kwargs["timeout"] = (
         LLAMA_MODEL_CONNECT_TIMEOUT_SECONDS,
@@ -14345,7 +14347,8 @@ def post_llama_model_round(
         ).start()
 
     try:
-        for attempt in range(LLAMA_MODEL_TIMEOUT_RETRIES + 1):
+        retries = 0 if job_mode == "delegate" else LLAMA_MODEL_TIMEOUT_RETRIES
+        for attempt in range(retries + 1):
             if _llama_dispatch_cancelled(cancel_event, hard_cancel_event):
                 raise InterruptedError(
                     "llama.cpp request cancelled before model round"
@@ -14363,9 +14366,9 @@ def post_llama_model_round(
                 )
                 return response, int((time.monotonic() - started) * 1000)
 
-            except requests.exceptions.Timeout as exc:
+            except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as exc:
                 if (
-                    attempt >= LLAMA_MODEL_TIMEOUT_RETRIES
+                    attempt >= retries
                     or _llama_dispatch_cancelled(cancel_event, hard_cancel_event)
                 ):
                     raise
@@ -14434,6 +14437,14 @@ def process_chat_payload(
     runtime_perf.setdefault("client_reasoning_effort", incoming_payload.get("reasoning_effort"))
     runtime_perf.setdefault("client_thinking_budget_tokens", incoming_payload.get("thinking_budget_tokens", incoming_payload.get("reasoning_budget_tokens")))
     runtime_perf.setdefault("client_tool_choice", incoming_payload.get("tool_choice"))
+
+    # A child agent owns its tool schemas and execution. Domain routing, memory
+    # injection and the gateway's local-first tool loop must not replace them.
+    if runtime_perf.get("delegated_worker", False):
+        return v12_delegate_model_round(
+            incoming_payload, runtime_perf, progress_callback,
+            cancel_event, hard_cancel_event,
+        )
 
     emit_progress(
         progress_callback,
@@ -18225,6 +18236,10 @@ def process_chat_payload(
 # ============================================================
 
 def completion_to_sse(data):
+    if data.get("error"):
+        yield "data: " + json.dumps({"error": data["error"]}, ensure_ascii=False) + "\n\n"
+        yield "data: [DONE]\n\n"
+        return
     completion_id = data.get(
         "id",
         "chatcmpl-gateway",
@@ -18447,6 +18462,8 @@ def completion_to_sse(data):
 
     if "usage" in data:
         final_chunk["usage"] = data["usage"]
+    if isinstance(data.get("timings"), dict):
+        final_chunk["timings"] = data["timings"]
 
     yield (
         "data: "
@@ -19709,6 +19726,7 @@ async def stream_chat_with_keepalive(
     last_progress_signature = None
     v12_last_event = {"phase": "starting", "message": "Preparing memory, tools, and routing"}
     v12_stream_started = time.monotonic()
+    v12_delegate_stream = bool((incoming_payload.get("_gateway_performance") or {}).get("delegated_worker"))
     last_heartbeat = (
         time.monotonic()
     )
@@ -19735,6 +19753,9 @@ async def stream_chat_with_keepalive(
 
     try:
         while True:
+            if v12_delegate_stream and time.monotonic() - v12_stream_started >= 60:
+                cancel_event.set()
+                raise TimeoutError("DELEGATE_STREAM_TIMEOUT: no completed model round within 60 seconds")
             events_to_emit = []
 
             if leader:
@@ -20601,6 +20622,54 @@ def v12_enforce_request_budget(payload):
             if budget:
                 result[key] = min(budget, max(0, cap - 1))
     return result
+
+
+def v12_delegate_model_round(incoming, runtime_perf, progress_callback=None,
+                             cancel_event=None, hard_cancel_event=None):
+    """One bounded model round; client tools are returned for the app to execute."""
+    payload = v12_enforce_request_budget(incoming)
+    payload["stream"] = False
+    payload.pop("stream_options", None)
+    payload.pop("_gateway_performance", None)
+    payload["cache_prompt"] = True
+    if runtime_perf.get("client_tool_choice") == "none":
+        payload.pop("tools", None)
+        payload.pop("parallel_tool_calls", None)
+    configure_llama_model_round(payload, "delegate", 1, 0, 0,
+                               runtime_perf=runtime_perf)
+    if payload.get("tools") and runtime_perf.get("client_tool_choice") == "required":
+        payload["tool_choice"] = "required"
+    emit_progress(progress_callback, "model", "Running the selected delegate with its supplied tools",
+                  event="model_started", status="running", stage="reasoning")
+    response, wall_ms = post_llama_model_round(
+        payload, progress_callback, 1, "delegate", cancel_event,
+        hard_cancel_event, job_mode="delegate",
+    )
+    if response.status_code == 400 and adaptive_llama_request_error(_bounded_response_text(response)):
+        disable_adaptive_llama_request_fields(payload)
+        response, wall_ms = post_llama_model_round(
+            payload, progress_callback, 1, "delegate", cancel_event,
+            hard_cancel_event, job_mode="delegate",
+        )
+    if response.status_code != 200:
+        return response.status_code, {"error": {
+            "message": _bounded_response_text(response), "type": "gateway_upstream_error",
+            "code": str(response.status_code),
+        }}
+    data = response.json()
+    observe_llama_prompt_cache(data, wall_ms, 1, "delegate")
+    choices = data.get("choices") or []
+    if choices:
+        message = choices[0].get("message") or {}
+        if payload.get("tools") and not message.get("tool_calls") and RECOVER_PLAINTEXT_TOOL_CALLS:
+            recovered = extract_plaintext_tool_calls(message.get("content") or "", 1)
+            allowed = set(tool_names(payload["tools"]))
+            if recovered and all(call.get("function", {}).get("name") in allowed for call in recovered):
+                message["tool_calls"] = recovered
+                message["content"] = ""
+                choices[0]["message"] = message
+                choices[0]["finish_reason"] = "tool_calls"
+    return 200, data
 
 
 def v12_enrich_progress(event):

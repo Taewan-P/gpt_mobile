@@ -31,7 +31,8 @@ internal data class DelegateProgress(
     val inputTokens: Long? = null,
     val outputTokens: Long? = null,
     val totalTokens: Long? = null,
-    val textDelta: String? = null
+    val textDelta: String? = null,
+    val decodeTokensPerSecond: Double? = null
 )
 
 private fun estimatedDelegateTokens(text: String): Int = ((text.length + 3) / 4).coerceAtLeast(1)
@@ -47,7 +48,8 @@ internal class LocalDelegationCoordinator(
     private val batteryPercent: suspend () -> Int? = { null },
     private val generateTextWithProgress: (suspend (PlatformV2, String, Int, Int, (DelegateProgress) -> Unit) -> String)? = null,
     private val useWorkloadRuntimeLimit: Boolean = true,
-    private val onRecoveryRequired: (suspend (PlatformV2, List<PlatformV2>, String) -> DelegationRecoveryDecision)? = null
+    private val onRecoveryRequired: (suspend (PlatformV2, List<PlatformV2>, String) -> DelegationRecoveryDecision)? = null,
+    private val nowMs: () -> Long = { System.nanoTime() / 1_000_000 }
 ) {
     private companion object {
         // Absolute emergency ceiling in addition to the user-configurable token budget.
@@ -73,9 +75,12 @@ internal class LocalDelegationCoordinator(
     private val timeoutsByWorker = ConcurrentHashMap<String, AtomicInteger>()
     private val emptyResponsesByWorker = ConcurrentHashMap<String, AtomicInteger>()
     private val quarantinedWorkerUids = ConcurrentHashMap.newKeySet<String>()
-    private val observedRequestOverheadTokens = AtomicLong()
+    private val observedRequestOverheadTokens = ConcurrentHashMap<String, AtomicLong>()
     private val delegationCanceledByUser = AtomicBoolean(false)
     private val userSelectedRecoveryProfile = AtomicReference<PlatformV2?>(null)
+    private val lastFailure = AtomicReference<String?>(null)
+    fun failureReason(): String? = lastFailure.get()
+
     private val worker = Semaphore(4)
 
     private fun automaticFallbackAllowed(config: ModelDelegationSettings): Boolean =
@@ -126,38 +131,34 @@ internal class LocalDelegationCoordinator(
                 candidate.uid != source.uid &&
                     candidate.enabled &&
                     !candidate.excludesMemory() &&
+                    !(source.compatibleType == ClientType.LITERT_LM && candidate.compatibleType == ClientType.LITERT_LM) &&
                     candidate.uid !in quarantinedWorkerUids &&
                     (config.allowRemoteWorkers || candidate.isPrivateDestination())
             if (!metadataEligible) continue
 
-            // A LiteRT profile can remain enabled after its model package has been
-            // removed. Do not select such a profile as a fallback and then discover
-            // at dispatch time that there is nothing to run. Preflight only the
-            // on-device runtime here; network-backed helpers keep their existing
-            // lazy connection/error handling.
-            if (candidate.compatibleType == ClientType.LITERT_LM) {
-                val available = try {
-                    inputBudget(candidate, config.maxOutputTokens)
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (failure: Exception) {
-                    quarantinedWorkerUids += candidate.uid
-                    AppLogRecorder.record(
-                        "Delegation",
-                        "Worker candidate skipped · target=${candidate.uid} · type=${candidate.compatibleType} · reason=RUNTIME_NOT_READY · ${failure.javaClass.simpleName}: ${failure.message.orEmpty()}",
-                        "W"
-                    )
-                    continue
-                }
-                if (available < 600) {
-                    quarantinedWorkerUids += candidate.uid
-                    AppLogRecorder.record(
-                        "Delegation",
-                        "Worker candidate skipped · target=${candidate.uid} · type=${candidate.compatibleType} · reason=RUNTIME_NOT_READY · inputBudget=$available",
-                        "W"
-                    )
-                    continue
-                }
+            // Preflight on-device installation and every helper's input capacity
+            // before any inference is dispatched; this does not probe network APIs.
+            val available = try {
+                inputBudget(candidate, config.maxOutputTokens)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                quarantinedWorkerUids += candidate.uid
+                AppLogRecorder.record(
+                    "Delegation",
+                    "Worker candidate skipped · target=${candidate.uid} · type=${candidate.compatibleType} · reason=RUNTIME_NOT_READY · ${failure.javaClass.simpleName}: ${failure.message.orEmpty()}",
+                    "W"
+                )
+                continue
+            }
+            if (available < 600) {
+                quarantinedWorkerUids += candidate.uid
+                AppLogRecorder.record(
+                    "Delegation",
+                    "Worker candidate skipped · target=${candidate.uid} · type=${candidate.compatibleType} · reason=RUNTIME_NOT_READY · inputBudget=$available",
+                    "W"
+                )
+                continue
             }
             eligible += candidate
         }
@@ -197,16 +198,12 @@ internal class LocalDelegationCoordinator(
                 candidate.uid !in quarantinedWorkerUids &&
                 (config.allowRemoteWorkers || candidate.isPrivateDestination())
         }.filter { candidate ->
-            if (candidate.compatibleType != ClientType.LITERT_LM) {
-                true
-            } else {
-                try {
-                    inputBudget(candidate, config.maxOutputTokens) >= 600
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (_: Exception) {
-                    false
-                }
+            try {
+                inputBudget(candidate, config.maxOutputTokens) >= 600
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                false
             }
         }
     }
@@ -292,15 +289,15 @@ internal class LocalDelegationCoordinator(
             generate(profile, prompt, outputTokens)
         }
         return coroutineScope {
-            val startedAt = System.currentTimeMillis()
-            val firstProgressAt = AtomicLong(0L)
+            val startedAt = nowMs()
+            val firstProgressAt = AtomicLong(-1L)
             val lastProgressAt = AtomicLong(startedAt)
             val deferred = async {
                 progressive(profile, prompt, outputTokens, inputTokenCap) { progress ->
-                    val now = System.currentTimeMillis()
+                    val now = nowMs()
                     when (progress.kind) {
                         DelegateProgressKind.OUTPUT, DelegateProgressKind.TOOL_ACTIVITY -> {
-                            firstProgressAt.compareAndSet(0L, now)
+                            firstProgressAt.compareAndSet(-1L, now)
                             lastProgressAt.set(now)
                         }
                         DelegateProgressKind.USAGE -> {
@@ -313,21 +310,22 @@ internal class LocalDelegationCoordinator(
             }
             while (!deferred.isCompleted) {
                 delay(WATCHDOG_POLL_MS)
-                val now = System.currentTimeMillis()
+                val now = nowMs()
                 val elapsed = now - startedAt
                 val first = firstProgressAt.get()
                 val reason = when {
                     elapsed >= runtimeSeconds * 1000L -> "MAX_RUNTIME"
-                    first == 0L && elapsed >= firstProgressSeconds * 1000L -> "NO_FIRST_PROGRESS"
-                    first != 0L && now - lastProgressAt.get() >= idleSeconds * 1000L -> "IDLE_PROGRESS"
+                    first < 0L && elapsed >= firstProgressSeconds * 1000L -> "NO_FIRST_PROGRESS"
+                    first >= 0L && now - lastProgressAt.get() >= idleSeconds * 1000L -> "IDLE_PROGRESS"
                     else -> null
                 }
                 if (reason != null) {
+                    lastFailure.set("DELEGATE_WATCHDOG_$reason: delegate exceeded its progress deadline.")
                     deferred.cancel(CancellationException("DELEGATE_WATCHDOG_$reason"))
                     runCatching { deferred.await() }
                     AppLogRecorder.record(
                         "Delegation",
-                        "DELEGATE_WATCHDOG_CANCELLED · target=${profile.uid} · reason=$reason · elapsedMs=$elapsed · firstProgressMs=${if (first == 0L) -1 else first - startedAt} · idleMs=${now - lastProgressAt.get()}",
+                        "DELEGATE_WATCHDOG_CANCELLED · target=${profile.uid} · reason=$reason · elapsedMs=$elapsed · firstProgressMs=${if (first < 0L) -1 else first - startedAt} · idleMs=${now - lastProgressAt.get()}",
                         "W"
                     )
                     return@coroutineScope null
@@ -344,9 +342,11 @@ internal class LocalDelegationCoordinator(
         requirePrivate: Boolean = true,
         allowTools: Boolean = false,
         pinnedConfig: ModelDelegationSettings? = null,
-        interactiveRecovery: Boolean = false
+        interactiveRecovery: Boolean = false,
+        attemptedProfiles: Set<String> = emptySet()
     ): String? {
         val config = (pinnedConfig ?: settings()).normalized()
+        if (target.uid in attemptedProfiles) return null
         if (!config.enabled || delegationCanceledByUser.get()) return null
         var observedForFailure = 0L
         var resolvedProfileUid: String? = null
@@ -391,7 +391,7 @@ internal class LocalDelegationCoordinator(
                     (source.compatibleType == ClientType.LITERT_LM && profile.compatibleType == ClientType.LITERT_LM)
                 ) {
                     recoveryReason = "The selected delegate was rejected by the active delegation rules."
-                    if (interactiveRecovery && onRecoveryRequired != null) {
+                    if ((interactiveRecovery && onRecoveryRequired != null) || automaticFallbackAllowed(latest)) {
                         failoverTarget = recoveryCandidates(latest, profile.uid).firstOrNull()
                     }
                     AppLogRecorder.record("Delegation", "Worker rejected by gate · target=${target.uid} · fallback=${failoverTarget?.uid}", "W")
@@ -400,7 +400,7 @@ internal class LocalDelegationCoordinator(
                 val budget = inputBudget(profile, tokens).coerceAtLeast(0)
                 if (budget < 600) {
                     recoveryReason = "The delegate does not have enough input capacity for this task."
-                    if (interactiveRecovery && onRecoveryRequired != null) {
+                    if ((interactiveRecovery && onRecoveryRequired != null) || automaticFallbackAllowed(latest)) {
                         failoverTarget = recoveryCandidates(latest, profile.uid).firstOrNull()
                     }
                     AppLogRecorder.record("Delegation", "Worker rejected · input budget too small · target=${profile.uid} · inputBudget=$budget · fallback=${failoverTarget?.uid}", "W")
@@ -416,7 +416,8 @@ internal class LocalDelegationCoordinator(
                     return@withPermit null
                 }
                 val hardInputTokenCap = minOf(latest.effectiveLocalInputTokens(), MAX_DELEGATION_INPUT_TOKENS)
-                val knownRequestOverhead = observedRequestOverheadTokens.get().coerceAtLeast(0L)
+                val profileOverhead = observedRequestOverheadTokens.getOrPut(profile.uid, ::AtomicLong)
+                val knownRequestOverhead = profileOverhead.get().coerceAtLeast(0L)
                 val promptTokenBudget = (hardInputTokenCap.toLong() - knownRequestOverhead).coerceAtLeast(0L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
                 if (promptTokenBudget < 150) {
                     AppLogRecorder.record(
@@ -459,17 +460,11 @@ internal class LocalDelegationCoordinator(
                     }
                 }
                 val runtimeSeconds = adaptiveRuntimeSeconds(estimatedInput, latest)
-                // llama.cpp/gateway workers can spend a substantial period evaluating the
-                // prompt before the first token is emitted. Treat the adaptive runtime as the
-                // first-token ceiling for LLAMA workers; once output starts, the normal idle
-                // watchdog still detects a genuinely stalled generation.
-                val firstProgressSeconds = if (profile.compatibleType == ClientType.LLAMA) {
-                    runtimeSeconds
-                } else {
-                    minOf(latest.timeToFirstTokenTimeoutSeconds, runtimeSeconds)
-                }
+                // The user's first-response deadline applies to every provider, including
+                // buffered gateway responses. Heartbeats do not prove model progress.
+                val firstProgressSeconds = minOf(latest.timeToFirstTokenTimeoutSeconds, runtimeSeconds)
                 val idleSeconds = minOf(latest.idleTokenTimeoutSeconds, runtimeSeconds)
-                val startedAtMs = System.currentTimeMillis()
+                val startedAtMs = nowMs()
                 dispatchedAtMs = startedAtMs
                 var observedInputTokens = 0L
                 AppLogRecorder.record(
@@ -493,14 +488,14 @@ internal class LocalDelegationCoordinator(
                 } catch (failure: Exception) {
                     if (observedInputTokens > estimatedInput) {
                         val observedOverhead = observedInputTokens - estimatedInput
-                        observedRequestOverheadTokens.accumulateAndGet(observedOverhead) { current, observed -> maxOf(current, observed) }
+                        profileOverhead.accumulateAndGet(observedOverhead) { current, observed -> maxOf(current, observed) }
                     }
                     throw failure
                 }
-                val elapsedMs = System.currentTimeMillis() - startedAtMs
+                val elapsedMs = nowMs() - startedAtMs
                 if (observedInputTokens > estimatedInput) {
                     val observedOverhead = observedInputTokens - estimatedInput
-                    observedRequestOverheadTokens.accumulateAndGet(observedOverhead) { current, observed -> maxOf(current, observed) }
+                    profileOverhead.accumulateAndGet(observedOverhead) { current, observed -> maxOf(current, observed) }
                 }
                 val chargedInput = maxOf(estimatedEffectiveInput, observedInputTokens)
                 if (response == null) {
@@ -512,7 +507,7 @@ internal class LocalDelegationCoordinator(
                         quarantinedWorkerUids += profile.uid
                     }
                     recoveryReason = "The delegate stopped or timed out before returning a usable result."
-                    if ((interactiveRecovery && onRecoveryRequired != null) || (quarantined && automaticFallbackAllowed(latest))) {
+                    if ((interactiveRecovery && onRecoveryRequired != null) || automaticFallbackAllowed(latest)) {
                         failoverTarget = recoveryCandidates(latest, profile.uid).firstOrNull()
                     }
                     AppLogRecorder.record("Delegation", "CANCELED_NO_RESULT · target=${profile.uid} · call=$callNumber/$effectiveCallLimit · elapsedMs=$elapsedMs · estimatedInputTokens=$estimatedInput · observedInputTokens=$observedInputTokens · requestedOutputCap=$requestedOutputCap", "E")
@@ -535,7 +530,7 @@ internal class LocalDelegationCoordinator(
                         quarantinedWorkerUids += profile.uid
                     }
                     recoveryReason = "The delegate completed without returning usable content."
-                    if ((interactiveRecovery && onRecoveryRequired != null) || (quarantined && automaticFallbackAllowed(latest))) {
+                    if ((interactiveRecovery && onRecoveryRequired != null) || automaticFallbackAllowed(latest)) {
                         failoverTarget = recoveryCandidates(latest, profile.uid).firstOrNull()
                     }
                     AppLogRecorder.record(
@@ -550,11 +545,12 @@ internal class LocalDelegationCoordinator(
                 AppLogRecorder.record("Delegation", "Worker cancelled by parent · target=${target.uid} · calls=${localCalls.get()} · reason=${cancelled.message.orEmpty()}", "W")
                 throw cancelled
             } catch (failure: Exception) {
-                dispatchedAtMs?.let { wastedLocalMs.addAndGet((System.currentTimeMillis() - it).coerceAtLeast(0L)) }
+                dispatchedAtMs?.let { wastedLocalMs.addAndGet((nowMs() - it).coerceAtLeast(0L)) }
                 val estimated = maxOf(estimatedDelegateTokens(prompt).toLong(), observedForFailure)
                 val chargedFailureTokens = if (dispatchedAtMs != null || observedForFailure > 0L) estimated else 0L
                 if (chargedFailureTokens > 0L) failedLocalTokens.addAndGet(chargedFailureTokens)
                 val message = failure.message.orEmpty()
+                lastFailure.set(message.ifBlank { failure.javaClass.simpleName })
                 val failedUid = resolvedProfileUid ?: target.uid
                 val authBlocked = message.contains("HTTP 401", ignoreCase = true) ||
                     message.contains("HTTP 403", ignoreCase = true) ||
@@ -612,7 +608,7 @@ internal class LocalDelegationCoordinator(
                 recoveryReason = message.takeIf { it.isNotBlank() }
                     ?.let { "The delegate failed: ${it.take(240)}" }
                     ?: "The delegate failed before completing the task."
-                if ((interactiveRecovery && onRecoveryRequired != null) || (shouldQuarantine && automaticFallbackAllowed(latest))) {
+                if ((interactiveRecovery && onRecoveryRequired != null) || automaticFallbackAllowed(latest)) {
                     failoverTarget = recoveryCandidates(latest, failedUid).firstOrNull()
                 }
                 AppLogRecorder.record(
@@ -626,12 +622,15 @@ internal class LocalDelegationCoordinator(
                 activeWorkers.decrementAndGet()
             }
         }
-        if (result != null) return result
+        if (result != null) {
+            lastFailure.set(null)
+            return result
+        }
         val failedUid = resolvedProfileUid ?: target.uid
         val latest = (pinnedConfig ?: settings()).normalized()
         if (interactiveRecovery && onRecoveryRequired != null && recoveryReason != null) {
             val failedProfile = profiles().firstOrNull { it.uid == failedUid } ?: target
-            val candidates = recoveryCandidates(latest, failedUid)
+            val candidates = recoveryCandidates(latest, failedUid).filter { it.uid !in attemptedProfiles }
             val decision = if (candidates.isEmpty()) {
                 DelegationRecoveryDecision.PrimaryOnly
             } else {
@@ -660,18 +659,20 @@ internal class LocalDelegationCoordinator(
                         "User selected delegation failover · failed=$failedUid · selected=${selected.uid}",
                         "W"
                     )
-                    return workerText(selected, prompt, tokens, requirePrivate, allowTools, pinnedConfig, interactiveRecovery)
+                    return workerText(selected, prompt, tokens, requirePrivate, allowTools, pinnedConfig, interactiveRecovery, attemptedProfiles + failedUid)
                 }
             }
         }
-        val fallback = failoverTarget
+        if (lastFailure.get() == null && recoveryReason != null) lastFailure.set(recoveryReason)
+        val fallback = failoverTarget?.takeIf { it.uid !in attemptedProfiles }
+            ?: if (failoverTarget != null) recoveryCandidates(latest, failedUid).firstOrNull { it.uid !in attemptedProfiles } else null
         if (fallback != null && fallback.uid != target.uid) {
             AppLogRecorder.record(
                 "Delegation",
                 "Worker failover · failed=$failedUid · fallback=${fallback.uid} · type=${fallback.compatibleType}",
                 "W"
             )
-            return workerText(fallback, prompt, tokens, requirePrivate, allowTools, pinnedConfig, interactiveRecovery)
+            return workerText(fallback, prompt, tokens, requirePrivate, allowTools, pinnedConfig, interactiveRecovery, attemptedProfiles + failedUid)
         }
         return null
     }
@@ -736,7 +737,7 @@ internal class LocalDelegationCoordinator(
     /** Text transforms cannot trigger tool loops; the app owns research execution. */
     suspend fun processText(task: String, maxTokens: Int): String? {
         val target = localTarget(settings().normalized()) ?: return null
-        return workerText(target, task, maxTokens)
+        return workerText(target, task, maxTokens)?.let { preserveDelegationFacts(task, it, maxTokens * 4) }
     }
 
     suspend fun executeTask(target: PlatformV2, task: String, maxTokens: Int): String? {
@@ -879,7 +880,9 @@ internal class LocalDelegationCoordinator(
         val notes = mutableListOf("$toolName completed. This is a compact result; do not repeat completed actions to recover omitted data.")
         if (summary == null) notes += "Local inference was unavailable or its call budget was reached; exact excerpts are provided."
         if (raw.toByteArray().size > bounded.maxInputCharacters) notes += "The original result exceeded the local input allowance; only relevant passages were processed."
-        val compact = ToolResultContent.Text(delegationHandoff(summary ?: relevantEvidence(raw, task, config.handoffTokens * 2), urls, notes, config.handoffTokens))
+        val guarded = summary?.let { preserveDelegationFacts(compactEvidence, it, config.handoffTokens * 2) }
+        if (guarded == compactEvidence && guarded.length > config.handoffTokens * 2) return result
+        val compact = ToolResultContent.Text(delegationHandoff(guarded ?: relevantEvidence(raw, task, config.handoffTokens * 2), urls, notes, config.handoffTokens))
         return result.copy(
             content = compact,
             traceContent = result.traceContent ?: result.content,

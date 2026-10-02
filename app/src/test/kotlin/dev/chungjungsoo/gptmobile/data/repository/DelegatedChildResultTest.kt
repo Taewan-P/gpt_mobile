@@ -10,6 +10,15 @@ import org.junit.Test
 
 class DelegatedChildResultTest {
     @Test
+    fun `short factual answers are usable instead of counted as empty`() {
+        for (answer in listOf("42", "Yes", "OK")) {
+            val result = resolveDelegatedChildResult(answer, emptyList(), false, null)
+            assertEquals(DelegatedChildStatus.COMPLETED, result.status)
+            assertEquals(answer, result.text)
+        }
+    }
+
+    @Test
     fun `direct text is a completed delegated result`() {
         val result = resolveDelegatedChildResult(
             rawText = "Useful delegated answer.",

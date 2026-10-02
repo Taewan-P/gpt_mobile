@@ -35,6 +35,9 @@ data class ChatCompletionChunk(
     @SerialName("usage")
     val usage: ChatCompletionUsage? = null,
 
+    @SerialName("timings")
+    val timings: ChatCompletionTimings? = null,
+
     // Transport-owned signal: only an explicit SSE [DONE], never an arbitrary socket EOF.
     @Transient
     val streamFinished: Boolean = false
@@ -197,6 +200,7 @@ data class Delta(
     val role: String? = null,
 
     @SerialName("content")
+    @Serializable(with = OpenAITextContentSerializer::class)
     val content: String? = null,
 
     @SerialName("reasoning")
@@ -243,3 +247,20 @@ data class ErrorDetail(
     @SerialName("code")
     val code: String? = null
 )
+
+/** llama.cpp timing data survives a gateway's buffered SSE response. */
+@Serializable
+data class ChatCompletionTimings(
+    @SerialName("predicted_per_second")
+    val predictedPerSecond: Double? = null,
+    @SerialName("predicted_n")
+    val predictedTokens: Int? = null,
+    @SerialName("predicted_ms")
+    val predictedMs: Double? = null
+) {
+    val decodeTokensPerSecond: Double?
+        get() = predictedPerSecond?.takeIf { it.isFinite() && it > 0 }
+            ?: predictedMs?.takeIf { it.isFinite() && it > 0 }?.let { ms ->
+                predictedTokens?.takeIf { it > 0 }?.let { it * 1000.0 / ms }
+            }
+}

@@ -586,6 +586,21 @@ class AgentRunnerTest {
         assertFalse(events.any { it == AgentRunEvent.Provider(ProviderEvent.Completed) })
     }
 
+    @Test
+    fun `backend throughput survives aggregated usage from a buffered response`() = runBlocking {
+        val session = session { _, _ ->
+            flow {
+                emit(ProviderEvent.TextDelta("one buffered answer"))
+                emit(ProviderEvent.Usage(inputTokens = 20, outputTokens = 10, decodeTokensPerSecond = 42.5))
+                emit(ProviderEvent.Completed)
+            }
+        }
+        val usage = AgentRunner().run(session, emptyList()).toList()
+            .filterIsInstance<AgentRunEvent.Provider>().map { it.event }.filterIsInstance<ProviderEvent.Usage>().single()
+        assertEquals(42.5, usage.decodeTokensPerSecond!!, .01)
+        assertEquals(10, usage.outputTokens)
+    }
+
     private fun session(
         stream: (List<AgentToolDefinition>, List<AgentToolExchange>) -> Flow<ProviderEvent>
     ): AgentProviderSession = object : AgentProviderSession {

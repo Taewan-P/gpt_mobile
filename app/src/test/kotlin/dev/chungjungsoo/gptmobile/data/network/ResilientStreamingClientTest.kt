@@ -19,7 +19,7 @@ class ResilientStreamingClientTest {
     }
 
     @Test
-    fun `late premature close becomes graceful only after payload`() {
+    fun `partial payload never proves the stream completed`() {
         val error = IOException("unexpected end of stream")
 
         assertFalse(
@@ -28,12 +28,13 @@ class ResilientStreamingClientTest {
                 throwable = error
             )
         )
-        assertTrue(
+        assertFalse(
             ResilientStreamingClient.shouldTreatPrematureCloseAsStreamEnd(
                 receivedPayload = true,
                 throwable = error
             )
         )
+        assertTrue(ResilientStreamingClient.shouldTreatPrematureCloseAsStreamEnd(true, error, completed = true))
     }
 
     @Test

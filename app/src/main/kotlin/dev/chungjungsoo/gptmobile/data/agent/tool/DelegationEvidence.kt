@@ -166,3 +166,18 @@ internal fun delegationHandoff(summary: String, sources: List<DelegationSource>,
     }
     return render()
 }
+
+/** Keep literal identifiers and numeric facts alongside a lossy model summary. */
+internal fun preserveDelegationFacts(evidence: String, summary: String, maxCharacters: Int): String {
+    val anchors = Regex("""https?://[^\s<>"]+|\b[A-Za-z][A-Za-z0-9]*[-_][A-Za-z0-9_-]+\b|\bS\d+\b|\b\d+(?:[.,:/-]\d+)*%?\b""")
+        .findAll(evidence).map { it.value }.distinct().filter { it !in summary }.toList()
+    if (anchors.isEmpty()) return summary
+    val limit = maxCharacters.coerceAtLeast(32)
+    val retained = anchors.joinToString(" · ")
+    // If preserving the literals itself exceeds the output budget, keep original
+    // evidence rather than returning a summary that falsely appears complete.
+    val suffix = "Exact evidence values: $retained\n"
+    if (suffix.length >= limit) return evidence
+    dev.chungjungsoo.gptmobile.data.diagnostics.AppLogRecorder.record("Delegation", "COMPACTION_FACTS_RESTORED · identifiers=${anchors.size}", "W")
+    return suffix + summary.take(limit - suffix.length)
+}

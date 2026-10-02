@@ -284,7 +284,9 @@ class ProfileBenchmarkViewModel @Inject constructor(
             } finally {
                 withContext(NonCancellable) {
                     try {
-                        store.save(run.copy(finished = true, thermalAfter = thermal(), batteryAfter = battery()))
+                        val finished = run.copy(finished = true, thermalAfter = thermal(), batteryAfter = battery())
+                        store.save(finished)
+                        if (finished.mode == BenchmarkMode.DELEGATION) logDelegationRating(finished)
                     } catch (error: Exception) {
                         mutableError.value = "Could not save benchmark: ${safeMessage(error)}"
                     }
@@ -292,6 +294,17 @@ class ProfileBenchmarkViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    private fun logDelegationRating(run: BenchmarkRun) {
+        val rating = dev.chungjungsoo.gptmobile.data.benchmark.delegationBenchmarkRating(listOf(run))
+        val rankings = dev.chungjungsoo.gptmobile.data.benchmark.delegateRankings(store.history.value, run.configKey, run.delegationSettings)
+        val rank = rankings.indexOfFirst { it.run.id == run.id }.takeIf { it >= 0 }?.plus(1)
+        dev.chungjungsoo.gptmobile.data.diagnostics.AppLogRecorder.record(
+            "DelegationBenchmark",
+            "DELEGATION_SCORE · run=${run.id} score=${rating.score} rank=$rank passed=${rating.passed}/${rating.attempts} " +
+                "toolSuccessPercent=${rating.toolTaskSuccessPercent} tokPerSec=${rating.medianDecodeSpeed} estimated=${rating.estimated}"
+        )
     }
 
     private fun startDelegationBatch() {
@@ -391,7 +404,9 @@ class ProfileBenchmarkViewModel @Inject constructor(
                     } finally {
                         withContext(NonCancellable) {
                             try {
-                                store.save(run.copy(finished = true, thermalAfter = thermal(), batteryAfter = battery()))
+                                val finished = run.copy(finished = true, thermalAfter = thermal(), batteryAfter = battery())
+                                store.save(finished)
+                                if (finished.mode == BenchmarkMode.DELEGATION) logDelegationRating(finished)
                             } catch (error: Exception) {
                                 failures += "${helper.name}: could not save benchmark: ${safeMessage(error)}"
                             }

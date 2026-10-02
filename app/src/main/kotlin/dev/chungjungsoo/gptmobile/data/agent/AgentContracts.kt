@@ -19,7 +19,8 @@ sealed interface ProviderEvent {
         val inputTokens: Int? = null,
         val outputTokens: Int? = null,
         val totalTokens: Int? = null,
-        val cumulative: Boolean = true
+        val cumulative: Boolean = true,
+        val decodeTokensPerSecond: Double? = null
     ) : ProviderEvent
 
     /** Effective provider request settings after profile preferences and hard request constraints are resolved. */

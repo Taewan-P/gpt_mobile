@@ -20,6 +20,43 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LocalDelegationCoordinatorTest {
+    @Test fun `first empty result recovers and failed profiles are not revisited within the same task`() = runTest {
+        val second = target.copy(uid = "second")
+        val third = target.copy(uid = "third")
+        val dispatched = mutableListOf<String>()
+        val coordinator = LocalDelegationCoordinator(
+            source,
+            { config.copy(researchEnabled = false, maxLocalModelCalls = 6) },
+            { listOf(target, second, third) },
+            { profile, _, _ ->
+                dispatched += profile.uid
+                if (profile.uid != third.uid) error("EMPTY_RESPONSE: no usable output")
+                "recovered"
+            }
+        )
+        assertEquals("recovered", coordinator.executeTask(target, "Read evidence", 128))
+        assertEquals(listOf(target.uid, second.uid, third.uid), dispatched)
+    }
+
+    @Test fun `fallback preflight excludes helpers without input capacity`() = runTest {
+        val unavailable = target.copy(uid = "unavailable")
+        val available = target.copy(uid = "available")
+        val dispatched = mutableListOf<String>()
+        val coordinator = LocalDelegationCoordinator(
+            source,
+            { config.copy(researchEnabled = false, maxLocalModelCalls = 4) },
+            { listOf(target, unavailable, available) },
+            { profile, _, _ ->
+                dispatched += profile.uid
+                if (profile.uid == target.uid) error("Software caused connection abort")
+                "recovered"
+            },
+            inputBudget = { profile, _ -> if (profile.uid == unavailable.uid) 100 else 4000 }
+        )
+        assertEquals("recovered", coordinator.executeTask(target, "Read evidence", 128))
+        assertEquals(listOf(target.uid, available.uid), dispatched)
+    }
+
     @Test fun `benchmark runtime honors configured allowance while chat keeps workload limit`() = runTest {
         for (benchmark in listOf(false, true)) {
             val coordinator = LocalDelegationCoordinator(
@@ -275,10 +312,10 @@ class LocalDelegationCoordinatorTest {
             }
         )
 
-        assertTrue(runCatching { coordinator.delegate(target, "first", 128, emptyList(), "first") }.isFailure)
+        assertEquals("recovered", coordinator.delegate(target, "first", 128, emptyList(), "first"))
         assertEquals("recovered", coordinator.delegate(target, "second", 128, emptyList(), "second"))
         assertEquals("recovered", coordinator.delegate(target, "third", 128, emptyList(), "third"))
-        assertEquals(listOf("local", "local", "fallback", "fallback"), dispatched)
+        assertEquals(listOf("local", "fallback", "local", "fallback", "fallback"), dispatched)
     }
 
     @Test fun `successful response resets consecutive timeout circuit`() = runTest {
@@ -420,7 +457,7 @@ class LocalDelegationCoordinatorTest {
         assertEquals(listOf("local", "fallback", "fallback"), dispatched)
     }
 
-    @Test fun `llama prompt evaluation is not canceled by the generic first token watchdog`() = runTest {
+    @Test fun `llama prompt evaluation honors the configured first response deadline`() = runTest {
         val coordinator = LocalDelegationCoordinator(
             source,
             {
@@ -435,6 +472,7 @@ class LocalDelegationCoordinatorTest {
             },
             { listOf(target) },
             { _, _, _ -> error("progressive path expected") },
+            nowMs = { testScheduler.currentTime },
             generateWithProgress = { _, _, _, _, progress ->
                 progress(DelegateProgress(DelegateProgressKind.REQUEST_STARTED))
                 delay(6_000)
@@ -443,7 +481,8 @@ class LocalDelegationCoordinatorTest {
             }
         )
 
-        assertEquals("done", coordinator.delegate(target, "slow prompt evaluation", 128, emptyList(), "llama-warmup"))
+        assertTrue(runCatching { coordinator.delegate(target, "slow prompt evaluation", 128, emptyList(), "llama-warmup") }.isFailure)
+        assertTrue(coordinator.failureReason().orEmpty().contains("WATCHDOG"))
     }
 
     @Test fun `settings failure after completed action returns original success without reexecution`() = runTest {
