@@ -1332,7 +1332,7 @@ class LiteRtLmAdapterTest {
         ).streamRound(emptyList(), emptyList()).toList()
 
         assertTrue(gpuEvents.any { it is ProviderEvent.Notice && it.message == LiteRtLmAdapter.DEFAULT_GPU_UNAVAILABLE })
-        assertTrue(npuEvents.any { it is ProviderEvent.Failed && it.message.contains("no verified QNN build") })
+        assertTrue(npuEvents.any { it is ProviderEvent.Failed && it.message.contains("QNN build matched to this phone") })
         assertFalse(npuEvents.any { it is ProviderEvent.Notice && it.message == LiteRtLmAdapter.DEFAULT_GPU_UNAVAILABLE })
         assertEquals(
             listOf(LocalAccelerators.GPU, LocalAccelerators.CPU),
