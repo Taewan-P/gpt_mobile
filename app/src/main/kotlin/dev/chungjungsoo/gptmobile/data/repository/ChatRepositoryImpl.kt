@@ -243,8 +243,14 @@ class ChatRepositoryImpl(
             ?.let { entry -> selected.record?.let { dev.chungjungsoo.gptmobile.data.localmodel.LocalModelPackages.forInstalledFile(entry, it.fileName) } ?: entry }
         dev.chungjungsoo.gptmobile.data.localmodel.LocalModelCompatibility.installedPackageIssue(entry?.downloadUrl.orEmpty(), selected.path)?.let { error(it) }
         if (dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators.normalize(platform.accelerator) == "npu") {
-            check(entry != null && dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators.isNpuEligible(entry.supportedAccelerators, entry.socToModelFiles, deviceSocModel)) {
-                "This package has no verified QNN build for this phone. Choose a matching NPU package or its GPU edition."
+            check(
+                dev.chungjungsoo.gptmobile.data.localmodel.LocalModelPackages.isNpuPackageCompatible(
+                    entry,
+                    selected.record?.fileName ?: selected.path,
+                    deviceSocModel
+                )
+            ) {
+                "This package does not contain a QNN build matched to this phone's Snapdragon SoC. Choose a matching NPU package or its GPU edition."
             }
         }
     }
