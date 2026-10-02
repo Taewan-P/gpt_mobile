@@ -17,6 +17,7 @@ class MemoryGraphRepository @Inject constructor(
     private val dao get() = database.memoryGraphDao()
     private val mutex = Mutex()
     private var ftsAvailable: Boolean? = null
+    private var lastVaultFingerprint: String? = null
 
     suspend fun createEntities(
         entities: List<MemoryGraphEntityInput>,
@@ -54,6 +55,8 @@ class MemoryGraphRepository @Inject constructor(
         mutex.withLock { dao.entityByName(scope, normalize(name)) }
 
     suspend fun replaceFromVault(facts: List<VaultFact>, scope: String = "personal") = mutex.withLock {
+        val fingerprint = vaultFingerprint(facts, scope)
+        if (fingerprint == lastVaultFingerprint) return@withLock
         dao.deleteObservationsBySource(SOURCE_VAULT)
         dao.deleteRelationsBySource(SOURCE_VAULT)
         val now = System.currentTimeMillis()
@@ -111,6 +114,7 @@ class MemoryGraphRepository @Inject constructor(
         if (relations.isNotEmpty()) dao.upsertRelations(relations)
         dao.pruneUnreferencedEntities()
         rebuildFtsLocked()
+        lastVaultFingerprint = fingerprint
     }
 
     suspend fun searchNodes(query: String, chatId: Int?, scope: String = "personal", limit: Int = 20): List<MemoryGraphNode> =
@@ -149,6 +153,7 @@ class MemoryGraphRepository @Inject constructor(
         dao.clearRelations()
         dao.clearObservations()
         dao.clearEntities()
+        lastVaultFingerprint = null
         runCatching { database.openHelper.writableDatabase.execSQL("DELETE FROM memory_graph_fts") }
     }
 
@@ -295,6 +300,16 @@ class MemoryGraphRepository @Inject constructor(
             .digest("$kind|$scope|$value".encodeToByteArray())
             .joinToString("") { "%02x".format(it) }
         return "$kind-${digest.take(32)}"
+    }
+
+    private fun vaultFingerprint(facts: List<VaultFact>, scope: String): String {
+        val stable = facts.asSequence()
+            .filter { it.scope == scope }
+            .sortedBy { it.id }
+            .joinToString("|") { "${it.id}:${it.sourceChatId}:${it.sourceMessageId}" }
+        return MessageDigest.getInstance("SHA-256")
+            .digest("$scope|$stable".encodeToByteArray())
+            .joinToString("") { "%02x".format(it) }
     }
 
     companion object {
