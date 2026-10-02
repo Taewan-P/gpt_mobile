@@ -55,7 +55,7 @@ class LocalMemoryTool(
         val before = state.facts.map { it.id }.toSet()
         val recalled = repository.prepareTurn(query, message.chatId, message.id, isLocal, capture)
         val result = if (capture) {
-            "Saved ${repository.state.value.facts.count { it.id !in before }} new memories from the user message. Use memory_add_observations with an exact user quote for details outside automatic extraction. Review-before-recall settings still apply."
+            "Saved ${repository.state.value.facts.count { it.id !in before }} new memories from the user message. Use add_observations with an exact user quote for details outside automatic extraction. Review-before-recall settings still apply."
         } else {
             recalled.prefix().ifBlank { "No matching enabled facts are available under the current memory settings." }
         }
