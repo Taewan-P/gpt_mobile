@@ -237,6 +237,71 @@ object ChatDatabaseV2Migrations {
         }
     }
 
+    val MIGRATION_31_32 = object : Migration(31, 32) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS memory_graph_entities (
+                    id TEXT NOT NULL PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    normalizedName TEXT NOT NULL,
+                    entityType TEXT NOT NULL,
+                    scope TEXT NOT NULL,
+                    standalone INTEGER NOT NULL,
+                    sourceChatId INTEGER NOT NULL,
+                    sourceMessageId INTEGER NOT NULL,
+                    createdAt INTEGER NOT NULL,
+                    updatedAt INTEGER NOT NULL
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_memory_graph_entities_scope_normalizedName ON memory_graph_entities(scope, normalizedName)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_memory_graph_entities_entityType ON memory_graph_entities(entityType)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_memory_graph_entities_sourceChatId ON memory_graph_entities(sourceChatId)")
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS memory_graph_observations (
+                    id TEXT NOT NULL PRIMARY KEY,
+                    entityId TEXT NOT NULL,
+                    observation TEXT NOT NULL,
+                    normalizedObservation TEXT NOT NULL,
+                    scope TEXT NOT NULL,
+                    sourceKind TEXT NOT NULL,
+                    sourceChatId INTEGER NOT NULL,
+                    sourceMessageId INTEGER NOT NULL,
+                    updatedAt INTEGER NOT NULL,
+                    FOREIGN KEY(entityId) REFERENCES memory_graph_entities(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_memory_graph_observations_entityId ON memory_graph_observations(entityId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_memory_graph_observations_sourceChatId ON memory_graph_observations(sourceChatId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_memory_graph_observations_sourceKind ON memory_graph_observations(sourceKind)")
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS memory_graph_relations (
+                    id TEXT NOT NULL PRIMARY KEY,
+                    fromEntityId TEXT NOT NULL,
+                    toEntityId TEXT NOT NULL,
+                    relationType TEXT NOT NULL,
+                    scope TEXT NOT NULL,
+                    sourceKind TEXT NOT NULL,
+                    sourceChatId INTEGER NOT NULL,
+                    sourceMessageId INTEGER NOT NULL,
+                    updatedAt INTEGER NOT NULL,
+                    FOREIGN KEY(fromEntityId) REFERENCES memory_graph_entities(id) ON UPDATE NO ACTION ON DELETE CASCADE,
+                    FOREIGN KEY(toEntityId) REFERENCES memory_graph_entities(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_memory_graph_relations_fromEntityId ON memory_graph_relations(fromEntityId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_memory_graph_relations_toEntityId ON memory_graph_relations(toEntityId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_memory_graph_relations_sourceChatId ON memory_graph_relations(sourceChatId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_memory_graph_relations_sourceKind ON memory_graph_relations(sourceKind)")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_memory_graph_relations_fromEntityId_toEntityId_relationType_sourceKind ON memory_graph_relations(fromEntityId, toEntityId, relationType, sourceKind)")
+        }
+    }
+
     val ALL_MIGRATIONS: Array<Migration> = arrayOf(
         MIGRATION_10_11,
         MIGRATION_11_12,
@@ -258,6 +323,7 @@ object ChatDatabaseV2Migrations {
         MIGRATION_27_28,
         MIGRATION_28_29,
         MIGRATION_29_30,
-        MIGRATION_30_31
+        MIGRATION_30_31,
+        MIGRATION_31_32
     )
 }
