@@ -1341,6 +1341,34 @@ class LiteRtLmAdapterTest {
     }
 
     @Test
+    fun `installed exact SOC NPU package runs after dynamic catalog entry expires`() = runBlocking {
+        val runtime = FakeLocalRuntime().apply {
+            scriptedEvents = listOf(listOf(LocalRuntimeEvent.TextDelta("npu ok"), LocalRuntimeEvent.Done))
+        }
+        val model = "hf_qwen_sm8750"
+        val file = "qwen_qualcomm_sm8750_ctx1024.litertlm"
+        val models = FakeLocalModelRepository(
+            initialModels = listOf(installedModel(model, file)),
+            downloadedPaths = mapOf(model to "/models/$file")
+        )
+
+        val events = adapter(
+            runtime,
+            models,
+            FakeModelCatalogRepository(emptyList()),
+            deviceSocModel = "SM8750-AB"
+        ).openSession(
+            turns("hello"),
+            localPlatform(model = model).copy(accelerator = LocalAccelerators.NPU)
+        ).streamRound(emptyList(), emptyList()).toList()
+
+        assertEquals(LocalAccelerators.NPU, runtime.loadEngineCalls.single().accelerator)
+        assertTrue(events.any { it is ProviderEvent.TextDelta && it.text == "npu ok" })
+        assertFalse(events.any { it is ProviderEvent.Failed })
+        assertEquals(ProviderEvent.Completed, events.last())
+    }
+
+    @Test
     fun `unset output limit leaves generation uncapped without shrinking context`() = runBlocking {
         val runtime = FakeLocalRuntime().apply {
             scriptedEvents = listOf(listOf(LocalRuntimeEvent.TextDelta("ok"), LocalRuntimeEvent.Done))
