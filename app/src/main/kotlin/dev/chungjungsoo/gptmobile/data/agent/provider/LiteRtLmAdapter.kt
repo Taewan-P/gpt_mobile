@@ -166,9 +166,13 @@ class LiteRtLmAdapter(
                 }
 
                 if (wantsNpu &&
-                    (catalogEntry == null || !LocalAccelerators.isNpuEligible(catalogEntry.supportedAccelerators, catalogEntry.socToModelFiles, deviceSocModel))
+                    !LocalModelPackages.isNpuPackageCompatible(
+                        catalogEntry,
+                        installedRecord?.fileName ?: modelPath,
+                        deviceSocModel
+                    )
                 ) {
-                    send(ProviderEvent.Failed("This package has no verified QNN build for this phone. Select a matching NPU package from the marketplace, or use its GPU edition."))
+                    send(ProviderEvent.Failed("This package does not contain a QNN build matched to this phone's Snapdragon SoC. Select a matching NPU package from the marketplace, or use its GPU edition."))
                     return@channelFlow
                 }
 
