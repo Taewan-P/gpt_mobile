@@ -15,6 +15,7 @@ import dev.chungjungsoo.gptmobile.data.model.ChatMcpToolConfig
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.model.isPrivateDestination
 import dev.chungjungsoo.gptmobile.data.network.NetworkClient
+import dev.chungjungsoo.gptmobile.data.memory.MemoryGraphRepository
 import dev.chungjungsoo.gptmobile.data.rag.FactVaultRepository
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import dev.chungjungsoo.gptmobile.data.repository.ToolConnectionRepository
@@ -49,6 +50,7 @@ class AgentToolResolver @Inject constructor(
     private val mcpOAuthCoordinator: McpOAuthCoordinator,
     private val deviceLocationTool: DeviceLocationTool,
     private val factVault: FactVaultRepository? = null,
+    private val memoryGraph: MemoryGraphRepository? = null,
     private val memoryDocuments: dev.chungjungsoo.gptmobile.data.knowledge.MemoryDocumentRepository? = null,
     private val freeModelToolConsentStore: dev.chungjungsoo.gptmobile.data.permissions.FreeModelToolConsentStore? = null,
     private val gitHubWorkspaceStore: dev.chungjungsoo.gptmobile.data.github.GitHubWorkspaceStore? = null
@@ -136,7 +138,7 @@ class AgentToolResolver @Inject constructor(
                         resolved += tool.resolved(null, "Local memory", tool.definition.name)
                     }
                     LocalMemoryGraphTool.operations.forEach { operation ->
-                        val tool = LocalMemoryGraphTool(factVault, memoryDocuments, userMessage, platform.isPrivateDestination(), operation)
+                        val tool = LocalMemoryGraphTool(factVault, memoryGraph, memoryDocuments, userMessage, platform.isPrivateDestination(), operation)
                         resolved += tool.resolved(null, "Local memory", tool.definition.name)
                     }
                 }
