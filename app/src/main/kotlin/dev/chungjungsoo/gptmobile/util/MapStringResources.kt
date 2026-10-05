@@ -154,6 +154,7 @@ fun getPlatformAPIBrandText(apiType: ApiType) = when (apiType) {
 fun getClientTypeDisplayName(clientType: ClientType): String = when (clientType) {
     ClientType.OPENAI -> "OpenAI"
     ClientType.ANTHROPIC -> "Anthropic"
+    ClientType.MISTRAL -> "Mistral"
     ClientType.GOOGLE -> "Google"
     ClientType.GROQ -> "Groq"
     ClientType.OPENROUTER -> "OpenRouter"

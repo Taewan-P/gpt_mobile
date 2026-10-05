@@ -34,6 +34,11 @@ object RemoteContextWindowParser {
         return positiveInt(match["max_input_tokens"])
     }
 
+    fun mistralMaxContextLength(body: String, model: String): Int? {
+        val match = matchingModel(body, model) ?: return null
+        return positiveInt(match["max_context_length"])
+    }
+
     fun ollamaContextLength(body: String): Int? {
         val root = parseObject(body) ?: return null
         val modelInfo = root["model_info"] as? JsonObject

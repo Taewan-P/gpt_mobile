@@ -72,4 +72,16 @@ class RemoteContextWindowParserTest {
         assertEquals(4096, RemoteContextWindowParser.ollamaContextLength(parameters))
         assertNull(RemoteContextWindowParser.ollamaContextLength("""{"modelfile":"FROM x"}"""))
     }
+
+    @Test
+    fun `mistral uses documented max_context_length`() {
+        val body = """{"id":"mistral-large-latest","max_context_length":131072,"capabilities":{"vision":true}}"""
+        assertEquals(131072, RemoteContextWindowParser.mistralMaxContextLength(body, "mistral-large-latest"))
+        assertNull(
+            RemoteContextWindowParser.mistralMaxContextLength(
+                """{"id":"mistral-large-latest","max_tokens":8192}""",
+                "mistral-large-latest"
+            )
+        )
+    }
 }

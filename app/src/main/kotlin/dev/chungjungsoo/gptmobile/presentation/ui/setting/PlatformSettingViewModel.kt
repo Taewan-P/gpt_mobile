@@ -28,6 +28,8 @@ import dev.chungjungsoo.gptmobile.data.repository.ToolBindingSelection
 import dev.chungjungsoo.gptmobile.data.repository.ToolConnectionRepository
 import dev.chungjungsoo.gptmobile.data.security.SecretVault
 import dev.chungjungsoo.gptmobile.di.DeviceSocModel
+import dev.chungjungsoo.gptmobile.presentation.common.isPlatformApiKeyValid
+import dev.chungjungsoo.gptmobile.presentation.common.isPlatformApiUrlValid
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.DownloadedLocalModelOption
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
@@ -252,6 +254,10 @@ class PlatformSettingViewModel @Inject constructor(
 
     fun updateApiUrl(url: String) {
         _platformState.value?.let { platform ->
+            if (platform.compatibleType == ClientType.MISTRAL && !isPlatformApiUrlValid(platform.compatibleType, url)) {
+                _userMessage.value = R.string.mistral_api_url_requirement
+                return
+            }
             updatePlatform(platform.copy(apiUrl = url.trim()))
             closeApiUrlDialog()
         }
@@ -259,6 +265,10 @@ class PlatformSettingViewModel @Inject constructor(
 
     fun updateApiToken(token: String) {
         _platformState.value?.let { platform ->
+            if (!isPlatformApiKeyValid(platform.compatibleType, token)) {
+                _userMessage.value = R.string.field_required
+                return
+            }
             updatePlatform(platform.copy(token = token.trim().takeIf { it.isNotEmpty() }))
             closeApiTokenDialog()
         }
