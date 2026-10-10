@@ -175,8 +175,11 @@ class ChatCompletionsEventAssembler {
 
     private fun mergeStreamedToolName(current: String?, incoming: String): String {
         if (current.isNullOrEmpty()) return incoming
+        // An exact repeat is a retransmission. A longer value that already
+        // starts with the accumulated name is a cumulative snapshot. Any other
+        // fragment is appended, including one that happens to be a prefix of
+        // the name so far ("foo_" then "foo" is "foo_foo", not "foo_").
         if (incoming == current || incoming.startsWith(current)) return incoming
-        if (current.startsWith(incoming)) return current
         return current + incoming
     }
 }

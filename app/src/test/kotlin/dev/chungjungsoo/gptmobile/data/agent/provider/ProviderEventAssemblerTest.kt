@@ -167,6 +167,21 @@ class ProviderEventAssemblerTest {
     }
 
     @Test
+    fun `chat completions assembler concatenates a fragment that repeats an earlier prefix`() {
+        val repeatedPrefix = assembleChatChunks(
+            """{"id":"chat_1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_foo","type":"function","function":{"name":"foo_","arguments":""}}]},"finish_reason":null}]}""",
+            """{"id":"chat_1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"name":"foo","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}"""
+        )
+        val cumulative = assembleChatChunks(
+            """{"id":"chat_1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_cum","type":"function","function":{"name":"web","arguments":""}}]},"finish_reason":null}]}""",
+            """{"id":"chat_1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"name":"web_search","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}"""
+        )
+
+        assertEquals("foo_foo", (repeatedPrefix.single() as ProviderEvent.ToolCall).name)
+        assertEquals("web_search", (cumulative.single() as ProviderEvent.ToolCall).name)
+    }
+
+    @Test
     fun `chat completions assembler does not merge a later tool call into the first one`() {
         val events = assembleChatChunks(
             """{"id":"chat_1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_a","type":"function","function":{"name":"web_search","arguments":"{\"query\":\"q\"}"}}]},"finish_reason":null}]}""",
