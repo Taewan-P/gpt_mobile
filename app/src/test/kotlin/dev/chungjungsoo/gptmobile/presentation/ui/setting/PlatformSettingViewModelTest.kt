@@ -125,6 +125,71 @@ class PlatformSettingViewModelTest {
     }
 
     @Test
+    fun `Mistral URL edits reject invalid endpoints and persist trimmed HTTPS endpoints`() = runTest {
+        val platform = PlatformV2(
+            uid = "profile-1",
+            name = "Mistral",
+            compatibleType = ClientType.MISTRAL,
+            apiUrl = "https://api.mistral.ai/v1/",
+            token = "secret",
+            model = "mistral-large-latest"
+        )
+        val settings = FakeSettingRepository(platform)
+        val viewModel = testViewModel(FakeToolConnectionDao(), settings)
+        viewModel.openApiUrlDialog()
+
+        listOf("http://api.mistral.ai/v1/", "https://api.mistral.ai/", "https://api.mistral.ai/v1").forEach { url ->
+            viewModel.updateApiUrl(url)
+            assertTrue(settings.updatedPlatforms.isEmpty())
+            assertEquals(platform, viewModel.platformState.value)
+            assertTrue(viewModel.dialogState.value.isApiUrlDialogOpen)
+        }
+
+        viewModel.updateApiUrl(" https://gateway.example/v1/ ")
+        assertEquals("https://gateway.example/v1/", settings.updatedPlatforms.single().apiUrl)
+        assertFalse(viewModel.dialogState.value.isApiUrlDialogOpen)
+    }
+
+    @Test
+    fun `Mistral key edits reject blanks and persist trimmed keys`() = runTest {
+        val platform = PlatformV2(
+            uid = "profile-1",
+            name = "Mistral",
+            compatibleType = ClientType.MISTRAL,
+            apiUrl = "https://api.mistral.ai/v1/",
+            token = "secret",
+            model = "mistral-large-latest"
+        )
+        val settings = FakeSettingRepository(platform)
+        val viewModel = testViewModel(FakeToolConnectionDao(), settings)
+        viewModel.openApiTokenDialog()
+
+        listOf("", "   ").forEach { token ->
+            viewModel.updateApiToken(token)
+            assertTrue(settings.updatedPlatforms.isEmpty())
+            assertEquals("secret", viewModel.platformState.value?.token)
+            assertTrue(viewModel.dialogState.value.isApiTokenDialogOpen)
+        }
+
+        viewModel.updateApiToken(" replacement-key ")
+        assertEquals("replacement-key", settings.updatedPlatforms.single().token)
+        assertFalse(viewModel.dialogState.value.isApiTokenDialogOpen)
+    }
+
+    @Test
+    fun `Custom edits retain HTTP endpoints and optional API keys`() = runTest {
+        val settings = FakeSettingRepository(
+            PlatformV2(uid = "profile-1", name = "Custom", compatibleType = ClientType.CUSTOM, apiUrl = "https://example.com/v1/", model = "model")
+        )
+        val viewModel = testViewModel(FakeToolConnectionDao(), settings)
+
+        viewModel.updateApiUrl(" http://localhost:8080/v1/ ")
+        assertEquals("http://localhost:8080/v1/", settings.updatedPlatforms.last().apiUrl)
+        viewModel.updateApiToken("   ")
+        assertNull(settings.updatedPlatforms.last().token)
+    }
+
+    @Test
     fun `selectSearchBackend none removes web search binding and closes dialog`() = runTest {
         val dao = FakeToolConnectionDao(
             connections = mutableMapOf("search-1" to testConnection("search-1")),

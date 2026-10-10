@@ -54,6 +54,8 @@ import dev.chungjungsoo.gptmobile.data.ModelConstants
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.presentation.common.DestinationCard
+import dev.chungjungsoo.gptmobile.presentation.common.isPlatformApiKeyValid
+import dev.chungjungsoo.gptmobile.presentation.common.isPlatformApiUrlValid
 import dev.chungjungsoo.gptmobile.presentation.ui.localmodel.LocalModelDownloadDialogHost
 import dev.chungjungsoo.gptmobile.presentation.ui.localmodel.rememberLocalModelDownloader
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.LocalModelCatalogPicker
@@ -91,15 +93,16 @@ fun AddPlatformScreen(
     val requestDownload = rememberLocalModelDownloader { entry ->
         viewModel.selectLocalModel(entry.id)
     }
-    val isLocalPlatform = selectedClientType == ClientType.LITERT_LM
     val title = stringResource(if (step == AddPlatformStep.API_TYPE) R.string.choose_platform_type else R.string.platform_details)
-    val isSaveEnabled = !saveState.isSaving &&
-        platformName.isNotBlank() &&
-        if (isLocalPlatform) {
-            canSave
-        } else {
-            model.isNotBlank() && apiUrl.isNotBlank()
-        }
+    val isSaveEnabled = canSavePlatform(
+        isSaving = saveState.isSaving,
+        clientType = selectedClientType,
+        platformName = platformName,
+        apiUrl = apiUrl,
+        apiKey = apiKey,
+        model = model,
+        canSaveLocalModel = canSave
+    )
     val navigateBack = { if (step == AddPlatformStep.DETAILS) step = AddPlatformStep.API_TYPE else onNavigationClick() }
     BackHandler(enabled = step == AddPlatformStep.DETAILS) {
         if (!saveState.isSaving) {
@@ -114,7 +117,19 @@ fun AddPlatformScreen(
         } else {
             model.trim()
         }
-        if (clientType == ClientType.LITERT_LM && !viewModel.canSaveLocalModel()) return
+        if (
+            !canSavePlatform(
+                isSaving = saveState.isSaving,
+                clientType = clientType,
+                platformName = platformName,
+                apiUrl = apiUrl,
+                apiKey = apiKey,
+                model = selectedModel,
+                canSaveLocalModel = viewModel.canSaveLocalModel()
+            )
+        ) {
+            return
+        }
         val defaults = if (clientType == ClientType.LITERT_LM) {
             viewModel.defaultsFor(selectedModel)
         } else {
@@ -210,6 +225,11 @@ fun AddPlatformScreen(
                     }
                 } else {
                     val clientType = selectedClientType ?: ClientType.OPENAI
+                    val isMistralUrlError = clientType == ClientType.MISTRAL &&
+                        apiUrl.isNotBlank() &&
+                        !isPlatformApiUrlValid(clientType, apiUrl)
+                    val isMistralKeyError = clientType == ClientType.MISTRAL &&
+                        !isPlatformApiKeyValid(clientType, apiKey)
                     Text(
                         text = stringResource(R.string.platform_details_description, getClientTypeName(clientType)),
                         style = MaterialTheme.typography.bodyLarge,
@@ -242,9 +262,15 @@ fun AddPlatformScreen(
                                 .fillMaxWidth()
                                 .padding(top = 12.dp),
                             singleLine = true,
-                            isError = apiUrl.isBlank(),
+                            isError = apiUrl.isBlank() || isMistralUrlError,
                             supportingText = {
-                                if (apiUrl.isBlank()) Text(stringResource(R.string.field_required))
+                                when {
+                                    clientType == ClientType.MISTRAL -> {
+                                        Text(stringResource(R.string.mistral_api_url_requirement))
+                                    }
+
+                                    apiUrl.isBlank() -> Text(stringResource(R.string.field_required))
+                                }
                             }
                         )
                         OutlinedTextField(
@@ -256,7 +282,14 @@ fun AddPlatformScreen(
                                 .padding(top = 12.dp),
                             singleLine = true,
                             visualTransformation = PasswordVisualTransformation(),
-                            supportingText = { Text(stringResource(R.string.api_key_supporting)) }
+                            isError = isMistralKeyError,
+                            supportingText = {
+                                Text(
+                                    stringResource(
+                                        if (isMistralKeyError) R.string.field_required else R.string.api_key_supporting
+                                    )
+                                )
+                            }
                         )
                         OutlinedTextField(
                             value = model,
@@ -423,10 +456,27 @@ private fun getClientTypeName(clientType: ClientType): String = when (clientType
 private fun getClientTypeDescription(clientType: ClientType): String = when (clientType) {
     ClientType.OPENAI -> stringResource(R.string.client_type_openai_desc)
     ClientType.ANTHROPIC -> stringResource(R.string.client_type_anthropic_desc)
+    ClientType.MISTRAL -> stringResource(R.string.client_type_mistral_desc)
     ClientType.GOOGLE -> stringResource(R.string.client_type_google_desc)
     ClientType.GROQ -> stringResource(R.string.client_type_groq_desc)
     ClientType.OLLAMA -> stringResource(R.string.client_type_ollama_desc)
     ClientType.OPENROUTER -> stringResource(R.string.client_type_openrouter_desc)
     ClientType.CUSTOM -> stringResource(R.string.client_type_custom_desc)
     ClientType.LITERT_LM -> stringResource(R.string.client_type_litert_lm_desc)
+}
+
+internal fun canSavePlatform(
+    isSaving: Boolean,
+    clientType: ClientType?,
+    platformName: String,
+    apiUrl: String,
+    apiKey: String,
+    model: String,
+    canSaveLocalModel: Boolean
+): Boolean {
+    if (isSaving || platformName.isBlank()) return false
+    if (clientType == ClientType.LITERT_LM) return canSaveLocalModel
+    return model.isNotBlank() &&
+        isPlatformApiUrlValid(clientType, apiUrl) &&
+        isPlatformApiKeyValid(clientType, apiKey)
 }

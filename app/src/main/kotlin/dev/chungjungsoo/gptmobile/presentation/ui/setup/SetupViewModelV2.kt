@@ -15,6 +15,8 @@ import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
 import dev.chungjungsoo.gptmobile.data.repository.ModelCatalogRepository
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
 import dev.chungjungsoo.gptmobile.di.DeviceSocModel
+import dev.chungjungsoo.gptmobile.presentation.common.isPlatformApiKeyValid
+import dev.chungjungsoo.gptmobile.presentation.common.isPlatformApiUrlValid
 import dev.chungjungsoo.gptmobile.presentation.ui.localmodel.HuggingFaceAuthClient
 import dev.chungjungsoo.gptmobile.presentation.ui.localmodel.LocalDownloadGuards
 import dev.chungjungsoo.gptmobile.presentation.ui.localmodel.LocalModelDownloadActions
@@ -113,9 +115,9 @@ class SetupViewModelV2 @Inject constructor(
         _selectedClientType,
         _platformName,
         _apiUrl,
-        _model
-    ) { step, clientType, name, url, modelName ->
-        canProceedFromStep(step, clientType, name, url, modelName)
+        combine(_apiKey, _model) { apiKey, model -> apiKey to model }
+    ) { step, clientType, name, url, keyAndModel ->
+        canProceedFromStep(step, clientType, name, url, keyAndModel.first, keyAndModel.second)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     val isWaitingForDownload: StateFlow<Boolean> = combine(
@@ -237,6 +239,14 @@ class SetupViewModelV2 @Inject constructor(
     fun savePlatform(onSuccess: (() -> Unit)? = null) {
         if (_saveStatus.value is SaveStatus.Saving) return
         val clientType = _selectedClientType.value ?: return
+        if (
+            _platformName.value.isBlank() ||
+            _model.value.isBlank() ||
+            !isPlatformApiUrlValid(clientType, _apiUrl.value) ||
+            !isPlatformApiKeyValid(clientType, _apiKey.value)
+        ) {
+            return
+        }
         _saveStatus.value = SaveStatus.Saving
 
         viewModelScope.launch {
@@ -295,6 +305,7 @@ class SetupViewModelV2 @Inject constructor(
         clientType = _selectedClientType.value,
         platformName = _platformName.value,
         apiUrl = _apiUrl.value,
+        apiKey = _apiKey.value,
         modelName = _model.value
     )
 
@@ -322,14 +333,15 @@ class SetupViewModelV2 @Inject constructor(
         clientType: ClientType?,
         platformName: String,
         apiUrl: String,
+        apiKey: String,
         modelName: String
     ): Boolean = when (step) {
         WIZARD_STEP_BASICS -> {
             val hasName = platformName.isNotBlank()
-            if (clientType == ClientType.LITERT_LM) hasName else hasName && apiUrl.isNotBlank()
+            if (clientType == ClientType.LITERT_LM) hasName else hasName && isPlatformApiUrlValid(clientType, apiUrl)
         }
 
-        WIZARD_STEP_API_KEY -> true
+        WIZARD_STEP_API_KEY -> isPlatformApiKeyValid(clientType, apiKey)
 
         WIZARD_STEP_MODEL -> modelName.isNotBlank()
 

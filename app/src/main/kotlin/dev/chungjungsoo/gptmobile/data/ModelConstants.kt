@@ -7,6 +7,7 @@ object ModelConstants {
     // LinkedHashSet should be used to guarantee item order
     const val OPENAI_DEFAULT_MODEL = "gpt-5.6"
     const val ANTHROPIC_DEFAULT_MODEL = "claude-sonnet-5"
+    const val MISTRAL_DEFAULT_MODEL = "mistral-large-latest"
     const val GOOGLE_DEFAULT_MODEL = "gemini-3.7-flash"
     const val GROQ_DEFAULT_MODEL = "openai/gpt-oss-120b"
     const val OLLAMA_DEFAULT_MODEL = "gpt-oss"
@@ -22,6 +23,7 @@ object ModelConstants {
 
     const val OPENAI_API_URL = "https://api.openai.com/v1/"
     const val ANTHROPIC_API_URL = "https://api.anthropic.com/v1/"
+    const val MISTRAL_API_URL = "https://api.mistral.ai/v1/"
     const val GOOGLE_API_URL = "https://generativelanguage.googleapis.com/"
     const val GROQ_API_URL = "https://api.groq.com/openai/v1/"
     const val OPENROUTER_API_URL = "https://openrouter.ai/api/v1/"
@@ -48,6 +50,7 @@ object ModelConstants {
     fun defaultPlatformName(clientType: ClientType): String = when (clientType) {
         ClientType.OPENAI -> "OpenAI"
         ClientType.ANTHROPIC -> "Anthropic"
+        ClientType.MISTRAL -> "Mistral"
         ClientType.GOOGLE -> "Google"
         ClientType.GROQ -> "Groq"
         ClientType.OLLAMA -> "Ollama"
@@ -59,6 +62,7 @@ object ModelConstants {
     fun defaultApiUrl(clientType: ClientType): String = when (clientType) {
         ClientType.OPENAI -> OPENAI_API_URL
         ClientType.ANTHROPIC -> ANTHROPIC_API_URL
+        ClientType.MISTRAL -> MISTRAL_API_URL
         ClientType.GOOGLE -> GOOGLE_API_URL
         ClientType.GROQ -> GROQ_API_URL
         ClientType.OLLAMA -> OLLAMA_API_URL
@@ -70,6 +74,7 @@ object ModelConstants {
     fun defaultModel(clientType: ClientType): String = when (clientType) {
         ClientType.OPENAI -> OPENAI_DEFAULT_MODEL
         ClientType.ANTHROPIC -> ANTHROPIC_DEFAULT_MODEL
+        ClientType.MISTRAL -> MISTRAL_DEFAULT_MODEL
         ClientType.GOOGLE -> GOOGLE_DEFAULT_MODEL
         ClientType.GROQ -> GROQ_DEFAULT_MODEL
         ClientType.OLLAMA -> OLLAMA_DEFAULT_MODEL

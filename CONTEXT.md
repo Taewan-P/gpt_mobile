@@ -11,7 +11,7 @@ A user-defined provider profile (name, credentials, model, sampling config) that
 _Avoid_: Provider, service, API (when referring to the profile)
 
 **ClientType**:
-The protocol family a Platform speaks (OpenAI, Anthropic, Google, Groq, OpenRouter, Ollama, Custom, and on-device LiteRT-LM). Determines which adapter handles the chat.
+The named API compatibility contract a Platform uses, including vendor-specific defaults and wire behavior (OpenAI, Mistral, Anthropic, Google, Groq, OpenRouter, Ollama, Custom, and on-device LiteRT-LM). Different ClientTypes can share the same protocol.
 
 **Local Platform**:
 A Platform whose ClientType is LiteRT-LM: it answers chats by running a Local Model on-device instead of calling a remote API.
