@@ -111,15 +111,19 @@ class ChatCompletionsEventAssembler {
         reasoning?.takeIf { it.isNotEmpty() }?.let { events += ProviderEvent.ThinkingDelta(it) }
         content?.takeIf { it.isNotEmpty() }?.let { events += ProviderEvent.TextDelta(it) }
         toolCalls.orEmpty().forEach { delta ->
-            val call = pending.getOrPut(delta.index) { PendingCall() }
-            delta.id?.let { call.callId = it }
-            delta.function?.name?.let { call.name = it }
+            val call = resolvePending(delta)
+            delta.id?.takeIf { it.isNotBlank() }?.let { incomingId ->
+                if (call.callId.isNullOrBlank()) call.callId = incomingId
+            }
+            delta.function?.name?.takeIf { it.isNotBlank() }?.let { incomingName ->
+                call.name = mergeStreamedToolName(call.name, incomingName)
+            }
             delta.function?.arguments?.let { call.arguments.append(it) }
         }
         if (finishReason == "tool_calls") {
             pending.values.forEach { call ->
-                val callId = call.callId
-                val name = call.name
+                val callId = call.callId?.takeIf { it.isNotBlank() }
+                val name = call.name?.takeIf { it.isNotBlank() }
                 events += if (callId == null || name == null) {
                     ProviderEvent.Failed("Provider returned an incomplete function call.")
                 } else {
@@ -129,6 +133,51 @@ class ChatCompletionsEventAssembler {
             pending.clear()
         }
         return events
+    }
+
+    // Compatible routers (including gateways such as Clouvia) stream the function
+    // name and id on the first delta, then resend both as "" while arguments
+    // continue. Others omit index, or repeat the same id under a new index.
+    // A blank id or name must not wipe the values already accumulated.
+    private fun resolvePending(delta: ChatToolCallDelta): PendingCall {
+        val id = delta.id?.takeIf { it.isNotBlank() }
+        if (id != null) {
+            pending.entries.firstOrNull { it.value.callId == id }?.let { return it.value }
+        }
+
+        val index = delta.index
+        if (index != null) {
+            pending[index]?.let { existing ->
+                val existingId = existing.callId
+                if (id != null && !existingId.isNullOrBlank() && existingId != id) {
+                    return startCall(nextIndex())
+                }
+                return existing
+            }
+            if (id == null && delta.function?.name.isNullOrBlank() && pending.size == 1) {
+                return pending.values.first()
+            }
+            return startCall(index)
+        }
+
+        if (id != null) return startCall(nextIndex())
+        if (pending.size == 1) return pending.values.first()
+        return startCall(if (pending.containsKey(0)) nextIndex() else 0)
+    }
+
+    private fun startCall(index: Int): PendingCall {
+        val call = PendingCall()
+        pending[index] = call
+        return call
+    }
+
+    private fun nextIndex(): Int = (pending.keys.maxOrNull() ?: -1) + 1
+
+    private fun mergeStreamedToolName(current: String?, incoming: String): String {
+        if (current.isNullOrEmpty()) return incoming
+        if (incoming == current || incoming.startsWith(current)) return incoming
+        if (current.startsWith(incoming)) return current
+        return current + incoming
     }
 }
 

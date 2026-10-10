@@ -272,6 +272,45 @@ class ProviderAdaptersTest {
     }
 
     @Test
+    fun `compatible router streams that blank the tool name still run web search`() = runBlocking {
+        val webSearch = AgentToolDefinition(
+            name = "web_search",
+            description = "Search the web",
+            inputSchema = buildJsonObject { put("type", "object") }
+        )
+        val tool = RecordingAgentTool(webSearch)
+        val rounds = listOf(
+            """{"id":"chat_1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_00_M4HFfnH6Z","type":"function","function":{"name":"web_search","arguments":""}}]},"finish_reason":null}]}""",
+            """{"id":"chat_1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"","type":"function","function":{"name":"","arguments":"{\"query\":\"today's AI news\",\"maxResults\":5}"}}]},"finish_reason":"tool_calls"}]}"""
+        ).map { NetworkClient.openAIJson.decodeFromString<ChatCompletionChunk>(it) }
+        val api = FakeOpenAIAPI(
+            chatRounds = ArrayDeque(
+                listOf(
+                    flowOf(rounds[0], rounds[1]),
+                    flowOf(ChatCompletionChunk(choices = listOf(Choice(0, Delta(content = "Found news."), finishReason = "stop"))))
+                )
+            )
+        )
+        val session = OpenAICompatibleAdapter(api, FakeGroqAPI(), attachmentEncoder())
+            .openSession(turns(), platform(ClientType.CUSTOM))
+
+        val events = AgentRunner().run(session, listOf(tool)).toList()
+
+        assertEquals(
+            buildJsonObject {
+                put("query", "today's AI news")
+                put("maxResults", 5)
+            },
+            tool.arguments
+        )
+        assertFalse(events.toString().contains("is not assigned"))
+        val replayed = api.chatRequests.last().messages.takeLast(2)
+        assertEquals("web_search", replayed[0].toolCalls!!.single().function.name)
+        assertEquals("call_00_M4HFfnH6Z", replayed[0].toolCalls!!.single().id)
+        assertEquals("call_00_M4HFfnH6Z", replayed[1].toolCallId)
+    }
+
+    @Test
     fun `chat completions omits tools for chat only profiles`() = runBlocking {
         val api = FakeOpenAIAPI(chatRounds = ArrayDeque(listOf(emptyFlow())))
 
