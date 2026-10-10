@@ -56,8 +56,9 @@ data class Delta(
 
 @Serializable
 data class ChatToolCallDelta(
+    // Some compatible routers omit index on the delta that carries the function name.
     @SerialName("index")
-    val index: Int,
+    val index: Int? = null,
     @SerialName("id")
     val id: String? = null,
     @SerialName("type")

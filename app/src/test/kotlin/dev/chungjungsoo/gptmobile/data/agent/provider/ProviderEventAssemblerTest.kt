@@ -70,6 +70,162 @@ class ProviderEventAssemblerTest {
     }
 
     @Test
+    fun `chat completions assembler keeps the tool name when later deltas blank it`() {
+        val events = assembleChatChunks(
+            """{"id":"chat_1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_00_M4HFfnH6Z","type":"function","function":{"name":"web_search","arguments":""}}]},"finish_reason":null}]}""",
+            """{"id":"chat_1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"","type":"function","function":{"name":"","arguments":"{\"query\":\"today's AI news\",\"maxResults\":5}"}}]},"finish_reason":"tool_calls"}]}"""
+        )
+
+        assertEquals(
+            listOf(
+                ProviderEvent.ToolCall(
+                    callId = "call_00_M4HFfnH6Z",
+                    name = "web_search",
+                    arguments = buildJsonObject {
+                        put("query", "today's AI news")
+                        put("maxResults", 5)
+                    }
+                )
+            ),
+            events
+        )
+    }
+
+    @Test
+    fun `chat completions assembler accepts a name delta that omits index`() {
+        val events = assembleChatChunks(
+            """{"id":"chat_1","choices":[{"index":0,"delta":{"tool_calls":[{"id":"call_00_abc","type":"function","function":{"name":"web_search","arguments":""}}]},"finish_reason":null}]}""",
+            """{"id":"chat_1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"name":"","arguments":"{\"query\":\"agents\",\"maxResults\":3}"}}]},"finish_reason":"tool_calls"}]}"""
+        )
+
+        assertEquals(
+            listOf(
+                ProviderEvent.ToolCall(
+                    callId = "call_00_abc",
+                    name = "web_search",
+                    arguments = buildJsonObject {
+                        put("query", "agents")
+                        put("maxResults", 3)
+                    }
+                )
+            ),
+            events
+        )
+    }
+
+    @Test
+    fun `chat completions assembler merges argument deltas that repeat the call id on another index`() {
+        val events = assembleChatChunks(
+            """{"id":"chat_1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_00_abc","type":"function","function":{"name":"web_search","arguments":""}}]},"finish_reason":null}]}""",
+            """{"id":"chat_1","choices":[{"index":0,"delta":{"tool_calls":[{"index":1,"id":"call_00_abc","type":"function","function":{"name":"","arguments":"{\"query\":\"agents\"}"}}]},"finish_reason":"tool_calls"}]}"""
+        )
+
+        assertEquals(
+            listOf(
+                ProviderEvent.ToolCall(
+                    callId = "call_00_abc",
+                    name = "web_search",
+                    arguments = buildJsonObject { put("query", "agents") }
+                )
+            ),
+            events
+        )
+    }
+
+    @Test
+    fun `chat completions assembler keeps argument fragments that arrive under a new index`() {
+        val events = assembleChatChunks(
+            """{"id":"chat_1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_00_abc","type":"function","function":{"name":"web_search","arguments":""}}]},"finish_reason":null}]}""",
+            """{"id":"chat_1","choices":[{"index":0,"delta":{"tool_calls":[{"index":1,"function":{"arguments":"{\"query\":\"agents\"}"}}]},"finish_reason":"tool_calls"}]}"""
+        )
+
+        assertEquals(
+            listOf(
+                ProviderEvent.ToolCall(
+                    callId = "call_00_abc",
+                    name = "web_search",
+                    arguments = buildJsonObject { put("query", "agents") }
+                )
+            ),
+            events
+        )
+    }
+
+    @Test
+    fun `chat completions assembler joins split function names and ignores a repeated full name`() {
+        val split = assembleChatChunks(
+            """{"id":"chat_1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_frag","type":"function","function":{"name":"web_","arguments":""}}]},"finish_reason":null}]}""",
+            """{"id":"chat_1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"name":"search","arguments":"{\"query\":\"q\"}"}}]},"finish_reason":"tool_calls"}]}"""
+        )
+        val repeated = assembleChatChunks(
+            """{"id":"chat_1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_rep","type":"function","function":{"name":"web_search","arguments":""}}]},"finish_reason":null}]}""",
+            """{"id":"chat_1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"name":"web_search","arguments":"{\"query\":\"q\"}"}}]},"finish_reason":"tool_calls"}]}"""
+        )
+
+        assertEquals("web_search", (split.single() as ProviderEvent.ToolCall).name)
+        assertEquals("web_search", (repeated.single() as ProviderEvent.ToolCall).name)
+    }
+
+    @Test
+    fun `chat completions assembler concatenates a fragment that repeats an earlier prefix`() {
+        val repeatedPrefix = assembleChatChunks(
+            """{"id":"chat_1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_foo","type":"function","function":{"name":"foo_","arguments":""}}]},"finish_reason":null}]}""",
+            """{"id":"chat_1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"name":"foo","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}"""
+        )
+        val cumulative = assembleChatChunks(
+            """{"id":"chat_1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_cum","type":"function","function":{"name":"web","arguments":""}}]},"finish_reason":null}]}""",
+            """{"id":"chat_1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"name":"web_search","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}"""
+        )
+
+        assertEquals("foo_foo", (repeatedPrefix.single() as ProviderEvent.ToolCall).name)
+        assertEquals("web_search", (cumulative.single() as ProviderEvent.ToolCall).name)
+    }
+
+    @Test
+    fun `chat completions assembler does not merge a later tool call into the first one`() {
+        val events = assembleChatChunks(
+            """{"id":"chat_1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_a","type":"function","function":{"name":"web_search","arguments":"{\"query\":\"q\"}"}}]},"finish_reason":null}]}""",
+            """{"id":"chat_1","choices":[{"index":0,"delta":{"tool_calls":[{"index":1,"id":"call_b","type":"function","function":{"name":"read_url","arguments":"{\"url\":\"https://example.com\"}"}}]},"finish_reason":"tool_calls"}]}"""
+        )
+
+        assertEquals(
+            listOf(
+                ProviderEvent.ToolCall("call_a", "web_search", buildJsonObject { put("query", "q") }),
+                ProviderEvent.ToolCall("call_b", "read_url", buildJsonObject { put("url", "https://example.com") })
+            ),
+            events
+        )
+    }
+
+    @Test
+    fun `chat completions assembler keeps parallel tool calls when continuation names are blank`() {
+        val events = assembleChatChunks(
+            """{"id":"chat_1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_a","type":"function","function":{"name":"web_search","arguments":""}},{"index":1,"id":"call_b","type":"function","function":{"name":"read_url","arguments":""}}]},"finish_reason":null}]}""",
+            """{"id":"chat_1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"name":"","arguments":"{\"query\":\"q\"}"}},{"index":1,"function":{"name":"","arguments":"{\"url\":\"https://example.com\"}"}}]},"finish_reason":"tool_calls"}]}"""
+        )
+
+        assertEquals(
+            listOf(
+                ProviderEvent.ToolCall("call_a", "web_search", buildJsonObject { put("query", "q") }),
+                ProviderEvent.ToolCall("call_b", "read_url", buildJsonObject { put("url", "https://example.com") })
+            ),
+            events
+        )
+    }
+
+    @Test
+    fun `chat completions assembler does not invent a tool name the provider never sent`() {
+        val events = assembleChatChunks(
+            """{"id":"chat_1","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_x","type":"function","function":{"name":"","arguments":"{\"query\":\"q\"}"}}]},"finish_reason":"tool_calls"}]}"""
+        )
+
+        assertEquals(
+            listOf(ProviderEvent.Failed("Provider returned an incomplete function call.")),
+            events
+        )
+    }
+
+    @Test
     fun `anthropic assembler joins tool use input json deltas`() {
         val assembler = AnthropicEventAssembler()
         val events = listOf(
@@ -209,5 +365,19 @@ class ProviderEventAssemblerTest {
             ).toProviderUsage()
         )
         assertEquals(null, GroqUsage(promptTokens = 8).toProviderUsage())
+    }
+
+    private fun assembleChatChunks(vararg fixtures: String): List<ProviderEvent> {
+        val assembler = ChatCompletionsEventAssembler()
+        return fixtures.flatMap { fixture ->
+            val chunk = NetworkClient.openAIJson.decodeFromString<ChatCompletionChunk>(fixture)
+            val choice = chunk.choices.orEmpty().first()
+            assembler.accept(
+                content = choice.delta.content,
+                reasoning = choice.delta.reasoning,
+                toolCalls = choice.delta.toolCalls,
+                finishReason = choice.finishReason
+            )
+        }
     }
 }
