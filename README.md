@@ -47,7 +47,7 @@
   - Can customize temperature, top p (Nucleus sampling), and system prompt
   - Custom API URLs, Custom Models are also supported
 
-For an OpenAI-compatible gateway, choose an OpenAI-compatible profile, enter its API base URL (ending in `/v1`), add its key, and select a model ID offered by that gateway. For example, [A2Agent](https://a2agent.me/) documents `https://a2agent.me/v1` as its OpenAI-compatible base URL. The app appends `chat/completions` or `responses` to this base URL; do not paste either full request path into the URL field. Confirm the selected model supports the features you enable, especially tools or vision.
+For an OpenAI-compatible gateway, choose an OpenAI-compatible profile, enter the gateway's documented API base URL, add its key, and select an available model ID. For example, [A2Agent](https://a2agent.me/) documents `https://a2agent.me/v1`; use `https://a2agent.me/v1/` in the app's API URL editor, which requires a trailing slash to enable **Confirm**. The app appends `chat/completions` or `responses` to this base URL; do not paste either full request path into the URL field. Confirm the selected model supports the features you enable, especially tools or vision.
 - **Optional agent tools per provider profile**
   - Native tool calling with OpenAI, OpenAI-compatible/Groq, Anthropic, and Gemini
   - Firecrawl, Perplexity, or Exa web search and hardened URL reading
