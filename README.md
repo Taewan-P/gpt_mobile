@@ -47,7 +47,6 @@
   - Can customize temperature, top p (Nucleus sampling), and system prompt
   - Custom API URLs, Custom Models are also supported
 
-For an OpenAI-compatible gateway, choose an OpenAI-compatible profile, enter the gateway's documented API base URL, add its key, and select an available model ID. For example, [A2Agent](https://a2agent.me/) documents `https://a2agent.me/v1`; use `https://a2agent.me/v1/` in the app's API URL editor, which requires a trailing slash to enable **Confirm**. The app appends `chat/completions` or `responses` to this base URL; do not paste either full request path into the URL field. Confirm the selected model supports the features you enable, especially tools or vision.
 - **Optional agent tools per provider profile**
   - Native tool calling with OpenAI, OpenAI-compatible/Groq, Anthropic, and Gemini
   - Firecrawl, Perplexity, or Exa web search and hardened URL reading
@@ -63,6 +62,10 @@ For an OpenAI-compatible gateway, choose an OpenAI-compatible profile, enter the
 - Per app language setting for Android 13+
 - 100% Kotlin, Jetpack Compose, Single Activity, [Modern App Architecture](https://developer.android.com/topic/architecture#modern-app-architecture) in Android developers documentation
 
+
+## OpenAI-compatible gateway setup
+
+For an OpenAI-compatible gateway, choose an OpenAI-compatible profile, enter the gateway's documented API base URL, add its key, and select an available model ID. For example, [A2Agent](https://a2agent.me/) documents `https://a2agent.me/v1`; use `https://a2agent.me/v1/` in the app's API URL editor, which requires a trailing slash to enable **Confirm**. The app appends `chat/completions` or `responses` to this base URL; do not paste either full request path into the URL field. Confirm the selected model supports the features you enable, especially tools or vision.
 
 ## Agent documentation
 
