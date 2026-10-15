@@ -46,6 +46,8 @@
     - Ollama
   - Can customize temperature, top p (Nucleus sampling), and system prompt
   - Custom API URLs, Custom Models are also supported
+
+For an OpenAI-compatible gateway, choose an OpenAI-compatible profile, enter its API base URL (ending in `/v1`), add its key, and select a model ID offered by that gateway. For example, [A2Agent](https://a2agent.me/) documents `https://a2agent.me/v1` as its OpenAI-compatible base URL. The app appends `chat/completions` or `responses` to this base URL; do not paste either full request path into the URL field. Confirm the selected model supports the features you enable, especially tools or vision.
 - **Optional agent tools per provider profile**
   - Native tool calling with OpenAI, OpenAI-compatible/Groq, Anthropic, and Gemini
   - Firecrawl, Perplexity, or Exa web search and hardened URL reading
