@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">GPTMobile</string>
+    <string name="gpt_mobile_introduction_logo">GPT Mobile Introductie Logo</string>
+    <string name="welcome_title">De beste AI-assistent\nvoor je smartphone.</string>
+    <string name="welcome_description">Gebruik het model dat het beste\nbij je past. Vraag wat je maar wilt!</string>
+    <string name="get_started">Aan de slag</string>
+    <string name="platform_select_description">Kies het platform dat je wilt gebruiken. Je kunt dit later wijzigen in de instellingen. Meer platformen worden binnenkort ondersteund.</string>
+    <string name="sample_item_title">Item 1</string>
+    <string name="sample_item_description">Itembeschrijving</string>
+    <string name="openai_description">Maker van ChatGPT.</string>
+    <string name="anthropic_description">Hier was Claude geboren.</string>
+    <string name="google_description">Gemini is onderweg.</string>
+    <string name="next">Volgende</string>
+    <string name="enter_api_key">Voer API-sleutel in</string>
+    <string name="token_input_description">Voer de API-sleutel in van het gekozen platform. Deze app verzamelt deze gegevens nooit. Sleutels en chatgegevens worden alleen op je apparaat opgeslagen en niet naar andere servers gestuurd, behalve naar de API-endpoints.</string>
+    <string name="clear_token">Token wissen</string>
+    <string name="need_help">Hulp nodig?</string>
+    <string name="openai_api_key">OpenAI API-sleutel</string>
+    <string name="anthropic_api_key">Anthropic API-sleutel</string>
+    <string name="google_api_key">Google API-sleutel</string>
+</resources>
