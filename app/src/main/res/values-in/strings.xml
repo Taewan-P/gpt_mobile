@@ -460,7 +460,7 @@
     <string name="choose_connection_type">Apa yang ingin Anda hubungkan?</string>
     <string name="choose_connection_type_description">Pilih satu jenis koneksi untuk memulai.</string>
     <string name="web_search">Pencarian Web</string>
-    <string name="web_search_connection_description">Cari di web menggunakan Firecrawl, Perplexity, atau Exa.</string>
+    <string name="web_search_connection_description">Cari di web menggunakan Firecrawl, Perplexity, Exa, atau Keenable.</string>
     <string name="mcp_server">Server MCP</string>
     <string name="mcp_server_connection_description">Hubungkan alat yang tersedia melalui server MCP Streamable HTTP.</string>
     <string name="choose_search_provider">Pilih penyedia pencarian web</string>

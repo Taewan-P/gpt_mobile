@@ -31,7 +31,8 @@ import kotlinx.serialization.json.put
 enum class WebSearchProvider {
     FIRECRAWL,
     PERPLEXITY,
-    EXA
+    EXA,
+    KEENABLE
 }
 
 data class WebSearchProviderConfig(
@@ -81,10 +82,19 @@ class WebSearchTool(
 
     override suspend fun execute(callId: String, arguments: JsonObject): AgentToolResult {
         val request = parseRequest(arguments) ?: return error(callId, "Invalid web search request: ${validationErrors(arguments).joinToString("; ")}.")
+        if (config.provider == WebSearchProvider.KEENABLE &&
+            (request.includeDomains.isNotEmpty() || request.excludeDomains.isNotEmpty() || request.recencyDays != null)
+        ) {
+            return error(callId, "Invalid web search request: Keenable does not support includeDomains, excludeDomains, or recencyDays.")
+        }
         return try {
             val response = networkClient().post(config.endpointUrl) {
                 when (config.provider) {
                     WebSearchProvider.EXA -> header("x-api-key", config.bearerToken)
+                    WebSearchProvider.KEENABLE -> {
+                        header("X-API-Key", config.bearerToken)
+                        header("X-Keenable-Title", "GPTMobile")
+                    }
                     WebSearchProvider.FIRECRAWL, WebSearchProvider.PERPLEXITY -> bearerAuth(config.bearerToken)
                 }
                 setBody(payload(request))
@@ -161,6 +171,11 @@ class WebSearchTool(
             request.recencyDays?.let { put("search_after_date_filter", usDate(today().minusDays(it.toLong()))) }
         }
 
+        WebSearchProvider.KEENABLE -> buildJsonObject {
+            put("query", request.query)
+            put("max_results", request.maxResults)
+        }
+
         WebSearchProvider.EXA -> buildJsonObject {
             put("query", request.query)
             put("numResults", request.maxResults)
@@ -173,10 +188,11 @@ class WebSearchTool(
 
     private fun normalized(provider: WebSearchProvider, body: String): JsonObject {
         val root = NetworkClient.json.parseToJsonElement(body).jsonObject
+        if (provider == WebSearchProvider.KEENABLE) return normalizedKeenable(root)
         val rawResults = when (provider) {
             WebSearchProvider.FIRECRAWL -> root["data"]?.jsonObject?.get("web")?.jsonArray
             WebSearchProvider.PERPLEXITY -> root["results"]?.jsonArray
-            WebSearchProvider.EXA -> root["results"]?.jsonArray
+            WebSearchProvider.EXA, WebSearchProvider.KEENABLE -> root["results"]?.jsonArray
         } ?: throw IllegalArgumentException("missing results")
         val results = rawResults.map { element ->
             val value = element.jsonObject
@@ -189,6 +205,23 @@ class WebSearchTool(
                 put("url", url)
                 put("snippet", snippet)
                 (value.string("publishedDate") ?: value.string("date"))?.let { put("publishedDate", it) }
+            }
+        }
+        return buildJsonObject { put("results", JsonArray(results)) }
+    }
+
+    // Keenable's `description` is a short summary; `snippet` can be a long page excerpt,
+    // so it is only used (truncated) when there is no description. Results without a URL are dropped.
+    private fun normalizedKeenable(root: JsonObject): JsonObject {
+        val rawResults = root["results"]?.jsonArray ?: throw IllegalArgumentException("missing results")
+        val results = rawResults.mapNotNull { element ->
+            val value = runCatching { element.jsonObject }.getOrNull() ?: return@mapNotNull null
+            val url = value.string("url") ?: return@mapNotNull null
+            val snippet = value.string("description") ?: value.string("snippet")?.take(KEENABLE_SNIPPET_MAX_CHARS).orEmpty()
+            buildJsonObject {
+                put("title", value.string("title") ?: url)
+                put("url", url)
+                put("snippet", snippet)
             }
         }
         return buildJsonObject { put("results", JsonArray(results)) }
@@ -235,6 +268,8 @@ private data class WebSearchRequest(
 )
 
 private class MissingRequiredResultFieldException : Exception()
+
+private const val KEENABLE_SNIPPET_MAX_CHARS = 1000
 
 private fun domainArraySchema(): JsonObject = buildJsonObject {
     put("type", "array")

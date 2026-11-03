@@ -186,6 +186,48 @@ class WebSearchToolTest {
     }
 
     @Test
+    fun `keenable search sends api key and title and normalizes results`() = runBlocking {
+        val response = """
+            {
+              "results": [
+                {"title": "Keenable title", "url": "https://allowed.example/keenable", "description": "Keenable description", "snippet": "long excerpt"},
+                {"title": "No url", "description": "dropped"},
+                {"title": "Snippet only", "url": "https://allowed.example/snippet", "snippet": "${"x".repeat(1500)}"}
+              ]
+            }
+        """.trimIndent()
+        val server = server("/search", response)
+        val tool = tool(WebSearchProvider.KEENABLE, server.url("/search"))
+
+        val result = tool.execute(
+            "keenable-call",
+            buildJsonObject {
+                put("query", "latest kotlin")
+                put("maxResults", 3)
+            }
+        )
+
+        assertEquals(false, result.isError)
+        assertEquals("", server.request.authorization)
+        assertEquals("keenable-key", server.request.apiKey)
+        assertJsonEquals("""{"query": "latest kotlin", "max_results": 3}""", server.request.body)
+        val results = (result.content as ToolResultContent.Json).value.jsonObject["results"]!!.jsonArray
+        assertEquals(2, results.size)
+        assertEquals("Keenable description", results[0].jsonObject["snippet"]!!.jsonPrimitive.content)
+        assertEquals(1000, results[1].jsonObject["snippet"]!!.jsonPrimitive.content.length)
+    }
+
+    @Test
+    fun `keenable rejects unsupported filters without calling provider`() = runBlocking {
+        val server = server("/search", """{"results": []}""")
+        val tool = tool(WebSearchProvider.KEENABLE, server.url("/search"))
+
+        val result = tool.execute("keenable-filter", arguments())
+
+        assertEquals(true, result.isError)
+    }
+
+    @Test
     fun `validation errors return bounded tool error without calling provider`() = runBlocking {
         val server = server("/search", """{"results": []}""")
         val tool = tool(WebSearchProvider.EXA, server.url("/search"))

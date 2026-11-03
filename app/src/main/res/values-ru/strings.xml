@@ -466,7 +466,7 @@
     <string name="choose_connection_type">Что вы хотите подключить?</string>
     <string name="choose_connection_type_description">Выберите тип подключения, чтобы начать.</string>
     <string name="web_search">Веб-поиск</string>
-    <string name="web_search_connection_description">Поиск в интернете с помощью Firecrawl, Perplexity или Exa.</string>
+    <string name="web_search_connection_description">Поиск в интернете с помощью Firecrawl, Perplexity, Exa или Keenable.</string>
     <string name="mcp_server">MCP-сервер</string>
     <string name="mcp_server_connection_description">Подключите инструменты, предоставляемые потоковым HTTP MCP-сервером.</string>
     <string name="choose_search_provider">Выберите поставщика веб-поиска</string>

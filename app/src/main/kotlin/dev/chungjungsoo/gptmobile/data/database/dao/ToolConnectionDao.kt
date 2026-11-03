@@ -128,6 +128,6 @@ interface ToolConnectionDao {
 
     companion object {
         private const val WEB_SEARCH_TOOL = "web_search"
-        private val WEB_SEARCH_TYPES = listOf(ToolConnectionType.FIRECRAWL, ToolConnectionType.PERPLEXITY, ToolConnectionType.EXA)
+        private val WEB_SEARCH_TYPES = listOf(ToolConnectionType.FIRECRAWL, ToolConnectionType.PERPLEXITY, ToolConnectionType.EXA, ToolConnectionType.KEENABLE)
     }
 }

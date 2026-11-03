@@ -50,6 +50,7 @@ object ToolConnectionType {
     const val FIRECRAWL = "FIRECRAWL"
     const val PERPLEXITY = "PERPLEXITY"
     const val EXA = "EXA"
+    const val KEENABLE = "KEENABLE"
 }
 
 object ToolConnectionAuthType {
