@@ -190,7 +190,7 @@ class WebSearchToolTest {
         val response = """
             {
               "results": [
-                {"title": "Keenable title", "url": "https://allowed.example/keenable", "description": "Keenable description", "snippet": "long excerpt"},
+                {"title": "Keenable title", "url": "https://allowed.example/keenable", "description": "Keenable description", "snippet": "long excerpt", "published_at": "2026-07-29"},
                 {"title": "No url", "description": "dropped"},
                 {"title": "Snippet only", "url": "https://allowed.example/snippet", "snippet": "${"x".repeat(1500)}"}
               ]
@@ -214,7 +214,18 @@ class WebSearchToolTest {
         val results = (result.content as ToolResultContent.Json).value.jsonObject["results"]!!.jsonArray
         assertEquals(2, results.size)
         assertEquals("Keenable description", results[0].jsonObject["snippet"]!!.jsonPrimitive.content)
+        assertEquals("2026-07-29", results[0].jsonObject["publishedDate"]!!.jsonPrimitive.content)
+        assertEquals(null, results[1].jsonObject["publishedDate"])
         assertEquals(1000, results[1].jsonObject["snippet"]!!.jsonPrimitive.content.length)
+    }
+
+    @Test
+    fun `keenable schema omits unsupported filters`() {
+        val tool = tool(WebSearchProvider.KEENABLE, "http://127.0.0.1:1/search")
+
+        val properties = tool.definition.inputSchema["properties"]!!.jsonObject
+
+        assertEquals(setOf("query", "maxResults"), properties.keys)
     }
 
     @Test

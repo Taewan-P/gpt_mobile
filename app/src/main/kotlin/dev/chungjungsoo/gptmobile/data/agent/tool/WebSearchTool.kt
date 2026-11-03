@@ -64,15 +64,18 @@ class WebSearchTool(
                             put("maximum", 10)
                         }
                     )
-                    put("includeDomains", domainArraySchema())
-                    put("excludeDomains", domainArraySchema())
-                    put(
-                        "recencyDays",
-                        buildJsonObject {
-                            put("type", "integer")
-                            put("minimum", 0)
-                        }
-                    )
+                    // Keenable supports none of these filters, so they are not offered to the model
+                    if (config.provider != WebSearchProvider.KEENABLE) {
+                        put("includeDomains", domainArraySchema())
+                        put("excludeDomains", domainArraySchema())
+                        put(
+                            "recencyDays",
+                            buildJsonObject {
+                                put("type", "integer")
+                                put("minimum", 0)
+                            }
+                        )
+                    }
                 }
             )
             put("required", JsonArray(listOf(JsonPrimitive("query"))))
@@ -222,6 +225,7 @@ class WebSearchTool(
                 put("title", value.string("title") ?: url)
                 put("url", url)
                 put("snippet", snippet)
+                value.string("published_at")?.let { put("publishedDate", it) }
             }
         }
         return buildJsonObject { put("results", JsonArray(results)) }
