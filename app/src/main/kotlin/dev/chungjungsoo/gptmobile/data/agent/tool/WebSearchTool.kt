@@ -64,18 +64,18 @@ class WebSearchTool(
                             put("maximum", 10)
                         }
                     )
-                    // Keenable supports none of these filters, so they are not offered to the model
+                    // Keenable has no domain filters; omit them so the model is not steered into guaranteed errors.
                     if (config.provider != WebSearchProvider.KEENABLE) {
                         put("includeDomains", domainArraySchema())
                         put("excludeDomains", domainArraySchema())
-                        put(
-                            "recencyDays",
-                            buildJsonObject {
-                                put("type", "integer")
-                                put("minimum", 0)
-                            }
-                        )
                     }
+                    put(
+                        "recencyDays",
+                        buildJsonObject {
+                            put("type", "integer")
+                            put("minimum", 0)
+                        }
+                    )
                 }
             )
             put("required", JsonArray(listOf(JsonPrimitive("query"))))
@@ -86,9 +86,9 @@ class WebSearchTool(
     override suspend fun execute(callId: String, arguments: JsonObject): AgentToolResult {
         val request = parseRequest(arguments) ?: return error(callId, "Invalid web search request: ${validationErrors(arguments).joinToString("; ")}.")
         if (config.provider == WebSearchProvider.KEENABLE &&
-            (request.includeDomains.isNotEmpty() || request.excludeDomains.isNotEmpty() || request.recencyDays != null)
+            (request.includeDomains.isNotEmpty() || request.excludeDomains.isNotEmpty())
         ) {
-            return error(callId, "Invalid web search request: Keenable does not support includeDomains, excludeDomains, or recencyDays.")
+            return error(callId, "Invalid web search request: Keenable does not support includeDomains or excludeDomains.")
         }
         return try {
             val response = networkClient().post(config.endpointUrl) {
@@ -177,6 +177,7 @@ class WebSearchTool(
         WebSearchProvider.KEENABLE -> buildJsonObject {
             put("query", request.query)
             put("max_results", request.maxResults)
+            request.recencyDays?.let { put("published_after", today().minusDays(it.toLong()).toString()) }
         }
 
         WebSearchProvider.EXA -> buildJsonObject {

@@ -225,17 +225,61 @@ class WebSearchToolTest {
 
         val properties = tool.definition.inputSchema["properties"]!!.jsonObject
 
-        assertEquals(setOf("query", "maxResults"), properties.keys)
+        assertEquals(setOf("query", "maxResults", "recencyDays"), properties.keys)
     }
 
     @Test
-    fun `keenable rejects unsupported filters without calling provider`() = runBlocking {
+    fun `keenable rejects includeDomains without calling provider`() = runBlocking {
         val server = server("/search", """{"results": []}""")
         val tool = tool(WebSearchProvider.KEENABLE, server.url("/search"))
 
-        val result = tool.execute("keenable-filter", arguments())
+        val result = tool.execute(
+            "keenable-include-domains",
+            buildJsonObject {
+                put("query", "latest kotlin")
+                put("includeDomains", JsonArray(listOf(JsonPrimitive("allowed.example"))))
+            }
+        )
 
         assertEquals(true, result.isError)
+        assertEquals("", server.request.body)
+    }
+
+    @Test
+    fun `keenable rejects excludeDomains without calling provider`() = runBlocking {
+        val server = server("/search", """{"results": []}""")
+        val tool = tool(WebSearchProvider.KEENABLE, server.url("/search"))
+
+        val result = tool.execute(
+            "keenable-exclude-domains",
+            buildJsonObject {
+                put("query", "latest kotlin")
+                put("excludeDomains", JsonArray(listOf(JsonPrimitive("blocked.example"))))
+            }
+        )
+
+        assertEquals(true, result.isError)
+        assertEquals("", server.request.body)
+    }
+
+    @Test
+    fun `keenable search maps recencyDays to published_after`() = runBlocking {
+        val server = server("/search", """{"results": []}""")
+        val tool = tool(WebSearchProvider.KEENABLE, server.url("/search"))
+
+        val result = tool.execute(
+            "keenable-recency",
+            buildJsonObject {
+                put("query", "latest kotlin")
+                put("recencyDays", 7)
+            }
+        )
+
+        assertEquals(false, result.isError)
+        assertJsonEquals(
+            """{"query": "latest kotlin", "max_results": 5, "published_after": "2026-07-25"}""",
+            server.request.body
+        )
     }
 
     @Test
