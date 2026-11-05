@@ -470,7 +470,7 @@
     <string name="choose_connection_type">What do you want to connect?</string>
     <string name="choose_connection_type_description">Choose one connection type to get started.</string>
     <string name="web_search">Web Search</string>
-    <string name="web_search_connection_description">Search the web with Firecrawl, Perplexity, or Exa.</string>
+    <string name="web_search_connection_description">Search the web with Firecrawl, Perplexity, Exa, or Keenable.</string>
     <string name="mcp_server">MCP Server</string>
     <string name="mcp_server_connection_description">Connect tools exposed by a Streamable HTTP MCP server.</string>
     <string name="choose_search_provider">Choose a web search provider</string>
