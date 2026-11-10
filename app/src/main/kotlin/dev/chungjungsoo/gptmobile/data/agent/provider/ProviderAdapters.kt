@@ -90,6 +90,7 @@ class OpenAIResponsesAdapter @Inject constructor(
                 ModelCapacityResolver.supportsResumableReplies(platform),
             onUnconfirmedRemoteCancellation = onUnconfirmedRemoteCancellation
         )
+        val chainPreviousResponse = ModelCapacityResolver.supportsPreviousResponseChaining(platform)
         var previousResponseId: String? = null
         return object : AgentProviderSession {
             override fun streamRound(
@@ -121,12 +122,14 @@ class OpenAIResponsesAdapter @Inject constructor(
                 val assembler = OpenAIResponsesEventAssembler()
                 var failed = false
                 api.streamResponses(request, platform.timeout, config).collect { event ->
-                    when (event) {
-                        is ResponseCreatedEvent -> previousResponseId = event.response.id
-                        is ResponseInProgressEvent -> previousResponseId = event.response.id
-                        is ResponseCompletedEvent -> previousResponseId = event.response.id
-                        is ResponseFailedEvent -> previousResponseId = event.response.id
-                        else -> Unit
+                    if (chainPreviousResponse) {
+                        when (event) {
+                            is ResponseCreatedEvent -> previousResponseId = event.response.id
+                            is ResponseInProgressEvent -> previousResponseId = event.response.id
+                            is ResponseCompletedEvent -> previousResponseId = event.response.id
+                            is ResponseFailedEvent -> previousResponseId = event.response.id
+                            else -> Unit
+                        }
                     }
                     assembler.accept(event).forEach { mapped ->
                         when (mapped) {

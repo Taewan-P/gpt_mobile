@@ -85,7 +85,12 @@ open class ModelCapacityResolver(
     private fun isLocal(platform: PlatformV2): Boolean = platform.compatibleType == ClientType.LITERT_LM
 
     companion object {
-        fun supportsResumableReplies(platform: PlatformV2): Boolean = platform.compatibleType == ClientType.OPENAI &&
+        fun supportsResumableReplies(platform: PlatformV2): Boolean = isOfficialOpenAiEndpoint(platform)
+
+        // previous_response_id continues a response stored by the official OpenAI API.
+        fun supportsPreviousResponseChaining(platform: PlatformV2): Boolean = isOfficialOpenAiEndpoint(platform)
+
+        private fun isOfficialOpenAiEndpoint(platform: PlatformV2): Boolean = platform.compatibleType == ClientType.OPENAI &&
             platform.apiUrl.trimEnd('/') == ModelConstants.OPENAI_API_URL.trimEnd('/')
     }
 }
