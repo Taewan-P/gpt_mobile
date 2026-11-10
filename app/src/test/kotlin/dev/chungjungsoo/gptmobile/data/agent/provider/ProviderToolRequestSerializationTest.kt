@@ -32,6 +32,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class ProviderToolRequestSerializationTest {
@@ -96,6 +97,8 @@ class ProviderToolRequestSerializationTest {
         assertEquals("weather", assistantCall["function"]!!.jsonObject.string("name"))
         assertEquals("tool", toolResult.string("role"))
         assertEquals("call_exact", toolResult.string("tool_call_id"))
+        assertFalse(messages[0].jsonObject.containsKey("content"))
+        assertEquals("sunny", toolResult.string("content"))
     }
 
     @Test

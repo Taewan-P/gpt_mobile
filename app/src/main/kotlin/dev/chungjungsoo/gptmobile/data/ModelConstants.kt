@@ -21,6 +21,8 @@ object ModelConstants {
     val ollamaModels = linkedSetOf(OLLAMA_DEFAULT_MODEL)
 
     const val OPENAI_API_URL = "https://api.openai.com/v1/"
+
+    fun isOfficialOpenAiApiUrl(apiUrl: String): Boolean = apiUrl.trimEnd('/') == OPENAI_API_URL.trimEnd('/')
     const val ANTHROPIC_API_URL = "https://api.anthropic.com/v1/"
     const val GOOGLE_API_URL = "https://generativelanguage.googleapis.com/"
     const val GROQ_API_URL = "https://api.groq.com/openai/v1/"

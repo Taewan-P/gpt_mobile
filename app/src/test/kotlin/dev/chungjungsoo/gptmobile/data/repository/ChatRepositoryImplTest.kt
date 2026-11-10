@@ -1,6 +1,8 @@
 package dev.chungjungsoo.gptmobile.data.repository
 
 import android.content.ContextWrapper
+import com.sun.net.httpserver.HttpServer
+import dev.chungjungsoo.gptmobile.data.ModelConstants
 import dev.chungjungsoo.gptmobile.data.agent.provider.LiteRtLmAdapter
 import dev.chungjungsoo.gptmobile.data.agent.tool.AgentToolResolver
 import dev.chungjungsoo.gptmobile.data.agent.tool.McpClientManager
@@ -37,6 +39,7 @@ import dev.chungjungsoo.gptmobile.data.dto.openai.response.ChatFunctionDelta
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ChatToolCallDelta
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.Choice
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.Delta
+import dev.chungjungsoo.gptmobile.data.dto.openai.response.OutputTextDeltaEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponsesStreamEvent
 import dev.chungjungsoo.gptmobile.data.localruntime.FakeLocalRuntime
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
@@ -50,13 +53,17 @@ import dev.chungjungsoo.gptmobile.data.network.GoogleAPI
 import dev.chungjungsoo.gptmobile.data.network.GroqAPI
 import dev.chungjungsoo.gptmobile.data.network.NetworkClient
 import dev.chungjungsoo.gptmobile.data.network.OpenAIAPI
+import dev.chungjungsoo.gptmobile.data.network.OpenAIAPIImpl
 import dev.chungjungsoo.gptmobile.data.network.ProviderRequestConfig
 import dev.chungjungsoo.gptmobile.data.network.UploadedProviderFile
 import dev.chungjungsoo.gptmobile.data.security.SecretVault
+import dev.chungjungsoo.gptmobile.util.AttachmentPayloadCache
+import dev.chungjungsoo.gptmobile.util.FileUtils
 import io.ktor.client.engine.cio.CIO
 import java.io.File
 import java.lang.reflect.InvocationHandler
 import java.lang.reflect.Proxy
+import java.net.InetSocketAddress
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -65,6 +72,10 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -608,6 +619,103 @@ class ChatRepositoryImplTest {
         assertTrue(states.contains(ApiState.Compaction(true)))
     }
 
+    @Test
+    fun `nvidia image request uses chat completions and does not call the files api`() = runBlocking {
+        val image = tempImage()
+        AttachmentPayloadCache.put(image.absolutePath, FileUtils.EncodedImage("image/png", "aGVsbG8="))
+        try {
+            withGateway { apiUrl, requests, api ->
+                val states = createRepository(openAIAPI = api).completeChat(
+                    userMessages = listOf(imageMessage(image, "What is in this image?")),
+                    assistantMessages = emptyList(),
+                    platform = nvidiaPlatform(apiUrl),
+                    runId = "nvidia-image"
+                ).toList()
+
+                assertTrue(states.toString(), states.none { it is ApiState.Error })
+                assertTrue(requests.none { it.path.contains("/files") })
+                val generation = requests.single { it.path.endsWith("/chat/completions") }
+                val json = NetworkClient.openAIJson.parseToJsonElement(generation.body).jsonObject
+                assertEquals("nvidia/nemotron-3.5-super-vl-120b-a12b", json.getValue("model").jsonPrimitive.content)
+                val messages = json.getValue("messages").jsonArray
+                val system = messages.first { it.jsonObject.getValue("role").jsonPrimitive.content == "system" }.jsonObject
+                assertEquals("Your task is to answer my questions precisely.", system.getValue("content").jsonPrimitive.content)
+                val imagePart = messages
+                    .first { it.jsonObject.getValue("role").jsonPrimitive.content == "user" }
+                    .jsonObject
+                    .getValue("content")
+                    .jsonArray
+                    .map { it.jsonObject }
+                    .single { it.getValue("type").jsonPrimitive.content == "image_url" }
+                assertEquals(
+                    "data:image/png;base64,aGVsbG8=",
+                    imagePart.getValue("image_url").jsonObject.getValue("url").jsonPrimitive.content
+                )
+                assertTrue(states.contains(ApiState.Success("a sign")))
+            }
+        } finally {
+            AttachmentPayloadCache.remove(image.absolutePath)
+            image.delete()
+        }
+    }
+
+    @Test
+    fun `nvidia text request stays on the responses endpoint`() = runBlocking {
+        withGateway { apiUrl, requests, api ->
+            val states = createRepository(openAIAPI = api).completeChat(
+                userMessages = listOf(MessageV2(content = "Hello", platformType = null)),
+                assistantMessages = emptyList(),
+                platform = nvidiaPlatform(apiUrl),
+                runId = "nvidia-text"
+            ).toList()
+
+            assertTrue(states.toString(), states.none { it is ApiState.Error })
+            assertTrue(requests.none { it.path.contains("/files") || it.path.endsWith("/chat/completions") })
+            val generation = requests.single { it.path.endsWith("/responses") }
+            assertTrue(generation.body.contains("\"content\":\"Hello\""))
+            assertTrue(states.contains(ApiState.Success("ok")))
+        }
+    }
+
+    @Test
+    fun `official openai image request still uploads a file and uses responses`() = runBlocking {
+        val openAIAPI = RecordingOpenAIAPI(
+            responseRounds = ArrayDeque(
+                listOf(flowOf(OutputTextDeltaEvent("item_1", 0, 0, "caption")))
+            )
+        )
+        val image = ChatAttachment(
+            localFilePath = "/tmp/official.png",
+            preparedFilePath = "/tmp/official.png",
+            displayName = "official.png",
+            mimeType = "image/png",
+            sizeBytes = 4
+        )
+
+        val states = createRepository(openAIAPI = openAIAPI).completeChat(
+            userMessages = listOf(
+                MessageV2(content = "Describe this", platformType = null, attachments = listOf(image))
+            ),
+            assistantMessages = emptyList(),
+            platform = PlatformV2(
+                uid = "openai",
+                name = "OpenAI",
+                compatibleType = ClientType.OPENAI,
+                apiUrl = ModelConstants.OPENAI_API_URL,
+                model = "gpt-5.6"
+            ),
+            runId = "openai-image"
+        ).toList()
+
+        assertTrue(states.toString(), states.none { it is ApiState.Error })
+        assertEquals(1, openAIAPI.uploadCount)
+        assertEquals(1, openAIAPI.streamResponsesCalls)
+        assertEquals(0, openAIAPI.streamChatCompletionCalls)
+        val encoded = NetworkClient.openAIJson.encodeToString(openAIAPI.responseRequests.single())
+        assertTrue(encoded.contains("\"file_id\":\"file-uploaded\""))
+        assertTrue(states.contains(ApiState.Success("caption")))
+    }
+
     private fun createRepository(
         groqAPI: GroqAPI = FakeGroqAPI(emptyFlow()),
         openAIAPI: OpenAIAPI = RecordingOpenAIAPI(),
@@ -703,6 +811,71 @@ class ChatRepositoryImplTest {
         accelerator = "gpu"
     )
 
+    private fun tempImage(): File = File.createTempFile("nemotron", ".png").apply {
+        writeBytes(byteArrayOf(1, 2, 3, 4))
+        deleteOnExit()
+    }
+
+    private fun imageMessage(image: File, text: String) = MessageV2(
+        content = text,
+        platformType = null,
+        attachments = listOf(
+            ChatAttachment(
+                localFilePath = image.absolutePath,
+                preparedFilePath = image.absolutePath,
+                displayName = "photo.png",
+                mimeType = "image/png",
+                sizeBytes = image.length()
+            )
+        )
+    )
+
+    private fun nvidiaPlatform(apiUrl: String) = PlatformV2(
+        uid = "nvidia",
+        name = "NVIDIA",
+        compatibleType = ClientType.OPENAI,
+        apiUrl = apiUrl,
+        token = "test-key",
+        model = "nvidia/nemotron-3.5-super-vl-120b-a12b",
+        systemPrompt = "Your task is to answer my questions precisely."
+    )
+
+    private suspend fun withGateway(
+        block: suspend (apiUrl: String, requests: List<CapturedRequest>, api: OpenAIAPI) -> Unit
+    ) {
+        val requests = java.util.concurrent.CopyOnWriteArrayList<CapturedRequest>()
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        server.createContext("/") { exchange ->
+            val body = exchange.requestBody.use { String(it.readBytes(), Charsets.UTF_8) }
+            val path = exchange.requestURI.path
+            requests.add(CapturedRequest(path, body))
+            val generation = path.endsWith("/chat/completions") || path.endsWith("/responses")
+            val response = when {
+                path.endsWith("/chat/completions") ->
+                    "data: {\"id\":\"chat_1\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"a sign\"}}]}\n\ndata: [DONE]\n\n"
+
+                path.endsWith("/responses") ->
+                    "data: {\"type\":\"response.output_text.delta\",\"item_id\":\"item_1\",\"output_index\":0,\"content_index\":0,\"delta\":\"ok\"}\n\n"
+
+                else -> "404 page not found"
+            }
+            val bytes = response.toByteArray()
+            exchange.responseHeaders.set("Content-Type", if (generation) "text/event-stream" else "text/plain")
+            exchange.sendResponseHeaders(if (generation) 200 else 404, bytes.size.toLong())
+            exchange.responseBody.use { it.write(bytes) }
+        }
+        server.start()
+        val network = NetworkClient(CIO)
+        try {
+            block("http://127.0.0.1:${server.address.port}/v1/", requests, OpenAIAPIImpl(network))
+        } finally {
+            network().close()
+            server.stop(0)
+        }
+    }
+
+    private data class CapturedRequest(val path: String, val body: String)
+
     private fun customPlatform() = PlatformV2(
         uid = "custom-platform",
         name = "Custom",
@@ -751,10 +924,14 @@ class ChatRepositoryImplTest {
     }
 
     private class RecordingOpenAIAPI(
-        private val chatRounds: ArrayDeque<Flow<ChatCompletionChunk>> = ArrayDeque()
+        private val chatRounds: ArrayDeque<Flow<ChatCompletionChunk>> = ArrayDeque(),
+        private val responseRounds: ArrayDeque<Flow<ResponsesStreamEvent>> = ArrayDeque()
     ) : OpenAIAPI {
         var streamChatCompletionCalls = 0
+        var streamResponsesCalls = 0
+        var uploadCount = 0
         val requests = mutableListOf<ChatCompletionRequest>()
+        val responseRequests = mutableListOf<ResponsesRequest>()
 
         override fun streamChatCompletion(
             request: ChatCompletionRequest,
@@ -770,14 +947,21 @@ class ChatRepositoryImplTest {
             request: ResponsesRequest,
             timeoutSeconds: Int,
             config: ProviderRequestConfig
-        ): Flow<ResponsesStreamEvent> = emptyFlow()
+        ): Flow<ResponsesStreamEvent> {
+            streamResponsesCalls += 1
+            responseRequests += request
+            return responseRounds.removeFirstOrNull() ?: emptyFlow()
+        }
 
         override suspend fun uploadFile(
             filePath: String,
             fileName: String,
             mimeType: String,
             config: ProviderRequestConfig
-        ): UploadedProviderFile = UploadedProviderFile(id = "file-uploaded", mimeType = mimeType)
+        ): UploadedProviderFile {
+            uploadCount += 1
+            return UploadedProviderFile(id = "file-uploaded", mimeType = mimeType)
+        }
 
         override suspend fun isFileAvailable(fileId: String, config: ProviderRequestConfig): Boolean = false
 
