@@ -86,6 +86,6 @@ open class ModelCapacityResolver(
 
     companion object {
         fun supportsResumableReplies(platform: PlatformV2): Boolean = platform.compatibleType == ClientType.OPENAI &&
-            platform.apiUrl.trimEnd('/') == ModelConstants.OPENAI_API_URL.trimEnd('/')
+            ModelConstants.isOfficialOpenAiApiUrl(platform.apiUrl)
     }
 }

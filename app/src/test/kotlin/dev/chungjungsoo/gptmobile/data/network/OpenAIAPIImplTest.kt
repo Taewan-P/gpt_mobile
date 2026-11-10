@@ -9,6 +9,7 @@ import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.engine.HttpClientEngineConfig
 import io.ktor.client.engine.HttpClientEngineFactory
 import io.ktor.client.engine.cio.CIO
+import java.io.File
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import kotlinx.coroutines.Dispatchers
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class OpenAIAPIImplTest {
@@ -83,6 +85,38 @@ class OpenAIAPIImplTest {
     }
 
     @Test
+    fun `plain text chat completion errors keep the HTTP status and body`() = withServer(
+        "404 page not found",
+        status = 404,
+        contentType = "text/plain"
+    ) { api, config ->
+        val chunk = api.streamChatCompletion(ChatCompletionRequest("model", emptyList()), 5, config).toList().single()
+
+        assertEquals("HTTP 404: 404 page not found", chunk.error?.message)
+        assertEquals("404", chunk.error?.code)
+    }
+
+    @Test
+    fun `plain text file upload errors keep the HTTP status and body`() {
+        val image = File.createTempFile("upload", ".png").apply {
+            writeBytes(byteArrayOf(1, 2, 3))
+            deleteOnExit()
+        }
+        withServer(
+            "404 page not found",
+            status = 404,
+            contentType = "text/plain"
+        ) { api, config ->
+            val error = runCatching {
+                api.uploadFile(image.absolutePath, image.name, "image/png", config)
+            }.exceptionOrNull()
+
+            assertTrue(error?.message?.contains("Unexpected JSON token") != true)
+            assertEquals("HTTP 404: 404 page not found", error?.message)
+        }
+    }
+
+    @Test
     fun `connection failures are still emitted as network errors`() = withServer("") { api, config ->
         val port = ServerSocket(0).use { it.localPort }
         val unreachable = config.copy(apiUrl = "http://127.0.0.1:$port/")
@@ -115,12 +149,14 @@ class OpenAIAPIImplTest {
     private fun withServer(
         body: String,
         status: Int = 200,
+        contentType: String? = null,
         block: suspend (OpenAIAPIImpl, ProviderRequestConfig) -> Unit
     ) {
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         server.createContext("/") { exchange ->
             exchange.requestBody.use { it.readBytes() }
-            exchange.responseHeaders.set("Content-Type", if (status == 200) "text/event-stream" else "application/json")
+            val responseType = contentType ?: if (status == 200) "text/event-stream" else "application/json"
+            exchange.responseHeaders.set("Content-Type", responseType)
             val bytes = body.toByteArray()
             exchange.sendResponseHeaders(status, bytes.size.toLong())
             exchange.responseBody.use { it.write(bytes) }

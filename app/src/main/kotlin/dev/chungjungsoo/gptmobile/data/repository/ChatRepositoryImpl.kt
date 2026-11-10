@@ -3,6 +3,7 @@ package dev.chungjungsoo.gptmobile.data.repository
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.chungjungsoo.gptmobile.R
+import dev.chungjungsoo.gptmobile.data.ModelConstants
 import dev.chungjungsoo.gptmobile.data.agent.AgentProviderSession
 import dev.chungjungsoo.gptmobile.data.agent.AgentRunEvent
 import dev.chungjungsoo.gptmobile.data.agent.AgentRunner
@@ -410,7 +411,7 @@ class ChatRepositoryImpl @Inject constructor(
         contextTurns: List<ConversationTurn>,
         platform: PlatformV2
     ) {
-        val maxInlineBytes = ProviderContextPolicy.forClientType(platform.compatibleType).maxInlineAttachmentBytes ?: return
+        val maxInlineBytes = ProviderContextPolicy.forPlatform(platform).maxInlineAttachmentBytes ?: return
         attachmentUploadCoordinator.validateInlineAttachmentBudget(contextTurns, maxInlineBytes)
     }
 
@@ -734,7 +735,11 @@ class ChatRepositoryImpl @Inject constructor(
         val preparedTurns = ensureProviderReferencesForTurns(turns, platform)
         validateInlineBudgetIfNeeded(preparedTurns, platform)
         return when (platform.compatibleType) {
-            ClientType.OPENAI -> openAIResponsesAdapter.openSession(preparedTurns, platform, prepared, onUnconfirmedRemoteCancellation)
+            ClientType.OPENAI -> if (preparedTurns.useCompatibleVision(platform)) {
+                openAICompatibleAdapter.openSession(preparedTurns, platform)
+            } else {
+                openAIResponsesAdapter.openSession(preparedTurns, platform, prepared, onUnconfirmedRemoteCancellation)
+            }
 
             ClientType.GROQ, ClientType.OLLAMA, ClientType.OPENROUTER, ClientType.CUSTOM ->
                 openAICompatibleAdapter.openSession(preparedTurns, platform)
@@ -787,6 +792,13 @@ class ChatRepositoryImpl @Inject constructor(
         is CompactionOutcome.InputTooLarge -> CompactionResult(CompactionStatus.INPUT_TOO_LARGE, message)
     }
     private fun contextString(resId: Int, fallback: String): String = runCatching { context.getString(resId) }.getOrDefault(fallback)
+}
+
+private fun List<ConversationTurn>.useCompatibleVision(platform: PlatformV2): Boolean {
+    if (ModelConstants.isOfficialOpenAiApiUrl(platform.apiUrl)) return false
+    return any { turn ->
+        turn.userMessage.attachments.isNotEmpty() || turn.assistantMessage?.attachments?.isNotEmpty() == true
+    }
 }
 
 internal fun MessageV2.sendableAssistantContent(): String {
