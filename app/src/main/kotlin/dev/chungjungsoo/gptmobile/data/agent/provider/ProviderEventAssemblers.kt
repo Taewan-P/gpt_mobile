@@ -43,11 +43,15 @@ class OpenAIResponsesEventAssembler {
     )
 
     private val pending = mutableMapOf<String, PendingCall>()
+    private val outputText = StringBuilder()
 
     fun accept(event: ResponsesStreamEvent): List<ProviderEvent> = when (event) {
         is ReasoningSummaryTextDeltaEvent -> listOf(ProviderEvent.ThinkingDelta(event.delta))
 
-        is OutputTextDeltaEvent -> listOf(ProviderEvent.TextDelta(event.delta))
+        is OutputTextDeltaEvent -> {
+            outputText.append(event.delta)
+            listOf(ProviderEvent.TextDelta(event.delta))
+        }
 
         is OutputItemAddedEvent -> {
             if (event.item.type != "function_call") {
@@ -90,6 +94,8 @@ class OpenAIResponsesEventAssembler {
 
         else -> emptyList()
     }
+
+    fun replayText(): String = outputText.toString()
 }
 
 class ChatCompletionsEventAssembler {

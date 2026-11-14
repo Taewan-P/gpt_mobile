@@ -45,7 +45,9 @@ import dev.chungjungsoo.gptmobile.data.dto.openai.request.ReasoningConfig
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseFunctionCallInput
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseFunctionCallOutput
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseFunctionTool
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseInputContent
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseInputItem
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseInputMessage
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponsesRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseCompletedEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseCreatedEvent
@@ -92,6 +94,9 @@ class OpenAIResponsesAdapter @Inject constructor(
         )
         val chainPreviousResponse = ModelCapacityResolver.supportsPreviousResponseChaining(platform)
         var previousResponseId: String? = null
+        // A replayed round has to carry the text the model wrote before its tool calls;
+        // a chained round gets it from the stored response instead.
+        val assistantTextByRound = mutableMapOf<Int, String>()
         return object : AgentProviderSession {
             override fun streamRound(
                 tools: List<AgentToolDefinition>,
@@ -102,7 +107,9 @@ class OpenAIResponsesAdapter @Inject constructor(
                     input = when {
                         exchanges.isEmpty() -> initialInput
 
-                        previousResponseId == null -> initialInput + exchanges.flatMap { it.toResponseItems() }
+                        previousResponseId == null -> initialInput + exchanges.flatMapIndexed { index, exchange ->
+                            exchange.toResponseItems(assistantTextByRound[index])
+                        }
 
                         else -> exchanges.last().results.map { result ->
                             ResponseFunctionCallOutput(result.callId, result.modelText())
@@ -143,6 +150,12 @@ class OpenAIResponsesAdapter @Inject constructor(
                             else -> emit(mapped)
                         }
                     }
+                }
+                val roundText = assembler.replayText()
+                if (roundText.isBlank()) {
+                    assistantTextByRound.remove(exchanges.size)
+                } else {
+                    assistantTextByRound[exchanges.size] = roundText
                 }
                 if (!failed) emit(ProviderEvent.Completed)
             }
@@ -501,7 +514,9 @@ private fun AgentToolExchange.toAnthropicMessages(assistantContent: List<Message
     )
 )
 
-private fun AgentToolExchange.toResponseItems(): List<ResponseInputItem> = calls.map { call ->
+private fun AgentToolExchange.toResponseItems(assistantText: String?): List<ResponseInputItem> = listOfNotNull(
+    assistantText?.let { text -> ResponseInputMessage(role = "assistant", content = ResponseInputContent.text(text)) }
+) + calls.map { call ->
     ResponseFunctionCallInput(
         callId = call.callId,
         name = call.name,

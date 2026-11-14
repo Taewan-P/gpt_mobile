@@ -17,8 +17,10 @@ import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ChatCompletionRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.CompactResponsesRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.CompactResponsesResult
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.OpaqueResponseInput
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseFunctionCallInput
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseFunctionCallOutput
+import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseInputContent
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponseInputMessage
 import dev.chungjungsoo.gptmobile.data.dto.openai.request.ResponsesRequest
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ChatCompletionChunk
@@ -59,7 +61,7 @@ class OpenAIResponsesToolContinuationTest {
         val api = scriptedResponsesApi()
         val session = OpenAIResponsesAdapter(api, attachmentEncoder()).openSession(
             turns(),
-            platform("https://integrate.api.nvidia.com/v1/")
+            platform(NVIDIA_API_URL)
         )
 
         val events = AgentRunner().run(session, listOf(searchTool())).toList()
@@ -94,6 +96,45 @@ class OpenAIResponsesToolContinuationTest {
         assertEquals("resp_tool", api.requests[1].previousResponseId)
         assertTrue(api.requests[1].input.all { it is ResponseFunctionCallOutput })
         assertEquals(SEARCH_RESULT, (api.requests[1].input.single() as ResponseFunctionCallOutput).output)
+    }
+
+    @Test
+    fun `stateless responses endpoint replays assistant text written before the tool call`() = runBlocking {
+        val api = RecordingOpenAIAPI(
+            ArrayDeque(
+                listOf(
+                    round("resp_tool", text("I will search "), text("for that."), *functionCall("fc_1", "call_exa")),
+                    round("resp_answer", text("Markets rose."))
+                )
+            )
+        )
+        val session = OpenAIResponsesAdapter(api, attachmentEncoder()).openSession(turns(), platform(NVIDIA_API_URL))
+
+        val events = AgentRunner().run(session, listOf(searchTool())).toList()
+
+        assertTrue(events.failureText(), events.failureText().isEmpty())
+        assertEquals(
+            listOf("user:$PROMPT", "assistant:I will search for that.", "call:call_exa", "output:call_exa"),
+            api.requests[1].inputShape()
+        )
+    }
+
+    @Test
+    fun `stateless responses endpoint does not replay blank assistant text`() = runBlocking {
+        val api = RecordingOpenAIAPI(
+            ArrayDeque(
+                listOf(
+                    round("resp_tool", text("\n\n"), *functionCall("fc_1", "call_exa")),
+                    round("resp_answer", text("Markets rose."))
+                )
+            )
+        )
+        val session = OpenAIResponsesAdapter(api, attachmentEncoder()).openSession(turns(), platform(NVIDIA_API_URL))
+
+        val events = AgentRunner().run(session, listOf(searchTool())).toList()
+
+        assertTrue(events.failureText(), events.failureText().isEmpty())
+        assertEquals(listOf("user:$PROMPT", "call:call_exa", "output:call_exa"), api.requests[1].inputShape())
     }
 
     @Test
@@ -168,6 +209,31 @@ class OpenAIResponsesToolContinuationTest {
             )
         )
     )
+
+    private fun round(responseId: String, vararg events: ResponsesStreamEvent): Flow<ResponsesStreamEvent> = flowOf(
+        ResponseCreatedEvent(ResponseObject(id = responseId, status = "in_progress")),
+        *events,
+        ResponseCompletedEvent(ResponseObject(id = responseId, status = "completed"))
+    )
+
+    private fun text(delta: String) = OutputTextDeltaEvent(itemId = "msg_1", outputIndex = 0, contentIndex = 0, delta = delta)
+
+    private fun functionCall(itemId: String, callId: String, outputIndex: Int = 0): Array<ResponsesStreamEvent> = arrayOf(
+        OutputItemAddedEvent(
+            outputIndex = outputIndex,
+            item = OutputItem(type = "function_call", id = itemId, callId = callId, name = "web_search", arguments = "")
+        ),
+        FunctionCallArgumentsDoneEvent(itemId = itemId, outputIndex = outputIndex, arguments = """{"query":"markets"}""")
+    )
+
+    private fun ResponsesRequest.inputShape(): List<String> = input.map { item ->
+        when (item) {
+            is ResponseInputMessage -> "${item.role}:${(item.content as ResponseInputContent.Text).text}"
+            is ResponseFunctionCallInput -> "call:${item.callId}"
+            is ResponseFunctionCallOutput -> "output:${item.callId}"
+            is OpaqueResponseInput -> "opaque"
+        }
+    }
 
     private fun turns() = listOf(
         ConversationTurn(
@@ -247,6 +313,7 @@ class OpenAIResponsesToolContinuationTest {
     private companion object {
         const val PROMPT = "Porque los mercados subieron con fuerza ayer?"
         const val SEARCH_RESULT = "markets rose on earnings"
+        const val NVIDIA_API_URL = "https://integrate.api.nvidia.com/v1/"
 
         val TOOL_CALL_SSE = sse(
             """{"type":"response.created","response":{"id":"resp_super_vl","status":"in_progress"}}""",

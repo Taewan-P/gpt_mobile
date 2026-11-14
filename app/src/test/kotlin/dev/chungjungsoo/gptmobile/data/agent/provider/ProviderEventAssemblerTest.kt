@@ -40,6 +40,20 @@ class ProviderEventAssemblerTest {
     }
 
     @Test
+    fun `responses assembler retains output text but not reasoning for replay`() {
+        val assembler = OpenAIResponsesEventAssembler()
+        listOf(
+            """{"type":"response.output_text.delta","item_id":"msg_1","output_index":1,"content_index":0,"delta":"I will "}""",
+            """{"type":"response.reasoning_summary_text.delta","item_id":"rs_1","output_index":0,"summary_index":0,"delta":"thinking"}""",
+            """{"type":"response.output_text.delta","item_id":"msg_1","output_index":1,"content_index":0,"delta":"search."}"""
+        ).forEach { fixture ->
+            assembler.accept(NetworkClient.openAIJson.decodeFromString<ResponsesStreamEvent>(fixture))
+        }
+
+        assertEquals("I will search.", assembler.replayText())
+    }
+
+    @Test
     fun `chat completions assembler joins indexed tool call deltas`() {
         val assembler = ChatCompletionsEventAssembler()
         val fixtures = listOf(
