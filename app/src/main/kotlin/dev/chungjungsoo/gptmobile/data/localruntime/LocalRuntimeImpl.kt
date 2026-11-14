@@ -30,7 +30,14 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
-/** Production [LocalRuntime] implementation wrapping LiteRT-LM. */
+/**
+ * Production [LocalRuntime] wrapping the bundled LiteRT-LM engine.
+ *
+ * On-device chat uses [Engine] and [Conversation] for `.litertlm` models.
+ * LiteRT in Google Play services is a separate `.tflite` runtime and stays off
+ * this classpath so the F-Droid build remains free of Play services.
+ * See docs/adr/0004-keep-bundled-litert-lm.md.
+ */
 class LocalRuntimeImpl(
     private val context: Context
 ) : LocalRuntime {

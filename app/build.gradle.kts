@@ -2,6 +2,9 @@
 
 import com.android.build.api.dsl.ApplicationExtension
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
+import org.gradle.api.GradleException
+import org.gradle.api.artifacts.Configuration
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
 import org.gradle.kotlin.dsl.aboutLibraries
 import org.gradle.kotlin.dsl.configure
 
@@ -176,4 +179,46 @@ aboutLibraries {
     export {
         excludeFields.add("generated")
     }
+}
+
+// F-Droid builds this project with `gradle: yes` (assembleRelease, no product flavors).
+// Play services must stay off the runtime graph. See docs/adr/0004-keep-bundled-litert-lm.md.
+val fossRuntimeClasspathNames = listOf("debugRuntimeClasspath", "releaseRuntimeClasspath")
+
+tasks.register("assertNoPlayServicesDependencies") {
+    group = "verification"
+    description = "Fails if a runtime classpath resolves com.google.android.gms."
+    doLast {
+        val offenders = fossRuntimeClasspathNames.flatMap { configurationName ->
+            playServicesArtifacts(configurations.getByName(configurationName)).map { coordinate ->
+                "$configurationName -> $coordinate"
+            }
+        }
+        if (offenders.isNotEmpty()) {
+            throw GradleException(
+                "Google Play services cannot ship in this app. " +
+                    "See docs/adr/0004-keep-bundled-litert-lm.md. Offenders: $offenders"
+            )
+        }
+        logger.lifecycle(
+            "Runtime classpaths ${fossRuntimeClasspathNames.joinToString()} contain no com.google.android.gms artifacts."
+        )
+    }
+}
+
+tasks.configureEach {
+    if (name == "check" || name == "assembleDebug" || name == "assembleRelease") {
+        dependsOn("assertNoPlayServicesDependencies")
+    }
+}
+
+fun playServicesArtifacts(configuration: Configuration): List<String> {
+    return configuration.incoming.resolutionResult.allComponents.mapNotNull { component ->
+        val identifier = component.id as? ModuleComponentIdentifier ?: return@mapNotNull null
+        if (identifier.group == "com.google.android.gms") {
+            "${identifier.group}:${identifier.module}:${identifier.version}"
+        } else {
+            null
+        }
+    }.distinct().sorted()
 }
