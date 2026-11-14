@@ -678,6 +678,50 @@ class ChatRepositoryImplTest {
     }
 
     @Test
+    fun `nvidia text follow-up after an image turn stays on chat completions`() = runBlocking {
+        val image = tempImage()
+        AttachmentPayloadCache.put(image.absolutePath, FileUtils.EncodedImage("image/png", "aGVsbG8="))
+        try {
+            withGateway { apiUrl, requests, api ->
+                val states = createRepository(openAIAPI = api).completeChat(
+                    userMessages = listOf(
+                        imageMessage(image, "What is in this image?"),
+                        MessageV2(content = "What colour is it?", platformType = null)
+                    ),
+                    assistantMessages = listOf(
+                        listOf(MessageV2(content = "A sign.", platformType = "nvidia")),
+                        emptyList()
+                    ),
+                    platform = nvidiaPlatform(apiUrl),
+                    runId = "nvidia-follow-up"
+                ).toList()
+
+                assertTrue(states.toString(), states.none { it is ApiState.Error })
+                assertEquals(listOf("/v1/chat/completions"), requests.map { it.path })
+                val messages = NetworkClient.openAIJson.parseToJsonElement(requests.single().body)
+                    .jsonObject
+                    .getValue("messages")
+                    .jsonArray
+                    .map { it.jsonObject }
+                assertEquals(
+                    listOf("system", "user", "assistant", "user"),
+                    messages.map { it.getValue("role").jsonPrimitive.content }
+                )
+                assertTrue(messages[0].getValue("content").jsonPrimitive.isString)
+                assertEquals(
+                    listOf("text", "image_url"),
+                    messages[1].getValue("content").jsonArray.map { it.jsonObject.getValue("type").jsonPrimitive.content }
+                )
+                assertEquals("A sign.", messages[2].getValue("content").jsonPrimitive.content)
+                assertEquals("What colour is it?", messages[3].getValue("content").jsonPrimitive.content)
+            }
+        } finally {
+            AttachmentPayloadCache.remove(image.absolutePath)
+            image.delete()
+        }
+    }
+
+    @Test
     fun `official openai image request still uploads a file and uses responses`() = runBlocking {
         val openAIAPI = RecordingOpenAIAPI(
             responseRounds = ArrayDeque(
