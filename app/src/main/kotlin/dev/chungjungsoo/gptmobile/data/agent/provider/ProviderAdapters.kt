@@ -514,6 +514,8 @@ private fun AgentToolExchange.toAnthropicMessages(assistantContent: List<Message
     )
 )
 
+// Replayed calls carry no item id. OpenAI rejects a function_call that names its fc_ id unless the
+// reasoning item it came with is replayed too, and that item cannot be rebuilt from the stream.
 private fun AgentToolExchange.toResponseItems(assistantText: String?): List<ResponseInputItem> = listOfNotNull(
     assistantText?.let { text -> ResponseInputMessage(role = "assistant", content = ResponseInputContent.text(text)) }
 ) + calls.map { call ->

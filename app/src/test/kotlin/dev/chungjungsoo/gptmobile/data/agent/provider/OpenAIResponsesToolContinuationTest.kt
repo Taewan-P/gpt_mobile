@@ -28,6 +28,7 @@ import dev.chungjungsoo.gptmobile.data.dto.openai.response.FunctionCallArguments
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.OutputItem
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.OutputItemAddedEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.OutputTextDeltaEvent
+import dev.chungjungsoo.gptmobile.data.dto.openai.response.ReasoningSummaryTextDeltaEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseCompletedEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseCreatedEvent
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseObject
@@ -48,6 +49,10 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -133,6 +138,35 @@ class OpenAIResponsesToolContinuationTest {
 
         assertTrue(events.failureText(), events.failureText().isEmpty())
         assertEquals(listOf("user:$PROMPT", "call:call_exa", "output:call_exa"), api.requests[1].inputShape())
+    }
+
+    @Test
+    fun `stateless replay after a reasoning round sends no item ids and no reasoning item`() = runBlocking {
+        val api = RecordingOpenAIAPI(
+            ArrayDeque(
+                listOf(
+                    round(
+                        "resp_tool",
+                        ReasoningSummaryTextDeltaEvent(itemId = "rs_1", outputIndex = 0, summaryIndex = 0, delta = "Need fresh data."),
+                        *functionCall("fc_1", "call_exa", outputIndex = 1)
+                    ),
+                    round("resp_answer", text("Markets rose."))
+                )
+            )
+        )
+        val session = OpenAIResponsesAdapter(api, attachmentEncoder()).openSession(
+            turns(),
+            platform(NVIDIA_API_URL).copy(reasoning = true)
+        )
+
+        val events = AgentRunner().run(session, listOf(searchTool())).toList()
+
+        assertTrue(events.failureText(), events.failureText().isEmpty())
+        assertEquals(listOf("user:$PROMPT", "call:call_exa", "output:call_exa"), api.requests[1].inputShape())
+        val items = NetworkClient.openAIJson.encodeToJsonElement(api.requests[1])
+            .jsonObject.getValue("input").jsonArray.map { it.jsonObject }
+        assertTrue(items.toString(), items.none { "id" in it })
+        assertTrue(items.toString(), items.none { it["type"]?.jsonPrimitive?.content == "reasoning" })
     }
 
     @Test
