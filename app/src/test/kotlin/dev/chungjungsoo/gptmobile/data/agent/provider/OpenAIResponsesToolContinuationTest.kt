@@ -74,9 +74,7 @@ class OpenAIResponsesToolContinuationTest {
         assertTrue(followUp.contains("\"type\":\"function_call\""))
         assertTrue(followUp.contains("\"type\":\"function_call_output\""))
         assertTrue(followUp.contains(SEARCH_RESULT))
-        assertTrue(api.requests[1].input.first() is ResponseInputMessage)
-        assertTrue(api.requests[1].input.any { it is ResponseFunctionCallInput })
-        assertTrue(api.requests[1].input.any { it is ResponseFunctionCallOutput })
+        assertEquals(listOf("user:$PROMPT", "call:call_exa", "output:call_exa"), api.requests[1].inputShape())
         assertNull(api.requests[0].previousResponseId)
     }
 
@@ -135,6 +133,39 @@ class OpenAIResponsesToolContinuationTest {
 
         assertTrue(events.failureText(), events.failureText().isEmpty())
         assertEquals(listOf("user:$PROMPT", "call:call_exa", "output:call_exa"), api.requests[1].inputShape())
+    }
+
+    @Test
+    fun `stateless responses endpoint replays parallel calls and every earlier round in order`() = runBlocking {
+        val api = RecordingOpenAIAPI(multiRoundScript())
+        val session = OpenAIResponsesAdapter(api, attachmentEncoder()).openSession(turns(), platform(NVIDIA_API_URL))
+
+        val events = AgentRunner().run(session, listOf(searchTool())).toList()
+
+        assertTrue(events.failureText(), events.failureText().isEmpty())
+        assertEquals(listOf(null, null, null), api.requests.map { it.previousResponseId })
+        val firstExchange = listOf("user:$PROMPT", "call:call_a", "call:call_b", "output:call_a", "output:call_b")
+        assertEquals(firstExchange, api.requests[1].inputShape())
+        assertEquals(
+            firstExchange + listOf("assistant:Checking one more source.", "call:call_c", "output:call_c"),
+            api.requests[2].inputShape()
+        )
+    }
+
+    @Test
+    fun `official openai endpoint chains every round and sends only the newest tool outputs`() = runBlocking {
+        val api = RecordingOpenAIAPI(multiRoundScript())
+        val session = OpenAIResponsesAdapter(api, attachmentEncoder()).openSession(
+            turns(),
+            platform(ModelConstants.OPENAI_API_URL)
+        )
+
+        val events = AgentRunner().run(session, listOf(searchTool())).toList()
+
+        assertTrue(events.failureText(), events.failureText().isEmpty())
+        assertEquals(listOf(null, "resp_1", "resp_2"), api.requests.map { it.previousResponseId })
+        assertEquals(listOf("output:call_a", "output:call_b"), api.requests[1].inputShape())
+        assertEquals(listOf("output:call_c"), api.requests[2].inputShape())
     }
 
     @Test
@@ -207,6 +238,14 @@ class OpenAIResponsesToolContinuationTest {
                     ResponseCompletedEvent(ResponseObject(id = "resp_answer", status = "completed"))
                 )
             )
+        )
+    )
+
+    private fun multiRoundScript(): ArrayDeque<Flow<ResponsesStreamEvent>> = ArrayDeque(
+        listOf(
+            round("resp_1", *functionCall("fc_a", "call_a", outputIndex = 0), *functionCall("fc_b", "call_b", outputIndex = 1)),
+            round("resp_2", text("Checking one more source."), *functionCall("fc_c", "call_c", outputIndex = 1)),
+            round("resp_3", text("Markets rose."))
         )
     )
 
