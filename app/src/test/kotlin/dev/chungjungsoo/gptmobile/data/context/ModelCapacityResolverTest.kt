@@ -9,6 +9,7 @@ import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.repository.FakeModelCatalogRepository
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -129,6 +130,25 @@ class ModelCapacityResolverTest {
         resolver.saveOverride(platform, -8)
         assertNull(store.getCapacity(platform.uid, platform.apiUrl, platform.model)?.overrideContextWindowTokens)
         assertTrue(resolver.resolve(platform) is ModelCapacityResolution.Unknown)
+    }
+
+    @Test
+    fun `previous response chaining is limited to the official openai endpoint`() {
+        listOf("https://api.openai.com/v1/", "https://api.openai.com/v1").forEach { apiUrl ->
+            assertTrue(apiUrl, ModelCapacityResolver.supportsPreviousResponseChaining(openaiPlatform().copy(apiUrl = apiUrl)))
+        }
+        listOf(
+            "https://integrate.api.nvidia.com/v1/",
+            "https://example.openai.azure.com/openai/v1/",
+            "https://eu.api.openai.com/v1/",
+            "https://gateway.example.com/openai/v1/",
+            "http://localhost:8000/v1/"
+        ).forEach { apiUrl ->
+            assertFalse(apiUrl, ModelCapacityResolver.supportsPreviousResponseChaining(openaiPlatform().copy(apiUrl = apiUrl)))
+        }
+        assertFalse(
+            ModelCapacityResolver.supportsPreviousResponseChaining(openaiPlatform().copy(compatibleType = ClientType.CUSTOM))
+        )
     }
 
     @Test
