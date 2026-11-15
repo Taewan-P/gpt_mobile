@@ -1,6 +1,7 @@
 package dev.chungjungsoo.gptmobile.data.repository
 
 import android.content.Context
+import dev.chungjungsoo.gptmobile.data.ModelConstants
 import dev.chungjungsoo.gptmobile.data.context.ConversationTurn
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
@@ -83,6 +84,11 @@ class AttachmentUploadCoordinator @Inject constructor(
         platformUid: String,
         config: ProviderRequestConfig
     ): ChatAttachment {
+        // The Files API is OpenAI's. Other OpenAI-compatible hosts, including NVIDIA Build,
+        // have no /files route and return a plain-text 404. Leave the bytes local so the
+        // chat-completions request can inline them as an image_url data URI.
+        if (!ModelConstants.isOfficialOpenAiApiUrl(config.apiUrl)) return attachment
+
         val existingRef = attachment.providerRefFor(platformUid)
         if (
             existingRef?.remoteType == AttachmentRemoteType.OPENAI_FILE &&

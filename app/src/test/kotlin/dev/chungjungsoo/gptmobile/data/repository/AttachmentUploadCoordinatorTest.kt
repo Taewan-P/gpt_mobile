@@ -1,5 +1,6 @@
 package dev.chungjungsoo.gptmobile.data.repository
 
+import dev.chungjungsoo.gptmobile.data.ModelConstants
 import dev.chungjungsoo.gptmobile.data.context.ConversationTurn
 import dev.chungjungsoo.gptmobile.data.database.entity.MessageV2
 import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
@@ -25,6 +26,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
 import org.junit.Test
 
 class AttachmentUploadCoordinatorTest {
@@ -61,13 +63,48 @@ class AttachmentUploadCoordinatorTest {
                 uid = "openai-platform",
                 name = "OpenAI",
                 compatibleType = ClientType.OPENAI,
-                apiUrl = "https://api.openai.com",
+                apiUrl = ModelConstants.OPENAI_API_URL,
                 model = "gpt-4.1"
             )
         )
 
+        assertEquals(1, openAIAPI.availabilityChecks)
         assertEquals(0, openAIAPI.uploadCount)
         assertEquals("file-existing", updated.attachments.single().providerRefs.single().remoteId)
+    }
+
+    @Test
+    fun `openai profile on another host keeps attachments local`() = runBlocking {
+        val openAIAPI = FakeOpenAIAPI(isAvailable = true)
+        val coordinator = AttachmentUploadCoordinator(openAIAPI, FakeAnthropicAPI(), FakeGoogleAPI())
+        val message = MessageV2(
+            content = "describe",
+            platformType = null,
+            attachments = listOf(
+                ChatAttachment(
+                    localFilePath = "/tmp/image.png",
+                    preparedFilePath = "/tmp/image.png",
+                    displayName = "image.png",
+                    mimeType = "image/png",
+                    sizeBytes = 1
+                )
+            )
+        )
+
+        val updated = coordinator.ensureMessageAttachmentsForPlatform(
+            message,
+            PlatformV2(
+                uid = "nvidia-platform",
+                name = "NVIDIA",
+                compatibleType = ClientType.OPENAI,
+                apiUrl = "https://integrate.api.nvidia.com/v1",
+                model = "nvidia/nemotron-3.5-super-vl-120b-a12b"
+            )
+        )
+
+        assertEquals(0, openAIAPI.availabilityChecks)
+        assertEquals(0, openAIAPI.uploadCount)
+        assertSame(message, updated)
     }
 
     @Test
@@ -154,6 +191,7 @@ class AttachmentUploadCoordinatorTest {
         private val isAvailable: Boolean = false
     ) : OpenAIAPI {
         var uploadCount = 0
+        var availabilityChecks = 0
 
         override fun streamChatCompletion(
             request: ChatCompletionRequest,
@@ -177,7 +215,11 @@ class AttachmentUploadCoordinatorTest {
             return UploadedProviderFile(id = "file-uploaded", mimeType = mimeType)
         }
 
-        override suspend fun isFileAvailable(fileId: String, config: ProviderRequestConfig): Boolean = isAvailable
+        override suspend fun isFileAvailable(fileId: String, config: ProviderRequestConfig): Boolean {
+            availabilityChecks += 1
+            return isAvailable
+        }
+
         override suspend fun compactResponses(
             request: dev.chungjungsoo.gptmobile.data.dto.openai.request.CompactResponsesRequest,
             timeoutSeconds: Int,

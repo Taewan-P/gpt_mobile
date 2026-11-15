@@ -14,7 +14,7 @@ class OpenAINativeCompactor(
     private val encodeInput: suspend (CompactInput) -> JsonArray
 ) : ContextCompactor {
     override fun supports(platform: PlatformV2, estimatedTokens: Int): Boolean = platform.compatibleType == ClientType.OPENAI &&
-        platform.apiUrl.trimEnd('/') == ModelConstants.OPENAI_API_URL.trimEnd('/')
+        ModelConstants.isOfficialOpenAiApiUrl(platform.apiUrl)
 
     override suspend fun compact(input: CompactInput): CompactOutput {
         val existing = input.existingNativeJson?.let { json ->

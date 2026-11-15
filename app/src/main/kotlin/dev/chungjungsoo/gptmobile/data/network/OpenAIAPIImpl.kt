@@ -48,7 +48,7 @@ class OpenAIAPIImpl @Inject constructor(
     ): UploadedProviderFile {
         val apiUrl = config.apiUrl
         val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}files" else "$apiUrl/files"
-        val responseBody = networkClient().preparePost(endpoint) {
+        return networkClient().preparePost(endpoint) {
             config.token?.let { bearerAuth(it) }
             setBody(
                 MultiPartFormDataContent(
@@ -65,14 +65,22 @@ class OpenAIAPIImpl @Inject constructor(
                     }
                 )
             )
-        }.body<String>()
-
-        val uploadResponse = NetworkClient.openAIJson.decodeFromString<OpenAIFileResponse>(responseBody)
-        return UploadedProviderFile(
-            id = uploadResponse.id,
-            mimeType = uploadResponse.mimeType ?: mimeType,
-            name = uploadResponse.filename
-        )
+        }.execute { response ->
+            val responseBody = response.body<String>()
+            if (!response.status.isSuccess()) {
+                throw IllegalStateException(openAiFailureMessage(response.status.value, responseBody))
+            }
+            val uploadResponse = try {
+                NetworkClient.openAIJson.decodeFromString<OpenAIFileResponse>(responseBody)
+            } catch (_: SerializationException) {
+                throw IllegalStateException("HTTP ${response.status.value}: $responseBody")
+            }
+            UploadedProviderFile(
+                id = uploadResponse.id,
+                mimeType = uploadResponse.mimeType ?: mimeType,
+                name = uploadResponse.filename
+            )
+        }
     }
 
     override suspend fun isFileAvailable(fileId: String, config: ProviderRequestConfig): Boolean {
@@ -109,12 +117,7 @@ class OpenAIAPIImpl @Inject constructor(
                 val errorBody = response.body<String>()
                 throwIfToolDefinitionsRejected(response.status.value, !request.tools.isNullOrEmpty(), errorBody)
 
-                val errorMessage = try {
-                    val errorResponse = NetworkClient.openAIJson.decodeFromString<OpenAIErrorResponse>(errorBody)
-                    errorResponse.error.message
-                } catch (_: Exception) {
-                    "HTTP ${response.status.value}: $errorBody"
-                }
+                val errorMessage = openAiFailureMessage(response.status.value, errorBody)
 
                 emit(
                     ChatCompletionChunk(
@@ -198,12 +201,7 @@ class OpenAIAPIImpl @Inject constructor(
                     val errorBody = response.body<String>()
                     throwIfToolDefinitionsRejected(response.status.value, !request.tools.isNullOrEmpty(), errorBody)
 
-                    val errorMessage = try {
-                        val errorResponse = NetworkClient.openAIJson.decodeFromString<OpenAIErrorResponse>(errorBody)
-                        errorResponse.error.message
-                    } catch (_: Exception) {
-                        "HTTP ${response.status.value}: $errorBody"
-                    }
+                    val errorMessage = openAiFailureMessage(response.status.value, errorBody)
 
                     emit(ResponseErrorEvent(message = errorMessage, code = response.status.value.toString()))
                     return@execute
@@ -254,14 +252,29 @@ class OpenAIAPIImpl @Inject constructor(
     ): CompactResponsesResult {
         val apiUrl = config.apiUrl
         val endpoint = if (apiUrl.endsWith("/")) "${apiUrl}responses/compact" else "$apiUrl/responses/compact"
-        val responseBody = networkClient().preparePost(endpoint) {
+        return networkClient().preparePost(endpoint) {
             retryGenerationRequest()
             applyPlatformStreamingTimeout(timeoutSeconds)
             contentType(ContentType.Application.Json)
             setBody(NetworkClient.openAIJson.encodeToString(request))
             config.token?.let { bearerAuth(it) }
-        }.body<String>()
-        return NetworkClient.openAIJson.decodeFromString(responseBody)
+        }.execute { response ->
+            val responseBody = response.body<String>()
+            if (!response.status.isSuccess()) {
+                throw IllegalStateException(openAiFailureMessage(response.status.value, responseBody))
+            }
+            try {
+                NetworkClient.openAIJson.decodeFromString<CompactResponsesResult>(responseBody)
+            } catch (_: SerializationException) {
+                throw IllegalStateException("HTTP ${response.status.value}: $responseBody")
+            }
+        }
+    }
+
+    private fun openAiFailureMessage(statusCode: Int, errorBody: String): String = try {
+        NetworkClient.openAIJson.decodeFromString<OpenAIErrorResponse>(errorBody).error.message
+    } catch (_: Exception) {
+        "HTTP $statusCode: $errorBody"
     }
 }
 
