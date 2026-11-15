@@ -85,6 +85,10 @@ open class ModelCapacityResolver(
     private fun isLocal(platform: PlatformV2): Boolean = platform.compatibleType == ClientType.LITERT_LM
 
     companion object {
+        // previous_response_id continues a response the server stored. Only the official OpenAI API is
+        // known to store one, which is the same condition resumable replies depend on.
+        fun supportsPreviousResponseChaining(platform: PlatformV2): Boolean = supportsResumableReplies(platform)
+
         fun supportsResumableReplies(platform: PlatformV2): Boolean = platform.compatibleType == ClientType.OPENAI &&
             platform.apiUrl.trimEnd('/') == ModelConstants.OPENAI_API_URL.trimEnd('/')
     }
