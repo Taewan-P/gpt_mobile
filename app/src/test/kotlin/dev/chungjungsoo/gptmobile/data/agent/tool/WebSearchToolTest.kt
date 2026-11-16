@@ -186,6 +186,103 @@ class WebSearchToolTest {
     }
 
     @Test
+    fun `keenable search sends api key and title and normalizes results`() = runBlocking {
+        val response = """
+            {
+              "results": [
+                {"title": "Keenable title", "url": "https://allowed.example/keenable", "description": "Keenable description", "snippet": "long excerpt", "published_at": "2026-07-29"},
+                {"title": "No url", "description": "dropped"},
+                {"title": "Snippet only", "url": "https://allowed.example/snippet", "snippet": "${"x".repeat(1500)}"}
+              ]
+            }
+        """.trimIndent()
+        val server = server("/search", response)
+        val tool = tool(WebSearchProvider.KEENABLE, server.url("/search"))
+
+        val result = tool.execute(
+            "keenable-call",
+            buildJsonObject {
+                put("query", "latest kotlin")
+                put("maxResults", 3)
+            }
+        )
+
+        assertEquals(false, result.isError)
+        assertEquals("", server.request.authorization)
+        assertEquals("keenable-key", server.request.apiKey)
+        assertJsonEquals("""{"query": "latest kotlin", "max_results": 3}""", server.request.body)
+        val results = (result.content as ToolResultContent.Json).value.jsonObject["results"]!!.jsonArray
+        assertEquals(2, results.size)
+        assertEquals("Keenable description", results[0].jsonObject["snippet"]!!.jsonPrimitive.content)
+        assertEquals("2026-07-29", results[0].jsonObject["publishedDate"]!!.jsonPrimitive.content)
+        assertEquals(null, results[1].jsonObject["publishedDate"])
+        assertEquals(1000, results[1].jsonObject["snippet"]!!.jsonPrimitive.content.length)
+    }
+
+    @Test
+    fun `keenable schema omits unsupported filters`() {
+        val tool = tool(WebSearchProvider.KEENABLE, "http://127.0.0.1:1/search")
+
+        val properties = tool.definition.inputSchema["properties"]!!.jsonObject
+
+        assertEquals(setOf("query", "maxResults", "recencyDays"), properties.keys)
+    }
+
+    @Test
+    fun `keenable rejects includeDomains without calling provider`() = runBlocking {
+        val server = server("/search", """{"results": []}""")
+        val tool = tool(WebSearchProvider.KEENABLE, server.url("/search"))
+
+        val result = tool.execute(
+            "keenable-include-domains",
+            buildJsonObject {
+                put("query", "latest kotlin")
+                put("includeDomains", JsonArray(listOf(JsonPrimitive("allowed.example"))))
+            }
+        )
+
+        assertEquals(true, result.isError)
+        assertEquals("", server.request.body)
+    }
+
+    @Test
+    fun `keenable rejects excludeDomains without calling provider`() = runBlocking {
+        val server = server("/search", """{"results": []}""")
+        val tool = tool(WebSearchProvider.KEENABLE, server.url("/search"))
+
+        val result = tool.execute(
+            "keenable-exclude-domains",
+            buildJsonObject {
+                put("query", "latest kotlin")
+                put("excludeDomains", JsonArray(listOf(JsonPrimitive("blocked.example"))))
+            }
+        )
+
+        assertEquals(true, result.isError)
+        assertEquals("", server.request.body)
+    }
+
+    @Test
+    fun `keenable search maps recencyDays to published_after`() = runBlocking {
+        val server = server("/search", """{"results": []}""")
+        val tool = tool(WebSearchProvider.KEENABLE, server.url("/search"))
+
+        val result = tool.execute(
+            "keenable-recency",
+            buildJsonObject {
+                put("query", "latest kotlin")
+                put("recencyDays", 7)
+            }
+        )
+
+        assertEquals(false, result.isError)
+        assertJsonEquals(
+            """{"query": "latest kotlin", "max_results": 5, "published_after": "2026-07-25"}""",
+            server.request.body
+        )
+    }
+
+    @Test
     fun `validation errors return bounded tool error without calling provider`() = runBlocking {
         val server = server("/search", """{"results": []}""")
         val tool = tool(WebSearchProvider.EXA, server.url("/search"))
