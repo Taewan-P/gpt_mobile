@@ -346,7 +346,11 @@ fun ChatScreen(
                 chatEnabled = canUseChat,
                 sendButtonEnabled = isIdle,
                 isRunning = !isIdle,
-                thinkingEffortState = thinkingEffortControlState(effortPlatforms, chatRoom.thinkingEffort),
+                thinkingEffortState = if (chatRoom.id < 0) {
+                    null
+                } else {
+                    thinkingEffortControlState(effortPlatforms, chatRoom.thinkingEffort)
+                },
                 onThinkingEffortSelected = chatViewModel::updateThinkingEffort,
                 selectedAttachments = selectedAttachments,
                 onFileSelected = { filePath -> chatViewModel.addSelectedFile(filePath) },

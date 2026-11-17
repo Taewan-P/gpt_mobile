@@ -232,8 +232,11 @@ private fun ollamaReasoningEffort(model: String, effort: ThinkingEffort): String
 
 private fun openAiSupportedEfforts(model: String): Set<String> {
     val normalized = model.lowercase()
+    if (normalized.contains("gpt-5.2-pro")) return setOf("medium", "high", "xhigh")
     if (normalized.contains("gpt-5-pro") || normalized.contains("gpt-5.0-pro")) return setOf("high")
     if (OPENAI_O_SERIES.containsMatchIn(normalized)) return setOf("low", "medium", "high")
+    // GPT-6.1 Sol rejects none and minimal (HTTP 400) and defaults to medium.
+    if (normalized.contains("gpt-6.1-sol")) return setOf("low", "medium", "high", "xhigh", "max")
     if (normalized.contains("gpt-6")) return OPENAI_FULL_EFFORTS
     val minor = GPT5_MINOR.find(normalized)?.groupValues?.getOrNull(1)?.toIntOrNull()
     return when {

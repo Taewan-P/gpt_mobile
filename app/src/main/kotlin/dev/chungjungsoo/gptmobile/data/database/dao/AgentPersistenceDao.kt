@@ -16,6 +16,7 @@ import dev.chungjungsoo.gptmobile.data.database.entity.PersistAgentRetryRequest
 import dev.chungjungsoo.gptmobile.data.database.entity.PersistAgentRetryResult
 import dev.chungjungsoo.gptmobile.data.database.entity.PersistAgentTurnRequest
 import dev.chungjungsoo.gptmobile.data.database.entity.PersistAgentTurnResult
+import dev.chungjungsoo.gptmobile.data.database.entity.StringListConverter
 import dev.chungjungsoo.gptmobile.data.database.entity.ToolEvent
 import dev.chungjungsoo.gptmobile.data.database.entity.snapshotLatestAssistantRevision
 import java.util.UUID
@@ -28,6 +29,12 @@ interface AgentPersistenceDao {
 
     @Update
     suspend fun updateChatRoom(chatRoom: ChatRoomV2)
+
+    @Query(
+        "UPDATE chats_v2 SET title = :title, enabled_platform = :enabledPlatform, updated_at = :updatedAt " +
+            "WHERE chat_id = :chatId"
+    )
+    suspend fun updateChatSnapshot(chatId: Int, title: String, enabledPlatform: String, updatedAt: Long)
 
     @Insert
     suspend fun insertMessage(message: MessageV2): Long
@@ -169,7 +176,12 @@ interface AgentPersistenceDao {
         chatPlatformModels: Map<String, String>
     ) {
         require(chatRoom.id > 0)
-        updateChatRoom(chatRoom)
+        updateChatSnapshot(
+            chatId = chatRoom.id,
+            title = chatRoom.title,
+            enabledPlatform = StringListConverter().fromList(chatRoom.enabledPlatform),
+            updatedAt = chatRoom.updatedAt
+        )
 
         val incomingIds = messages.asSequence().map(MessageV2::id).filter { it > 0 }.toSet()
         val removedMessages = getMessages(chatRoom.id).filter { it.id !in incomingIds }
