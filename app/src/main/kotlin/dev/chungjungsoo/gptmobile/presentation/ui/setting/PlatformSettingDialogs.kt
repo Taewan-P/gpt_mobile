@@ -16,6 +16,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -41,6 +42,12 @@ import dev.chungjungsoo.gptmobile.data.localruntime.AcceleratorUnavailableReason
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators
 import dev.chungjungsoo.gptmobile.data.model.GeminiSafetySettings
 import dev.chungjungsoo.gptmobile.data.model.ThinkingEffort
+import dev.chungjungsoo.gptmobile.data.model.automaticOfferedThinkingEfforts
+import dev.chungjungsoo.gptmobile.data.model.nearestThinkingEffort
+import dev.chungjungsoo.gptmobile.data.model.offeredThinkingEfforts
+import dev.chungjungsoo.gptmobile.data.model.parseSupportedEffortOverride
+import dev.chungjungsoo.gptmobile.data.model.thinkingEffortSuppressed
+import dev.chungjungsoo.gptmobile.presentation.common.PlatformCheckBoxItem
 import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.DownloadedLocalModelOption
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.LocalModelPicker
@@ -183,12 +190,12 @@ fun AcceleratorDialog(
 @Composable
 fun ThinkingEffortDialog(
     dialogState: PlatformSettingViewModel.DialogState,
-    selectedEffort: String,
+    platform: dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2,
     settingViewModel: PlatformSettingViewModel
 ) {
     if (dialogState.isThinkingEffortDialogOpen) {
         ThinkingEffortPickerDialog(
-            selectedEffort = selectedEffort,
+            platform = platform,
             onDismissRequest = settingViewModel::closeThinkingEffortDialog,
             onConfirmRequest = settingViewModel::updateThinkingEffort
         )
@@ -197,14 +204,16 @@ fun ThinkingEffortDialog(
 
 @Composable
 internal fun ThinkingEffortPickerDialog(
-    selectedEffort: String,
+    platform: dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2,
     onDismissRequest: () -> Unit,
     onConfirmRequest: (String) -> Unit
 ) {
     val configuration = LocalWindowInfo.current
     val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
     val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
-    val selected = ThinkingEffort.fromStorage(selectedEffort)
+    val offered = offeredThinkingEfforts(platform)
+    val stored = ThinkingEffort.fromStorage(platform.thinkingEffort)
+    val selected = nearestThinkingEffort(stored, offered)
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
         modifier = Modifier
@@ -212,9 +221,23 @@ internal fun ThinkingEffortPickerDialog(
             .heightIn(max = screenHeight - 80.dp),
         title = { Text(text = stringResource(R.string.thinking_effort)) },
         text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Text(stringResource(R.string.thinking_effort_description))
-                ThinkingEffort.entries.forEach { effort ->
+                if (selected != stored && offered.isNotEmpty()) {
+                    Text(
+                        text = stringResource(
+                            R.string.thinking_effort_adjusted_description,
+                            thinkingEffortLabel(selected),
+                            thinkingEffortLabel(stored)
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                offered.forEach { effort ->
                     RadioItem(
                         title = thinkingEffortLabel(effort),
                         description = thinkingEffortDescription(effort),
@@ -228,6 +251,101 @@ internal fun ThinkingEffortPickerDialog(
         },
         onDismissRequest = onDismissRequest,
         confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
+@Composable
+fun SupportedEffortLevelsDialog(
+    dialogState: PlatformSettingViewModel.DialogState,
+    platform: dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2,
+    settingViewModel: PlatformSettingViewModel
+) {
+    if (dialogState.isSupportedEffortLevelsDialogOpen) {
+        SupportedEffortLevelsPickerDialog(
+            platform = platform,
+            onDismissRequest = settingViewModel::closeSupportedEffortLevelsDialog,
+            onConfirmRequest = settingViewModel::updateSupportedEffortLevels,
+            onAllowEffortAgain = settingViewModel::clearEffortRejectionForCurrentModel
+        )
+    }
+}
+
+@Composable
+private fun SupportedEffortLevelsPickerDialog(
+    platform: dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2,
+    onDismissRequest: () -> Unit,
+    onConfirmRequest: (List<ThinkingEffort>?) -> Unit,
+    onAllowEffortAgain: () -> Unit
+) {
+    val automaticLevels = automaticOfferedThinkingEfforts(platform.compatibleType, platform.model)
+    var useAutomatic by remember { mutableStateOf(platform.supportedEffortLevels == null) }
+    var selected by remember {
+        mutableStateOf(
+            (parseSupportedEffortOverride(platform.supportedEffortLevels) ?: automaticLevels).toSet()
+        )
+    }
+    val configuration = LocalWindowInfo.current
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
+    val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
+    AlertDialog(
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier
+            .widthIn(max = screenWidth - 40.dp)
+            .heightIn(max = screenHeight - 80.dp),
+        title = { Text(text = stringResource(R.string.thinking_effort_supported_levels)) },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(stringResource(R.string.thinking_effort_supported_levels_description))
+                if (thinkingEffortSuppressed(platform)) {
+                    Text(stringResource(R.string.thinking_effort_rejected_description))
+                    TextButton(onClick = onAllowEffortAgain) {
+                        Text(stringResource(R.string.thinking_effort_allow_again))
+                    }
+                }
+                PlatformCheckBoxItem(
+                    selected = useAutomatic,
+                    title = stringResource(R.string.thinking_effort_supported_levels_automatic),
+                    description = thinkingEffortNames(automaticLevels),
+                    onClickEvent = { useAutomatic = !useAutomatic }
+                )
+                ThinkingEffort.entries.forEach { effort ->
+                    PlatformCheckBoxItem(
+                        selected = effort in selected,
+                        enabled = !useAutomatic,
+                        title = thinkingEffortLabel(effort),
+                        description = thinkingEffortDescription(effort),
+                        onClickEvent = {
+                            selected = if (effort in selected) selected - effort else selected + effort
+                        }
+                    )
+                }
+            }
+        },
+        onDismissRequest = onDismissRequest,
+        confirmButton = {
+            TextButton(
+                enabled = useAutomatic || selected.isNotEmpty(),
+                onClick = {
+                    onConfirmRequest(
+                        if (useAutomatic) {
+                            null
+                        } else {
+                            selected.sortedBy { effort -> effort.ordinal }
+                        }
+                    )
+                }
+            ) {
+                Text(stringResource(R.string.confirm))
+            }
+        },
         dismissButton = {
             TextButton(onClick = onDismissRequest) {
                 Text(stringResource(R.string.cancel))

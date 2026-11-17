@@ -212,6 +212,27 @@ class PlatformSettingViewModel @Inject constructor(
         }
     }
 
+    fun openSupportedEffortLevelsDialog() = _dialogState.update { it.copy(isSupportedEffortLevelsDialogOpen = true) }
+    fun closeSupportedEffortLevelsDialog() = _dialogState.update { it.copy(isSupportedEffortLevelsDialogOpen = false) }
+
+    fun updateSupportedEffortLevels(levels: List<ThinkingEffort>?) {
+        _platformState.value?.let { platform ->
+            val stored = levels?.joinToString(",") { effort -> effort.storageValue }
+            updatePlatform(platform.copy(supportedEffortLevels = stored))
+            closeSupportedEffortLevelsDialog()
+        }
+    }
+
+    fun clearEffortRejectionForCurrentModel() {
+        _platformState.value?.let { platform ->
+            updatePlatform(
+                platform.copy(
+                    effortUnsupportedModels = platform.effortUnsupportedModels.filter { model -> model != platform.model }
+                )
+            )
+        }
+    }
+
     fun updatePlatform(platform: PlatformV2) {
         viewModelScope.launch {
             settingRepository.updatePlatformV2(platform)
@@ -554,6 +575,7 @@ class PlatformSettingViewModel @Inject constructor(
         val isTimeoutDialogOpen: Boolean = false,
         val isGeminiSafetyDialogOpen: Boolean = false,
         val isThinkingEffortDialogOpen: Boolean = false,
+        val isSupportedEffortLevelsDialogOpen: Boolean = false,
         val isDeleteDialogOpen: Boolean = false
     )
 

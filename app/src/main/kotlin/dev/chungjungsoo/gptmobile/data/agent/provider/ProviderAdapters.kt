@@ -56,10 +56,10 @@ import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.model.GeminiSafetySettings
 import dev.chungjungsoo.gptmobile.data.model.ThinkingEffort
 import dev.chungjungsoo.gptmobile.data.model.googleThinkingConfig
-import dev.chungjungsoo.gptmobile.data.model.groqReasoningEffort
 import dev.chungjungsoo.gptmobile.data.model.openAIChatReasoningFields
 import dev.chungjungsoo.gptmobile.data.model.openAiResponsesReasoning
 import dev.chungjungsoo.gptmobile.data.model.requestThinkingEffort
+import dev.chungjungsoo.gptmobile.data.model.thinkingEffortSuppressed
 import dev.chungjungsoo.gptmobile.data.network.AnthropicAPI
 import dev.chungjungsoo.gptmobile.data.network.GoogleAPI
 import dev.chungjungsoo.gptmobile.data.network.GroqAPI
@@ -287,11 +287,13 @@ class AnthropicMessagesAdapter @Inject constructor(
                 tools: List<AgentToolDefinition>,
                 exchanges: List<AgentToolExchange>
             ): Flow<ProviderEvent> = flow {
+                val effortSuppressed = platform.omitThinkingEffort || thinkingEffortSuppressed(platform)
+                val effort = requestThinkingEffort(platform)
                 val thinkingPolicy = anthropicThinkingPolicy(
                     model = platform.model,
-                    reasoningEnabled = platform.reasoning,
+                    reasoningEnabled = platform.reasoning && !effortSuppressed,
                     hasTools = tools.isNotEmpty(),
-                    effort = ThinkingEffort.fromStorage(platform.thinkingEffort)
+                    effort = effort ?: ThinkingEffort.DEFAULT
                 )
                 val isThinkingActive = thinkingPolicy.config?.type?.let { it != "disabled" } == true
                 val request = MessageRequest(
@@ -305,7 +307,7 @@ class AnthropicMessagesAdapter @Inject constructor(
                     temperature = if (isThinkingActive) null else platform.temperature,
                     topP = if (isThinkingActive) null else platform.topP,
                     thinking = thinkingPolicy.config,
-                    outputConfig = thinkingPolicy.outputEffort?.let { effort -> OutputConfig(effort = effort) },
+                    outputConfig = effort?.let { thinkingPolicy.outputEffort?.let { value -> OutputConfig(effort = value) } },
                     tools = tools.takeIf { it.isNotEmpty() }?.map { definition ->
                         AnthropicTool(definition.name, definition.description, definition.inputSchema)
                     }
@@ -611,7 +613,7 @@ private fun createGroqChatCompletionRequest(
     platform: PlatformV2
 ): GroqChatCompletionRequest {
     val isGptOssModel = platform.model.contains("gpt-oss", ignoreCase = true)
-    val reasoningEffort = requestThinkingEffort(platform)?.let { effort -> groqReasoningEffort(platform.model, effort) }
+    val reasoningEffort = requestThinkingEffort(platform)?.storageValue
     return GroqChatCompletionRequest(
         model = platform.model,
         messages = messages,

@@ -1,9 +1,14 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -35,11 +40,27 @@ fun ThinkingEffortControl(
         ) {
             Text(thinkingEffortControlLabel(state))
         }
+        if (state.adjustedToNearest && state.storedEffort != null && state.selectedEffort != null) {
+            Text(
+                text = stringResource(
+                    R.string.thinking_effort_using_nearest,
+                    thinkingEffortLabel(state.storedEffort),
+                    thinkingEffortLabel(state.selectedEffort)
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 12.dp)
+            )
+        }
         DropdownMenu(
             expanded = expanded && state.enabled,
             onDismissRequest = { expanded = false }
         ) {
-            ThinkingEffortChoices { value ->
+            ThinkingEffortChoices(
+                offered = state.offered,
+                selectedEffort = state.selectedEffort,
+                profileDefaultSelected = state.followsProfileDefault
+            ) { value ->
                 expanded = false
                 onSelect(value)
             }
@@ -48,8 +69,13 @@ fun ThinkingEffortControl(
 }
 
 @Composable
-internal fun ThinkingEffortChoices(onSelect: (String?) -> Unit) {
-    ThinkingEffort.entries.forEach { effort ->
+internal fun ThinkingEffortChoices(
+    offered: List<ThinkingEffort>,
+    selectedEffort: ThinkingEffort?,
+    profileDefaultSelected: Boolean,
+    onSelect: (String?) -> Unit
+) {
+    offered.forEach { effort ->
         DropdownMenuItem(
             text = {
                 Column {
@@ -64,6 +90,7 @@ internal fun ThinkingEffortChoices(onSelect: (String?) -> Unit) {
                     )
                 }
             },
+            leadingIcon = { EffortSelectionMark(selected = selectedEffort == effort) },
             onClick = { onSelect(effort.storageValue) }
         )
     }
@@ -81,13 +108,30 @@ internal fun ThinkingEffortChoices(onSelect: (String?) -> Unit) {
                 )
             }
         },
+        leadingIcon = { EffortSelectionMark(selected = profileDefaultSelected) },
         onClick = { onSelect(null) }
     )
 }
 
 @Composable
+private fun EffortSelectionMark(selected: Boolean) {
+    if (selected) {
+        Icon(
+            imageVector = Icons.Filled.Check,
+            contentDescription = stringResource(R.string.thinking_effort_selected)
+        )
+    } else {
+        Box(Modifier.size(24.dp))
+    }
+}
+
+@Composable
 private fun thinkingEffortControlLabel(state: ThinkingEffortControlState): String = when (state.status) {
-    ThinkingEffortControlStatus.UNSUPPORTED -> stringResource(R.string.thinking_effort_unavailable)
+    ThinkingEffortControlStatus.UNSUPPORTED -> if (state.rejectedByModel) {
+        stringResource(R.string.thinking_effort_rejected)
+    } else {
+        stringResource(R.string.thinking_effort_unavailable)
+    }
     ThinkingEffortControlStatus.REQUIRES_EXTENDED_THINKING ->
         stringResource(R.string.thinking_effort_requires_extended_thinking)
 

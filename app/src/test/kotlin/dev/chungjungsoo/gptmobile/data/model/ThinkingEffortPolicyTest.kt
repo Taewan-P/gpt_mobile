@@ -28,7 +28,8 @@ class ThinkingEffortPolicyTest {
         assertTrue(sharedBase.followsProfileDefault)
 
         val overridden = thinkingEffortControlState(listOf(claude, gpt), chatOverride = "minimal")
-        assertEquals(ThinkingEffort.MINIMAL, overridden.selectedEffort)
+        assertEquals(ThinkingEffort.LOW, overridden.selectedEffort)
+        assertTrue(overridden.adjustedToNearest)
         assertFalse(overridden.followsProfileDefault)
     }
 
@@ -59,11 +60,18 @@ class ThinkingEffortPolicyTest {
     }
 
     @Test
-    fun customAndLocalRuntimesDoNotAdvertiseAdjustableEffort() {
-        assertFalse(supportsAdjustableThinkingEffort(ClientType.CUSTOM, "gpt-5.6"))
-        assertFalse(supportsAdjustableThinkingEffort(ClientType.LITERT_LM, "gemma-3"))
+    fun openModelsUseTheGenericSetAndLocalRuntimesStayHidden() {
+        assertEquals(
+            listOf(ThinkingEffort.LOW, ThinkingEffort.MEDIUM, ThinkingEffort.HIGH),
+            automaticOfferedThinkingEfforts(ClientType.CUSTOM, "gpt-5.6")
+        )
+        assertEquals(
+            listOf(ThinkingEffort.LOW, ThinkingEffort.MEDIUM, ThinkingEffort.HIGH),
+            automaticOfferedThinkingEfforts(ClientType.GROQ, "llama-3")
+        )
         assertTrue(supportsAdjustableThinkingEffort(ClientType.OLLAMA, "llama3"))
         assertTrue(supportsAdjustableThinkingEffort(ClientType.OPENROUTER, "any-model"))
+        assertFalse(supportsAdjustableThinkingEffort(ClientType.LITERT_LM, "gemma-3"))
     }
 
     @Test
@@ -97,9 +105,9 @@ class ThinkingEffortPolicyTest {
         )
         assertNull(requestThinkingEffort(platform(ClientType.OPENAI, "gpt-4o", reasoning = true, thinkingEffort = "max")))
 
-        assertEquals("high", groqReasoningEffort("openai/gpt-oss-20b", ThinkingEffort.MAX))
-        assertEquals("xhigh", groqReasoningEffort("muse-spark-open", ThinkingEffort.MAX))
-        assertNull(groqReasoningEffort("qwen/qwen3-32b", ThinkingEffort.HIGH))
+        assertEquals("max", groqReasoningEffort("openai/gpt-oss-20b", ThinkingEffort.MAX))
+        assertEquals("max", groqReasoningEffort("muse-spark-open", ThinkingEffort.MAX))
+        assertEquals("high", groqReasoningEffort("qwen/qwen3-32b", ThinkingEffort.HIGH))
 
         assertEquals("low", anthropicOutputEffort("claude-opus-4-5", ThinkingEffort.MINIMAL))
         assertEquals("high", anthropicOutputEffort("claude-opus-4-5", ThinkingEffort.MAX))
@@ -132,7 +140,7 @@ class ThinkingEffortPolicyTest {
         val openRouter = openAIChatReasoningFields(
             platform(ClientType.OPENROUTER, "openai/gpt-5.6-sol", reasoning = true, thinkingEffort = "max")
         )
-        assertEquals("max", openRouter.reasoning?.effort)
+        assertEquals("high", openRouter.reasoning?.effort)
         assertNull(openRouter.reasoningEffort)
 
         val ollama = openAIChatReasoningFields(
@@ -141,7 +149,8 @@ class ThinkingEffortPolicyTest {
         assertEquals("high", ollama.reasoningEffort)
         assertNull(ollama.reasoning)
 
-        assertNull(
+        assertEquals(
+            "high",
             openAIChatReasoningFields(
                 platform(ClientType.CUSTOM, "gpt-5.6", reasoning = true, thinkingEffort = "high")
             ).reasoningEffort
@@ -154,6 +163,57 @@ class ThinkingEffortPolicyTest {
         assertNull(requestThinkingEffort(platform))
         assertNull(googleThinkingConfig(platform))
         assertNull(openAiResponsesReasoning(platform.copy(compatibleType = ClientType.OPENAI, model = "gpt-5.6")))
+    }
+
+    @Test
+    fun pickersOfferOnlyLevelsTheSelectedModelCanSend() {
+        assertEquals(
+            listOf(ThinkingEffort.LOW, ThinkingEffort.MEDIUM, ThinkingEffort.HIGH, ThinkingEffort.MAX),
+            offeredThinkingEfforts(platform(ClientType.OPENAI, "gpt-5.2"))
+        )
+        assertEquals(
+            listOf(ThinkingEffort.HIGH),
+            offeredThinkingEfforts(platform(ClientType.OPENAI, "gpt-5-pro"))
+        )
+        assertEquals(
+            listOf(ThinkingEffort.LOW, ThinkingEffort.HIGH),
+            offeredThinkingEfforts(platform(ClientType.GOOGLE, "gemini-3-pro"))
+        )
+        assertEquals(
+            listOf(ThinkingEffort.LOW, ThinkingEffort.MEDIUM, ThinkingEffort.HIGH),
+            offeredThinkingEfforts(platform(ClientType.GROQ, "openai/gpt-oss-20b"))
+        )
+        val widened = platform(ClientType.OLLAMA, "llama3").copy(supportedEffortLevels = "minimal,max")
+        assertEquals(listOf(ThinkingEffort.MINIMAL, ThinkingEffort.MAX), offeredThinkingEfforts(widened))
+    }
+
+    @Test
+    fun storedEffortStaysPutAndTheNearestLevelIsWhatGetsSent() {
+        val profile = platform(ClientType.OPENAI, "gpt-5-pro", thinkingEffort = "medium")
+        assertEquals(ThinkingEffort.HIGH, nearestThinkingEffort(ThinkingEffort.MEDIUM, offeredThinkingEfforts(profile)))
+        assertEquals(ThinkingEffort.HIGH, requestThinkingEffort(profile))
+        assertEquals("medium", profile.thinkingEffort)
+        val remembered = profile.copy(effortUnsupportedModels = listOf("gpt-5-pro"))
+        assertTrue(offeredThinkingEfforts(remembered).isEmpty())
+        assertNull(requestThinkingEffort(remembered))
+        val omitted = profile.copy().also { it.omitThinkingEffort = true }
+        assertNull(requestThinkingEffort(omitted))
+    }
+
+    @Test
+    fun effortRejectionRequiresTheParameterNameAndA400Or422() {
+        assertTrue(
+            thinkingEffortParameterRejected(
+                "HTTP 400: Unknown parameter: 'reasoning_effort'. Additional properties are not allowed."
+            )
+        )
+        assertTrue(thinkingEffortParameterRejected("HTTP 422: output_config.effort is not supported"))
+        assertTrue(thinkingEffortParameterRejected("thinkingLevel is not supported by this model"))
+        assertFalse(thinkingEffortParameterRejected("HTTP 400: Invalid API key"))
+        assertFalse(thinkingEffortParameterRejected("HTTP 429: reasoning_effort is not supported right now"))
+        assertFalse(thinkingEffortParameterRejected("HTTP 400: reasoning_effort must be one of low, medium, high"))
+        assertFalse(thinkingEffortParameterRejected("HTTP 400: the model does not support tools"))
+        assertFalse(thinkingEffortParameterRejected("HTTP 500: reasoning_effort is not supported"))
     }
 
     private fun platform(

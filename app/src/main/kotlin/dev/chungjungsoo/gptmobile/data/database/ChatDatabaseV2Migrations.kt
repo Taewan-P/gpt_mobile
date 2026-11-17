@@ -420,6 +420,15 @@ object ChatDatabaseV2Migrations {
         }
     }
 
+    val MIGRATION_12_13 = object : Migration(12, 13) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `platform_v2` ADD COLUMN `supported_effort_levels` TEXT")
+            db.execSQL(
+                "ALTER TABLE `platform_v2` ADD COLUMN `effort_unsupported_models` TEXT NOT NULL DEFAULT ''"
+            )
+        }
+    }
+
     val MIGRATION_7_8 = object : Migration(7, 8) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL("ALTER TABLE `messages_v2` ADD COLUMN `timeline` TEXT NOT NULL DEFAULT '[]'")

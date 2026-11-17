@@ -381,6 +381,17 @@
     <string name="thinking_effort_chat_value">Thinking: %1$s</string>
     <string name="thinking_effort_unavailable">Thinking effort unavailable</string>
     <string name="thinking_effort_unavailable_description">This model does not accept a thinking effort setting.</string>
+    <string name="thinking_effort_adjusted_description">Using %1$s. Saved choice %2$s is not available for this model.</string>
+    <string name="thinking_effort_using_nearest">Saved choice %1$s is not available, so this chat uses %2$s.</string>
+    <string name="thinking_effort_rejected">Thinking effort turned off</string>
+    <string name="thinking_effort_rejected_description">This model rejected a thinking effort setting, so it stays off.</string>
+    <string name="thinking_effort_rejected_notice">This model rejected the thinking effort setting. Retrying without it.</string>
+    <string name="thinking_effort_supported_levels">Supported effort levels</string>
+    <string name="thinking_effort_supported_levels_description">Choose which levels this profile offers. Automatic follows the provider, and open models start at low, medium, and high.</string>
+    <string name="thinking_effort_supported_levels_automatic">Automatic</string>
+    <string name="thinking_effort_supported_levels_automatic_value">Automatic (%1$s)</string>
+    <string name="thinking_effort_allow_again">Allow thinking effort again</string>
+    <string name="thinking_effort_selected">Selected</string>
     <string name="thinking_effort_requires_extended_thinking">Turn on extended thinking to set effort</string>
     <string name="thinking_effort_chat_content_description">Thinking effort for this chat</string>
 

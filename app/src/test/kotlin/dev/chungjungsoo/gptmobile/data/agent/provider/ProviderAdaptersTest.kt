@@ -1262,7 +1262,7 @@ class ProviderAdaptersTest {
     }
 
     @Test
-    fun `custom endpoints omit thinking effort`() = runBlocking {
+    fun `custom endpoints send the generic effort and can omit it`() = runBlocking {
         val api = FakeOpenAIAPI(chatRounds = ArrayDeque(listOf(emptyFlow())))
         OpenAICompatibleAdapter(api, FakeGroqAPI(ArrayDeque()), attachmentEncoder())
             .openSession(
@@ -1274,11 +1274,25 @@ class ProviderAdaptersTest {
 
         val json = requestJson(api.chatRequests.single())
         assertFalse(json.containsKey("reasoning"))
-        assertFalse(json.containsKey("reasoning_effort"))
+        assertEquals("high", json["reasoning_effort"]!!.jsonPrimitive.content)
+
+        val omitted = FakeOpenAIAPI(chatRounds = ArrayDeque(listOf(emptyFlow())))
+        OpenAICompatibleAdapter(omitted, FakeGroqAPI(ArrayDeque()), attachmentEncoder())
+            .openSession(
+                turns(),
+                platform(ClientType.CUSTOM).copy(
+                    model = "gpt-5.6",
+                    reasoning = true,
+                    thinkingEffort = "high"
+                ).also { it.omitThinkingEffort = true }
+            )
+            .streamRound(emptyList(), emptyList())
+            .toList()
+        assertFalse(requestJson(omitted.chatRequests.single()).containsKey("reasoning_effort"))
     }
 
     @Test
-    fun `groq serializes reasoning effort only for models that accept it`() = runBlocking {
+    fun `groq sends generic effort for every model and restores format when effort is omitted`() = runBlocking {
         val supported = FakeGroqAPI(ArrayDeque(listOf(emptyFlow())))
         OpenAICompatibleAdapter(FakeOpenAIAPI(), supported, attachmentEncoder())
             .openSession(
@@ -1301,8 +1315,8 @@ class ProviderAdaptersTest {
             .streamRound(emptyList(), emptyList())
             .toList()
         val unsupportedJson = requestJson(unsupported.requests.single())
-        assertFalse(unsupportedJson.containsKey("reasoning_effort"))
-        assertEquals("parsed", unsupportedJson["reasoning_format"]!!.jsonPrimitive.content)
+        assertEquals("high", unsupportedJson["reasoning_effort"]!!.jsonPrimitive.content)
+        assertFalse(unsupportedJson.containsKey("reasoning_format"))
     }
 
     @Test

@@ -84,8 +84,13 @@ import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.model.ThinkingEffort
+import dev.chungjungsoo.gptmobile.data.model.automaticOfferedThinkingEfforts
+import dev.chungjungsoo.gptmobile.data.model.nearestThinkingEffort
+import dev.chungjungsoo.gptmobile.data.model.offeredThinkingEfforts
+import dev.chungjungsoo.gptmobile.data.model.parseSupportedEffortOverride
 import dev.chungjungsoo.gptmobile.data.model.platformThinkingEffortEditable
-import dev.chungjungsoo.gptmobile.data.model.supportsAdjustableThinkingEffort
+import dev.chungjungsoo.gptmobile.data.model.requestThinkingEffort
+import dev.chungjungsoo.gptmobile.data.model.thinkingEffortSuppressed
 import dev.chungjungsoo.gptmobile.presentation.common.EmptyErrorState
 import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
 import dev.chungjungsoo.gptmobile.presentation.common.SettingItem
@@ -229,9 +234,7 @@ fun PlatformSettingScreen(
                     verticalArrangement = Arrangement.spacedBy(24.dp)
                 ) {
                     val isLocalPlatform = platformData.compatibleType == ClientType.LITERT_LM
-                    val isReasoningDisabled = platformData.compatibleType == ClientType.OPENAI &&
-                        platformData.reasoning &&
-                        supportsAdjustableThinkingEffort(platformData.compatibleType, platformData.model)
+                    val isReasoningDisabled = requestThinkingEffort(platformData) != null
                     val notSetText = stringResource(R.string.not_set)
                     var isAdvancedExpanded by rememberSaveable(platformData.uid) { mutableStateOf(false) }
 
@@ -335,6 +338,15 @@ fun PlatformSettingScreen(
                                         contentDescription = null
                                     )
                                 }
+                            )
+                            SettingItem(
+                                modifier = Modifier.heightIn(min = 64.dp),
+                                title = stringResource(R.string.thinking_effort_supported_levels),
+                                description = supportedEffortLevelsDescription(platformData),
+                                enabled = platformData.enabled,
+                                onItemClick = settingViewModel::openSupportedEffortLevelsDialog,
+                                showTrailingIcon = true,
+                                showLeadingIcon = false
                             )
                         }
                         SettingItem(
@@ -571,7 +583,12 @@ fun PlatformSettingScreen(
                     if (!isLocalPlatform) {
                         ThinkingEffortDialog(
                             dialogState = dialogState,
-                            selectedEffort = platformData.thinkingEffort,
+                            platform = platformData,
+                            settingViewModel = settingViewModel
+                        )
+                        SupportedEffortLevelsDialog(
+                            dialogState = dialogState,
+                            platform = platformData,
                             settingViewModel = settingViewModel
                         )
                     }
@@ -822,10 +839,34 @@ private fun acceleratorLabel(accelerator: String?): String = when (accelerator?.
 @Composable
 private fun thinkingEffortSettingDescription(platform: PlatformV2): String {
     if (!platform.reasoning) return stringResource(R.string.thinking_effort_requires_extended_thinking)
-    if (!supportsAdjustableThinkingEffort(platform.compatibleType, platform.model)) {
-        return stringResource(R.string.thinking_effort_unavailable_description)
+    if (thinkingEffortSuppressed(platform)) return stringResource(R.string.thinking_effort_rejected_description)
+    val offered = offeredThinkingEfforts(platform)
+    if (offered.isEmpty()) return stringResource(R.string.thinking_effort_unavailable_description)
+    val stored = ThinkingEffort.fromStorage(platform.thinkingEffort)
+    val effective = nearestThinkingEffort(stored, offered)
+    val effectiveLabel = thinkingEffortLabel(effective)
+    if (effective == stored) return effectiveLabel
+    return stringResource(R.string.thinking_effort_adjusted_description, effectiveLabel, thinkingEffortLabel(stored))
+}
+
+@Composable
+private fun supportedEffortLevelsDescription(platform: PlatformV2): String {
+    val override = parseSupportedEffortOverride(platform.supportedEffortLevels)
+    val levels = override ?: automaticOfferedThinkingEfforts(platform.compatibleType, platform.model)
+    val names = thinkingEffortNames(levels)
+    if (override == null) {
+        return stringResource(R.string.thinking_effort_supported_levels_automatic_value, names)
     }
-    return thinkingEffortLabel(ThinkingEffort.fromStorage(platform.thinkingEffort))
+    return names
+}
+
+@Composable
+internal fun thinkingEffortNames(levels: List<ThinkingEffort>): String {
+    val labels = ArrayList<String>(levels.size)
+    for (effort in levels) {
+        labels += thinkingEffortLabel(effort)
+    }
+    return labels.joinToString()
 }
 
 @Composable

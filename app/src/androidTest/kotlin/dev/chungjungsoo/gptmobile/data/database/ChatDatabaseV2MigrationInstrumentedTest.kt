@@ -489,6 +489,45 @@ class ChatDatabaseV2MigrationInstrumentedTest {
         database.close()
     }
 
+    @Test
+    @Throws(IOException::class)
+    fun migrate12To13_addsEffortOverrideColumnsWithoutDroppingRows() {
+        helper.createDatabase(EFFORT_OVERRIDE_DATABASE, 12).apply {
+            execSQL(
+                """
+                INSERT INTO platform_v2 (
+                    platform_id, uid, name, compatible_type, enabled, api_url, token, secret_ref, model,
+                    temperature, top_p, top_k, max_tokens, accelerator, system_prompt, stream, reasoning,
+                    thinking_effort, timeout, harassment_safety_threshold, hate_speech_safety_threshold,
+                    sexually_explicit_safety_threshold, dangerous_content_safety_threshold, resumable_replies
+                ) VALUES (
+                    1, 'profile-1', 'OpenAI', 'OPENAI', 1, 'https://api.openai.com/v1/', 'sk-test', NULL,
+                    'gpt-5.2', NULL, NULL, NULL, NULL, NULL, NULL,
+                    1, 1, 'medium', 30,
+                    'BLOCK_NONE', 'BLOCK_NONE', 'BLOCK_NONE', 'BLOCK_NONE', 0
+                )
+                """.trimIndent()
+            )
+            close()
+        }
+
+        val database = helper.runMigrationsAndValidate(
+            EFFORT_OVERRIDE_DATABASE,
+            13,
+            true,
+            ChatDatabaseV2Migrations.MIGRATION_12_13
+        )
+        database.query(
+            "SELECT supported_effort_levels, effort_unsupported_models, thinking_effort FROM platform_v2 WHERE uid = 'profile-1'"
+        ).use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertTrue(cursor.isNull(0))
+            assertEquals("", cursor.getString(1))
+            assertEquals("medium", cursor.getString(2))
+        }
+        database.close()
+    }
+
     private fun assertCount(
         database: androidx.sqlite.db.SupportSQLiteDatabase,
         table: String,
@@ -508,5 +547,6 @@ class ChatDatabaseV2MigrationInstrumentedTest {
         const val BROKEN_VERSION_2_DATABASE = "agent-migration-broken-v2-test"
         const val COMPACTION_DATABASE = "compaction-migration-10-11-test"
         const val THINKING_EFFORT_DATABASE = "agent-migration-thinking-effort-test"
+        const val EFFORT_OVERRIDE_DATABASE = "effort-override-migration-test"
     }
 }

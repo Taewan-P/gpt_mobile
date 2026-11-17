@@ -2,6 +2,7 @@ package dev.chungjungsoo.gptmobile.data.database.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Ignore
 import androidx.room.PrimaryKey
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.model.GeminiSafetySettings
@@ -65,6 +66,16 @@ data class PlatformV2(
     @ColumnInfo(name = "thinking_effort", defaultValue = "'medium'")
     val thinkingEffort: String = ThinkingEffort.DEFAULT.storageValue,
 
+    /**
+     * Null uses the provider's automatic levels.
+     * A comma-separated list replaces that set for this profile.
+     */
+    @ColumnInfo(name = "supported_effort_levels")
+    val supportedEffortLevels: String? = null,
+
+    @ColumnInfo(name = "effort_unsupported_models", defaultValue = "''")
+    val effortUnsupportedModels: List<String> = emptyList(),
+
     @ColumnInfo(name = "timeout")
     val timeout: Int = 30,
 
@@ -82,4 +93,7 @@ data class PlatformV2(
 
     @ColumnInfo(name = "resumable_replies", defaultValue = "0")
     val resumableReplies: Boolean = false
-)
+) {
+    @Ignore
+    var omitThinkingEffort: Boolean = false
+}

@@ -16,21 +16,55 @@ fun applyChatThinkingEffort(platform: PlatformV2, chatThinkingEffort: String?): 
 }
 
 fun requestThinkingEffort(platform: PlatformV2): ThinkingEffort? {
+    if (platform.omitThinkingEffort || thinkingEffortSuppressed(platform)) return null
     if (!platform.reasoning) return null
-    if (!supportsAdjustableThinkingEffort(platform.compatibleType, platform.model)) return null
-    return ThinkingEffort.fromStorage(platform.thinkingEffort)
+    val offered = offeredThinkingEfforts(platform)
+    if (offered.isEmpty()) return null
+    return nearestThinkingEffort(ThinkingEffort.fromStorage(platform.thinkingEffort), offered)
 }
 
-fun supportsAdjustableThinkingEffort(clientType: ClientType, model: String): Boolean = when (clientType) {
-    ClientType.OPENAI -> supportsOpenAiReasoningEffort(model)
-    ClientType.ANTHROPIC -> supportsAnthropicThinkingAdjustment(model)
-    ClientType.GOOGLE -> geminiThinkingMode(model) != null
-    ClientType.GROQ -> supportsGroqReasoningEffort(model)
-    ClientType.OPENROUTER -> true
-    ClientType.OLLAMA -> true
+fun thinkingEffortSuppressed(platform: PlatformV2): Boolean =
+    platform.model in platform.effortUnsupportedModels
 
-    ClientType.CUSTOM, ClientType.LITERT_LM -> false
+/**
+ * Levels the picker may offer. A saved profile override replaces the automatic
+ * set. First-party providers use their model table. Every other provider gets
+ * low, medium, and high until a request shows the server rejects the parameter.
+ */
+fun offeredThinkingEfforts(platform: PlatformV2): List<ThinkingEffort> {
+    if (platform.compatibleType == ClientType.LITERT_LM) return emptyList()
+    if (thinkingEffortSuppressed(platform)) return emptyList()
+    parseSupportedEffortOverride(platform.supportedEffortLevels)?.let { return it }
+    return automaticOfferedThinkingEfforts(platform.compatibleType, platform.model)
 }
+
+fun parseSupportedEffortOverride(stored: String?): List<ThinkingEffort>? {
+    if (stored == null) return null
+    return stored.split(',')
+        .mapNotNull { token -> ThinkingEffort.fromStorageOrNull(token) }
+        .distinct()
+        .sortedBy { effort -> effort.ordinal }
+        .takeIf { levels -> levels.isNotEmpty() }
+}
+
+fun nearestThinkingEffort(stored: ThinkingEffort, offered: List<ThinkingEffort>): ThinkingEffort {
+    if (offered.isEmpty() || stored in offered) return stored
+    return offered.minWith(
+        compareBy<ThinkingEffort> { effort -> kotlin.math.abs(effort.ordinal - stored.ordinal) }
+            .thenByDescending { effort -> effort.ordinal }
+    )
+}
+
+fun automaticOfferedThinkingEfforts(clientType: ClientType, model: String): List<ThinkingEffort> = when (clientType) {
+    ClientType.OPENAI -> openAiOfferedEfforts(model)
+    ClientType.ANTHROPIC -> anthropicOfferedEfforts(model)
+    ClientType.GOOGLE -> geminiOfferedEfforts(model)
+    ClientType.GROQ, ClientType.OPENROUTER, ClientType.OLLAMA, ClientType.CUSTOM -> GENERIC_EFFORTS
+    ClientType.LITERT_LM -> emptyList()
+}
+
+fun supportsAdjustableThinkingEffort(clientType: ClientType, model: String): Boolean =
+    automaticOfferedThinkingEfforts(clientType, model).isNotEmpty()
 
 enum class ThinkingEffortControlStatus {
     ADJUSTABLE,
@@ -42,52 +76,91 @@ data class ThinkingEffortControlState(
     val enabled: Boolean,
     val selectedEffort: ThinkingEffort?,
     val followsProfileDefault: Boolean,
-    val status: ThinkingEffortControlStatus
+    val status: ThinkingEffortControlStatus,
+    val offered: List<ThinkingEffort> = emptyList(),
+    val storedEffort: ThinkingEffort? = null,
+    val adjustedToNearest: Boolean = false,
+    val rejectedByModel: Boolean = false
 )
 
 fun thinkingEffortControlState(
     platforms: List<PlatformV2>,
     chatOverride: String?
 ): ThinkingEffortControlState {
-    val supporting = platforms.filter { platform ->
-        supportsAdjustableThinkingEffort(platform.compatibleType, platform.model)
-    }
-    val active = supporting.filter { platform -> platform.reasoning }
-    if (active.isEmpty()) {
-        val status = if (supporting.isNotEmpty()) {
-            ThinkingEffortControlStatus.REQUIRES_EXTENDED_THINKING
-        } else {
-            ThinkingEffortControlStatus.UNSUPPORTED
+    val reasoningPlatforms = platforms.filter { platform -> platform.reasoning }
+    val rejectedByModel = reasoningPlatforms.any { platform -> thinkingEffortSuppressed(platform) }
+    if (reasoningPlatforms.isEmpty()) {
+        val couldSupport = platforms.any { platform ->
+            automaticOfferedThinkingEfforts(platform.compatibleType, platform.model).isNotEmpty()
         }
         return ThinkingEffortControlState(
             enabled = false,
             selectedEffort = null,
             followsProfileDefault = true,
-            status = status
+            status = if (couldSupport) {
+                ThinkingEffortControlStatus.REQUIRES_EXTENDED_THINKING
+            } else {
+                ThinkingEffortControlStatus.UNSUPPORTED
+            }
+        )
+    }
+    val active = reasoningPlatforms.filter { platform -> offeredThinkingEfforts(platform).isNotEmpty() }
+    if (active.isEmpty()) {
+        return ThinkingEffortControlState(
+            enabled = false,
+            selectedEffort = null,
+            followsProfileDefault = true,
+            status = ThinkingEffortControlStatus.UNSUPPORTED,
+            rejectedByModel = rejectedByModel
+        )
+    }
+    val offered = active
+        .map { platform -> offeredThinkingEfforts(platform) }
+        .reduce { shared, next -> shared.filter { effort -> effort in next } }
+    if (offered.isEmpty()) {
+        return ThinkingEffortControlState(
+            enabled = false,
+            selectedEffort = null,
+            followsProfileDefault = true,
+            status = ThinkingEffortControlStatus.UNSUPPORTED,
+            rejectedByModel = rejectedByModel
         )
     }
     val override = ThinkingEffort.fromStorageOrNull(chatOverride)
     if (override != null) {
+        val effective = nearestThinkingEffort(override, offered)
         return ThinkingEffortControlState(
             enabled = true,
-            selectedEffort = override,
+            selectedEffort = effective,
             followsProfileDefault = false,
-            status = ThinkingEffortControlStatus.ADJUSTABLE
+            status = ThinkingEffortControlStatus.ADJUSTABLE,
+            offered = offered,
+            storedEffort = override,
+            adjustedToNearest = effective != override,
+            rejectedByModel = rejectedByModel
         )
     }
-    val bases = active.map { platform -> ThinkingEffort.fromStorage(platform.thinkingEffort) }.distinct()
+    val effectiveBases = active.map { platform ->
+        nearestThinkingEffort(ThinkingEffort.fromStorage(platform.thinkingEffort), offeredThinkingEfforts(platform))
+    }.distinct()
+    val adjusted = active.any { platform ->
+        val stored = ThinkingEffort.fromStorage(platform.thinkingEffort)
+        nearestThinkingEffort(stored, offeredThinkingEfforts(platform)) != stored
+    }
     return ThinkingEffortControlState(
         enabled = true,
-        selectedEffort = bases.singleOrNull(),
+        selectedEffort = effectiveBases.singleOrNull(),
         followsProfileDefault = true,
-        status = ThinkingEffortControlStatus.ADJUSTABLE
+        status = ThinkingEffortControlStatus.ADJUSTABLE,
+        offered = offered,
+        storedEffort = effectiveBases.singleOrNull(),
+        adjustedToNearest = adjusted,
+        rejectedByModel = rejectedByModel
     )
 }
 
 fun platformThinkingEffortEditable(platform: PlatformV2): Boolean =
-    platform.compatibleType != ClientType.LITERT_LM &&
-        platform.reasoning &&
-        supportsAdjustableThinkingEffort(platform.compatibleType, platform.model)
+    platform.reasoning && offeredThinkingEfforts(platform).isNotEmpty()
 
 fun openAiResponsesReasoning(platform: PlatformV2): ReasoningConfig? {
     if (platform.compatibleType != ClientType.OPENAI) return null
@@ -111,26 +184,22 @@ fun openAIChatReasoningFields(platform: PlatformV2): OpenAIChatReasoningFields {
         )
 
         ClientType.OLLAMA -> OpenAIChatReasoningFields(
-            reasoningEffort = ollamaReasoningEffort(platform.model, effort)
+            reasoningEffort = ollamaReasoningEffort(effort)
         )
 
         ClientType.OPENAI -> OpenAIChatReasoningFields(
             reasoningEffort = openAiReasoningEffort(platform.model, effort)
         )
 
+        ClientType.CUSTOM -> OpenAIChatReasoningFields(reasoningEffort = effort.storageValue)
+
         else -> OpenAIChatReasoningFields()
     }
 }
 
 fun groqReasoningEffort(model: String, effort: ThinkingEffort): String? {
-    if (!supportsGroqReasoningEffort(model)) return null
-    val supportsXhigh = model.lowercase().contains("muse")
-    return when (effort) {
-        ThinkingEffort.MINIMAL, ThinkingEffort.LOW -> "low"
-        ThinkingEffort.MEDIUM -> "medium"
-        ThinkingEffort.HIGH -> "high"
-        ThinkingEffort.MAX -> if (supportsXhigh) "xhigh" else "high"
-    }
+    if (!supportsAdjustableThinkingEffort(ClientType.GROQ, model)) return null
+    return effort.storageValue
 }
 
 fun googleThinkingConfig(platform: PlatformV2): ThinkingConfig? {
@@ -203,14 +272,6 @@ internal fun openAiReasoningEffort(model: String, effort: ThinkingEffort): Strin
     return preferred.first { candidate -> candidate in supported }
 }
 
-internal fun supportsGroqReasoningEffort(model: String): Boolean {
-    val normalized = model.lowercase()
-    return normalized.contains("gpt-oss") ||
-        normalized.contains("qwen3.8") ||
-        normalized.contains("qwen-3.8") ||
-        normalized.contains("muse")
-}
-
 internal fun supportsAnthropicThinkingAdjustment(model: String): Boolean {
     val normalized = model.lowercase()
     return ANTHROPIC_ADAPTIVE.containsMatchIn(normalized) ||
@@ -219,16 +280,95 @@ internal fun supportsAnthropicThinkingAdjustment(model: String): Boolean {
 
 private fun openRouterReasoningEffort(effort: ThinkingEffort): String = effort.storageValue
 
-private fun ollamaReasoningEffort(model: String, effort: ThinkingEffort): String {
-    if (model.lowercase().contains("gpt-oss")) {
-        return when (effort) {
-            ThinkingEffort.MINIMAL, ThinkingEffort.LOW -> "low"
-            ThinkingEffort.MEDIUM -> "medium"
-            ThinkingEffort.HIGH, ThinkingEffort.MAX -> "high"
+private fun ollamaReasoningEffort(effort: ThinkingEffort): String = effort.storageValue
+
+private val GENERIC_EFFORTS = listOf(ThinkingEffort.LOW, ThinkingEffort.MEDIUM, ThinkingEffort.HIGH)
+
+private fun openAiOfferedEfforts(model: String): List<ThinkingEffort> {
+    if (!supportsOpenAiReasoningEffort(model)) return emptyList()
+    val wire = openAiSupportedEfforts(model)
+    return ThinkingEffort.entries.filter { effort ->
+        when (effort) {
+            ThinkingEffort.MINIMAL -> "minimal" in wire
+            ThinkingEffort.LOW -> "low" in wire
+            ThinkingEffort.MEDIUM -> "medium" in wire
+            ThinkingEffort.HIGH -> "high" in wire
+            ThinkingEffort.MAX -> "max" in wire || "xhigh" in wire
         }
     }
-    return effort.storageValue
 }
+
+private fun anthropicOfferedEfforts(model: String): List<ThinkingEffort> {
+    if (!supportsAnthropicThinkingAdjustment(model)) return emptyList()
+    if (!supportsAnthropicOutputEffort(model)) return ThinkingEffort.entries
+    val levels = mutableListOf(ThinkingEffort.LOW, ThinkingEffort.MEDIUM, ThinkingEffort.HIGH)
+    if (supportsAnthropicMaxEffort(model)) levels += ThinkingEffort.MAX
+    return levels
+}
+
+private fun geminiOfferedEfforts(model: String): List<ThinkingEffort> {
+    when (geminiThinkingMode(model)) {
+        null -> return emptyList()
+        GeminiThinkingMode.BUDGET -> return ThinkingEffort.entries
+        GeminiThinkingMode.LEVEL -> Unit
+    }
+    val wire = geminiSupportedLevels(model)
+    return listOf(
+        ThinkingEffort.MINIMAL to "MINIMAL",
+        ThinkingEffort.LOW to "LOW",
+        ThinkingEffort.MEDIUM to "MEDIUM",
+        ThinkingEffort.HIGH to "HIGH"
+    ).mapNotNull { (effort, token) -> effort.takeIf { token in wire } }
+}
+
+fun thinkingEffortParameterRejected(message: String): Boolean {
+    val normalized = message.lowercase()
+    val status = HTTP_STATUS.find(normalized)?.groupValues?.getOrNull(1)?.toIntOrNull()
+    if (status != null && status !in EFFORT_REJECTION_STATUSES) return false
+    if (EFFORT_VALUE_ERRORS.any(normalized::contains)) return false
+    val namesParameter = EFFORT_PARAMETER_NAMES.any(normalized::contains)
+    val rejectsParameter = EFFORT_REJECTION_PHRASES.any(normalized::contains)
+    return namesParameter && rejectsParameter
+}
+
+private val HTTP_STATUS = Regex("""http\s+(\d{3})""")
+private val EFFORT_REJECTION_STATUSES = setOf(400, 422)
+private val EFFORT_PARAMETER_NAMES = listOf(
+    "reasoning_effort",
+    "reasoning.effort",
+    "reasoning effort",
+    "output_config",
+    "thinking_level",
+    "thinkinglevel",
+    "thinking_budget",
+    "thinkingbudget",
+    "budget_tokens"
+)
+private val EFFORT_REJECTION_PHRASES = listOf(
+    "not supported",
+    "isn't supported",
+    "unsupported",
+    "unknown parameter",
+    "unknown field",
+    "unexpected parameter",
+    "unexpected field",
+    "unrecognized",
+    "extra field",
+    "additional propert",
+    "not allowed",
+    "invalid parameter",
+    "does not support",
+    "doesn't support",
+    "is not permitted"
+)
+private val EFFORT_VALUE_ERRORS = listOf(
+    "must be one of",
+    "supported values",
+    "invalid value",
+    "not a valid",
+    "invalid enum",
+    "expected one of"
+)
 
 private fun openAiSupportedEfforts(model: String): Set<String> {
     val normalized = model.lowercase()

@@ -728,6 +728,7 @@ class ChatViewModel @Inject constructor(
         val turnIndex = _groupedMessages.value.assistantMessages.lastIndex
 
         viewModelScope.launch {
+            _platformsInApp.update { settingRepository.fetchPlatformV2s() }
             val platforms = resolveSelectedPlatforms(enabledPlatformsInChat, _platformsInApp.value)
                 .map { IndexedValue(it.index, resolvePlatformModel(it.value)) }
             val unavailableIndexes = enabledPlatformsInChat.indices - platforms.mapTo(mutableSetOf()) { it.index }
