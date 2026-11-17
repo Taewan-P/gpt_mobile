@@ -1,14 +1,16 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -20,8 +22,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.model.ThinkingEffort
@@ -63,13 +69,15 @@ fun ThinkingEffortControl(
             tonalElevation = MenuDefaults.TonalElevation,
             shadowElevation = MenuDefaults.ShadowElevation
         ) {
-            ThinkingEffortChoices(
-                offered = state.offered,
-                selectedEffort = state.selectedEffort,
-                profileDefaultSelected = state.followsProfileDefault
-            ) { value ->
-                expanded = false
-                onSelect(value)
+            Column(Modifier.padding(vertical = 8.dp)) {
+                ThinkingEffortChoices(
+                    offered = state.offered,
+                    selectedEffort = state.selectedEffort,
+                    profileDefaultSelected = state.followsProfileDefault
+                ) { value ->
+                    expanded = false
+                    onSelect(value)
+                }
             }
         }
     }
@@ -91,7 +99,10 @@ internal fun ThinkingEffortChoices(
         )
     }
     if (offered.isNotEmpty()) {
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        HorizontalDivider(
+            modifier = Modifier.padding(vertical = 8.dp, horizontal = 12.dp),
+            color = MaterialTheme.colorScheme.outlineVariant
+        )
     }
     val profileDescription = if (profileDefaultSelected && selectedEffort != null) {
         stringResource(
@@ -117,47 +128,47 @@ private fun EffortMenuItem(
     onClick: () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
-    DropdownMenuItem(
-        modifier = if (selected) {
-            Modifier.background(colors.secondaryContainer)
-        } else {
-            Modifier
-        },
-        text = {
-            Column {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = if (selected) colors.onSecondaryContainer else colors.onSurface
-                )
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (selected) colors.onSecondaryContainer else colors.onSurfaceVariant
+    val titleColor = if (selected) colors.onSecondaryContainer else colors.onSurface
+    val descriptionColor = if (selected) colors.onSecondaryContainer else colors.onSurfaceVariant
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .clip(MaterialTheme.shapes.small)
+            .background(if (selected) colors.secondaryContainer else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier.size(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            if (selected) {
+                Icon(
+                    imageVector = Icons.Outlined.Check,
+                    contentDescription = stringResource(R.string.thinking_effort_selected),
+                    tint = titleColor
                 )
             }
-        },
-        leadingIcon = {
-            EffortSelectionMark(selected = selected)
-        },
-        colors = MenuDefaults.itemColors(
-            textColor = colors.onSurface,
-            leadingIconColor = if (selected) colors.onSecondaryContainer else colors.onSurfaceVariant
-        ),
-        contentPadding = MenuDefaults.DropdownMenuItemContentPadding,
-        onClick = onClick
-    )
-}
-
-@Composable
-private fun EffortSelectionMark(selected: Boolean) {
-    if (selected) {
-        Icon(
-            imageVector = Icons.Outlined.Check,
-            contentDescription = stringResource(R.string.thinking_effort_selected)
-        )
-    } else {
-        Box(Modifier.size(24.dp))
+        }
+        Column(Modifier.padding(start = 12.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelLarge,
+                color = titleColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = descriptionColor,
+                minLines = 2,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
