@@ -99,6 +99,10 @@ data class ThinkingConfig(
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val thinkingBudget: Int = -1,
 
+    @SerialName("thinkingLevel")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val thinkingLevel: String? = null,
+
     @SerialName("includeThoughts")
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val includeThoughts: Boolean = false

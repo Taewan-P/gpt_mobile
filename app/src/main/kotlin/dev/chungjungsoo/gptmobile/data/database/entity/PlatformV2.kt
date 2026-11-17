@@ -5,6 +5,7 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.model.GeminiSafetySettings
+import dev.chungjungsoo.gptmobile.data.model.ThinkingEffort
 import java.util.*
 
 @Entity(tableName = "platform_v2")
@@ -60,6 +61,9 @@ data class PlatformV2(
 
     @ColumnInfo(name = "reasoning")
     val reasoning: Boolean = false,
+
+    @ColumnInfo(name = "thinking_effort", defaultValue = "'medium'")
+    val thinkingEffort: String = ThinkingEffort.DEFAULT.storageValue,
 
     @ColumnInfo(name = "timeout")
     val timeout: Int = 30,

@@ -40,6 +40,7 @@ import dev.chungjungsoo.gptmobile.data.localruntime.AcceleratorOption
 import dev.chungjungsoo.gptmobile.data.localruntime.AcceleratorUnavailableReason
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators
 import dev.chungjungsoo.gptmobile.data.model.GeminiSafetySettings
+import dev.chungjungsoo.gptmobile.data.model.ThinkingEffort
 import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.DownloadedLocalModelOption
 import dev.chungjungsoo.gptmobile.presentation.ui.setup.LocalModelPicker
@@ -177,6 +178,71 @@ fun AcceleratorDialog(
             onConfirmRequest = settingViewModel::updateAccelerator
         )
     }
+}
+
+@Composable
+fun ThinkingEffortDialog(
+    dialogState: PlatformSettingViewModel.DialogState,
+    selectedEffort: String,
+    settingViewModel: PlatformSettingViewModel
+) {
+    if (dialogState.isThinkingEffortDialogOpen) {
+        ThinkingEffortPickerDialog(
+            selectedEffort = selectedEffort,
+            onDismissRequest = settingViewModel::closeThinkingEffortDialog,
+            onConfirmRequest = settingViewModel::updateThinkingEffort
+        )
+    }
+}
+
+@Composable
+internal fun ThinkingEffortPickerDialog(
+    selectedEffort: String,
+    onDismissRequest: () -> Unit,
+    onConfirmRequest: (String) -> Unit
+) {
+    val configuration = LocalWindowInfo.current
+    val screenWidth = with(LocalDensity.current) { configuration.containerSize.width.toDp() }
+    val screenHeight = with(LocalDensity.current) { configuration.containerSize.height.toDp() }
+    val selected = ThinkingEffort.fromStorage(selectedEffort)
+    AlertDialog(
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier
+            .widthIn(max = screenWidth - 40.dp)
+            .heightIn(max = screenHeight - 80.dp),
+        title = { Text(text = stringResource(R.string.thinking_effort)) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text(stringResource(R.string.thinking_effort_description))
+                ThinkingEffort.entries.forEach { effort ->
+                    RadioItem(
+                        title = thinkingEffortLabel(effort),
+                        description = thinkingEffortDescription(effort),
+                        value = effort.storageValue,
+                        selected = selected == effort
+                    ) { value ->
+                        onConfirmRequest(value)
+                    }
+                }
+            }
+        },
+        onDismissRequest = onDismissRequest,
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
+@Composable
+private fun thinkingEffortDescription(effort: ThinkingEffort): String = when (effort) {
+    ThinkingEffort.MINIMAL -> stringResource(R.string.thinking_effort_minimal_description)
+    ThinkingEffort.LOW -> stringResource(R.string.thinking_effort_low_description)
+    ThinkingEffort.MEDIUM -> stringResource(R.string.thinking_effort_medium_description)
+    ThinkingEffort.HIGH -> stringResource(R.string.thinking_effort_high_description)
+    ThinkingEffort.MAX -> stringResource(R.string.thinking_effort_max_description)
 }
 
 @Composable

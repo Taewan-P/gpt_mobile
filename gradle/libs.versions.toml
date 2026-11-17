@@ -26,6 +26,7 @@ browser = "1.9.0"
 work = "2.11.2"
 appauth = "0.11.1"
 litertlm = "0.11.0"
+paparazzi = "2.0.0-alpha05.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -78,6 +79,7 @@ litertlm = { group = "com.google.ai.edge.litertlm", name = "litertlm-android", v
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
+paparazzi = { id = "app.cash.paparazzi", version.ref = "paparazzi" }
 android-hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 auto-license = { id = "com.mikepenz.aboutlibraries.plugin.android", version.ref = "autoLicense" }
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

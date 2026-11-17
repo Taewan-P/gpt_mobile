@@ -587,6 +587,10 @@ class ChatRepositoryImpl @Inject constructor(
         chatRoomV2Dao.editChatRoom(chatRoom.copy(title = title.replace('\n', ' ').take(50)))
     }
 
+    override suspend fun updateChatThinkingEffort(chatRoom: ChatRoomV2, thinkingEffort: String?) {
+        chatRoomV2Dao.editChatRoom(chatRoom.copy(thinkingEffort = thinkingEffort))
+    }
+
     override suspend fun saveChat(chatRoom: ChatRoomV2, messages: List<MessageV2>, chatPlatformModels: Map<String, String>): ChatRoomV2 {
         if (chatRoom.id == 0) {
             // New Chat

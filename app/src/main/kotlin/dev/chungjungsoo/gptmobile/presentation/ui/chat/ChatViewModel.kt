@@ -40,6 +40,8 @@ import dev.chungjungsoo.gptmobile.data.database.entity.resetActiveRevision
 import dev.chungjungsoo.gptmobile.data.database.entity.selectRevision
 import dev.chungjungsoo.gptmobile.data.database.entity.snapshotLatestAssistantRevision
 import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelStatus
+import dev.chungjungsoo.gptmobile.data.model.ThinkingEffort
+import dev.chungjungsoo.gptmobile.data.model.applyChatThinkingEffort
 import dev.chungjungsoo.gptmobile.data.repository.AttachmentUploadCoordinator
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
@@ -458,6 +460,17 @@ class ChatViewModel @Inject constructor(
                     showPersistenceFailure(turnIndex, listOf(platformIndex), error)
                 }
             )
+        }
+    }
+
+    fun updateThinkingEffort(storageValue: String?) {
+        val normalized = ThinkingEffort.fromStorageOrNull(storageValue)?.storageValue
+        _chatRoom.update { room -> room.copy(thinkingEffort = normalized) }
+        val room = _chatRoom.value
+        if (room.id > 0) {
+            viewModelScope.launch {
+                chatRepository.updateChatThinkingEffort(room, normalized)
+            }
         }
     }
 
@@ -1283,7 +1296,10 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    private fun resolvePlatformModel(platform: PlatformV2): PlatformV2 = resolvePlatformModel(platform, _chatPlatformModels.value)
+    private fun resolvePlatformModel(platform: PlatformV2): PlatformV2 = applyChatThinkingEffort(
+        platform = resolvePlatformModel(platform, _chatPlatformModels.value),
+        chatThinkingEffort = _chatRoom.value.thinkingEffort
+    )
 
     private fun persistCurrentChatSnapshot() {
         viewModelScope.launch {

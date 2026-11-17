@@ -54,6 +54,10 @@ data class MessageRequest(
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val thinking: ThinkingConfig? = null,
 
+    @SerialName("output_config")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val outputConfig: OutputConfig? = null,
+
     @SerialName("tools")
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val tools: List<AnthropicTool>? = null,
@@ -73,6 +77,14 @@ data class AnthropicTool(
 
     @SerialName("input_schema")
     val inputSchema: JsonObject
+)
+
+@OptIn(ExperimentalSerializationApi::class)
+@Serializable
+data class OutputConfig(
+    @SerialName("effort")
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val effort: String? = null
 )
 
 @OptIn(ExperimentalSerializationApi::class)

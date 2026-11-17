@@ -363,6 +363,26 @@
     <string name="collapse">Collapse</string>
     <string name="extended_thinking">Extended Thinking</string>
     <string name="extended_thinking_description">Enable for reasoning models (o1, o3, Claude with thinking, Gemini thinking)</string>
+    <string name="thinking_effort">Thinking effort</string>
+    <string name="thinking_effort_description">How hard reasoning models should think. This is the base for new messages in this profile.</string>
+    <string name="thinking_effort_minimal">Minimal</string>
+    <string name="thinking_effort_minimal_description">Shortest reasoning. Fastest replies.</string>
+    <string name="thinking_effort_low">Low</string>
+    <string name="thinking_effort_low_description">Light reasoning for straightforward questions.</string>
+    <string name="thinking_effort_medium">Medium</string>
+    <string name="thinking_effort_medium_description">Balanced reasoning for most chats.</string>
+    <string name="thinking_effort_high">High</string>
+    <string name="thinking_effort_high_description">Deeper reasoning for harder problems.</string>
+    <string name="thinking_effort_max">Max</string>
+    <string name="thinking_effort_max_description">The deepest reasoning this model allows.</string>
+    <string name="thinking_effort_profile_default">Profile default</string>
+    <string name="thinking_effort_profile_default_description">Use the effort saved on each platform in this chat.</string>
+    <string name="thinking_effort_mixed">Mixed</string>
+    <string name="thinking_effort_chat_value">Thinking: %1$s</string>
+    <string name="thinking_effort_unavailable">Thinking effort unavailable</string>
+    <string name="thinking_effort_unavailable_description">This model does not accept a thinking effort setting.</string>
+    <string name="thinking_effort_requires_extended_thinking">Turn on extended thinking to set effort</string>
+    <string name="thinking_effort_chat_content_description">Thinking effort for this chat</string>
 
     <!-- Setup Wizard Strings -->
     <string name="your_platforms">Your Platforms</string>

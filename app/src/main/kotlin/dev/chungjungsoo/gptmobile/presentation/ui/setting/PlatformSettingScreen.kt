@@ -80,8 +80,12 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
+import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators
 import dev.chungjungsoo.gptmobile.data.model.ClientType
+import dev.chungjungsoo.gptmobile.data.model.ThinkingEffort
+import dev.chungjungsoo.gptmobile.data.model.platformThinkingEffortEditable
+import dev.chungjungsoo.gptmobile.data.model.supportsAdjustableThinkingEffort
 import dev.chungjungsoo.gptmobile.presentation.common.EmptyErrorState
 import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
 import dev.chungjungsoo.gptmobile.presentation.common.SettingItem
@@ -225,7 +229,9 @@ fun PlatformSettingScreen(
                     verticalArrangement = Arrangement.spacedBy(24.dp)
                 ) {
                     val isLocalPlatform = platformData.compatibleType == ClientType.LITERT_LM
-                    val isReasoningDisabled = platformData.compatibleType == ClientType.OPENAI && platformData.reasoning
+                    val isReasoningDisabled = platformData.compatibleType == ClientType.OPENAI &&
+                        platformData.reasoning &&
+                        supportsAdjustableThinkingEffort(platformData.compatibleType, platformData.model)
                     val notSetText = stringResource(R.string.not_set)
                     var isAdvancedExpanded by rememberSaveable(platformData.uid) { mutableStateOf(false) }
 
@@ -313,6 +319,22 @@ fun PlatformSettingScreen(
                                 enabled = platformData.enabled,
                                 isChecked = platformData.reasoning,
                                 onCheckedChange = { settingViewModel.toggleReasoning() }
+                            )
+                            val effortEditable = platformData.enabled && platformThinkingEffortEditable(platformData)
+                            SettingItem(
+                                modifier = Modifier.heightIn(min = 64.dp),
+                                title = stringResource(R.string.thinking_effort),
+                                description = thinkingEffortSettingDescription(platformData),
+                                enabled = effortEditable,
+                                onItemClick = settingViewModel::openThinkingEffortDialog,
+                                showTrailingIcon = true,
+                                showLeadingIcon = true,
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Speed,
+                                        contentDescription = null
+                                    )
+                                }
                             )
                         }
                         SettingItem(
@@ -546,6 +568,13 @@ fun PlatformSettingScreen(
                         AcceleratorDialog(dialogState, platformData.accelerator, acceleratorOptions, settingViewModel)
                     }
                     TemperatureDialog(dialogState, platformData.temperature, settingViewModel)
+                    if (!isLocalPlatform) {
+                        ThinkingEffortDialog(
+                            dialogState = dialogState,
+                            selectedEffort = platformData.thinkingEffort,
+                            settingViewModel = settingViewModel
+                        )
+                    }
                     TopPDialog(dialogState, platformData.topP, settingViewModel)
                     SystemPromptDialog(dialogState, platformData.systemPrompt ?: "", settingViewModel)
                     GeminiSafetySettingsDialog(dialogState, platformData, settingViewModel)
@@ -788,6 +817,24 @@ private fun acceleratorLabel(accelerator: String?): String = when (accelerator?.
     LocalAccelerators.CPU -> stringResource(R.string.accelerator_cpu)
     LocalAccelerators.NPU -> stringResource(R.string.accelerator_npu)
     else -> stringResource(R.string.not_set)
+}
+
+@Composable
+private fun thinkingEffortSettingDescription(platform: PlatformV2): String {
+    if (!platform.reasoning) return stringResource(R.string.thinking_effort_requires_extended_thinking)
+    if (!supportsAdjustableThinkingEffort(platform.compatibleType, platform.model)) {
+        return stringResource(R.string.thinking_effort_unavailable_description)
+    }
+    return thinkingEffortLabel(ThinkingEffort.fromStorage(platform.thinkingEffort))
+}
+
+@Composable
+internal fun thinkingEffortLabel(effort: ThinkingEffort): String = when (effort) {
+    ThinkingEffort.MINIMAL -> stringResource(R.string.thinking_effort_minimal)
+    ThinkingEffort.LOW -> stringResource(R.string.thinking_effort_low)
+    ThinkingEffort.MEDIUM -> stringResource(R.string.thinking_effort_medium)
+    ThinkingEffort.HIGH -> stringResource(R.string.thinking_effort_high)
+    ThinkingEffort.MAX -> stringResource(R.string.thinking_effort_max)
 }
 
 @Composable

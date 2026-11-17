@@ -66,6 +66,7 @@ import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseObject
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponseUsage
 import dev.chungjungsoo.gptmobile.data.dto.openai.response.ResponsesStreamEvent
 import dev.chungjungsoo.gptmobile.data.model.ClientType
+import dev.chungjungsoo.gptmobile.data.model.applyChatThinkingEffort
 import dev.chungjungsoo.gptmobile.data.network.AnthropicAPI
 import dev.chungjungsoo.gptmobile.data.network.GoogleAPI
 import dev.chungjungsoo.gptmobile.data.network.GroqAPI
@@ -1179,6 +1180,200 @@ class ProviderAdaptersTest {
         assertEquals(
             listOf(ProviderEvent.Usage(16, 4), ProviderEvent.Completed),
             events
+        )
+    }
+
+    @Test
+    fun `openai responses serializes the selected reasoning effort`() = runBlocking {
+        val api = FakeOpenAIAPI(responseRounds = ArrayDeque(listOf(emptyFlow())))
+        OpenAIResponsesAdapter(api, attachmentEncoder())
+            .openSession(
+                turns(),
+                platform(ClientType.OPENAI).copy(model = "gpt-5.6", reasoning = true, thinkingEffort = "max")
+            )
+            .streamRound(emptyList(), emptyList())
+            .toList()
+
+        val reasoning = requestJson(api.responseRequests.single())["reasoning"]!!.jsonObject
+        assertEquals("max", reasoning["effort"]!!.jsonPrimitive.content)
+        assertEquals("auto", reasoning["summary"]!!.jsonPrimitive.content)
+        assertFalse(requestJson(api.responseRequests.single()).containsKey("temperature"))
+    }
+
+    @Test
+    fun `openai omits reasoning effort for models that do not support it`() = runBlocking {
+        val api = FakeOpenAIAPI(responseRounds = ArrayDeque(listOf(emptyFlow())))
+        OpenAIResponsesAdapter(api, attachmentEncoder())
+            .openSession(
+                turns(),
+                platform(ClientType.OPENAI).copy(model = "gpt-4o", reasoning = true, thinkingEffort = "high", temperature = 0.4f)
+            )
+            .streamRound(emptyList(), emptyList())
+            .toList()
+
+        val json = requestJson(api.responseRequests.single())
+        assertFalse(json.containsKey("reasoning"))
+        assertEquals("0.4", json["temperature"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `chat override effort is what openai serializes`() = runBlocking {
+        val api = FakeOpenAIAPI(responseRounds = ArrayDeque(listOf(emptyFlow())))
+        val platform = applyChatThinkingEffort(
+            platform(ClientType.OPENAI).copy(model = "gpt-5.6", reasoning = true, thinkingEffort = "low"),
+            "high"
+        )
+        OpenAIResponsesAdapter(api, attachmentEncoder())
+            .openSession(turns(), platform)
+            .streamRound(emptyList(), emptyList())
+            .toList()
+
+        assertEquals(
+            "high",
+            requestJson(api.responseRequests.single())["reasoning"]!!.jsonObject["effort"]!!.jsonPrimitive.content
+        )
+    }
+
+    @Test
+    fun `openrouter serializes unified reasoning effort and ollama serializes reasoning_effort`() = runBlocking {
+        val openRouterApi = FakeOpenAIAPI(chatRounds = ArrayDeque(listOf(emptyFlow())))
+        OpenAICompatibleAdapter(openRouterApi, FakeGroqAPI(ArrayDeque()), attachmentEncoder())
+            .openSession(
+                turns(),
+                platform(ClientType.OPENROUTER).copy(model = "anthropic/claude-sonnet-5", reasoning = true, thinkingEffort = "high")
+            )
+            .streamRound(emptyList(), emptyList())
+            .toList()
+        val openRouterJson = requestJson(openRouterApi.chatRequests.single())
+        assertEquals("high", openRouterJson["reasoning"]!!.jsonObject["effort"]!!.jsonPrimitive.content)
+        assertFalse(openRouterJson.containsKey("reasoning_effort"))
+
+        val ollamaApi = FakeOpenAIAPI(chatRounds = ArrayDeque(listOf(emptyFlow())))
+        OpenAICompatibleAdapter(ollamaApi, FakeGroqAPI(ArrayDeque()), attachmentEncoder())
+            .openSession(
+                turns(),
+                platform(ClientType.OLLAMA).copy(model = "gpt-oss", reasoning = true, thinkingEffort = "minimal")
+            )
+            .streamRound(emptyList(), emptyList())
+            .toList()
+        val ollamaJson = requestJson(ollamaApi.chatRequests.single())
+        assertEquals("low", ollamaJson["reasoning_effort"]!!.jsonPrimitive.content)
+        assertFalse(ollamaJson.containsKey("reasoning"))
+    }
+
+    @Test
+    fun `custom endpoints omit thinking effort`() = runBlocking {
+        val api = FakeOpenAIAPI(chatRounds = ArrayDeque(listOf(emptyFlow())))
+        OpenAICompatibleAdapter(api, FakeGroqAPI(ArrayDeque()), attachmentEncoder())
+            .openSession(
+                turns(),
+                platform(ClientType.CUSTOM).copy(model = "gpt-5.6", reasoning = true, thinkingEffort = "max")
+            )
+            .streamRound(emptyList(), emptyList())
+            .toList()
+
+        val json = requestJson(api.chatRequests.single())
+        assertFalse(json.containsKey("reasoning"))
+        assertFalse(json.containsKey("reasoning_effort"))
+    }
+
+    @Test
+    fun `groq serializes reasoning effort only for models that accept it`() = runBlocking {
+        val supported = FakeGroqAPI(ArrayDeque(listOf(emptyFlow())))
+        OpenAICompatibleAdapter(FakeOpenAIAPI(), supported, attachmentEncoder())
+            .openSession(
+                turns(),
+                platform(ClientType.GROQ).copy(model = "openai/gpt-oss-120b", reasoning = true, thinkingEffort = "max")
+            )
+            .streamRound(emptyList(), emptyList())
+            .toList()
+        val supportedJson = requestJson(supported.requests.single())
+        assertEquals("high", supportedJson["reasoning_effort"]!!.jsonPrimitive.content)
+        assertEquals(true, supported.requests.single().includeReasoning)
+        assertFalse(supportedJson.containsKey("reasoning_format"))
+
+        val unsupported = FakeGroqAPI(ArrayDeque(listOf(emptyFlow())))
+        OpenAICompatibleAdapter(FakeOpenAIAPI(), unsupported, attachmentEncoder())
+            .openSession(
+                turns(),
+                platform(ClientType.GROQ).copy(model = "qwen/qwen3-32b", reasoning = true, thinkingEffort = "max")
+            )
+            .streamRound(emptyList(), emptyList())
+            .toList()
+        val unsupportedJson = requestJson(unsupported.requests.single())
+        assertFalse(unsupportedJson.containsKey("reasoning_effort"))
+        assertEquals("parsed", unsupportedJson["reasoning_format"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `anthropic adaptive effort is output_config and manual effort scales the budget`() = runBlocking {
+        val adaptive = FakeAnthropicAPI(ArrayDeque(listOf(emptyFlow())))
+        AnthropicMessagesAdapter(adaptive, attachmentEncoder())
+            .openSession(
+                turns(),
+                platform(ClientType.ANTHROPIC).copy(model = "claude-sonnet-4-6", reasoning = true, thinkingEffort = "max")
+            )
+            .streamRound(emptyList(), emptyList())
+            .toList()
+        val adaptiveJson = requestJson(adaptive.requests.single())
+        assertEquals("adaptive", adaptiveJson["thinking"]!!.jsonObject["type"]!!.jsonPrimitive.content)
+        assertFalse(adaptiveJson["thinking"]!!.jsonObject.containsKey("budget_tokens"))
+        assertEquals("max", adaptiveJson["output_config"]!!.jsonObject["effort"]!!.jsonPrimitive.content)
+
+        val manual = FakeAnthropicAPI(ArrayDeque(listOf(emptyFlow())))
+        AnthropicMessagesAdapter(manual, attachmentEncoder())
+            .openSession(
+                turns(),
+                platform(ClientType.ANTHROPIC).copy(model = "claude-sonnet-4-5", reasoning = true, thinkingEffort = "low")
+            )
+            .streamRound(emptyList(), emptyList())
+            .toList()
+        val manualJson = requestJson(manual.requests.single())
+        assertEquals("enabled", manualJson["thinking"]!!.jsonObject["type"]!!.jsonPrimitive.content)
+        assertEquals(2_048, manualJson["thinking"]!!.jsonObject["budget_tokens"]!!.jsonPrimitive.content.toInt())
+        assertFalse(manualJson.containsKey("output_config"))
+        assertTrue(manual.requests.single().maxTokens > 2_048)
+    }
+
+    @Test
+    fun `gemini serializes thinking level or budget without sending both`() = runBlocking {
+        val levelApi = FakeGoogleAPI(ArrayDeque(listOf(emptyFlow())))
+        GeminiAdapter(levelApi, attachmentEncoder())
+            .openSession(
+                turns(),
+                platform(ClientType.GOOGLE).copy(model = "gemini-3.7-flash", reasoning = true, thinkingEffort = "minimal")
+            )
+            .streamRound(emptyList(), emptyList())
+            .toList()
+        val level = requestJson(levelApi.requests.single())["generationConfig"]!!
+            .jsonObject["thinkingConfig"]!!.jsonObject
+        assertEquals("MINIMAL", level["thinkingLevel"]!!.jsonPrimitive.content)
+        assertEquals("true", level["includeThoughts"]!!.jsonPrimitive.content)
+        assertFalse(level.containsKey("thinkingBudget"))
+
+        val budgetApi = FakeGoogleAPI(ArrayDeque(listOf(emptyFlow())))
+        GeminiAdapter(budgetApi, attachmentEncoder())
+            .openSession(
+                turns(),
+                platform(ClientType.GOOGLE).copy(model = "gemini-2.5-pro", reasoning = true, thinkingEffort = "max")
+            )
+            .streamRound(emptyList(), emptyList())
+            .toList()
+        val budget = requestJson(budgetApi.requests.single())["generationConfig"]!!
+            .jsonObject["thinkingConfig"]!!.jsonObject
+        assertEquals(32_768, budget["thinkingBudget"]!!.jsonPrimitive.content.toInt())
+        assertFalse(budget.containsKey("thinkingLevel"))
+
+        val omitted = FakeGoogleAPI(ArrayDeque(listOf(emptyFlow())))
+        GeminiAdapter(omitted, attachmentEncoder())
+            .openSession(
+                turns(),
+                platform(ClientType.GOOGLE).copy(model = "gemini-1.5-flash", reasoning = true, thinkingEffort = "high")
+            )
+            .streamRound(emptyList(), emptyList())
+            .toList()
+        assertFalse(
+            requestJson(omitted.requests.single())["generationConfig"]!!.jsonObject.containsKey("thinkingConfig")
         )
     }
 

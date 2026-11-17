@@ -443,6 +443,52 @@ class ChatDatabaseV2MigrationInstrumentedTest {
         database.close()
     }
 
+    @Test
+    @Throws(IOException::class)
+    fun migrate11To12_addsThinkingEffortDefaultsWithoutDroppingRows() {
+        helper.createDatabase(THINKING_EFFORT_DATABASE, 11).apply {
+            execSQL(
+                """
+                INSERT INTO chats_v2 (chat_id, title, enabled_platform, created_at, updated_at)
+                VALUES (4, 'Existing chat', 'profile-1', 10, 11)
+                """.trimIndent()
+            )
+            execSQL(
+                """
+                INSERT INTO platform_v2 (
+                    platform_id, uid, name, compatible_type, enabled, api_url, token, secret_ref, model,
+                    temperature, top_p, top_k, max_tokens, accelerator, system_prompt, stream, reasoning, timeout,
+                    harassment_safety_threshold, hate_speech_safety_threshold,
+                    sexually_explicit_safety_threshold, dangerous_content_safety_threshold, resumable_replies
+                ) VALUES (
+                    1, 'profile-1', 'OpenAI', 'OPENAI', 1, 'https://api.openai.com/v1/', 'sk-test', NULL,
+                    'gpt-5.6', NULL, NULL, NULL, NULL, NULL, NULL,
+                    1, 1, 30,
+                    'BLOCK_NONE', 'BLOCK_NONE', 'BLOCK_NONE', 'BLOCK_NONE', 0
+                )
+                """.trimIndent()
+            )
+            close()
+        }
+
+        val database = helper.runMigrationsAndValidate(
+            THINKING_EFFORT_DATABASE,
+            12,
+            true,
+            ChatDatabaseV2Migrations.MIGRATION_11_12
+        )
+
+        database.query("SELECT thinking_effort FROM platform_v2 WHERE uid = 'profile-1'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("medium", cursor.getString(0))
+        }
+        database.query("SELECT thinking_effort FROM chats_v2 WHERE chat_id = 4").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertTrue(cursor.isNull(0))
+        }
+        database.close()
+    }
+
     private fun assertCount(
         database: androidx.sqlite.db.SupportSQLiteDatabase,
         table: String,
@@ -461,5 +507,6 @@ class ChatDatabaseV2MigrationInstrumentedTest {
         const val TIMELINE_DATABASE = "agent-migration-timeline-test"
         const val BROKEN_VERSION_2_DATABASE = "agent-migration-broken-v2-test"
         const val COMPACTION_DATABASE = "compaction-migration-10-11-test"
+        const val THINKING_EFFORT_DATABASE = "agent-migration-thinking-effort-test"
     }
 }
