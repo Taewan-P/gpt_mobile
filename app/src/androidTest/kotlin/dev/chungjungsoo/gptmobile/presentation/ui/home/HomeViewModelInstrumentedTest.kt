@@ -169,7 +169,7 @@ private class QueueChatRepository(
     override suspend fun migrateToChatRoomV2MessageV2() = error("unused")
     override fun generateDefaultChatTitle(messages: List<MessageV2>): String? = error("unused")
     override suspend fun updateChatTitle(chatRoom: ChatRoomV2, title: String) = error("unused")
-    override suspend fun updateChatThinkingEffort(chatRoom: ChatRoomV2, thinkingEffort: String?) = error("unused")
+    override suspend fun updateChatThinkingEffort(chatId: Int, thinkingEffort: String?) = error("unused")
     override suspend fun saveChat(chatRoom: ChatRoomV2, messages: List<MessageV2>, chatPlatformModels: Map<String, String>): ChatRoomV2 = error("unused")
     override suspend fun duplicateChatV2(chatRoom: ChatRoomV2): ChatRoomV2 = error("unused")
     override suspend fun deleteChats(chatRooms: List<ChatRoom>) = error("unused")

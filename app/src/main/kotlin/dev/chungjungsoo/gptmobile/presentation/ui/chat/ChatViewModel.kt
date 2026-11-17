@@ -466,10 +466,10 @@ class ChatViewModel @Inject constructor(
     fun updateThinkingEffort(storageValue: String?) {
         val normalized = ThinkingEffort.fromStorageOrNull(storageValue)?.storageValue
         _chatRoom.update { room -> room.copy(thinkingEffort = normalized) }
-        val room = _chatRoom.value
-        if (room.id > 0) {
+        val chatId = _chatRoom.value.id
+        if (chatId > 0) {
             viewModelScope.launch {
-                chatRepository.updateChatThinkingEffort(room, normalized)
+                chatRepository.updateChatThinkingEffort(chatId, normalized)
             }
         }
     }
@@ -782,7 +782,14 @@ class ChatViewModel @Inject constructor(
                     )
                 },
                 startProvider = { persisted ->
-                    _chatRoom.update { persisted.chatRoom }
+                    val selectedEffort = _chatRoom.value.thinkingEffort
+                    val savedRoom = persisted.chatRoom
+                    _chatRoom.update { savedRoom.copy(thinkingEffort = selectedEffort) }
+                    if (selectedEffort != savedRoom.thinkingEffort && savedRoom.id > 0) {
+                        viewModelScope.launch {
+                            chatRepository.updateChatThinkingEffort(savedRoom.id, selectedEffort)
+                        }
+                    }
                     _groupedMessages.update { groupedMessages ->
                         groupedMessages.copy(
                             userMessages = groupedMessages.userMessages.toMutableList().apply {

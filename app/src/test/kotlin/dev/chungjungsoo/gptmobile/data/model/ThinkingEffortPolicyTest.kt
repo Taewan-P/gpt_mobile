@@ -100,9 +100,15 @@ class ThinkingEffortPolicyTest {
         assertNull(anthropicOutputEffort("claude-sonnet-4-5", ThinkingEffort.HIGH))
 
         val gemini3 = googleThinkingConfig(
-            platform(ClientType.GOOGLE, "gemini-3.7-flash", reasoning = true, thinkingEffort = "medium")
+            platform(ClientType.GOOGLE, "gemini-3.7-flash", reasoning = true, thinkingEffort = "minimal")
         )
-        assertEquals("MEDIUM", gemini3?.thinkingLevel)
+        assertEquals("LOW", gemini3?.thinkingLevel)
+        assertNull(
+            googleThinkingConfig(
+                platform(ClientType.GOOGLE, "gemini-2.5-flash-image", reasoning = true, thinkingEffort = "high")
+            )
+        )
+        assertFalse(supportsAdjustableThinkingEffort(ClientType.GOOGLE, "gemini-2.5-flash-image"))
         assertTrue(gemini3?.includeThoughts == true)
 
         val geminiPro = googleThinkingConfig(

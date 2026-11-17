@@ -178,7 +178,10 @@ internal fun geminiThinkingMode(model: String): GeminiThinkingMode? {
     val normalized = model.lowercase()
     if (!normalized.contains("gemini")) return null
     if (Regex("""gemini-(?:[3-9]|\d{2,})""").containsMatchIn(normalized)) return GeminiThinkingMode.LEVEL
-    if (normalized.contains("gemini-2.5") || normalized.contains("gemini-2-5")) return GeminiThinkingMode.BUDGET
+    if (normalized.contains("gemini-2.5") || normalized.contains("gemini-2-5")) {
+        if (normalized.contains("image")) return null
+        return GeminiThinkingMode.BUDGET
+    }
     return null
 }
 
@@ -255,6 +258,9 @@ private fun geminiSupportedLevels(model: String): Set<String> {
         !normalized.contains("3.1")
     if (isGemini3Pro) return setOf("LOW", "HIGH")
     if (normalized.contains("3.1") && normalized.contains("pro")) {
+        return setOf("LOW", "MEDIUM", "HIGH")
+    }
+    if (Regex("""gemini-3\.[78]""").containsMatchIn(normalized) && normalized.contains("flash")) {
         return setOf("LOW", "MEDIUM", "HIGH")
     }
     return setOf("MINIMAL", "LOW", "MEDIUM", "HIGH")

@@ -1347,7 +1347,7 @@ class ProviderAdaptersTest {
             .toList()
         val level = requestJson(levelApi.requests.single())["generationConfig"]!!
             .jsonObject["thinkingConfig"]!!.jsonObject
-        assertEquals("MINIMAL", level["thinkingLevel"]!!.jsonPrimitive.content)
+        assertEquals("LOW", level["thinkingLevel"]!!.jsonPrimitive.content)
         assertEquals("true", level["includeThoughts"]!!.jsonPrimitive.content)
         assertFalse(level.containsKey("thinkingBudget"))
 
