@@ -377,6 +377,7 @@
     <string name="thinking_effort_max_description">The deepest reasoning this model allows.</string>
     <string name="thinking_effort_profile_default">Profile default</string>
     <string name="thinking_effort_profile_default_description">Use the effort saved on each platform in this chat.</string>
+    <string name="thinking_effort_profile_default_with_level">Use the effort saved on each platform in this chat (%1$s).</string>
     <string name="thinking_effort_mixed">Mixed</string>
     <string name="thinking_effort_chat_value">Thinking: %1$s</string>
     <string name="thinking_effort_unavailable">Thinking effort unavailable</string>

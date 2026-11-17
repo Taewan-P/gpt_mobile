@@ -1,15 +1,18 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -54,7 +57,11 @@ fun ThinkingEffortControl(
         }
         DropdownMenu(
             expanded = expanded && state.enabled,
-            onDismissRequest = { expanded = false }
+            onDismissRequest = { expanded = false },
+            shape = MaterialTheme.shapes.medium,
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            tonalElevation = MenuDefaults.TonalElevation,
+            shadowElevation = MenuDefaults.ShadowElevation
         ) {
             ThinkingEffortChoices(
                 offered = state.offered,
@@ -76,40 +83,69 @@ internal fun ThinkingEffortChoices(
     onSelect: (String?) -> Unit
 ) {
     offered.forEach { effort ->
-        DropdownMenuItem(
-            text = {
-                Column {
-                    Text(
-                        text = thinkingEffortLabel(effort),
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                    Text(
-                        text = thinkingEffortMenuDescription(effort),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            },
-            leadingIcon = { EffortSelectionMark(selected = selectedEffort == effort) },
+        EffortMenuItem(
+            title = thinkingEffortLabel(effort),
+            description = thinkingEffortMenuDescription(effort),
+            selected = !profileDefaultSelected && selectedEffort == effort,
             onClick = { onSelect(effort.storageValue) }
         )
     }
+    if (offered.isNotEmpty()) {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    }
+    val profileDescription = if (profileDefaultSelected && selectedEffort != null) {
+        stringResource(
+            R.string.thinking_effort_profile_default_with_level,
+            thinkingEffortLabel(selectedEffort)
+        )
+    } else {
+        stringResource(R.string.thinking_effort_profile_default_description)
+    }
+    EffortMenuItem(
+        title = stringResource(R.string.thinking_effort_profile_default),
+        description = profileDescription,
+        selected = profileDefaultSelected,
+        onClick = { onSelect(null) }
+    )
+}
+
+@Composable
+private fun EffortMenuItem(
+    title: String,
+    description: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
     DropdownMenuItem(
+        modifier = if (selected) {
+            Modifier.background(colors.secondaryContainer)
+        } else {
+            Modifier
+        },
         text = {
             Column {
                 Text(
-                    text = stringResource(R.string.thinking_effort_profile_default),
-                    style = MaterialTheme.typography.bodyLarge
+                    text = title,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (selected) colors.onSecondaryContainer else colors.onSurface
                 )
                 Text(
-                    text = stringResource(R.string.thinking_effort_profile_default_description),
+                    text = description,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (selected) colors.onSecondaryContainer else colors.onSurfaceVariant
                 )
             }
         },
-        leadingIcon = { EffortSelectionMark(selected = profileDefaultSelected) },
-        onClick = { onSelect(null) }
+        leadingIcon = {
+            EffortSelectionMark(selected = selected)
+        },
+        colors = MenuDefaults.itemColors(
+            textColor = colors.onSurface,
+            leadingIconColor = if (selected) colors.onSecondaryContainer else colors.onSurfaceVariant
+        ),
+        contentPadding = MenuDefaults.DropdownMenuItemContentPadding,
+        onClick = onClick
     )
 }
 
@@ -117,7 +153,7 @@ internal fun ThinkingEffortChoices(
 private fun EffortSelectionMark(selected: Boolean) {
     if (selected) {
         Icon(
-            imageVector = Icons.Filled.Check,
+            imageVector = Icons.Outlined.Check,
             contentDescription = stringResource(R.string.thinking_effort_selected)
         )
     } else {
