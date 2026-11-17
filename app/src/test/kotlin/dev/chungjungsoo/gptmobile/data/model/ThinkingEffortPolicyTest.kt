@@ -69,9 +69,25 @@ class ThinkingEffortPolicyTest {
     @Test
     fun providerEffortValuesClampToWhatEachModelAccepts() {
         assertEquals("max", openAiReasoningEffort("gpt-5.6", ThinkingEffort.MAX))
+        assertEquals("low", openAiReasoningEffort("gpt-5.6", ThinkingEffort.MINIMAL))
+        assertEquals("xhigh", openAiReasoningEffort("gpt-5.2", ThinkingEffort.MAX))
+        assertEquals("low", openAiReasoningEffort("gpt-5.2", ThinkingEffort.MINIMAL))
+        assertEquals("xhigh", openAiReasoningEffort("gpt-5.4-mini", ThinkingEffort.MAX))
         assertEquals("high", openAiReasoningEffort("gpt-5-pro", ThinkingEffort.MAX))
         assertEquals("low", openAiReasoningEffort("o3-mini", ThinkingEffort.MINIMAL))
         assertEquals("medium", openAiReasoningEffort("gpt-5.1", ThinkingEffort.MEDIUM))
+        assertEquals(
+            "xhigh",
+            openAiResponsesReasoning(
+                platform(ClientType.OPENAI, "gpt-5.2", reasoning = true, thinkingEffort = "max")
+            )?.effort
+        )
+        assertEquals(
+            "low",
+            openAIChatReasoningFields(
+                platform(ClientType.OPENAI, "gpt-5.2-2025-12-11", reasoning = true, thinkingEffort = "minimal")
+            ).reasoningEffort
+        )
         assertNull(requestThinkingEffort(platform(ClientType.OPENAI, "gpt-4o", reasoning = true, thinkingEffort = "max")))
 
         assertEquals("high", groqReasoningEffort("openai/gpt-oss-20b", ThinkingEffort.MAX))

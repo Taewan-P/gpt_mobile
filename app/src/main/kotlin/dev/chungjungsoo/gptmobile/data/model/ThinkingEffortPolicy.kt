@@ -235,8 +235,11 @@ private fun openAiSupportedEfforts(model: String): Set<String> {
     val minor = GPT5_MINOR.find(normalized)?.groupValues?.getOrNull(1)?.toIntOrNull()
     return when {
         minor == null && normalized.contains("gpt-5") -> setOf("minimal", "low", "medium", "high")
-        minor != null && minor >= 2 -> OPENAI_FULL_EFFORTS
         minor == 1 -> setOf("none", "low", "medium", "high")
+        // GPT-5.2 through GPT-5.4 document none, low, medium, high, and xhigh.
+        minor != null && minor < 6 -> OPENAI_XHIGH_EFFORTS
+        // GPT-5.6 adds max and still does not list minimal.
+        minor != null -> OPENAI_MAX_EFFORTS
         normalized.contains("gpt-5") -> setOf("minimal", "low", "medium", "high")
         else -> setOf("low", "medium", "high")
     }
@@ -295,6 +298,8 @@ private fun supportsAnthropicMaxEffort(model: String): Boolean =
     ANTHROPIC_MAX_EFFORT.containsMatchIn(model.lowercase())
 
 private val OPENAI_FULL_EFFORTS = setOf("none", "minimal", "low", "medium", "high", "xhigh", "max")
+private val OPENAI_XHIGH_EFFORTS = setOf("none", "low", "medium", "high", "xhigh")
+private val OPENAI_MAX_EFFORTS = setOf("none", "low", "medium", "high", "xhigh", "max")
 private val OPENAI_O_SERIES = Regex("""(?:^|[^a-z0-9])o[1-9](?:[^a-z0-9]|$)""")
 private val GPT5_MINOR = Regex("""gpt-5\.(\d+)""")
 private val ANTHROPIC_ADAPTIVE = Regex(
