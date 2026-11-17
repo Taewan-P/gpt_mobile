@@ -128,15 +128,17 @@ fun thinkingEffortControlState(
     }
     val override = ThinkingEffort.fromStorageOrNull(chatOverride)
     if (override != null) {
-        val effective = nearestThinkingEffort(override, offered)
+        val effectiveValues = active.map { platform ->
+            nearestThinkingEffort(override, offeredThinkingEfforts(platform))
+        }.distinct()
         return ThinkingEffortControlState(
             enabled = true,
-            selectedEffort = effective,
+            selectedEffort = effectiveValues.singleOrNull(),
             followsProfileDefault = false,
             status = ThinkingEffortControlStatus.ADJUSTABLE,
             offered = offered,
             storedEffort = override,
-            adjustedToNearest = effective != override,
+            adjustedToNearest = effectiveValues.any { effort -> effort != override },
             rejectedByModel = rejectedByModel
         )
     }

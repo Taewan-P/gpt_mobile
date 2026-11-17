@@ -201,6 +201,19 @@ class ThinkingEffortPolicyTest {
     }
 
     @Test
+    fun aSharedOverrideIsShownPerProfileWhenTheEffectiveLevelsDiffer() {
+        val pro = platform(ClientType.OPENAI, "gpt-5-pro", thinkingEffort = "high")
+        val standard = platform(ClientType.OPENAI, "gpt-5.2", thinkingEffort = "medium")
+
+        val state = thinkingEffortControlState(listOf(pro, standard), chatOverride = "low")
+
+        assertNull(state.selectedEffort)
+        assertEquals(listOf(ThinkingEffort.HIGH), state.offered)
+        assertTrue(state.adjustedToNearest)
+        assertFalse(state.followsProfileDefault)
+    }
+
+    @Test
     fun effortRejectionRequiresTheParameterNameAndA400Or422() {
         assertTrue(
             thinkingEffortParameterRejected(

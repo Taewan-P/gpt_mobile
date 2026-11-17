@@ -264,6 +264,7 @@ class ChatRepositoryImpl @Inject constructor(
             var runCompleted = false
             var producedProviderOutput = false
             var retryWithoutEffort = false
+            var requestPlatform = platform
             val runner = AgentRunner(
                 afterCompleteExchange = { exchanges ->
                     // The callback follows exactly one completed exchange. Keep the durable source
@@ -274,7 +275,8 @@ class ChatRepositoryImpl @Inject constructor(
                         exchanges.sumOf { exchange -> exchange.calls.sumOf { TokenEstimator.estimateText(it.arguments.toString()) + 16 } }
                     val nextEstimate = activePrepared.tokenBudget.estimatedInputTokens + exchangeTokens +
                         TokenEstimator.estimateText(assistantProgress.substring(compactedProgressLength))
-                    val needsCompaction = nextEstimate + usageAdjustment.coerceAtLeast(0) + outputReserve >= activePrepared.tokenBudget.contextLimit
+                    val reserve = outputReserveTokens(requestPlatform, resolvedTools.isNotEmpty())
+                    val needsCompaction = nextEstimate + usageAdjustment.coerceAtLeast(0) + reserve >= activePrepared.tokenBudget.contextLimit
                     if (!needsCompaction) {
                         lastRequestEstimate = nextEstimate
                         exchanges
@@ -299,7 +301,7 @@ class ChatRepositoryImpl @Inject constructor(
                                 chatId = 0,
                                 userMessages = userMessages,
                                 assistantMessages = progressMessages,
-                                platform = platform,
+                                platform = requestPlatform,
                                 toolEvidence = toolEvidence + completedExchanges.toToolEvidence(runId),
                                 toolDefinitionTokens = toolDefinitionTokens,
                                 toolDefinitionNames = resolvedTools.map { it.tool.definition.name },
@@ -313,7 +315,7 @@ class ChatRepositoryImpl @Inject constructor(
                                 activePrepared = mid.prepared
                                 mutableSession.inner = openPreparedSession(
                                     activePrepared.turns,
-                                    platform,
+                                    requestPlatform,
                                     resolvedTools.map { it.tool },
                                     activePrepared,
                                     onUnconfirmedCancellation
@@ -400,14 +402,15 @@ class ChatRepositoryImpl @Inject constructor(
                         persistent = true
                     )
                 )
-                val retrySession = openPreparedSession(
+                requestPlatform = platform.copy().also { retryPlatform -> retryPlatform.omitThinkingEffort = true }
+                mutableSession.inner = openPreparedSession(
                     prepared.turns,
-                    platform.copy().also { retryPlatform -> retryPlatform.omitThinkingEffort = true },
+                    requestPlatform,
                     resolvedTools.map { it.tool },
                     prepared,
                     onUnconfirmedCancellation
                 )
-                AgentRunner().run(retrySession, runnerTools).collect { runEvent ->
+                runner.run(mutableSession, runnerTools).collect { runEvent ->
                     when (runEvent) {
                         is AgentRunEvent.Provider -> when (val providerEvent = runEvent.event) {
                             is ProviderEvent.ThinkingDelta -> emit(ApiState.Thinking(providerEvent.text))

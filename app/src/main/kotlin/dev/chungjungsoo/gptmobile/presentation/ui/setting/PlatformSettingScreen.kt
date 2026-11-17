@@ -90,6 +90,7 @@ import dev.chungjungsoo.gptmobile.data.model.offeredThinkingEfforts
 import dev.chungjungsoo.gptmobile.data.model.parseSupportedEffortOverride
 import dev.chungjungsoo.gptmobile.data.model.platformThinkingEffortEditable
 import dev.chungjungsoo.gptmobile.data.model.requestThinkingEffort
+import dev.chungjungsoo.gptmobile.data.model.supportsAnthropicThinkingAdjustment
 import dev.chungjungsoo.gptmobile.data.model.thinkingEffortSuppressed
 import dev.chungjungsoo.gptmobile.presentation.common.EmptyErrorState
 import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
@@ -234,7 +235,7 @@ fun PlatformSettingScreen(
                     verticalArrangement = Arrangement.spacedBy(24.dp)
                 ) {
                     val isLocalPlatform = platformData.compatibleType == ClientType.LITERT_LM
-                    val isReasoningDisabled = requestThinkingEffort(platformData) != null
+                    val isReasoningDisabled = samplingLockedByReasoning(platformData)
                     val notSetText = stringResource(R.string.not_set)
                     var isAdvancedExpanded by rememberSaveable(platformData.uid) { mutableStateOf(false) }
 
@@ -834,6 +835,14 @@ private fun acceleratorLabel(accelerator: String?): String = when (accelerator?.
     LocalAccelerators.CPU -> stringResource(R.string.accelerator_cpu)
     LocalAccelerators.NPU -> stringResource(R.string.accelerator_npu)
     else -> stringResource(R.string.not_set)
+}
+
+private fun samplingLockedByReasoning(platform: PlatformV2): Boolean = when (platform.compatibleType) {
+    ClientType.OPENAI -> requestThinkingEffort(platform) != null
+    ClientType.ANTHROPIC ->
+        platform.reasoning && supportsAnthropicThinkingAdjustment(platform.model)
+
+    else -> false
 }
 
 @Composable

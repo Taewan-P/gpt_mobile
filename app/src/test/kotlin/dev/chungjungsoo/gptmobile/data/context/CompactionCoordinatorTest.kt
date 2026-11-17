@@ -272,6 +272,22 @@ class CompactionCoordinatorTest {
     }
 
     @Test
+    fun resolvedOutputCapFollowsTheEffortThatWillBeSent() {
+        val platform = PlatformV2(
+            uid = "anthropic",
+            name = "Anthropic",
+            compatibleType = ClientType.ANTHROPIC,
+            apiUrl = "https://api.anthropic.com/",
+            model = "claude-sonnet-4-5",
+            reasoning = true,
+            thinkingEffort = "medium",
+            supportedEffortLevels = "max"
+        )
+
+        assertTrue(resolvedOutputTokenCap(platform)!! > 32_000)
+    }
+
+    @Test
     fun `batched text compaction retains facts from first and last prefix batches`() = runBlocking {
         val coordinator = coordinator(InMemoryCompactionStore(), contextLimit = 900)
         val users = (0 until 10).map { index ->

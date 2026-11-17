@@ -59,7 +59,6 @@ import dev.chungjungsoo.gptmobile.data.model.googleThinkingConfig
 import dev.chungjungsoo.gptmobile.data.model.openAIChatReasoningFields
 import dev.chungjungsoo.gptmobile.data.model.openAiResponsesReasoning
 import dev.chungjungsoo.gptmobile.data.model.requestThinkingEffort
-import dev.chungjungsoo.gptmobile.data.model.thinkingEffortSuppressed
 import dev.chungjungsoo.gptmobile.data.network.AnthropicAPI
 import dev.chungjungsoo.gptmobile.data.network.GoogleAPI
 import dev.chungjungsoo.gptmobile.data.network.GroqAPI
@@ -287,11 +286,10 @@ class AnthropicMessagesAdapter @Inject constructor(
                 tools: List<AgentToolDefinition>,
                 exchanges: List<AgentToolExchange>
             ): Flow<ProviderEvent> = flow {
-                val effortSuppressed = platform.omitThinkingEffort || thinkingEffortSuppressed(platform)
                 val effort = requestThinkingEffort(platform)
                 val thinkingPolicy = anthropicThinkingPolicy(
                     model = platform.model,
-                    reasoningEnabled = platform.reasoning && !effortSuppressed,
+                    reasoningEnabled = platform.reasoning,
                     hasTools = tools.isNotEmpty(),
                     effort = effort ?: ThinkingEffort.DEFAULT
                 )

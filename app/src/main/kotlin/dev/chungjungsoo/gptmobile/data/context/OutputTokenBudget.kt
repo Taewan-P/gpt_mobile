@@ -6,6 +6,7 @@ import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.model.ThinkingEffort
 import dev.chungjungsoo.gptmobile.data.model.anthropicOutputEffort
 import dev.chungjungsoo.gptmobile.data.model.manualThinkingBudget
+import dev.chungjungsoo.gptmobile.data.model.requestThinkingEffort
 
 object OutputTokenBudget {
     const val DEFAULT_HOSTED_OUTPUT_TOKENS = 4_096
@@ -85,7 +86,7 @@ fun resolvedOutputTokenCap(platform: PlatformV2, hasTools: Boolean = false): Int
                 model = platform.model,
                 reasoningEnabled = platform.reasoning,
                 hasTools = hasTools,
-                effort = ThinkingEffort.fromStorage(platform.thinkingEffort)
+                effort = requestThinkingEffort(platform) ?: ThinkingEffort.DEFAULT
             )
             if (policy.isThinkingActive) {
                 val budgetFloor = (policy.config?.budgetTokens ?: 0) + 1_024
