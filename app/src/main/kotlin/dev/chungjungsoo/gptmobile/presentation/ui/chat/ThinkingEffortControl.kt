@@ -1,16 +1,16 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import dev.chungjungsoo.gptmobile.R
 import dev.chungjungsoo.gptmobile.data.model.ThinkingEffort
@@ -64,6 +65,8 @@ fun ThinkingEffortControl(
         DropdownMenu(
             expanded = expanded && state.enabled,
             onDismissRequest = { expanded = false },
+            modifier = Modifier.width(280.dp),
+            offset = DpOffset(0.dp, 4.dp),
             shape = MaterialTheme.shapes.medium,
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
             tonalElevation = MenuDefaults.TonalElevation,
@@ -130,46 +133,44 @@ private fun EffortMenuItem(
     val colors = MaterialTheme.colorScheme
     val titleColor = if (selected) colors.onSecondaryContainer else colors.onSurface
     val descriptionColor = if (selected) colors.onSecondaryContainer else colors.onSurfaceVariant
-    Row(
+    DropdownMenuItem(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp)
-            .clip(MaterialTheme.shapes.small)
-            .background(if (selected) colors.secondaryContainer else Color.Transparent)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier.size(24.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            if (selected) {
-                Icon(
-                    imageVector = Icons.Outlined.Check,
-                    contentDescription = stringResource(R.string.thinking_effort_selected),
-                    tint = titleColor
+            .padding(horizontal = 8.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (selected) colors.secondaryContainer else Color.Transparent),
+        text = {
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = titleColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = descriptionColor
                 )
             }
-        }
-        Column(Modifier.padding(start = 12.dp)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelLarge,
-                color = titleColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodySmall,
-                color = descriptionColor,
-                minLines = 2,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
+        },
+        leadingIcon = {
+            Box(
+                modifier = Modifier.size(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                if (selected) {
+                    Icon(
+                        imageVector = Icons.Outlined.Check,
+                        contentDescription = stringResource(R.string.thinking_effort_selected),
+                        tint = titleColor
+                    )
+                }
+            }
+        },
+        contentPadding = MenuDefaults.DropdownMenuItemContentPadding,
+        onClick = onClick
+    )
 }
 
 @Composable
