@@ -1,22 +1,27 @@
 package dev.chungjungsoo.gptmobile.presentation.ui.chat
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -27,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
@@ -133,44 +139,53 @@ private fun EffortMenuItem(
     val colors = MaterialTheme.colorScheme
     val titleColor = if (selected) colors.onSecondaryContainer else colors.onSurface
     val descriptionColor = if (selected) colors.onSecondaryContainer else colors.onSurfaceVariant
-    DropdownMenuItem(
+    val shape = RoundedCornerShape(12.dp)
+    Row(
         modifier = Modifier
-            .padding(horizontal = 8.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (selected) colors.secondaryContainer else Color.Transparent),
-        text = {
-            Column {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = titleColor,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = descriptionColor
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 2.dp)
+            .clip(shape)
+            .background(if (selected) colors.secondaryContainer else Color.Transparent)
+            .selectable(
+                selected = selected,
+                onClick = onClick,
+                role = Role.RadioButton,
+                interactionSource = remember { MutableInteractionSource() },
+                indication = ripple()
+            )
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier.size(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            if (selected) {
+                Icon(
+                    imageVector = Icons.Outlined.Check,
+                    contentDescription = stringResource(R.string.thinking_effort_selected),
+                    tint = titleColor
                 )
             }
-        },
-        leadingIcon = {
-            Box(
-                modifier = Modifier.size(24.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                if (selected) {
-                    Icon(
-                        imageVector = Icons.Outlined.Check,
-                        contentDescription = stringResource(R.string.thinking_effort_selected),
-                        tint = titleColor
-                    )
-                }
-            }
-        },
-        contentPadding = MenuDefaults.DropdownMenuItemContentPadding,
-        onClick = onClick
-    )
+        }
+        Column(
+            modifier = Modifier.padding(start = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelLarge,
+                color = titleColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = descriptionColor
+            )
+        }
+    }
 }
 
 @Composable
