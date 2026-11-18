@@ -257,6 +257,23 @@ class AgentPersistenceDaoInstrumentedTest {
     }
 
     @Test
+    fun saveChatSnapshot_keepsANewerThinkingEffort() = runBlocking {
+        val persisted = persistTurn(newChat(), "Question", "run-effort", 100L)
+        database.chatRoomDao().updateThinkingEffort(persisted.chatRoom.id, "high")
+
+        database.agentPersistenceDao().saveChatSnapshot(
+            chatRoom = persisted.chatRoom.copy(title = "Renamed", updatedAt = 500L, thinkingEffort = "low"),
+            messages = listOf(persisted.userMessage, persisted.assistantMessages.single()),
+            chatPlatformModels = mapOf("profile-1" to "gpt-5")
+        )
+
+        val stored = database.agentPersistenceDao().getChatRoom(persisted.chatRoom.id)
+        assertEquals("Renamed", stored?.title)
+        assertEquals(500L, stored?.updatedAt)
+        assertEquals("high", stored?.thinkingEffort)
+    }
+
+    @Test
     fun duplicateChatWithHistory_regeneratesMessageRunAndEventIds() = runBlocking {
         val persisted = database.agentPersistenceDao().persistAgentTurn(
             PersistAgentTurnRequest(

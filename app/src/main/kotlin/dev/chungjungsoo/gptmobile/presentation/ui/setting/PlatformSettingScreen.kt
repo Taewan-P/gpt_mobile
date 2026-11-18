@@ -80,8 +80,18 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.chungjungsoo.gptmobile.R
+import dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalAccelerators
 import dev.chungjungsoo.gptmobile.data.model.ClientType
+import dev.chungjungsoo.gptmobile.data.model.ThinkingEffort
+import dev.chungjungsoo.gptmobile.data.model.automaticOfferedThinkingEfforts
+import dev.chungjungsoo.gptmobile.data.model.nearestThinkingEffort
+import dev.chungjungsoo.gptmobile.data.model.offeredThinkingEfforts
+import dev.chungjungsoo.gptmobile.data.model.parseSupportedEffortOverride
+import dev.chungjungsoo.gptmobile.data.model.platformThinkingEffortEditable
+import dev.chungjungsoo.gptmobile.data.model.requestThinkingEffort
+import dev.chungjungsoo.gptmobile.data.model.supportsAnthropicThinkingAdjustment
+import dev.chungjungsoo.gptmobile.data.model.thinkingEffortSuppressed
 import dev.chungjungsoo.gptmobile.presentation.common.EmptyErrorState
 import dev.chungjungsoo.gptmobile.presentation.common.RadioItem
 import dev.chungjungsoo.gptmobile.presentation.common.SettingItem
@@ -225,7 +235,7 @@ fun PlatformSettingScreen(
                     verticalArrangement = Arrangement.spacedBy(24.dp)
                 ) {
                     val isLocalPlatform = platformData.compatibleType == ClientType.LITERT_LM
-                    val isReasoningDisabled = platformData.compatibleType == ClientType.OPENAI && platformData.reasoning
+                    val isReasoningDisabled = samplingLockedByReasoning(platformData)
                     val notSetText = stringResource(R.string.not_set)
                     var isAdvancedExpanded by rememberSaveable(platformData.uid) { mutableStateOf(false) }
 
@@ -313,6 +323,31 @@ fun PlatformSettingScreen(
                                 enabled = platformData.enabled,
                                 isChecked = platformData.reasoning,
                                 onCheckedChange = { settingViewModel.toggleReasoning() }
+                            )
+                            val effortEditable = platformData.enabled && platformThinkingEffortEditable(platformData)
+                            SettingItem(
+                                modifier = Modifier.heightIn(min = 64.dp),
+                                title = stringResource(R.string.thinking_effort),
+                                description = thinkingEffortSettingDescription(platformData),
+                                enabled = effortEditable,
+                                onItemClick = settingViewModel::openThinkingEffortDialog,
+                                showTrailingIcon = true,
+                                showLeadingIcon = true,
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Speed,
+                                        contentDescription = null
+                                    )
+                                }
+                            )
+                            SettingItem(
+                                modifier = Modifier.heightIn(min = 64.dp),
+                                title = stringResource(R.string.thinking_effort_supported_levels),
+                                description = supportedEffortLevelsDescription(platformData),
+                                enabled = platformData.enabled,
+                                onItemClick = settingViewModel::openSupportedEffortLevelsDialog,
+                                showTrailingIcon = true,
+                                showLeadingIcon = false
                             )
                         }
                         SettingItem(
@@ -546,6 +581,18 @@ fun PlatformSettingScreen(
                         AcceleratorDialog(dialogState, platformData.accelerator, acceleratorOptions, settingViewModel)
                     }
                     TemperatureDialog(dialogState, platformData.temperature, settingViewModel)
+                    if (!isLocalPlatform) {
+                        ThinkingEffortDialog(
+                            dialogState = dialogState,
+                            platform = platformData,
+                            settingViewModel = settingViewModel
+                        )
+                        SupportedEffortLevelsDialog(
+                            dialogState = dialogState,
+                            platform = platformData,
+                            settingViewModel = settingViewModel
+                        )
+                    }
                     TopPDialog(dialogState, platformData.topP, settingViewModel)
                     SystemPromptDialog(dialogState, platformData.systemPrompt ?: "", settingViewModel)
                     GeminiSafetySettingsDialog(dialogState, platformData, settingViewModel)
@@ -788,6 +835,56 @@ private fun acceleratorLabel(accelerator: String?): String = when (accelerator?.
     LocalAccelerators.CPU -> stringResource(R.string.accelerator_cpu)
     LocalAccelerators.NPU -> stringResource(R.string.accelerator_npu)
     else -> stringResource(R.string.not_set)
+}
+
+private fun samplingLockedByReasoning(platform: PlatformV2): Boolean = when (platform.compatibleType) {
+    ClientType.OPENAI -> requestThinkingEffort(platform) != null
+    ClientType.ANTHROPIC ->
+        platform.reasoning && supportsAnthropicThinkingAdjustment(platform.model)
+
+    else -> false
+}
+
+@Composable
+private fun thinkingEffortSettingDescription(platform: PlatformV2): String {
+    if (!platform.reasoning) return stringResource(R.string.thinking_effort_requires_extended_thinking)
+    if (thinkingEffortSuppressed(platform)) return stringResource(R.string.thinking_effort_rejected_description)
+    val offered = offeredThinkingEfforts(platform)
+    if (offered.isEmpty()) return stringResource(R.string.thinking_effort_unavailable_description)
+    val stored = ThinkingEffort.fromStorage(platform.thinkingEffort)
+    val effective = nearestThinkingEffort(stored, offered)
+    val effectiveLabel = thinkingEffortLabel(effective)
+    if (effective == stored) return effectiveLabel
+    return stringResource(R.string.thinking_effort_adjusted_description, effectiveLabel, thinkingEffortLabel(stored))
+}
+
+@Composable
+private fun supportedEffortLevelsDescription(platform: PlatformV2): String {
+    val override = parseSupportedEffortOverride(platform.supportedEffortLevels)
+    val levels = override ?: automaticOfferedThinkingEfforts(platform.compatibleType, platform.model)
+    val names = thinkingEffortNames(levels)
+    if (override == null) {
+        return stringResource(R.string.thinking_effort_supported_levels_automatic_value, names)
+    }
+    return names
+}
+
+@Composable
+internal fun thinkingEffortNames(levels: List<ThinkingEffort>): String {
+    val labels = ArrayList<String>(levels.size)
+    for (effort in levels) {
+        labels += thinkingEffortLabel(effort)
+    }
+    return labels.joinToString()
+}
+
+@Composable
+internal fun thinkingEffortLabel(effort: ThinkingEffort): String = when (effort) {
+    ThinkingEffort.MINIMAL -> stringResource(R.string.thinking_effort_minimal)
+    ThinkingEffort.LOW -> stringResource(R.string.thinking_effort_low)
+    ThinkingEffort.MEDIUM -> stringResource(R.string.thinking_effort_medium)
+    ThinkingEffort.HIGH -> stringResource(R.string.thinking_effort_high)
+    ThinkingEffort.MAX -> stringResource(R.string.thinking_effort_max)
 }
 
 @Composable

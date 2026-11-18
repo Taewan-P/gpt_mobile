@@ -45,6 +45,7 @@ interface ChatRepository {
     suspend fun migrateToChatRoomV2MessageV2()
     fun generateDefaultChatTitle(messages: List<MessageV2>): String?
     suspend fun updateChatTitle(chatRoom: ChatRoomV2, title: String)
+    suspend fun updateChatThinkingEffort(chatId: Int, thinkingEffort: String?)
     suspend fun saveChat(chatRoom: ChatRoomV2, messages: List<MessageV2>, chatPlatformModels: Map<String, String>): ChatRoomV2
     suspend fun duplicateChatV2(chatRoom: ChatRoomV2): ChatRoomV2
     suspend fun deleteChats(chatRooms: List<ChatRoom>)

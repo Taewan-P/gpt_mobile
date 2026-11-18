@@ -21,6 +21,7 @@ import dev.chungjungsoo.gptmobile.data.localruntime.localSamplingDefaults
 import dev.chungjungsoo.gptmobile.data.localruntime.resolvedEngineMaxTokens
 import dev.chungjungsoo.gptmobile.data.model.ClientType
 import dev.chungjungsoo.gptmobile.data.model.GeminiSafetySettings
+import dev.chungjungsoo.gptmobile.data.model.ThinkingEffort
 import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
 import dev.chungjungsoo.gptmobile.data.repository.ModelCatalogRepository
 import dev.chungjungsoo.gptmobile.data.repository.SettingRepository
@@ -197,6 +198,38 @@ class PlatformSettingViewModel @Inject constructor(
     fun toggleReasoning() {
         _platformState.value?.let { platform ->
             updatePlatform(platform.copy(reasoning = !platform.reasoning))
+        }
+    }
+
+    fun openThinkingEffortDialog() = _dialogState.update { it.copy(isThinkingEffortDialogOpen = true) }
+    fun closeThinkingEffortDialog() = _dialogState.update { it.copy(isThinkingEffortDialogOpen = false) }
+
+    fun updateThinkingEffort(storageValue: String) {
+        val effort = ThinkingEffort.fromStorageOrNull(storageValue) ?: return
+        _platformState.value?.let { platform ->
+            updatePlatform(platform.copy(thinkingEffort = effort.storageValue))
+            closeThinkingEffortDialog()
+        }
+    }
+
+    fun openSupportedEffortLevelsDialog() = _dialogState.update { it.copy(isSupportedEffortLevelsDialogOpen = true) }
+    fun closeSupportedEffortLevelsDialog() = _dialogState.update { it.copy(isSupportedEffortLevelsDialogOpen = false) }
+
+    fun updateSupportedEffortLevels(levels: List<ThinkingEffort>?) {
+        _platformState.value?.let { platform ->
+            val stored = levels?.joinToString(",") { effort -> effort.storageValue }
+            updatePlatform(platform.copy(supportedEffortLevels = stored))
+            closeSupportedEffortLevelsDialog()
+        }
+    }
+
+    fun clearEffortRejectionForCurrentModel() {
+        _platformState.value?.let { platform ->
+            updatePlatform(
+                platform.copy(
+                    effortUnsupportedModels = platform.effortUnsupportedModels.filter { model -> model != platform.model }
+                )
+            )
         }
     }
 
@@ -541,6 +574,8 @@ class PlatformSettingViewModel @Inject constructor(
         val isSystemPromptDialogOpen: Boolean = false,
         val isTimeoutDialogOpen: Boolean = false,
         val isGeminiSafetyDialogOpen: Boolean = false,
+        val isThinkingEffortDialogOpen: Boolean = false,
+        val isSupportedEffortLevelsDialogOpen: Boolean = false,
         val isDeleteDialogOpen: Boolean = false
     )
 

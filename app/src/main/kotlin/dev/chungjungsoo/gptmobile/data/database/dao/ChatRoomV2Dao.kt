@@ -22,6 +22,9 @@ interface ChatRoomV2Dao {
     @Update
     suspend fun editChatRoom(chatRoom: ChatRoomV2)
 
+    @Query("UPDATE chats_v2 SET thinking_effort = :thinkingEffort WHERE chat_id = :chatId")
+    suspend fun updateThinkingEffort(chatId: Int, thinkingEffort: String?)
+
     @Delete
     suspend fun deleteChatRooms(vararg chatRooms: ChatRoomV2)
 }

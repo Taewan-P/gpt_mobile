@@ -111,6 +111,8 @@ import dev.chungjungsoo.gptmobile.data.database.entity.effectiveContent
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveRunId
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveThoughts
 import dev.chungjungsoo.gptmobile.data.database.entity.effectiveTimeline
+import dev.chungjungsoo.gptmobile.data.model.ThinkingEffortControlState
+import dev.chungjungsoo.gptmobile.data.model.thinkingEffortControlState
 import dev.chungjungsoo.gptmobile.util.isAssistantErrorMessage
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -334,11 +336,22 @@ fun ChatScreen(
                 }
             }
 
+            val effortPlatforms = chatViewModel.enabledPlatformsInChat.mapNotNull { uid ->
+                appAllPlatforms.find { it.uid == uid }?.let { platform ->
+                    resolvePlatformModel(platform, chatPlatformModels)
+                }
+            }
             ChatInputBox(
                 inputState = chatViewModel.question,
                 chatEnabled = canUseChat,
                 sendButtonEnabled = isIdle,
                 isRunning = !isIdle,
+                thinkingEffortState = if (chatRoom.id < 0) {
+                    null
+                } else {
+                    thinkingEffortControlState(effortPlatforms, chatRoom.thinkingEffort)
+                },
+                onThinkingEffortSelected = chatViewModel::updateThinkingEffort,
                 selectedAttachments = selectedAttachments,
                 onFileSelected = { filePath -> chatViewModel.addSelectedFile(filePath) },
                 onFileRemoved = { filePath -> chatViewModel.removeSelectedFile(filePath) },
@@ -832,6 +845,8 @@ fun ChatInputBox(
     chatEnabled: Boolean = true,
     sendButtonEnabled: Boolean = true,
     isRunning: Boolean = false,
+    thinkingEffortState: ThinkingEffortControlState? = null,
+    onThinkingEffortSelected: (String?) -> Unit = {},
     selectedAttachments: List<ChatAttachmentDraft> = emptyList(),
     onFileSelected: (String) -> Unit = {},
     onFileRemoved: (String) -> Unit = {},
@@ -867,6 +882,12 @@ fun ChatInputBox(
         shadowElevation = 2.dp
     ) {
         Column {
+            thinkingEffortState?.let { state ->
+                ThinkingEffortControl(
+                    state = state,
+                    onSelect = onThinkingEffortSelected
+                )
+            }
             if (selectedAttachments.isNotEmpty()) {
                 FileThumbnailRow(
                     selectedAttachments = selectedAttachments,

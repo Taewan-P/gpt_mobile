@@ -40,6 +40,8 @@ import dev.chungjungsoo.gptmobile.data.database.entity.resetActiveRevision
 import dev.chungjungsoo.gptmobile.data.database.entity.selectRevision
 import dev.chungjungsoo.gptmobile.data.database.entity.snapshotLatestAssistantRevision
 import dev.chungjungsoo.gptmobile.data.localmodel.LocalModelStatus
+import dev.chungjungsoo.gptmobile.data.model.ThinkingEffort
+import dev.chungjungsoo.gptmobile.data.model.applyChatThinkingEffort
 import dev.chungjungsoo.gptmobile.data.repository.AttachmentUploadCoordinator
 import dev.chungjungsoo.gptmobile.data.repository.ChatRepository
 import dev.chungjungsoo.gptmobile.data.repository.LocalModelRepository
@@ -461,6 +463,17 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun updateThinkingEffort(storageValue: String?) {
+        val normalized = ThinkingEffort.fromStorageOrNull(storageValue)?.storageValue
+        _chatRoom.update { room -> room.copy(thinkingEffort = normalized) }
+        val chatId = _chatRoom.value.id
+        if (chatId > 0) {
+            viewModelScope.launch {
+                chatRepository.updateChatThinkingEffort(chatId, normalized)
+            }
+        }
+    }
+
     fun updateChatTitle(title: String) {
         // Should be only used for changing chat title after the chatroom is created.
         if (_chatRoom.value.id > 0) {
@@ -715,6 +728,7 @@ class ChatViewModel @Inject constructor(
         val turnIndex = _groupedMessages.value.assistantMessages.lastIndex
 
         viewModelScope.launch {
+            _platformsInApp.update { settingRepository.fetchPlatformV2s() }
             val platforms = resolveSelectedPlatforms(enabledPlatformsInChat, _platformsInApp.value)
                 .map { IndexedValue(it.index, resolvePlatformModel(it.value)) }
             val unavailableIndexes = enabledPlatformsInChat.indices - platforms.mapTo(mutableSetOf()) { it.index }
@@ -769,7 +783,14 @@ class ChatViewModel @Inject constructor(
                     )
                 },
                 startProvider = { persisted ->
-                    _chatRoom.update { persisted.chatRoom }
+                    val selectedEffort = _chatRoom.value.thinkingEffort
+                    val savedRoom = persisted.chatRoom
+                    _chatRoom.update { savedRoom.copy(thinkingEffort = selectedEffort) }
+                    if (selectedEffort != savedRoom.thinkingEffort && savedRoom.id > 0) {
+                        viewModelScope.launch {
+                            chatRepository.updateChatThinkingEffort(savedRoom.id, selectedEffort)
+                        }
+                    }
                     _groupedMessages.update { groupedMessages ->
                         groupedMessages.copy(
                             userMessages = groupedMessages.userMessages.toMutableList().apply {
@@ -1283,7 +1304,10 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    private fun resolvePlatformModel(platform: PlatformV2): PlatformV2 = resolvePlatformModel(platform, _chatPlatformModels.value)
+    private fun resolvePlatformModel(platform: PlatformV2): PlatformV2 = applyChatThinkingEffort(
+        platform = resolvePlatformModel(platform, _chatPlatformModels.value),
+        chatThinkingEffort = _chatRoom.value.thinkingEffort
+    )
 
     private fun persistCurrentChatSnapshot() {
         viewModelScope.launch {

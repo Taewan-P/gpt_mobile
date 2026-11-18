@@ -65,6 +65,8 @@ import dev.chungjungsoo.gptmobile.data.dto.ApiState
 import dev.chungjungsoo.gptmobile.data.localruntime.LocalRuntime
 import dev.chungjungsoo.gptmobile.data.model.ApiType
 import dev.chungjungsoo.gptmobile.data.model.ClientType
+import dev.chungjungsoo.gptmobile.data.model.requestThinkingEffort
+import dev.chungjungsoo.gptmobile.data.model.thinkingEffortParameterRejected
 import dev.chungjungsoo.gptmobile.data.network.AnthropicAPI
 import dev.chungjungsoo.gptmobile.data.network.GoogleAPI
 import dev.chungjungsoo.gptmobile.data.network.GroqAPI
@@ -260,6 +262,9 @@ class ChatRepositoryImpl @Inject constructor(
             var didCompactDuringRun = false
             var compactedProgressLength = 0
             var runCompleted = false
+            var producedProviderOutput = false
+            var retryWithoutEffort = false
+            var requestPlatform = platform
             val runner = AgentRunner(
                 afterCompleteExchange = { exchanges ->
                     // The callback follows exactly one completed exchange. Keep the durable source
@@ -270,7 +275,8 @@ class ChatRepositoryImpl @Inject constructor(
                         exchanges.sumOf { exchange -> exchange.calls.sumOf { TokenEstimator.estimateText(it.arguments.toString()) + 16 } }
                     val nextEstimate = activePrepared.tokenBudget.estimatedInputTokens + exchangeTokens +
                         TokenEstimator.estimateText(assistantProgress.substring(compactedProgressLength))
-                    val needsCompaction = nextEstimate + usageAdjustment.coerceAtLeast(0) + outputReserve >= activePrepared.tokenBudget.contextLimit
+                    val reserve = outputReserveTokens(requestPlatform, resolvedTools.isNotEmpty())
+                    val needsCompaction = nextEstimate + usageAdjustment.coerceAtLeast(0) + reserve >= activePrepared.tokenBudget.contextLimit
                     if (!needsCompaction) {
                         lastRequestEstimate = nextEstimate
                         exchanges
@@ -295,7 +301,7 @@ class ChatRepositoryImpl @Inject constructor(
                                 chatId = 0,
                                 userMessages = userMessages,
                                 assistantMessages = progressMessages,
-                                platform = platform,
+                                platform = requestPlatform,
                                 toolEvidence = toolEvidence + completedExchanges.toToolEvidence(runId),
                                 toolDefinitionTokens = toolDefinitionTokens,
                                 toolDefinitionNames = resolvedTools.map { it.tool.definition.name },
@@ -309,7 +315,7 @@ class ChatRepositoryImpl @Inject constructor(
                                 activePrepared = mid.prepared
                                 mutableSession.inner = openPreparedSession(
                                     activePrepared.turns,
-                                    platform,
+                                    requestPlatform,
                                     resolvedTools.map { it.tool },
                                     activePrepared,
                                     onUnconfirmedCancellation
@@ -336,9 +342,13 @@ class ChatRepositoryImpl @Inject constructor(
             runner.run(mutableSession, runnerTools).collect { runEvent ->
                 when (runEvent) {
                     is AgentRunEvent.Provider -> when (val providerEvent = runEvent.event) {
-                        is ProviderEvent.ThinkingDelta -> emit(ApiState.Thinking(providerEvent.text))
+                        is ProviderEvent.ThinkingDelta -> {
+                            producedProviderOutput = true
+                            emit(ApiState.Thinking(providerEvent.text))
+                        }
 
                         is ProviderEvent.TextDelta -> {
+                            producedProviderOutput = true
                             assistantProgress.append(providerEvent.text)
                             emit(ApiState.Success(providerEvent.text))
                         }
@@ -348,11 +358,23 @@ class ChatRepositoryImpl @Inject constructor(
                             usageAdjustment = providerEvent.inputTokens - lastRequestEstimate + providerEvent.outputTokens
                         }
 
-                        is ProviderEvent.Failed -> emit(ApiState.Error(providerEvent.message))
+                        is ProviderEvent.Failed -> {
+                            val canRetry = !producedProviderOutput &&
+                                completedExchanges.isEmpty() &&
+                                !retryWithoutEffort &&
+                                requestThinkingEffort(platform) != null &&
+                                thinkingEffortParameterRejected(providerEvent.message)
+                            if (canRetry) {
+                                retryWithoutEffort = true
+                            } else {
+                                emit(ApiState.Error(providerEvent.message))
+                            }
+                        }
 
                         is ProviderEvent.Notice -> emit(ApiState.Notice(providerEvent.message, providerEvent.persistent))
 
                         is ProviderEvent.ToolCall -> {
+                            producedProviderOutput = true
                             val toolEvent = trace.start(providerEvent)
                             emit(ApiState.ToolCall(toolEvent.sequence))
                         }
@@ -367,6 +389,59 @@ class ChatRepositoryImpl @Inject constructor(
                     is AgentRunEvent.ToolFinished -> trace.finish(runEvent.call, runEvent.result)
 
                     is AgentRunEvent.Notice -> emit(ApiState.Notice(runEvent.message, runEvent.persistent))
+                }
+            }
+            if (retryWithoutEffort) {
+                rememberEffortUnsupported(platform)
+                emit(
+                    ApiState.Notice(
+                        contextString(
+                            R.string.thinking_effort_rejected_notice,
+                            "This model rejected the thinking effort setting. Retrying without it."
+                        ),
+                        persistent = true
+                    )
+                )
+                requestPlatform = platform.copy().also { retryPlatform -> retryPlatform.omitThinkingEffort = true }
+                mutableSession.inner = openPreparedSession(
+                    prepared.turns,
+                    requestPlatform,
+                    resolvedTools.map { it.tool },
+                    prepared,
+                    onUnconfirmedCancellation
+                )
+                runner.run(mutableSession, runnerTools).collect { runEvent ->
+                    when (runEvent) {
+                        is AgentRunEvent.Provider -> when (val providerEvent = runEvent.event) {
+                            is ProviderEvent.ThinkingDelta -> emit(ApiState.Thinking(providerEvent.text))
+
+                            is ProviderEvent.TextDelta -> {
+                                assistantProgress.append(providerEvent.text)
+                                emit(ApiState.Success(providerEvent.text))
+                            }
+
+                            is ProviderEvent.Usage -> latestUsage = providerEvent
+
+                            is ProviderEvent.Failed -> emit(ApiState.Error(providerEvent.message))
+
+                            is ProviderEvent.Notice -> emit(ApiState.Notice(providerEvent.message, providerEvent.persistent))
+
+                            is ProviderEvent.ToolCall -> {
+                                val toolEvent = trace.start(providerEvent)
+                                emit(ApiState.ToolCall(toolEvent.sequence))
+                            }
+
+                            is ProviderEvent.ToolResult -> Unit
+
+                            ProviderEvent.Completed -> runCompleted = true
+                        }
+
+                        is AgentRunEvent.ToolStarted -> Unit
+
+                        is AgentRunEvent.ToolFinished -> trace.finish(runEvent.call, runEvent.result)
+
+                        is AgentRunEvent.Notice -> emit(ApiState.Notice(runEvent.message, runEvent.persistent))
+                    }
                 }
             }
             val usage = latestUsage
@@ -587,6 +662,11 @@ class ChatRepositoryImpl @Inject constructor(
         chatRoomV2Dao.editChatRoom(chatRoom.copy(title = title.replace('\n', ' ').take(50)))
     }
 
+    override suspend fun updateChatThinkingEffort(chatId: Int, thinkingEffort: String?) {
+        if (chatId <= 0) return
+        chatRoomV2Dao.updateThinkingEffort(chatId, thinkingEffort)
+    }
+
     override suspend fun saveChat(chatRoom: ChatRoomV2, messages: List<MessageV2>, chatPlatformModels: Map<String, String>): ChatRoomV2 {
         if (chatRoom.id == 0) {
             // New Chat
@@ -792,6 +872,17 @@ class ChatRepositoryImpl @Inject constructor(
         is CompactionOutcome.InputTooLarge -> CompactionResult(CompactionStatus.INPUT_TOO_LARGE, message)
     }
     private fun contextString(resId: Int, fallback: String): String = runCatching { context.getString(resId) }.getOrDefault(fallback)
+
+    private suspend fun rememberEffortUnsupported(platform: dev.chungjungsoo.gptmobile.data.database.entity.PlatformV2) {
+        val current = runCatching { settingRepository.fetchPlatformV2s() }
+            .getOrNull()
+            ?.firstOrNull { saved -> saved.uid == platform.uid }
+            ?: return
+        if (platform.model in current.effortUnsupportedModels) return
+        settingRepository.updatePlatformV2(
+            current.copy(effortUnsupportedModels = (current.effortUnsupportedModels + platform.model).distinct())
+        )
+    }
 }
 
 private fun List<ConversationTurn>.useCompatibleVision(platform: PlatformV2): Boolean {

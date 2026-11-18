@@ -28,7 +28,14 @@ data class ChatRoomV2(
     val createdAt: Long = System.currentTimeMillis() / 1000,
 
     @ColumnInfo(name = "updated_at")
-    val updatedAt: Long = System.currentTimeMillis() / 1000
+    val updatedAt: Long = System.currentTimeMillis() / 1000,
+
+    /**
+     * Null keeps each enabled profile's base thinking effort.
+     * A stored value overrides every profile in this chat.
+     */
+    @ColumnInfo(name = "thinking_effort")
+    val thinkingEffort: String? = null
 ) : Parcelable
 
 class StringListConverter {
