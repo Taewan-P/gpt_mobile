@@ -244,7 +244,7 @@ class OpenAICompatibleAdapter @Inject constructor(
                         chunk.choices.orEmpty().forEach { choice ->
                             assembler.accept(
                                 content = choice.delta.content,
-                                reasoning = choice.delta.reasoning,
+                                reasoning = choice.delta.reasoning ?: choice.delta.reasoningContent,
                                 toolCalls = choice.delta.toolCalls,
                                 finishReason = choice.finishReason
                             ).forEach { emit(it) }
